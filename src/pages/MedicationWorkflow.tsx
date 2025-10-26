@@ -1113,7 +1113,7 @@ const MedicationWorkflow: React.FC = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
              {/* 日期控制 */}
-              <div>
+              <div className="lg:max-w-sm xl:max-w-full">
                 <label className="form-label">
                   <Calendar className="h-4 w-4 inline mr-1" />
                   選擇日期
