@@ -125,8 +125,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
       <div className={`hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 transition-all duration-300 ${
         sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'
       }`}>
-        <div className="flex flex-col flex-1 bg-white border-r border-gray-200">
-          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
+        <div className="flex flex-col h-full bg-white border-r border-gray-200">
+          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 flex-shrink-0">
             {!sidebarCollapsed && (
               <div className="flex items-center space-x-2">
                 <Stethoscope className="h-8 w-8 text-blue-600" />
@@ -141,27 +141,29 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
               {sidebarCollapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
             </button>
           </div>
-          <nav className="flex-1 px-2 py-4 space-y-1 mobile-nav-scroll" style={{ overflowY: 'scroll' }}>
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive(item.href)
-                      ? 'bg-blue-50 text-blue-700'
-                     : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                  title={sidebarCollapsed ? item.name : undefined}
-                >
-                  <Icon className="h-5 w-5 flex-shrink-0" />
-                  {!sidebarCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
-                </Link>
-              );
-            })}
-            <div style={{ height: '200px' }}></div>
-          </nav>
+          <div className="px-2 mobile-nav-scroll" style={{ height: 'calc(100vh - 64px)', overflowY: 'scroll' }}>
+            <nav className="py-4 space-y-1">
+              {navigation.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive(item.href)
+                        ? 'bg-blue-50 text-blue-700'
+                       : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                    title={sidebarCollapsed ? item.name : undefined}
+                  >
+                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    {!sidebarCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div style={{ height: '300px' }}></div>
+          </div>
         </div>
       </div>
 
