@@ -136,8 +136,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
           className="fixed inset-0 bg-gray-600 bg-opacity-75"
           onClick={() => setSidebarOpen(false)}
         />
-        <div className="fixed inset-y-0 left-0 w-64 bg-white" style={{ display: 'grid', gridTemplateRows: '64px 1fr' }}>
-          <div className="flex items-center justify-between px-6 border-b border-gray-200">
+        <div className="fixed inset-y-0 left-0 w-64 bg-white flex flex-col">
+          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center space-x-2">
               <Stethoscope className="h-8 w-8 text-blue-600" />
               <span className="text-xl font-bold text-gray-900">StationC</span>
@@ -148,15 +148,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
           </div>
           <div
             ref={navRef}
-            className="overflow-y-auto px-4 py-6"
+            className="overflow-y-scroll px-4 py-6 flex-1"
             style={{
               WebkitOverflowScrolling: 'touch',
               overscrollBehavior: 'contain',
-              touchAction: 'pan-y',
-              height: '100%'
+              maxHeight: 'calc(100vh - 64px)',
+              minHeight: 0
             }}
           >
-            <div className="space-y-2 pb-20">
+            <div className="space-y-2">
               {navigation.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -176,6 +176,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
                 );
               })}
             </div>
+            <div style={{ height: '100px' }}></div>
           </div>
         </div>
       </div>
