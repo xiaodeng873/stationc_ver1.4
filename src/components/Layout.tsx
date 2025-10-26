@@ -57,7 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
       <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
-          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center space-x-2">
               <Stethoscope className="h-8 w-8 text-blue-600" />
               <span className="text-xl font-bold text-gray-900">StationC</span>
@@ -66,7 +66,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
               <X className="h-6 w-6" />
             </button>
           </div>
-          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
             {navigation.map((item) => {
               const Icon = item.icon;
               return (
