@@ -121,7 +121,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
           </div>
           <nav
             ref={navRef}
-            className="flex-1 px-4 py-6 space-y-2 overflow-y-auto"
+            className="flex-1 px-4 pt-6 pb-8 space-y-2 overflow-y-auto"
             style={{
               WebkitOverflowScrolling: 'touch',
               overscrollBehavior: 'contain',
@@ -146,6 +146,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
                 </Link>
               );
             })}
+            <div className="h-20"></div>
           </nav>
         </div>
       </div>
