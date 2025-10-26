@@ -1,3 +1,145 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* iPad 橫向模式專用樣式 - 縮小所有元件 */
+@media (min-width: 1024px) and (max-width: 1280px) {
+  /* Dashboard 任務卡片 */
+  .dashboard-task-card {
+    padding: 0.5rem;
+    column-gap: 0.5rem;
+  }
+
+  .dashboard-task-card .task-avatar {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .dashboard-task-card .task-avatar .lucide {
+    height: 1rem;
+    width: 1rem;
+  }
+
+  /* 監測任務卡片通用文字縮小 */
+  .dashboard-task-card .flex-1 > .flex.items-center > p.font-medium {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .dashboard-task-card .flex-1 > .flex.items-center > span.text-xs {
+    font-size: 10px;
+    line-height: 1rem;
+  }
+
+  .dashboard-task-card .flex-1 > .flex.items-center > p.text-sm {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .dashboard-task-card .flex-1 > p.text-xs {
+    font-size: 10px;
+    line-height: 1rem;
+    margin-top: 0.125rem;
+  }
+
+  .dashboard-task-card .status-badge {
+    font-size: 10px;
+    padding: 0.125rem 0.375rem;
+  }
+
+  .dashboard-task-card .task-note-badge {
+    font-size: 10px;
+    padding: 0.125rem 0.25rem;
+    top: 0.25rem;
+    right: 0.25rem;
+  }
+
+  /* 時段標題 */
+  .time-slot-title {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    margin-bottom: 0.25rem;
+  }
+
+  /* 卡片標題 */
+  .section-title {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  /* 統計卡片 */
+  .stats-card {
+    padding: 0.75rem;
+  }
+
+  .stats-card .stat-title {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .stats-card .stat-value {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+  }
+
+  .stats-card .stat-change {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .stats-card .stat-icon-wrapper {
+    padding: 0.5rem;
+  }
+
+  .stats-card .stat-icon-wrapper .lucide {
+    height: 1.25rem;
+    width: 1.25rem;
+  }
+
+  /* 待辦事項和近期覆診卡片 */
+  .card.lg\:p-4 {
+    padding: 1rem;
+  }
+
+  /* 待辦事項和近期覆診的內容項目 */
+  .card .space-y-3 > div {
+    padding: 0.5rem;
+    column-gap: 0.5rem;
+  }
+
+  .card .space-y-3 > div .w-10.h-10 {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .card .space-y-3 > div .w-10.h-10 .lucide {
+    height: 1rem;
+    width: 1rem;
+  }
+
+  .card .space-y-3 > div .flex-1 p.font-medium {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .card .space-y-3 > div .flex-1 span.text-xs,
+  .card .space-y-3 > div .flex-1 p.text-xs {
+    font-size: 10px;
+    line-height: 1rem;
+  }
+
+  .card .space-y-3 > div .flex-1 p.text-sm {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .card .space-y-3 > div .status-badge {
+    font-size: 10px;
+    padding: 0.125rem 0.375rem;
+  }
+
+  .card .space-y-3 > div .flex-1 .lucide {
+    height: 0.875rem;
+    width: 0.875rem;
+  }
+}

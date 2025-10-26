@@ -566,7 +566,7 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:space-y-4">
       <div className="flex items-center justify-between">
         <div className="text-sm text-gray-500">
           最後更新: {new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Hong_Kong' })}
@@ -574,18 +574,18 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 lg:gap-3">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <div key={index} className="card p-6 hover-scale">
+            <div key={index} className="card p-6 hover-scale stats-card">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-sm text-gray-500 mt-1">{stat.change}</p>
+                  <p className="text-sm text-gray-600 stat-title">{stat.title}</p>
+                  <p className="text-2xl font-bold text-gray-900 stat-value">{stat.value}</p>
+                  <p className="text-sm text-gray-500 mt-1 stat-change">{stat.change}</p>
                 </div>
-                <div className={`p-3 rounded-full ${stat.color} text-white`}>
+                <div className={`p-3 rounded-full ${stat.color} text-white stat-icon-wrapper`}>
                   <Icon className="h-6 w-6" />
                 </div>
               </div>
@@ -595,7 +595,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-3">
         {/* 任務配置注意事項 */}
         {(missingTasks.length > 0 || missingMealGuidance.length > 0) && (
           <div className="lg:col-span-4 mb-6">
@@ -737,7 +737,7 @@ const Dashboard: React.FC = () => {
                     return (
                       <div key={patient.院友id} className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
                             {patient.院友相片 ? (
                               <img
                                 src={patient.院友相片}
@@ -867,33 +867,33 @@ const Dashboard: React.FC = () => {
           </div>
         )}
         {/* 監測任務 */}
-        <div className="card p-6 lg:col-span-2">
+        <div className="card p-6 lg:p-4 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">監測任務</h2>
+            <h2 className="text-lg font-semibold text-gray-900 section-title">監測任務</h2>
             <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
               查看全部
             </Link>
           </div>
-          <div className="space-y-6">
+          <div className="space-y-6 lg:space-y-3">
             {breakfastTasks.length > 0 && (
               <div>
-                <h3 className="text-md font-medium text-gray-700 mb-2">早餐 (07:00 - 09:59)</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <h3 className="text-md font-medium text-gray-700 mb-2 time-slot-title">早餐 (07:00 - 09:59)</h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-2">
                   {breakfastTasks.map((task) => {
                     const patient = patients.find(p => p.院友id === task.patient_id);
                     const status = getTaskStatus(task);
                     return (
                       <div 
                         key={task.id} 
-                        className={`relative flex items-center space-x-3 p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors`}
+                        className={`relative flex items-center space-x-3 p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors dashboard-task-card`}
                         onClick={() => handleTaskClick(task)}
                       >
                         {task.notes && isMonitoringTask(task.health_record_type) && (
-                          <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${getNotesBadgeClass(task.notes)}`}>
+                          <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium task-note-badge ${getNotesBadgeClass(task.notes)}`}>
                             {task.notes}
                           </div>
                         )}
-                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
                           {patient?.院友相片 ? (
                             <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
                           ) : (
@@ -937,7 +937,7 @@ const Dashboard: React.FC = () => {
             )}
             {lunchTasks.length > 0 && (
               <div>
-                <h3 className="text-md font-medium text-gray-700 mb-2">午餐 (10:00 - 12:59)</h3>
+                <h3 className="text-md font-medium text-gray-700 mb-2 time-slot-title">午餐 (10:00 - 12:59)</h3>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {lunchTasks.map((task) => {
                     const patient = patients.find(p => p.院友id === task.patient_id);
@@ -945,15 +945,15 @@ const Dashboard: React.FC = () => {
                     return (
                       <div 
                         key={task.id} 
-                        className={`relative flex items-center space-x-3 p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors`}
+                        className={`relative flex items-center space-x-3 p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors dashboard-task-card`}
                         onClick={() => handleTaskClick(task)}
                       >
                         {task.notes && isMonitoringTask(task.health_record_type) && (
-                          <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${getNotesBadgeClass(task.notes)}`}>
+                          <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium task-note-badge ${getNotesBadgeClass(task.notes)}`}>
                             {task.notes}
                           </div>
                         )}
-                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
                           {patient?.院友相片 ? (
                             <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
                           ) : (
@@ -997,7 +997,7 @@ const Dashboard: React.FC = () => {
             )}
             {dinnerTasks.length > 0 && (
               <div>
-                <h3 className="text-md font-medium text-gray-700 mb-2">晚餐 (13:00 - 17:59)</h3>
+                <h3 className="text-md font-medium text-gray-700 mb-2 time-slot-title">晚餐 (13:00 - 17:59)</h3>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {dinnerTasks.map((task) => {
                     const patient = patients.find(p => p.院友id === task.patient_id);
@@ -1005,15 +1005,15 @@ const Dashboard: React.FC = () => {
                     return (
                       <div 
                         key={task.id} 
-                        className={`relative flex items-center space-x-3 p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors`}
+                        className={`relative flex items-center space-x-3 p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors dashboard-task-card`}
                         onClick={() => handleTaskClick(task)}
                       >
                         {task.notes && isMonitoringTask(task.health_record_type) && (
-                          <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${getNotesBadgeClass(task.notes)}`}>
+                          <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium task-note-badge ${getNotesBadgeClass(task.notes)}`}>
                             {task.notes}
                           </div>
                         )}
-                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
                           {patient?.院友相片 ? (
                             <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
                           ) : (
@@ -1057,7 +1057,7 @@ const Dashboard: React.FC = () => {
             )}
             {snackTasks.length > 0 && (
               <div>
-                <h3 className="text-md font-medium text-gray-700 mb-2">夜宵 (18:00 - 20:00)</h3>
+                <h3 className="text-md font-medium text-gray-700 mb-2 time-slot-title">夜宵 (18:00 - 20:00)</h3>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {snackTasks.map((task) => {
                     const patient = patients.find(p => p.院友id === task.patient_id);
@@ -1065,15 +1065,15 @@ const Dashboard: React.FC = () => {
                     return (
                       <div 
                         key={task.id} 
-                        className={`relative flex items-center space-x-3 p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors`}
+                        className={`relative flex items-center space-x-3 p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors dashboard-task-card`}
                         onClick={() => handleTaskClick(task)}
                       >
                         {task.notes && isMonitoringTask(task.health_record_type) && (
-                          <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${getNotesBadgeClass(task.notes)}`}>
+                          <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium task-note-badge ${getNotesBadgeClass(task.notes)}`}>
                             {task.notes}
                           </div>
                         )}
-                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
                           {patient?.院友相片 ? (
                             <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
                           ) : (
@@ -1125,9 +1125,9 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* 文件任務 */}
-        <div className="card p-6">
+        <div className="card p-6 lg:p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">待辦事項</h2>
+            <h2 className="text-lg font-semibold text-gray-900 section-title">待辦事項</h2>
             <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
               查看全部
             </Link>
@@ -1301,9 +1301,9 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* 近期覆診 */}
-        <div className="card p-6">
+        <div className="card p-6 lg:p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">近期覆診</h2>
+            <h2 className="text-lg font-semibold text-gray-900 section-title">近期覆診</h2>
             <Link to="/follow-up" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
               查看全部
             </Link>
@@ -1318,7 +1318,7 @@ const Dashboard: React.FC = () => {
                     className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
                     onClick={() => handleFollowUpClick(appointment)}
                   >
-                    <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
                       {patient?.院友相片 ? (
                         <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
                       ) : (
