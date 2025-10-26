@@ -525,7 +525,7 @@ const PrescriptionManagement: React.FC = () => {
       </div>
 
       {/* 院友選擇和導航 */}
-      <div className="sticky top-40 bg-white z-20 shadow-sm">
+      <div className="bg-white shadow-sm">
         <div className="card p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
