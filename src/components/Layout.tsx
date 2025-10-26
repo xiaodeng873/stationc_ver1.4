@@ -90,9 +90,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
             </div>
             <div
               ref={navRef}
-              className="flex-1 overflow-y-auto px-4"
+              className="flex-1 px-4 mobile-nav-scroll"
               style={{
-                WebkitOverflowScrolling: 'touch'
+                height: 'calc(100vh - 64px)'
               }}
             >
               <div className="py-4 space-y-2">
@@ -115,7 +115,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
                   );
                 })}
               </div>
-              <div style={{ height: '150px' }}></div>
+              <div style={{ height: '200px' }}></div>
             </div>
           </div>
         </div>
