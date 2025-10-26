@@ -19,16 +19,42 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
 
-  // 阻止背景滾動的強力方法
+  // 阻止背景滾動，允許導航區滾動
   useEffect(() => {
     const preventScroll = (e: TouchEvent) => {
-      // 檢查觸控是否在導航區域內
-      if (navRef.current && navRef.current.contains(e.target as Node)) {
-        // 在導航區內，允許滾動
+      const target = e.target as Node;
+
+      // 檢查是否在導航滾動區域內
+      if (navRef.current && navRef.current.contains(target)) {
+        const navElement = navRef.current;
+        const { scrollTop, scrollHeight, clientHeight } = navElement;
+
+        // 計算滾動方向
+        const touchY = e.touches[0].clientY;
+        const deltaY = touchY - (navElement as any).lastTouchY;
+        (navElement as any).lastTouchY = touchY;
+
+        // 在頂部且向下滾動，或在底部且向上滾動時，允許滾動
+        const isAtTop = scrollTop === 0;
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+
+        if ((isAtTop && deltaY > 0) || (isAtBottom && deltaY < 0)) {
+          // 在邊界處，也允許滾動（不阻止橡皮筋效果）
+          return;
+        }
+
+        // 在可滾動範圍內，允許滾動
         return;
       }
-      // 在導航區外，阻止滾動
+
+      // 不在導航區域，阻止滾動
       e.preventDefault();
+    };
+
+    const preventTouchStart = (e: TouchEvent) => {
+      if (navRef.current && navRef.current.contains(e.target as Node)) {
+        (navRef.current as any).lastTouchY = e.touches[0].clientY;
+      }
     };
 
     if (sidebarOpen) {
@@ -39,7 +65,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
       document.body.style.width = '100%';
       document.body.style.overflow = 'hidden';
 
-      // 添加觸控事件監聽器，{ passive: false } 確保可以 preventDefault
+      // 監聽觸控事件
+      document.addEventListener('touchstart', preventTouchStart, { passive: true });
       document.addEventListener('touchmove', preventScroll, { passive: false });
     } else {
       // 恢復 body
@@ -50,10 +77,12 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
       document.body.style.overflow = '';
       window.scrollTo(0, parseInt(scrollY || '0') * -1);
 
+      document.removeEventListener('touchstart', preventTouchStart);
       document.removeEventListener('touchmove', preventScroll);
     }
 
     return () => {
+      document.removeEventListener('touchstart', preventTouchStart);
       document.removeEventListener('touchmove', preventScroll);
       document.body.style.position = '';
       document.body.style.top = '';
