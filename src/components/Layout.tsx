@@ -19,74 +19,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
 
-  // 阻止背景滾動，允許導航區滾動
+  // 簡單鎖定背景，完全依賴原生滾動
   useEffect(() => {
-    const preventScroll = (e: TouchEvent) => {
-      const target = e.target as Node;
-
-      // 檢查是否在導航滾動區域內
-      if (navRef.current && navRef.current.contains(target)) {
-        const navElement = navRef.current;
-        const { scrollTop, scrollHeight, clientHeight } = navElement;
-
-        // 計算滾動方向
-        const touchY = e.touches[0].clientY;
-        const deltaY = touchY - (navElement as any).lastTouchY;
-        (navElement as any).lastTouchY = touchY;
-
-        // 在頂部且向下滾動，或在底部且向上滾動時，允許滾動
-        const isAtTop = scrollTop === 0;
-        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
-
-        if ((isAtTop && deltaY > 0) || (isAtBottom && deltaY < 0)) {
-          // 在邊界處，也允許滾動（不阻止橡皮筋效果）
-          return;
-        }
-
-        // 在可滾動範圍內，允許滾動
-        return;
-      }
-
-      // 不在導航區域，阻止滾動
-      e.preventDefault();
-    };
-
-    const preventTouchStart = (e: TouchEvent) => {
-      if (navRef.current && navRef.current.contains(e.target as Node)) {
-        (navRef.current as any).lastTouchY = e.touches[0].clientY;
-      }
-    };
-
     if (sidebarOpen) {
-      // 鎖定 body
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
       document.body.style.overflow = 'hidden';
-
-      // 監聽觸控事件
-      document.addEventListener('touchstart', preventTouchStart, { passive: true });
-      document.addEventListener('touchmove', preventScroll, { passive: false });
     } else {
-      // 恢復 body
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
       document.body.style.overflow = '';
-      window.scrollTo(0, parseInt(scrollY || '0') * -1);
-
-      document.removeEventListener('touchstart', preventTouchStart);
-      document.removeEventListener('touchmove', preventScroll);
     }
 
     return () => {
-      document.removeEventListener('touchstart', preventTouchStart);
-      document.removeEventListener('touchmove', preventScroll);
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
       document.body.style.overflow = '';
     };
   }, [sidebarOpen]);
@@ -133,50 +74,49 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
       >
         <div
           ref={overlayRef}
-          className="fixed inset-0 bg-gray-600 bg-opacity-75"
+          className="absolute inset-0 bg-gray-600 bg-opacity-75"
           onClick={() => setSidebarOpen(false)}
         />
-        <div className="fixed inset-y-0 left-0 w-64 bg-white flex flex-col">
-          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 flex-shrink-0">
-            <div className="flex items-center space-x-2">
-              <Stethoscope className="h-8 w-8 text-blue-600" />
-              <span className="text-xl font-bold text-gray-900">StationC</span>
+        <div className="relative h-full w-64 bg-white shadow-xl" style={{ zIndex: 51 }}>
+          <div className="absolute inset-0 flex flex-col">
+            <div className="h-16 px-6 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center space-x-2">
+                <Stethoscope className="h-8 w-8 text-blue-600" />
+                <span className="text-xl font-bold text-gray-900">StationC</span>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-6 w-6" />
+              </button>
             </div>
-            <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-gray-600">
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          <div
-            ref={navRef}
-            className="overflow-y-scroll px-4 py-6 flex-1"
-            style={{
-              WebkitOverflowScrolling: 'touch',
-              overscrollBehavior: 'contain',
-              maxHeight: 'calc(100vh - 64px)',
-              minHeight: 0
-            }}
-          >
-            <div className="space-y-2">
-              {navigation.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive(item.href)
-                        ? 'bg-blue-50 text-blue-700'
-                       : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span>{item.name}</span>
-                  </Link>
-                );
-              })}
+            <div
+              ref={navRef}
+              className="flex-1 overflow-y-auto px-4"
+              style={{
+                WebkitOverflowScrolling: 'touch'
+              }}
+            >
+              <div className="py-4 space-y-2">
+                {navigation.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive(item.href)
+                          ? 'bg-blue-50 text-blue-700'
+                         : 'bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <Icon className="h-5 w-5" />
+                      <span>{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+              <div style={{ height: '150px' }}></div>
             </div>
-            <div style={{ height: '100px' }}></div>
           </div>
         </div>
       </div>
