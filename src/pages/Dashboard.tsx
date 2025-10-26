@@ -595,10 +595,10 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* 任務配置注意事項 */}
         {(missingTasks.length > 0 || missingMealGuidance.length > 0) && (
-          <div className="lg:col-span-3 mb-6">
+          <div className="lg:col-span-4 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-red-900 flex items-center">
                 <AlertTriangle className="h-5 w-5 mr-2 text-red-600" />
@@ -867,7 +867,7 @@ const Dashboard: React.FC = () => {
           </div>
         )}
         {/* 監測任務 */}
-        <div className="card p-6 lg:col-span-1">
+        <div className="card p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">監測任務</h2>
             <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
