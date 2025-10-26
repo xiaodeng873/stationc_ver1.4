@@ -595,10 +595,10 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 任務配置注意事項 */}
         {(missingTasks.length > 0 || missingMealGuidance.length > 0) && (
-          <div className="lg:col-span-5 mb-6">
+          <div className="lg:col-span-3 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-red-900 flex items-center">
                 <AlertTriangle className="h-5 w-5 mr-2 text-red-600" />
@@ -867,7 +867,7 @@ const Dashboard: React.FC = () => {
           </div>
         )}
         {/* 監測任務 */}
-        <div className="card p-6 lg:col-span-2">
+        <div className="card p-6 lg:col-span-1">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">監測任務</h2>
             <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
@@ -878,7 +878,7 @@ const Dashboard: React.FC = () => {
             {breakfastTasks.length > 0 && (
               <div>
                 <h3 className="text-md font-medium text-gray-700 mb-2">早餐 (07:00 - 09:59)</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   {breakfastTasks.map((task) => {
                     const patient = patients.find(p => p.院友id === task.patient_id);
                     const status = getTaskStatus(task);
@@ -938,7 +938,7 @@ const Dashboard: React.FC = () => {
             {lunchTasks.length > 0 && (
               <div>
                 <h3 className="text-md font-medium text-gray-700 mb-2">午餐 (10:00 - 12:59)</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   {lunchTasks.map((task) => {
                     const patient = patients.find(p => p.院友id === task.patient_id);
                     const status = getTaskStatus(task);
@@ -998,7 +998,7 @@ const Dashboard: React.FC = () => {
             {dinnerTasks.length > 0 && (
               <div>
                 <h3 className="text-md font-medium text-gray-700 mb-2">晚餐 (13:00 - 17:59)</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   {dinnerTasks.map((task) => {
                     const patient = patients.find(p => p.院友id === task.patient_id);
                     const status = getTaskStatus(task);
@@ -1058,7 +1058,7 @@ const Dashboard: React.FC = () => {
             {snackTasks.length > 0 && (
               <div>
                 <h3 className="text-md font-medium text-gray-700 mb-2">夜宵 (18:00 - 20:00)</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   {snackTasks.map((task) => {
                     const patient = patients.find(p => p.院友id === task.patient_id);
                     const status = getTaskStatus(task);
