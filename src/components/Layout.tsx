@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Calendar, Users, FileText, BarChart3, Menu, X, Home, Stethoscope, Heart, LogOut, User, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Building2, Settings, ChevronFirst as FirstAid, Guitar as Hospital, Pill } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -16,23 +16,49 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { displayName } = useAuth();
   const location = useLocation();
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
-  // 鎖定背景滾動當側邊欄打開時
+  // 阻止背景滾動的強力方法
   useEffect(() => {
+    const preventScroll = (e: TouchEvent) => {
+      // 檢查觸控是否在導航區域內
+      if (navRef.current && navRef.current.contains(e.target as Node)) {
+        // 在導航區內，允許滾動
+        return;
+      }
+      // 在導航區外，阻止滾動
+      e.preventDefault();
+    };
+
     if (sidebarOpen) {
-      document.body.style.overflow = 'hidden';
+      // 鎖定 body
+      const scrollY = window.scrollY;
       document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
       document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+
+      // 添加觸控事件監聽器，{ passive: false } 確保可以 preventDefault
+      document.addEventListener('touchmove', preventScroll, { passive: false });
     } else {
-      document.body.style.overflow = '';
+      // 恢復 body
+      const scrollY = document.body.style.top;
       document.body.style.position = '';
+      document.body.style.top = '';
       document.body.style.width = '';
+      document.body.style.overflow = '';
+      window.scrollTo(0, parseInt(scrollY || '0') * -1);
+
+      document.removeEventListener('touchmove', preventScroll);
     }
 
     return () => {
-      document.body.style.overflow = '';
+      document.removeEventListener('touchmove', preventScroll);
       document.body.style.position = '';
+      document.body.style.top = '';
       document.body.style.width = '';
+      document.body.style.overflow = '';
     };
   }, [sidebarOpen]);
 
@@ -75,16 +101,14 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
       {/* Mobile sidebar */}
       <div
         className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}
-        style={{ touchAction: 'none' }}
       >
         <div
+          ref={overlayRef}
           className="fixed inset-0 bg-gray-600 bg-opacity-75"
           onClick={() => setSidebarOpen(false)}
-          onTouchMove={(e) => e.preventDefault()}
         />
         <div
           className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white"
-          style={{ touchAction: 'auto' }}
         >
           <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center space-x-2">
@@ -96,6 +120,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
             </button>
           </div>
           <nav
+            ref={navRef}
             className="flex-1 px-4 py-6 space-y-2 overflow-y-auto"
             style={{
               WebkitOverflowScrolling: 'touch',
