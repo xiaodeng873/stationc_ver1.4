@@ -17,7 +17,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
   const { displayName } = useAuth();
   const location = useLocation();
   const overlayRef = useRef<HTMLDivElement>(null);
-  const navRef = useRef<HTMLElement>(null);
+  const navRef = useRef<HTMLDivElement>(null);
 
   // 阻止背景滾動的強力方法
   useEffect(() => {
@@ -107,10 +107,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
           className="fixed inset-0 bg-gray-600 bg-opacity-75"
           onClick={() => setSidebarOpen(false)}
         />
-        <div
-          className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white"
-        >
-          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 flex-shrink-0">
+        <div className="fixed inset-y-0 left-0 w-64 bg-white" style={{ display: 'grid', gridTemplateRows: '64px 1fr' }}>
+          <div className="flex items-center justify-between px-6 border-b border-gray-200">
             <div className="flex items-center space-x-2">
               <Stethoscope className="h-8 w-8 text-blue-600" />
               <span className="text-xl font-bold text-gray-900">StationC</span>
@@ -119,35 +117,37 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
               <X className="h-6 w-6" />
             </button>
           </div>
-          <nav
+          <div
             ref={navRef}
-            className="flex-1 px-4 pt-6 pb-8 space-y-2 overflow-y-auto"
+            className="overflow-y-auto px-4 py-6"
             style={{
               WebkitOverflowScrolling: 'touch',
               overscrollBehavior: 'contain',
-              touchAction: 'pan-y'
+              touchAction: 'pan-y',
+              height: '100%'
             }}
           >
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive(item.href)
-                      ? 'bg-blue-50 text-blue-700'
-                     : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span>{item.name}</span>
-                </Link>
-              );
-            })}
-            <div className="h-20"></div>
-          </nav>
+            <div className="space-y-2 pb-20">
+              {navigation.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive(item.href)
+                        ? 'bg-blue-50 text-blue-700'
+                       : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
