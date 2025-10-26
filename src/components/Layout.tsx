@@ -90,10 +90,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
             </div>
             <div
               ref={navRef}
-              className="flex-1 px-4 mobile-nav-scroll"
-              style={{
-                height: 'calc(100vh - 64px)'
-              }}
+              className="flex-1 px-4 overflow-y-auto"
             >
               <div className="py-4 space-y-2">
                 {navigation.map((item) => {
@@ -141,7 +138,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
               {sidebarCollapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
             </button>
           </div>
-          <div className="px-2 mobile-nav-scroll" style={{ height: 'calc(100vh - 64px)', overflowY: 'scroll' }}>
+          <div className="px-2 overflow-y-auto" style={{ height: 'calc(100vh - 64px)' }}>
             <nav className="py-4 space-y-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
