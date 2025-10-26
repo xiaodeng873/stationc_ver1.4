@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Calendar, Users, FileText, BarChart3, Menu, X, Home, Stethoscope, Heart, LogOut, User, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Building2, Settings, ChevronFirst as FirstAid, Guitar as Hospital, Pill } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -16,6 +16,25 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { displayName } = useAuth();
   const location = useLocation();
+
+  // 鎖定背景滾動當側邊欄打開時
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    };
+  }, [sidebarOpen]);
 
   // 香港時區輔助函數
   const getHongKongDate = () => {
