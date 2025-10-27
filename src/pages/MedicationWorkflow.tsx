@@ -1111,162 +1111,167 @@ const MedicationWorkflow: React.FC = () => {
       <div className="sticky top-16 bg-white z-20 shadow-sm">
         <div className="card p-4">
           <div className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-             {/* 日期控制 */}
-              <div>
-                <label className="form-label">
-                  <Calendar className="h-4 w-4 inline mr-1" />
-                  選擇日期
-                </label>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={goToPreviousDay}
-                    className="btn-secondary p-2"
-                    title="前一日"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="form-input flex-1"
-                  />
-                  
-                  <button
-                    onClick={goToNextDay}
-                    className="btn-secondary p-2"
-                    title="後一日"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  
-                  <button
-                    onClick={goToToday}
-                    className="btn-secondary text-sm"
-                  >
-                    今天
-                  </button>
+            {/* 響應式佈局 */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] xl:grid-cols-2 gap-4">
+              {/* 左側區域：日期控制 + 院友選擇（iPad 橫向時垂直排列） */}
+              <div className="space-y-4">
+                {/* 日期控制 */}
+                <div>
+                  <label className="form-label">
+                    <Calendar className="h-4 w-4 inline mr-1" />
+                    選擇日期
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={goToPreviousDay}
+                      className="btn-secondary p-2"
+                      title="前一日"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="form-input flex-1"
+                    />
+
+                    <button
+                      onClick={goToNextDay}
+                      className="btn-secondary p-2"
+                      title="後一日"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      onClick={goToToday}
+                      className="btn-secondary text-sm"
+                    >
+                      今天
+                    </button>
+                  </div>
                 </div>
-              </div>
-              {/* 院友選擇 */}
-              <div>
-                <label className="form-label">
-                  <User className="h-4 w-4 inline mr-1" />
-                  選擇院友
-                </label>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={goToPreviousPatient}
-                    disabled={sortedActivePatients.length <= 1}
-                    className="btn-secondary flex items-center space-x-1 px-3 py-2"
-                    title="上一位院友"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    <span>上一位</span>
-                  </button>
-                   <div className="flex-1">
-                    <div className="w-full max-w-xs">
+
+                {/* 院友選擇 */}
+                <div>
+                  <label className="form-label">
+                    <User className="h-4 w-4 inline mr-1" />
+                    選擇院友
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={goToPreviousPatient}
+                      disabled={sortedActivePatients.length <= 1}
+                      className="btn-secondary flex items-center space-x-1 px-3 py-2 flex-shrink-0"
+                      title="上一位院友"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span>上一位</span>
+                    </button>
+                    <div className="flex-1 min-w-0">
                       <PatientAutocomplete
                         value={selectedPatientId}
-                        onChange={setSelectedPatientId} 
+                        onChange={setSelectedPatientId}
                         placeholder="搜索院友..."
                       />
                     </div>
+                    <button
+                      onClick={goToNextPatient}
+                      disabled={sortedActivePatients.length <= 1}
+                      className="btn-secondary flex items-center space-x-1 px-3 py-2 flex-shrink-0"
+                      title="下一位院友"
+                    >
+                      <span>下一位</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
                   </div>
-                  {/* 一鍵操作按鈕 */}
-                  <button
-                    onClick={handleOneClickPrepare}
-                    disabled={oneClickProcessing.preparation || !currentDayWorkflowRecords.some(r => {
-                      const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                      return r.preparation_status === 'pending' && prescription?.preparation_method !== 'immediate';
-                    })}
-                    className="btn-primary flex items-center space-x-1 text-xs px-2 py-1"
-                  >
-                    {oneClickProcessing.preparation ? (
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                    ) : (
-                      <FastForward className="h-7 w-7" />
-                    )}
-                    <span>一鍵執藥</span>
-                  </button>
 
-                  <button 
-                    onClick={handleOneClickVerify}
-                    disabled={oneClickProcessing.verification || !currentDayWorkflowRecords.some(r => {
-                      const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                      return r.verification_status === 'pending' && 
-                             r.preparation_status === 'completed' && 
-                             prescription?.preparation_method !== 'immediate';
-                    })}
-                    className="btn-primary flex items-center space-x-1 text-xs px-2 py-1"
-                  >
-                    {oneClickProcessing.verification ? (
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                    ) : (
-                      <CheckSquare className="h-7 w-7" />
-                    )}
-                    <span>一鍵核藥</span>
-                  </button>
-
-                  <button
-                    onClick={handleOneClickDispense}
-                    disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
-                      const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                      return r.dispensing_status === 'pending' && 
-                             r.verification_status === 'completed' &&
-                             prescription?.administration_route !== '注射' &&
-                             !(prescription?.inspection_rules && prescription.inspection_rules.length > 0);
-                    })}
-                    className="btn-primary flex items-center space-x-1 text-xs px-2 py-1"
-                  >
-                    {oneClickProcessing.dispensing ? (
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                    ) : (
-                      <Users className="h-7 w-7" />
-                    )}
-                    <span>一鍵派藥</span>
-                  </button>
-                  
-                  <button
-                    onClick={handleOneClickDispenseSpecial}
-                    disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
-                      const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                      return r.dispensing_status === 'pending' && canOneClickDispense(prescription);
-                    })}
-                    className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700"
-                  >
-                    {oneClickProcessing.dispensing ? (
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                    ) : (
-                      <Zap className="h-7 w-7" />
-                    )}
-                    <span>一鍵全程</span>
-                  </button>
-                  
-                  <button
-                    onClick={goToNextPatient}
-                    disabled={sortedActivePatients.length <= 1}
-                    className="btn-secondary flex items-center space-x-1 px-3 py-2"
-                    title="下一位院友"
-                  >
-                    <span>下一位</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
+                  {/* 院友導航指示器 */}
+                  {sortedActivePatients.length > 0 && (
+                    <div className="mt-2 text-sm text-gray-600 text-center lg:text-left">
+                      第 {sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId) + 1} / {sortedActivePatients.length} 位院友
+                      {selectedPatient && (
+                        <span className="ml-2 text-blue-600">
+                          (床號: {selectedPatient.床號})
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                
-                {/* 院友導航指示器 */}
-                {sortedActivePatients.length > 0 && (
-                  <div className="mt-2 text-sm text-gray-600 text-center">
-                    第 {sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId) + 1} / {sortedActivePatients.length} 位院友
-                    {selectedPatient && (
-                      <span className="ml-2 text-blue-600">
-                        (床號: {selectedPatient.床號})
-                      </span>
-                    )}
-                  </div>
-                )}
+              </div>
+
+              {/* 右側區域：一鍵操作按鈕（iPad 橫向時獨立成欄） */}
+              <div className="flex lg:flex-col xl:flex-row items-center lg:justify-center xl:justify-end gap-2">
+                <button
+                  onClick={handleOneClickPrepare}
+                  disabled={oneClickProcessing.preparation || !currentDayWorkflowRecords.some(r => {
+                    const prescription = prescriptions.find(p => p.id === r.prescription_id);
+                    return r.preparation_status === 'pending' && prescription?.preparation_method !== 'immediate';
+                  })}
+                  className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 lg:w-full xl:w-auto"
+                >
+                  {oneClickProcessing.preparation ? (
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                  ) : (
+                    <FastForward className="h-7 w-7" />
+                  )}
+                  <span>一鍵執藥</span>
+                </button>
+
+                <button
+                  onClick={handleOneClickVerify}
+                  disabled={oneClickProcessing.verification || !currentDayWorkflowRecords.some(r => {
+                    const prescription = prescriptions.find(p => p.id === r.prescription_id);
+                    return r.verification_status === 'pending' &&
+                           r.preparation_status === 'completed' &&
+                           prescription?.preparation_method !== 'immediate';
+                  })}
+                  className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 lg:w-full xl:w-auto"
+                >
+                  {oneClickProcessing.verification ? (
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                  ) : (
+                    <CheckSquare className="h-7 w-7" />
+                  )}
+                  <span>一鍵核藥</span>
+                </button>
+
+                <button
+                  onClick={handleOneClickDispense}
+                  disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
+                    const prescription = prescriptions.find(p => p.id === r.prescription_id);
+                    return r.dispensing_status === 'pending' &&
+                           r.verification_status === 'completed' &&
+                           prescription?.administration_route !== '注射' &&
+                           !(prescription?.inspection_rules && prescription.inspection_rules.length > 0);
+                  })}
+                  className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 lg:w-full xl:w-auto"
+                >
+                  {oneClickProcessing.dispensing ? (
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                  ) : (
+                    <Users className="h-7 w-7" />
+                  )}
+                  <span>一鍵派藥</span>
+                </button>
+
+                <button
+                  onClick={handleOneClickDispenseSpecial}
+                  disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
+                    const prescription = prescriptions.find(p => p.id === r.prescription_id);
+                    return r.dispensing_status === 'pending' && canOneClickDispense(prescription);
+                  })}
+                  className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 lg:w-full xl:w-auto"
+                >
+                  {oneClickProcessing.dispensing ? (
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                  ) : (
+                    <Zap className="h-7 w-7" />
+                  )}
+                  <span>一鍵全程</span>
+                </button>
               </div>
             </div>
           </div>
