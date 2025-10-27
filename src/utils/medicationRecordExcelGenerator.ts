@@ -358,30 +358,65 @@ const deepCopyRange = (
   });
 };
 
+// 拆分注射類處方：將每個時間點拆分為獨立的處方條目
+const expandInjectionPrescriptions = (prescriptions: any[], routeType: 'oral' | 'topical' | 'injection'): any[] => {
+  if (routeType !== 'injection') {
+    return prescriptions;
+  }
+
+  const expandedPrescriptions: any[] = [];
+
+  prescriptions.forEach(prescription => {
+    const timeSlots = prescription.medication_time_slots || [];
+
+    if (timeSlots.length === 0) {
+      expandedPrescriptions.push(prescription);
+    } else {
+      const sortedTimeSlots = [...timeSlots].sort((a, b) => {
+        return parseTimeToMinutes(a) - parseTimeToMinutes(b);
+      });
+
+      sortedTimeSlots.forEach(timeSlot => {
+        expandedPrescriptions.push({
+          ...prescription,
+          medication_time_slots: [timeSlot]
+        });
+      });
+    }
+  });
+
+  console.log(`注射類處方拆分: 原始 ${prescriptions.length} 個 -> 拆分後 ${expandedPrescriptions.length} 個`);
+  return expandedPrescriptions;
+};
+
 // 應用範本格式並填入資料
 const applyMedicationRecordTemplate = (
   worksheet: ExcelJS.Worksheet,
   template: ExtractedTemplate,
   patient: any,
   prescriptions: any[],
-  selectedMonth: string
+  selectedMonth: string,
+  routeType: 'oral' | 'topical' | 'injection'
 ): void => {
   console.log('開始應用個人備藥及給藥記錄範本: ', patient.中文姓氏 + patient.中文名字);
-  
+
+  // 如果是注射類處方，先進行拆分
+  const processedPrescriptions = expandInjectionPrescriptions(prescriptions, routeType);
+
   // 設定欄寬
   template.columnWidths.forEach((width, idx) => {
     worksheet.getColumn(idx + 1).width = width;
   });
-  
+
   // 設定列高
   template.rowHeights.forEach((height, idx) => {
     worksheet.getRow(idx + 1).height = height;
   });
-  
+
   // 應用所有儲存格格式
   Object.entries(template.cellData).forEach(([address, cellData]) => {
     const cell = worksheet.getCell(address);
-    
+
     if (cellData.value !== undefined) {
       cell.value = cellData.value;
     }
@@ -401,7 +436,7 @@ const applyMedicationRecordTemplate = (
       cell.numFmt = cellData.numFmt;
     }
   });
-  
+
   // 合併儲存格
   template.mergedCells.forEach(merge => {
     try {
@@ -410,7 +445,7 @@ const applyMedicationRecordTemplate = (
       console.warn('合併儲存格失敗:', merge);
     }
   });
-  
+
   // 填入院友基本資訊（第1-6列）
   worksheet.getCell('B1').value = patient.藥物敏感 && patient.藥物敏感.length > 0
     ? patient.藥物敏感.join('、')
@@ -434,27 +469,27 @@ const applyMedicationRecordTemplate = (
   worksheet.getCell('AO2').value = patient.出生日期
     ? new Date(patient.出生日期).toLocaleDateString('zh-TW')
     : '';
-  
+
   // 填入處方資料
   let currentPage = 1;
   let prescriptionIndex = 0;
-  
-  while (prescriptionIndex < prescriptions.length) {
+
+  while (prescriptionIndex < processedPrescriptions.length) {
     const prescriptionsPerPage = 5;
     const startRow = currentPage === 1 ? 7 : ((currentPage - 1) * 31) + 7;
-    
+
     // 如果是第二頁或之後，需要深層複製第7-37列
     if (currentPage > 1) {
       const targetStartRow = (currentPage - 1) * 31 + 7;
       deepCopyRange(worksheet, template, 7, 37, targetStartRow);
     }
-    
+
     // 收集這一頁的所有服用時間點
     const pageTimeSlots: string[] = [];
 
     // 填入這一頁的處方（最多5個）
-    for (let i = 0; i < prescriptionsPerPage && prescriptionIndex < prescriptions.length; i++) {
-      const prescription = prescriptions[prescriptionIndex];
+    for (let i = 0; i < prescriptionsPerPage && prescriptionIndex < processedPrescriptions.length; i++) {
+      const prescription = processedPrescriptions[prescriptionIndex];
       const groupStartRow = startRow + (i * 5);
 
       // 填入處方資訊並收集時間點
@@ -745,7 +780,7 @@ export const exportMedicationRecordToExcel = async (
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(口服)';
         console.log(`  創建工作表: ${sheetName}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-        applyMedicationRecordTemplate(worksheet, templateFormat.oral, patient, categorized.oral, selectedMonth);
+        applyMedicationRecordTemplate(worksheet, templateFormat.oral, patient, categorized.oral, selectedMonth, 'oral');
         totalSheets++;
       }
 
@@ -754,7 +789,7 @@ export const exportMedicationRecordToExcel = async (
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(注射)';
         console.log(`  創建工作表: ${sheetName}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-        applyMedicationRecordTemplate(worksheet, templateFormat.injection, patient, categorized.injection, selectedMonth);
+        applyMedicationRecordTemplate(worksheet, templateFormat.injection, patient, categorized.injection, selectedMonth, 'injection');
         totalSheets++;
       }
 
@@ -763,7 +798,7 @@ export const exportMedicationRecordToExcel = async (
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(外用)';
         console.log(`  創建工作表: ${sheetName}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-        applyMedicationRecordTemplate(worksheet, templateFormat.topical, patient, categorized.topical, selectedMonth);
+        applyMedicationRecordTemplate(worksheet, templateFormat.topical, patient, categorized.topical, selectedMonth, 'topical');
         totalSheets++;
       }
     }
