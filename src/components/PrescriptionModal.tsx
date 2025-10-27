@@ -266,12 +266,13 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
         ...formData,
         end_date: formData.end_date || null,
         end_time: formData.end_time || null,
-        inspection_rules: inspectionRules.filter(rule => 
+        duration_days: formData.duration_days === '' ? null : (typeof formData.duration_days === 'string' ? parseInt(formData.duration_days) : formData.duration_days),
+        inspection_rules: inspectionRules.filter(rule =>
           rule.vital_sign_type && rule.condition_operator && rule.condition_value
         )
       };
 
-      // Clean up undefined fields
+      // Clean up undefined fields and empty strings for numeric fields
       Object.keys(prescriptionData).forEach(key => {
         if (prescriptionData[key] === undefined) {
           delete prescriptionData[key];
