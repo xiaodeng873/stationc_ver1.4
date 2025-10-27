@@ -181,7 +181,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
 
   return (
     <div
-      className={`p-2 border rounded text-center text-xs transition-all duration-200 ${cellClass}`}
+      className={`px-2 py-3 border rounded text-center text-xs transition-all duration-200 ${cellClass}`}
       onClick={handleClick}
       title={getClickTooltip()}
     >
