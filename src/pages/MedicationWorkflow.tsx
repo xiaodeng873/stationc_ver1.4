@@ -181,7 +181,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
 
   return (
     <div
-      className={`px-2 py-3 border rounded text-center text-xs transition-all duration-200 ${cellClass}`}
+      className={`px-3 py-3 border rounded text-center text-xs transition-all duration-200 ${cellClass}`}
       onClick={handleClick}
       title={getClickTooltip()}
     >
@@ -1306,7 +1306,7 @@ const MedicationWorkflow: React.FC = () => {
                       const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
                       const weekday = weekdays[weekdayIndex];
                       return (
-                        <th key={date} className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th key={date} className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                           {month}/{dayOfMonth}<br/>({weekday})
                         </th>
                       );
@@ -1408,7 +1408,7 @@ const MedicationWorkflow: React.FC = () => {
                           每次 {prescription.dosage_amount || '1'}{prescription.dosage_unit || ''}
                         </td>
                         {weekDates.map((date) => (
-                          <td key={date} className="px-2 py-2">
+                          <td key={date} className="px-1 py-2">
                             <div className="space-y-1">
                               {timeSlots.map((timeSlot: string) => {
                                 // 查找對應的工作流程記錄
