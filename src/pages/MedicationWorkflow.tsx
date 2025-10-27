@@ -1178,7 +1178,7 @@ const MedicationWorkflow: React.FC = () => {
                           placeholder="搜索院友..."
                         />
                       </div>
-                    </div>
+             
                     <button
                       onClick={goToNextPatient}
                       disabled={sortedActivePatients.length <= 1}
@@ -1188,7 +1188,7 @@ const MedicationWorkflow: React.FC = () => {
                       <span>下一位</span>
                       <ChevronRight className="h-4 w-4" />
                     </button>
-                  </div>
+         
 
                   {/* 院友導航指示器 */}
                   {sortedActivePatients.length > 0 && (
