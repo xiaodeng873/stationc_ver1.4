@@ -219,20 +219,25 @@ const TemplateManagement: React.FC = () => {
       
     } catch (error) {
       console.error('上傳範本失敗:', error);
-      
+
       let errorMessage = '上傳範本失敗：';
       if (error instanceof Error) {
         if (error.message.includes('Bucket not found')) {
           errorMessage += '\n\n請先在 Supabase Dashboard 中建立 "templates" 儲存桶。\n\n詳細設定說明請參考 SUPABASE_SETUP_INSTRUCTIONS.md 檔案。';
         } else if (error.message.includes('row-level security policy')) {
           errorMessage += '\n\n權限設定問題。請檢查 Supabase 的 Row Level Security 設定。\n\n詳細設定說明請參考 SUPABASE_SETUP_INSTRUCTIONS.md 檔案。';
+        } else if (error.message.includes('缺少') && error.message.includes('工作表')) {
+          errorMessage += '\n\n' + error.message;
+          if (selectedType === 'medication-record') {
+            errorMessage += '\n\n個人備藥及給藥記錄範本必須包含三個工作表：\n1. 個人備藥及給藥記錄 (口服)\n2. 個人備藥及給藥記錄 (外用)\n3. 個人備藥及給藥記錄 (注射)\n\n請確認您的範本檔案包含這三個工作表後重新上傳。';
+          }
         } else {
           errorMessage += error.message;
         }
       } else {
         errorMessage += '未知錯誤';
       }
-      
+
       alert(errorMessage);
     } finally {
       setUploading(false);

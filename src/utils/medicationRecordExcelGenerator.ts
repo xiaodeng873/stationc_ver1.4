@@ -176,6 +176,29 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
   return extractedTemplate;
 };
 
+export const categorizePrescriptionsByRoute = (prescriptions: any[]) => {
+  const oral: any[] = [];
+  const injection: any[] = [];
+  const topical: any[] = [];
+  const noRoute: any[] = [];
+
+  prescriptions.forEach(prescription => {
+    const route = prescription.administration_route?.trim();
+
+    if (!route) {
+      noRoute.push(prescription);
+    } else if (route === '口服') {
+      oral.push(prescription);
+    } else if (route === '注射') {
+      injection.push(prescription);
+    } else {
+      topical.push(prescription);
+    }
+  });
+
+  return { oral, injection, topical, noRoute };
+};
+
 export const extractMedicationRecordTemplateFormat = async (templateFile: File): Promise<MedicationRecordTemplateFormat> => {
   console.log('開始提取個人備藥及給藥記錄範本格式...');
   
@@ -662,70 +685,116 @@ export const exportMedicationRecordToExcel = async (
   filename?: string
 ): Promise<void> => {
   try {
+    console.log('開始匯出個人備藥及給藥記錄...');
+    console.log('選擇的院友數量:', selectedPatients.length);
+
     if (!template.extracted_format) {
       throw new Error('範本格式無效');
     }
 
     const templateFormat = template.extracted_format as MedicationRecordTemplateFormat;
-    
+
     if (!templateFormat.oral || !templateFormat.topical || !templateFormat.injection) {
-      throw new Error('範本格式不完整：缺少口服、外用或注射工作表格式');
+      const missingSheets = [];
+      if (!templateFormat.oral) missingSheets.push('口服');
+      if (!templateFormat.topical) missingSheets.push('外用');
+      if (!templateFormat.injection) missingSheets.push('注射');
+      throw new Error('範本格式不完整：缺少 ' + missingSheets.join('、') + ' 工作表格式。請確保範本檔案包含三個工作表：「個人備藥及給藥記錄 (口服)」、「個人備藥及給藥記錄 (外用)」、「個人備藥及給藥記錄 (注射)」');
     }
 
+    console.log('範本格式驗證通過，包含三種途徑的工作表格式');
+
     const workbook = new ExcelJS.Workbook();
-    
+    let totalOral = 0;
+    let totalInjection = 0;
+    let totalTopical = 0;
+    let totalNoRoute = 0;
+    let totalSheets = 0;
+
     // 為每位院友創建工作表
     for (const patient of selectedPatients) {
+      console.log(`\n處理院友: ${patient.床號} ${patient.中文姓氏}${patient.中文名字}`);
+
       // 獲取該院友的所有處方
       const allPrescriptions = patient.prescriptions || [];
-      
+      console.log(`  總處方數: ${allPrescriptions.length}`);
+
       // 按途徑分類處方
-      const oralPrescriptions = allPrescriptions.filter((p: any) => p.administration_route === '口服');
-      const injectionPrescriptions = allPrescriptions.filter((p: any) => p.administration_route === '注射');
-      const topicalPrescriptions = allPrescriptions.filter((p: any) => 
-        p.administration_route && p.administration_route !== '口服' && p.administration_route !== '注射'
-      );
-      
+      const categorized = categorizePrescriptionsByRoute(allPrescriptions);
+
+      console.log(`  途徑分類結果:`);
+      console.log(`    口服: ${categorized.oral.length} 個`);
+      console.log(`    注射: ${categorized.injection.length} 個`);
+      console.log(`    外用: ${categorized.topical.length} 個`);
+      console.log(`    缺少途徑: ${categorized.noRoute.length} 個`);
+
+      totalOral += categorized.oral.length;
+      totalInjection += categorized.injection.length;
+      totalTopical += categorized.topical.length;
+      totalNoRoute += categorized.noRoute.length;
+
+      if (categorized.noRoute.length > 0) {
+        console.warn(`  警告: 以下處方缺少途徑資訊，將不會被匯出:`);
+        categorized.noRoute.forEach((p: any) => {
+          console.warn(`    - ${p.medication_name}`);
+        });
+      }
+
       // 創建口服工作表
-      if (oralPrescriptions.length > 0) {
+      if (categorized.oral.length > 0) {
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(口服)';
+        console.log(`  創建工作表: ${sheetName}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-        applyMedicationRecordTemplate(worksheet, templateFormat.oral, patient, oralPrescriptions, selectedMonth);
+        applyMedicationRecordTemplate(worksheet, templateFormat.oral, patient, categorized.oral, selectedMonth);
+        totalSheets++;
       }
 
       // 創建注射工作表
-      if (injectionPrescriptions.length > 0) {
+      if (categorized.injection.length > 0) {
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(注射)';
+        console.log(`  創建工作表: ${sheetName}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-        applyMedicationRecordTemplate(worksheet, templateFormat.injection, patient, injectionPrescriptions, selectedMonth);
+        applyMedicationRecordTemplate(worksheet, templateFormat.injection, patient, categorized.injection, selectedMonth);
+        totalSheets++;
       }
 
       // 創建外用工作表
-      if (topicalPrescriptions.length > 0) {
+      if (categorized.topical.length > 0) {
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(外用)';
+        console.log(`  創建工作表: ${sheetName}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-        applyMedicationRecordTemplate(worksheet, templateFormat.topical, patient, topicalPrescriptions, selectedMonth);
+        applyMedicationRecordTemplate(worksheet, templateFormat.topical, patient, categorized.topical, selectedMonth);
+        totalSheets++;
       }
     }
-    
+
     if (workbook.worksheets.length === 0) {
-      throw new Error('沒有可匯出的處方資料');
+      throw new Error('沒有可匯出的處方資料。所有處方可能都缺少途徑資訊或不符合匯出條件。');
     }
-    
+
+    console.log('\n匯出統計:');
+    console.log(`  總共創建 ${totalSheets} 個工作表`);
+    console.log(`  口服處方: ${totalOral} 個`);
+    console.log(`  注射處方: ${totalInjection} 個`);
+    console.log(`  外用處方: ${totalTopical} 個`);
+    if (totalNoRoute > 0) {
+      console.log(`  ⚠️ 警告: ${totalNoRoute} 個處方因缺少途徑資訊而未被匯出`);
+    }
+
     // 生成檔案名稱
     const templateBaseName = template.original_name.replace(/\.(xlsx|xls)$/i, '');
-    const finalFilename = filename || 
-      (selectedPatients.length === 1 
+    const finalFilename = filename ||
+      (selectedPatients.length === 1
         ? selectedPatients[0].床號 + '_' + selectedPatients[0].中文姓氏 + selectedPatients[0].中文名字 + '_' + templateBaseName + '.xlsx'
         : templateBaseName + '_' + selectedPatients.length + '名院友.xlsx');
-    
+
     // 儲存檔案
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, finalFilename);
-    
+
     console.log('個人備藥及給藥記錄匯出完成:', finalFilename);
-    
+
   } catch (error: any) {
     console.error('匯出個人備藥及給藥記錄失敗:', error);
     throw error;
