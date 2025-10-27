@@ -43,6 +43,21 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
     });
   }, [activePatients, searchTerm]);
 
+  const isInDateRange = (prescriptionDate: string, endDate: string | null, targetMonth: string): boolean => {
+    const [year, month] = targetMonth.split('-').map(Number);
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0);
+
+    const prescDate = new Date(prescriptionDate);
+
+    if (endDate) {
+      const prescEndDate = new Date(endDate);
+      return prescDate <= monthEnd && prescEndDate >= monthStart;
+    } else {
+      return prescDate <= monthEnd;
+    }
+  };
+
   const routeStats = useMemo(() => {
     const stats: RouteStats = { oral: 0, injection: 0, topical: 0, noRoute: 0 };
 
@@ -87,21 +102,6 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
       setSelectedPatientIds(new Set());
     } else {
       setSelectedPatientIds(new Set(filteredPatients.map(p => p.院友id)));
-    }
-  };
-
-  const isInDateRange = (prescriptionDate: string, endDate: string | null, targetMonth: string): boolean => {
-    const [year, month] = targetMonth.split('-').map(Number);
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0);
-
-    const prescDate = new Date(prescriptionDate);
-    
-    if (endDate) {
-      const prescEndDate = new Date(endDate);
-      return prescDate <= monthEnd && prescEndDate >= monthStart;
-    } else {
-      return prescDate <= monthEnd;
     }
   };
 
