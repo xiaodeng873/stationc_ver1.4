@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit3, Trash2, Search, Filter, Download, User, Calendar, CreditCard, Heart, AlertTriangle, CheckCircle, ChevronUp, ChevronDown, X, LogOut, Guitar as Hospital } from 'lucide-react';
+import { Users, Plus, Edit3, Trash2, Search, Filter, Download, User, Calendar, CreditCard, Heart, AlertTriangle, CheckCircle, ChevronUp, ChevronDown, X, LogOut } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import PatientModal from '../components/PatientModal';
 import DischargeModal from '../components/DischargeModal';
-import EnhancedAdmissionRecordModal from '../components/EnhancedAdmissionRecordModal';
 import PatientTooltip from '../components/PatientTooltip';
 import { getFormattedEnglishName } from '../utils/nameFormatter';
 
@@ -30,7 +29,6 @@ const PatientRecords: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [showDischargeModal, setShowDischargeModal] = useState(false);
   const [showAdmissionModal, setShowAdmissionModal] = useState(false);
-  const [showHospitalEpisodeModal, setShowHospitalEpisodeModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
@@ -287,11 +285,6 @@ const PatientRecords: React.FC = () => {
       console.error('退住失敗:', error);
       alert('退住失敗，請重試');
     }
-  };
-
-  const handleAdmissionRecord = (patient: any) => {
-    setSelectedPatient(patient);
-    setShowHospitalEpisodeModal(true);
   };
 
   const handleDelete = async (id: number) => {
@@ -881,14 +874,6 @@ const PatientRecords: React.FC = () => {
                           </button>
                         )}
                         <button
-                          onClick={() => handleAdmissionRecord(patient)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="出入院記錄"
-                          disabled={deletingIds.has(patient.院友id)}
-                        >
-                          <Hospital className="h-4 w-4" />
-                        </button>
-                        <button
                           onClick={() => handleDelete(patient.院友id)}
                           className="text-red-600 hover:text-red-900"
                           title="刪除"
@@ -1014,16 +999,6 @@ const PatientRecords: React.FC = () => {
             setSelectedPatient(null);
           }}
           onConfirm={handleConfirmDischarge}
-        />
-      )}
-
-      {showHospitalEpisodeModal && selectedPatient && (
-        <HospitalEpisodeModal
-          defaultPatientId={selectedPatient.院友id.toString()}
-          onClose={() => {
-            setShowHospitalEpisodeModal(false);
-            setSelectedPatient(null);
-          }}
         />
       )}
     </div>
