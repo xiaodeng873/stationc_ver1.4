@@ -679,16 +679,14 @@ const fillPrescriptionData = (
   const frequencyDesc = getFrequencyDescription(prescription);
   worksheet.getCell('J' + (startRow + 1)).value = frequencyDesc;
 
-  // J列：服用份量 (第3行) - 注射類不得觸碰此列
-  if (routeType !== 'injection') {
-    let dosageText = '';
-    if (prescription.special_dosage_instruction) {
-      dosageText = prescription.special_dosage_instruction;
-    } else if (prescription.dosage_amount) {
-      dosageText = '每次' + prescription.dosage_amount + (prescription.dosage_unit || '');
-    }
-    worksheet.getCell('J' + (startRow + 2)).value = dosageText;
+  // J列：服用份量 (第3行)
+  let dosageText = '';
+  if (prescription.special_dosage_instruction) {
+    dosageText = prescription.special_dosage_instruction;
+  } else if (prescription.dosage_amount) {
+    dosageText = '每次' + prescription.dosage_amount + (prescription.dosage_unit || '');
   }
+  worksheet.getCell('J' + (startRow + 2)).value = dosageText;
 
   // J列：需要時 (第4行)
   worksheet.getCell('J' + (startRow + 3)).value = prescription.is_prn ? '需要時' : '';
