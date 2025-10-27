@@ -1305,8 +1305,11 @@ const MedicationWorkflow: React.FC = () => {
                       const weekdayIndex = d.getDay();
                       const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
                       const weekday = weekdays[weekdayIndex];
+                      const isSelectedDate = date === selectedDate;
                       return (
-                        <th key={date} className="px-1 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th key={date} className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider ${
+                          isSelectedDate ? 'bg-blue-100 text-blue-800' : 'text-gray-500'
+                        }`}>
                           {month}/{dayOfMonth}<br/>({weekday})
                         </th>
                       );
@@ -1407,8 +1410,12 @@ const MedicationWorkflow: React.FC = () => {
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                           每次 {prescription.dosage_amount || '1'}{prescription.dosage_unit || ''}
                         </td>
-                        {weekDates.map((date) => (
-                          <td key={date} className="px-1 py-2">
+                        {weekDates.map((date) => {
+                          const isSelectedDate = date === selectedDate;
+                          return (
+                          <td key={date} className={`px-1 py-2 ${
+                            isSelectedDate ? 'bg-blue-50' : ''
+                          }`}>
                             <div className="space-y-1">
                               {timeSlots.map((timeSlot: string) => {
                                 // 查找對應的工作流程記錄
@@ -1480,7 +1487,8 @@ const MedicationWorkflow: React.FC = () => {
                               })}
                             </div>
                           </td>
-                        ))}
+                          );
+                        })}
                       </tr>
                     );
                   })}
