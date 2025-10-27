@@ -679,14 +679,16 @@ const fillPrescriptionData = (
   const frequencyDesc = getFrequencyDescription(prescription);
   worksheet.getCell('J' + (startRow + 1)).value = frequencyDesc;
 
-  // J列：服用份量 (第3行)
-  let dosageText = '';
-  if (prescription.special_dosage_instruction) {
-    dosageText = prescription.special_dosage_instruction;
-  } else if (prescription.dosage_amount) {
-    dosageText = '每次' + prescription.dosage_amount + (prescription.dosage_unit || '');
+  // J列：服用份量 (第3行) - 注射類不得觸碰此列
+  if (routeType !== 'injection') {
+    let dosageText = '';
+    if (prescription.special_dosage_instruction) {
+      dosageText = prescription.special_dosage_instruction;
+    } else if (prescription.dosage_amount) {
+      dosageText = '每次' + prescription.dosage_amount + (prescription.dosage_unit || '');
+    }
+    worksheet.getCell('J' + (startRow + 2)).value = dosageText;
   }
-  worksheet.getCell('J' + (startRow + 2)).value = dosageText;
 
   // J列：需要時 (第4行)
   worksheet.getCell('J' + (startRow + 3)).value = prescription.is_prn ? '需要時' : '';
@@ -706,14 +708,21 @@ const fillPrescriptionData = (
     timeSlotsMap[rowOffset].push(timeSlot);
   });
 
-  // 清空 L8-L11 (startRow + 1 到 startRow + 4)
+  // 清空 L8-L11 (startRow + 1 到 startRow + 4) - 注射類跳過 startRow + 2
   for (let i = 1; i <= 4; i++) {
+    if (routeType === 'injection' && i === 2) {
+      continue; // 注射類不得觸碰 startRow + 2 (列 9, 14, 19, 24, 29)
+    }
     worksheet.getCell('L' + (startRow + i)).value = '';
   }
 
-  // 填入分組後的時間點
+  // 填入分組後的時間點 - 注射類跳過 startRow + 2
   Object.entries(timeSlotsMap).forEach(([rowOffset, slots]) => {
-    const cell = worksheet.getCell('L' + (startRow + parseInt(rowOffset)));
+    const offset = parseInt(rowOffset);
+    if (routeType === 'injection' && offset === 2) {
+      return; // 注射類不得觸碰 startRow + 2 (列 9, 14, 19, 24, 29)
+    }
+    const cell = worksheet.getCell('L' + (startRow + offset));
     cell.value = slots.join(', ');
   });
 
