@@ -493,7 +493,7 @@ const applyMedicationRecordTemplate = (
       const groupStartRow = startRow + (i * 5);
 
       // 填入處方資訊並收集時間點
-      const timeSlots = fillPrescriptionData(worksheet, prescription, groupStartRow);
+      const timeSlots = fillPrescriptionData(worksheet, prescription, groupStartRow, routeType);
       pageTimeSlots.push(...timeSlots);
 
       prescriptionIndex++;
@@ -630,7 +630,7 @@ const parseTimeToMinutes = (timeStr: string): number => {
   return parseInt(match[1]) * 60 + parseInt(match[2]);
 };
 
-// 根據時間範圍決定放置的列偏移
+// 根據時間範圍決定放置的列偏移（口服和外用）
 const getTimeSlotRowOffset = (timeStr: string): number => {
   const minutes = parseTimeToMinutes(timeStr);
   if (minutes < 0) return 1; // 無效時間，預設第一列
@@ -647,11 +647,17 @@ const getTimeSlotRowOffset = (timeStr: string): number => {
   return 1; // 其他時間預設第一列
 };
 
+// 注射類：時間點只放在第一個位置（startRow + 1），避免覆寫列 9, 14, 19, 24, 29
+const getInjectionTimeSlotRowOffset = (timeStr: string): number => {
+  return 1; // 所有時間點都放在 L8 (startRow + 1)
+};
+
 // 填入單個處方資料
 const fillPrescriptionData = (
   worksheet: ExcelJS.Worksheet,
   prescription: any,
-  startRow: number
+  startRow: number,
+  routeType?: 'oral' | 'topical' | 'injection'
 ): string[] => {
   // B列：藥物名稱 (第1行)
   worksheet.getCell('B' + startRow).value = prescription.medication_name || '';
@@ -689,8 +695,11 @@ const fillPrescriptionData = (
   const timeSlots = prescription.medication_time_slots || [];
   const timeSlotsMap: { [key: number]: string[] } = {};
 
+  // 根據途徑類型選擇對應的時間點映射函數
+  const getRowOffsetFn = routeType === 'injection' ? getInjectionTimeSlotRowOffset : getTimeSlotRowOffset;
+
   timeSlots.forEach((timeSlot: string) => {
-    const rowOffset = getTimeSlotRowOffset(timeSlot);
+    const rowOffset = getRowOffsetFn(timeSlot);
     if (!timeSlotsMap[rowOffset]) {
       timeSlotsMap[rowOffset] = [];
     }
