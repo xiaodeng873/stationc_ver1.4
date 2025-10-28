@@ -315,16 +315,31 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
         }))
       };
 
+      console.log('提交住院事件資料:', submitData);
+      console.log('Patient ID 類型:', typeof submitData.patient_id);
+      console.log('Events:', submitData.events);
+
       if (episode) {
         await updateHospitalEpisode({ ...submitData, id: episode.id });
       } else {
         await addHospitalEpisode(submitData);
       }
-      
+
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('提交住院事件失敗:', error);
-      alert('提交失敗，請重試');
+      console.error('錯誤類型:', typeof error);
+      console.error('錯誤物件:', JSON.stringify(error, null, 2));
+
+      let errorMessage = '提交失敗，請重試';
+      if (error?.message) {
+        errorMessage = `提交失敗：${error.message}`;
+      }
+      if (error?.details) {
+        errorMessage += `\n詳情：${error.details}`;
+      }
+
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

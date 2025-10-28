@@ -2104,7 +2104,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const addHospitalEpisode = async (episodeData: any) => {
     try {
       const { events, ...mainEpisodeData } = episodeData;
-      
+
+      console.log('準備插入住院事件:', mainEpisodeData);
+
       // 插入主要住院事件
       const { data: episode, error: episodeError } = await supabase
         .from('hospital_episodes')
@@ -2112,7 +2114,13 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         .select()
         .single();
 
-      if (episodeError) throw episodeError;
+      if (episodeError) {
+        console.error('插入住院事件錯誤詳情:', episodeError);
+        console.error('錯誤代碼:', episodeError.code);
+        console.error('錯誤訊息:', episodeError.message);
+        console.error('錯誤詳情:', episodeError.details);
+        throw episodeError;
+      }
 
       // 插入事件記錄
       if (events && events.length > 0) {
@@ -2122,11 +2130,19 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
           event_order: index + 1
         }));
 
+        console.log('準備插入事件記錄:', eventsWithEpisodeId);
+
         const { error: eventsError } = await supabase
           .from('episode_events')
           .insert(eventsWithEpisodeId);
 
-        if (eventsError) throw eventsError;
+        if (eventsError) {
+          console.error('插入事件記錄錯誤詳情:', eventsError);
+          console.error('錯誤代碼:', eventsError.code);
+          console.error('錯誤訊息:', eventsError.message);
+          console.error('錯誤詳情:', eventsError.details);
+          throw eventsError;
+        }
       }
 
       console.log('新增住院事件成功:', episode);
