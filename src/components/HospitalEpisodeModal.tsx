@@ -306,12 +306,23 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
     setIsSubmitting(true);
     
     try {
-      const submitData = {
+      // 將空字符串轉換為 null（日期和時間欄位）
+      const cleanFormData = {
         ...formData,
         patient_id: parseInt(formData.patient_id),
+        episode_end_date: formData.episode_end_date || null,
+        date_of_death: formData.date_of_death || null,
+        time_of_death: formData.time_of_death || null,
+        discharge_destination: formData.discharge_destination || null,
+        discharge_type: formData.discharge_type || null
+      };
+
+      const submitData = {
+        ...cleanFormData,
         events: events.map(event => ({
           ...event,
-          id: event.id.startsWith('temp-') ? undefined : event.id
+          id: event.id.startsWith('temp-') ? undefined : event.id,
+          event_time: event.event_time || null
         }))
       };
 
