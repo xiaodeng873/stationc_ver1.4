@@ -319,11 +319,15 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
 
       const submitData = {
         ...cleanFormData,
-        events: events.map(event => ({
-          ...event,
-          id: event.id.startsWith('temp-') ? undefined : event.id,
-          event_time: event.event_time || null
-        }))
+        events: events.map(event => {
+          const { id, ...eventData } = event;
+          return {
+            ...eventData,
+            // 只有編輯現有事件時才包含 id
+            ...(id && !id.startsWith('temp-') ? { id } : {}),
+            event_time: eventData.event_time || null
+          };
+        })
       };
 
       console.log('提交住院事件資料:', submitData);
