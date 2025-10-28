@@ -255,6 +255,7 @@ const MedicationWorkflow: React.FC = () => {
   });
   const [currentInjectionRecord, setCurrentInjectionRecord] = useState<any>(null);
   const [allWorkflowRecords, setAllWorkflowRecords] = useState<any[]>([]);
+  const [preparationFilter, setPreparationFilter] = useState<'all' | 'advanced' | 'immediate'>('all');
 
   // 計算一週日期（周日開始）
   const computeWeekDates = (dateStr: string): string[] => {
@@ -349,15 +350,15 @@ const MedicationWorkflow: React.FC = () => {
     if (p.patient_id.toString() !== selectedPatientId || p.status !== 'active') {
       return false;
     }
-    
+
     const selectedDateObj = new Date(selectedDate);
     const startDate = new Date(p.start_date);
-    
+
     // 檢查是否在開始日期之前
     if (selectedDateObj < startDate) {
       return false;
     }
-    
+
     // 檢查是否在結束日期之後
     if (p.end_date) {
       const endDate = new Date(p.end_date);
@@ -365,7 +366,19 @@ const MedicationWorkflow: React.FC = () => {
         return false;
       }
     }
-    
+
+    return true;
+  });
+
+  // 根據備藥方式過濾處方
+  const filteredPrescriptions = activePrescriptions.filter(p => {
+    if (preparationFilter === 'all') {
+      return true;
+    } else if (preparationFilter === 'advanced') {
+      return p.preparation_method === 'advanced';
+    } else if (preparationFilter === 'immediate') {
+      return p.preparation_method === 'immediate';
+    }
     return true;
   });
 
@@ -1282,21 +1295,59 @@ const MedicationWorkflow: React.FC = () => {
       {selectedPatientId ? (
         <div className="card overflow-hidden">
           {activePrescriptions.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      行號
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      藥物詳情
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      使用次數
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      劑量
+            <>
+              {/* 備藥方式分類標籤 */}
+              <div className="border-b border-gray-200">
+                <div className="flex space-x-1 p-2">
+                  <button
+                    onClick={() => setPreparationFilter('all')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      preparationFilter === 'all'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    全部 ({activePrescriptions.length})
+                  </button>
+                  <button
+                    onClick={() => setPreparationFilter('advanced')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      preparationFilter === 'advanced'
+                        ? 'bg-green-100 text-green-700'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    提前備藥 ({activePrescriptions.filter(p => p.preparation_method === 'advanced').length})
+                  </button>
+                  <button
+                    onClick={() => setPreparationFilter('immediate')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      preparationFilter === 'immediate'
+                        ? 'bg-orange-100 text-orange-700'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    即時備藥 ({activePrescriptions.filter(p => p.preparation_method === 'immediate').length})
+                  </button>
+                </div>
+              </div>
+
+              {filteredPrescriptions.length > 0 ? (
+                <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        行號
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        藥物詳情
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        使用次數
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        劑量
                     </th>
                     {weekDates.map((date) => {
                       const d = new Date(date);
@@ -1317,7 +1368,7 @@ const MedicationWorkflow: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {activePrescriptions.map((prescription, index) => {
+                  {filteredPrescriptions.map((prescription, index) => {
                     const timeSlots = prescription.medication_time_slots || [];
                     
                     return (
@@ -1494,7 +1545,14 @@ const MedicationWorkflow: React.FC = () => {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Filter className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-gray-600">此分類暫無處方</p>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-12">
               <Pill className="h-24 w-24 mx-auto mb-4 text-gray-300" />
