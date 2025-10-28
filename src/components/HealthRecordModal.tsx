@@ -60,7 +60,8 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   // 計算初始值 - 在 formData 初始化之前
   const initialPatientId = record?.院友id?.toString() || initialData?.patient?.院友id?.toString() || '';
   const initialRecordTypeForDefaults = initialData?.預設記錄類型 || initialData?.task?.health_record_type || '生命表徵';
-  const initialRandomDefaults = record ? {} : generateRandomDefaults(initialRecordTypeForDefaults);
+  // 只有在從主面板執行任務時（有 task）才生成隨機值
+  const initialRandomDefaults = record ? {} : (initialData?.task ? generateRandomDefaults(initialRecordTypeForDefaults) : {});
   
   // 檢查院友是否入院中的函數
   const checkPatientHospitalized = (patientId: string): boolean => {
