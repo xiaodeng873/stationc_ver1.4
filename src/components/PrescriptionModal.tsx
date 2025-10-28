@@ -64,10 +64,16 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
 
   const [ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set());
   const [fieldConfidences, setFieldConfidences] = useState<Record<string, number>>({});
+  const [validationError, setValidationError] = useState<string>('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
+
+    // 清除驗證錯誤訊息
+    if (validationError) {
+      setValidationError('');
+    }
 
     if (type === 'checkbox') {
       setFormData(prev => ({
@@ -103,6 +109,7 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
   };
 
   const handleWeekdayChange = (day: number, checked: boolean) => {
+    if (validationError) setValidationError('');
     setFormData(prev => ({
       ...prev,
       specific_weekdays: checked
@@ -113,6 +120,7 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
 
   const addTimeSlot = () => {
     if (newTimeSlot && !formData.medication_time_slots.includes(newTimeSlot)) {
+      if (validationError) setValidationError('');
       setFormData(prev => ({
         ...prev,
         medication_time_slots: [...prev.medication_time_slots, newTimeSlot].sort()
@@ -122,6 +130,7 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
   };
 
   const removeTimeSlot = (timeSlot: string) => {
+    if (validationError) setValidationError('');
     setFormData(prev => ({
       ...prev,
       medication_time_slots: prev.medication_time_slots.filter(slot => slot !== timeSlot)
@@ -219,24 +228,25 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setValidationError('');
+
     if (!formData.patient_id || !formData.medication_name) {
-      alert('請填寫院友和藥物名稱');
+      setValidationError('請填寫院友和藥物名稱');
       return;
     }
 
     if (formData.frequency_type === 'weekly_days' && formData.specific_weekdays.length === 0) {
-      alert('選擇逢星期服時，請至少選擇一個星期幾');
+      setValidationError('選擇逢星期服時，請至少選擇一個星期幾');
       return;
     }
 
     if (formData.frequency_type === 'every_x_days' && formData.frequency_value < 1) {
-      alert('隔日服的天數必須大於0');
+      setValidationError('隔日服的天數必須大於0');
       return;
     }
 
     if (formData.frequency_type === 'every_x_months' && formData.frequency_value < 1) {
-      alert('隔月服的月數必須大於0');
+      setValidationError('隔月服的月數必須大於0');
       return;
     }
 
@@ -245,19 +255,19 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
       // 非PRN藥物：服用時間點數量必須與每日服用次數相同
       const expectedTimeSlots = formData.daily_frequency || 1;
       const actualTimeSlots = formData.medication_time_slots.length;
-      
+
       if (actualTimeSlots !== expectedTimeSlots) {
-        alert(`非PRN藥物的服用時間點數量必須與每日服用次數相同。\n\n目前設定：每日${expectedTimeSlots}次\n實際時間點：${actualTimeSlots}個\n\n請調整服用時間點或每日服用次數。`);
+        setValidationError(`非PRN藥物的服用時間點數量必須與每日服用次數相同。\n\n目前設定：每日${expectedTimeSlots}次\n實際時間點：${actualTimeSlots}個\n\n請調整服用時間點或每日服用次數。`);
         return;
       }
     } else {
       // PRN藥物：至少需要一個服用時間點，且服用時間點的數量不能超過每日服用次數
       if (formData.medication_time_slots.length === 0) {
-        alert('PRN藥物至少需要設定一個服用時間點');
+        setValidationError('PRN藥物至少需要設定一個服用時間點');
         return;
       }
       if (formData.medication_time_slots.length > formData.daily_frequency) {
-        alert(`PRN藥物的服用時間點數量 (${formData.medication_time_slots.length}) 不能超過每日服用次數 (${formData.daily_frequency})。`);
+        setValidationError(`PRN藥物的服用時間點數量 (${formData.medication_time_slots.length}) 不能超過每日服用次數 (${formData.daily_frequency})。`);
         return;
       }
     }
@@ -291,7 +301,7 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
       onClose();
     } catch (error) {
       console.error('儲存處方失敗:', error);
-      alert('儲存處方失敗，請重試');
+      setValidationError('儲存處方失敗，請重試');
     }
   };
 
@@ -320,6 +330,24 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* 驗證錯誤訊息 */}
+          {validationError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
+              <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-medium text-red-800 mb-1">驗證錯誤</h4>
+                <p className="text-sm text-red-700 whitespace-pre-line">{validationError}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setValidationError('')}
+                className="text-red-400 hover:text-red-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {/* OCR 智能識別區塊 */}
           <OCRPrescriptionBlock
             onOCRComplete={handleOCRComplete}
@@ -340,7 +368,10 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
                 </label>
                 <PatientAutocomplete
                   value={formData.patient_id}
-                  onChange={(patientId) => setFormData(prev => ({ ...prev, patient_id: patientId }))}
+                  onChange={(patientId) => {
+                    if (validationError) setValidationError('');
+                    setFormData(prev => ({ ...prev, patient_id: patientId }));
+                  }}
                   placeholder="搜索院友..."
                   className={getFieldClassName('patient_id', '')}
                 />
@@ -355,6 +386,7 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
                 <DrugAutocomplete
                   value={formData.medication_name}
                   onChange={(drugName, drugData) => {
+                    if (validationError) setValidationError('');
                     setFormData(prev => ({
                       ...prev,
                       medication_name: drugName,
