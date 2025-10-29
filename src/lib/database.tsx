@@ -1179,12 +1179,32 @@ export const permanentlyDeleteHealthRecord = async (deletedRecordId: string): Pr
 
 // 分析最近1000笔记录中的重复记录
 export const findDuplicateHealthRecords = async (): Promise<DuplicateRecordGroup[]> => {
-  // 获取最近1000笔记录（按created_at降序）
-  const { data: records, error } = await supabase
+  // 先尝试按 記錄id 排序（如果没有 created_at 字段）
+  let records: any[] = [];
+  let error: any = null;
+
+  // 尝试按 created_at 排序
+  const result1 = await supabase
     .from('健康記錄主表')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(1000);
+
+  if (result1.error && result1.error.code === '42703') {
+    // 如果 created_at 不存在（错误代码 42703），改用 記錄id 排序
+    console.warn('created_at column not found, using 記錄id ordering instead');
+    const result2 = await supabase
+      .from('健康記錄主表')
+      .select('*')
+      .order('記錄id', { ascending: false })
+      .limit(1000);
+
+    records = result2.data || [];
+    error = result2.error;
+  } else {
+    records = result1.data || [];
+    error = result1.error;
+  }
 
   if (error) {
     console.error('Error fetching health records:', error);
@@ -1240,14 +1260,19 @@ export const findDuplicateHealthRecords = async (): Promise<DuplicateRecordGroup
     // 对于每个有效字段组合，如果有多条记录，则认为是重复
     valueGroups.forEach((valueGroupRecords, valueKey) => {
       if (valueGroupRecords.length >= 2) {
-        // 按created_at排序，保留最旧的记录（created_at最早）
+        // 按created_at或記錄id排序，保留最旧的记录
         const sortedRecords = valueGroupRecords.sort((a, b) => {
-          const timeA = new Date(a.created_at || 0).getTime();
-          const timeB = new Date(b.created_at || 0).getTime();
-          return timeA - timeB;
+          // 如果有 created_at 字段，按照 created_at 排序（时间早的在前）
+          if (a.created_at && b.created_at) {
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            return timeA - timeB;
+          }
+          // 否则按照 記錄id 排序（id小的是更旧的，在前）
+          return a.記錄id - b.記錄id;
         });
 
-        const keepRecord = sortedRecords[0]; // 保留最旧的
+        const keepRecord = sortedRecords[0]; // 保留最旧的（第一个）
         const duplicateRecords = sortedRecords.slice(1); // 其余的都是重复
 
         duplicateGroups.push({
