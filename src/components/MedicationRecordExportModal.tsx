@@ -457,25 +457,31 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                                   <div className="font-bold text-gray-900 text-lg mb-2">
                                     {prescription.medication_name || prescription.drug_name || '未命名藥物'}
                                   </div>
-                                  <div className="text-sm text-gray-700 space-y-1">
-                                    {(prescription.dosage || prescription.unit) && (
-                                      <div className="flex items-baseline">
-                                        <span className="font-medium text-gray-900 mr-2 min-w-[48px]">劑量：</span>
-                                        <span className="text-gray-800">{prescription.dosage || ''} {prescription.unit || ''}</span>
-                                      </div>
-                                    )}
-                                    {prescription.frequency && (
-                                      <div className="flex items-baseline">
-                                        <span className="font-medium text-gray-900 mr-2 min-w-[48px]">頻率：</span>
-                                        <span className="text-gray-800">{prescription.frequency}</span>
-                                      </div>
-                                    )}
-                                    {prescription.usage_instructions && (
-                                      <div className="flex items-baseline">
-                                        <span className="font-medium text-gray-900 mr-2 min-w-[48px]">用法：</span>
-                                        <span className="text-gray-800">{prescription.usage_instructions}</span>
-                                      </div>
-                                    )}
+                                  <div className="text-sm text-gray-700">
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                      {(prescription.dosage_amount || prescription.dosage_unit) && (
+                                        <div className="flex items-baseline">
+                                          <span className="font-medium text-gray-900 mr-1.5">劑量：</span>
+                                          <span className="text-gray-800">
+                                            {prescription.dosage_amount || ''}{prescription.dosage_unit || ''}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {prescription.medication_time_slots && prescription.medication_time_slots.length > 0 && (
+                                        <div className="flex items-baseline">
+                                          <span className="font-medium text-gray-900 mr-1.5">頻率：</span>
+                                          <span className="text-gray-800">
+                                            {prescription.medication_time_slots.join(', ')}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {prescription.meal_timing && (
+                                        <div className="flex items-baseline">
+                                          <span className="font-medium text-gray-900 mr-1.5">用法：</span>
+                                          <span className="text-gray-800">{prescription.meal_timing}</span>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
 
