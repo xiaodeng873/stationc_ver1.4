@@ -98,6 +98,37 @@ export interface HealthRecord {
   體重?: number;
   備註?: string;
   記錄人員?: string;
+  created_at?: string;
+}
+
+export interface DeletedHealthRecord {
+  id: string;
+  original_record_id: number;
+  院友id: number;
+  記錄日期: string;
+  記錄時間: string;
+  記錄類型: '生命表徵' | '血糖控制' | '體重控制';
+  血壓收縮壓?: number;
+  血壓舒張壓?: number;
+  脈搏?: number;
+  體溫?: number;
+  血含氧量?: number;
+  呼吸頻率?: number;
+  血糖值?: number;
+  體重?: number;
+  備註?: string;
+  記錄人員?: string;
+  created_at?: string;
+  deleted_at: string;
+  deleted_by?: string;
+  deletion_reason: string;
+}
+
+export interface DuplicateRecordGroup {
+  key: string;
+  records: HealthRecord[];
+  keepRecord: HealthRecord;
+  duplicateRecords: HealthRecord[];
 }
 
 export interface FollowUpAppointment {
@@ -1013,6 +1044,249 @@ export const deleteHealthRecord = async (recordId: number): Promise<void> => {
   if (error) {
     console.error('Error deleting health record:', error);
     throw error;
+  }
+};
+
+// 回收筒相关函数
+
+// 将健康记录移至回收筒
+export const moveHealthRecordToRecycleBin = async (
+  record: HealthRecord,
+  deletedBy?: string,
+  deletionReason: string = '记录去重'
+): Promise<void> => {
+  // 插入到回收筒
+  const { error: insertError } = await supabase
+    .from('deleted_health_records')
+    .insert({
+      original_record_id: record.記錄id,
+      院友id: record.院友id,
+      記錄日期: record.記錄日期,
+      記錄時間: record.記錄時間,
+      記錄類型: record.記錄類型,
+      血壓收縮壓: record.血壓收縮壓,
+      血壓舒張壓: record.血壓舒張壓,
+      脈搏: record.脈搏,
+      體溫: record.體溫,
+      血含氧量: record.血含氧量,
+      呼吸頻率: record.呼吸頻率,
+      血糖值: record.血糖值,
+      體重: record.體重,
+      備註: record.備註,
+      記錄人員: record.記錄人員,
+      created_at: record.created_at,
+      deleted_by: deletedBy,
+      deletion_reason: deletionReason
+    });
+
+  if (insertError) {
+    console.error('Error moving record to recycle bin:', insertError);
+    throw insertError;
+  }
+
+  // 从原表删除
+  const { error: deleteError } = await supabase
+    .from('健康記錄主表')
+    .delete()
+    .eq('記錄id', record.記錄id);
+
+  if (deleteError) {
+    console.error('Error deleting original record:', deleteError);
+    throw deleteError;
+  }
+};
+
+// 获取回收筒中的记录
+export const getDeletedHealthRecords = async (): Promise<DeletedHealthRecord[]> => {
+  const { data, error } = await supabase
+    .from('deleted_health_records')
+    .select('*')
+    .order('deleted_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching deleted health records:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+// 从回收筒恢复记录
+export const restoreHealthRecordFromRecycleBin = async (deletedRecordId: string): Promise<void> => {
+  // 获取回收筒中的记录
+  const { data: deletedRecord, error: fetchError } = await supabase
+    .from('deleted_health_records')
+    .select('*')
+    .eq('id', deletedRecordId)
+    .single();
+
+  if (fetchError || !deletedRecord) {
+    console.error('Error fetching deleted record:', fetchError);
+    throw fetchError || new Error('Record not found');
+  }
+
+  // 恢复到原表
+  const { error: insertError } = await supabase
+    .from('健康記錄主表')
+    .insert({
+      院友id: deletedRecord.院友id,
+      記錄日期: deletedRecord.記錄日期,
+      記錄時間: deletedRecord.記錄時間,
+      記錄類型: deletedRecord.記錄類型,
+      血壓收縮壓: deletedRecord.血壓收縮壓,
+      血壓舒張壓: deletedRecord.血壓舒張壓,
+      脈搏: deletedRecord.脈搏,
+      體溫: deletedRecord.體溫,
+      血含氧量: deletedRecord.血含氧量,
+      呼吸頻率: deletedRecord.呼吸頻率,
+      血糖值: deletedRecord.血糖值,
+      體重: deletedRecord.體重,
+      備註: deletedRecord.備註,
+      記錄人員: deletedRecord.記錄人員
+    });
+
+  if (insertError) {
+    console.error('Error restoring record:', insertError);
+    throw insertError;
+  }
+
+  // 从回收筒删除
+  const { error: deleteError } = await supabase
+    .from('deleted_health_records')
+    .delete()
+    .eq('id', deletedRecordId);
+
+  if (deleteError) {
+    console.error('Error removing record from recycle bin:', deleteError);
+    throw deleteError;
+  }
+};
+
+// 永久删除回收筒中的记录
+export const permanentlyDeleteHealthRecord = async (deletedRecordId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('deleted_health_records')
+    .delete()
+    .eq('id', deletedRecordId);
+
+  if (error) {
+    console.error('Error permanently deleting record:', error);
+    throw error;
+  }
+};
+
+// 去重相关函数
+
+// 分析最近1000笔记录中的重复记录
+export const findDuplicateHealthRecords = async (): Promise<DuplicateRecordGroup[]> => {
+  // 获取最近1000笔记录（按created_at降序）
+  const { data: records, error } = await supabase
+    .from('健康記錄主表')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1000);
+
+  if (error) {
+    console.error('Error fetching health records:', error);
+    throw error;
+  }
+
+  if (!records || records.length === 0) {
+    return [];
+  }
+
+  // 按院友id、记录日期、记录时间分组
+  const recordGroups = new Map<string, HealthRecord[]>();
+
+  records.forEach((record) => {
+    const key = `${record.院友id}_${record.記錄日期}_${record.記錄時間}`;
+    if (!recordGroups.has(key)) {
+      recordGroups.set(key, []);
+    }
+    recordGroups.get(key)!.push(record);
+  });
+
+  // 找出每组中的重复记录
+  const duplicateGroups: DuplicateRecordGroup[] = [];
+
+  recordGroups.forEach((groupRecords, key) => {
+    if (groupRecords.length < 2) {
+      return; // 只有一条记录，没有重复
+    }
+
+    // 进一步按有效数值字段分组（忽略null值）
+    const valueGroups = new Map<string, HealthRecord[]>();
+
+    groupRecords.forEach((record) => {
+      // 构建包含所有有效字段的key
+      const values = [];
+      if (record.血壓收縮壓 != null) values.push(`bp_sys:${record.血壓收縮壓}`);
+      if (record.血壓舒張壓 != null) values.push(`bp_dia:${record.血壓舒張壓}`);
+      if (record.脈搏 != null) values.push(`pulse:${record.脈搏}`);
+      if (record.體溫 != null) values.push(`temp:${record.體溫}`);
+      if (record.呼吸頻率 != null) values.push(`resp:${record.呼吸頻率}`);
+      if (record.血含氧量 != null) values.push(`spo2:${record.血含氧量}`);
+      if (record.血糖值 != null) values.push(`glucose:${record.血糖值}`);
+      if (record.體重 != null) values.push(`weight:${record.體重}`);
+
+      const valueKey = values.sort().join('|') || 'no_values';
+
+      if (!valueGroups.has(valueKey)) {
+        valueGroups.set(valueKey, []);
+      }
+      valueGroups.get(valueKey)!.push(record);
+    });
+
+    // 对于每个有效字段组合，如果有多条记录，则认为是重复
+    valueGroups.forEach((valueGroupRecords, valueKey) => {
+      if (valueGroupRecords.length >= 2) {
+        // 按created_at排序，保留最旧的记录（created_at最早）
+        const sortedRecords = valueGroupRecords.sort((a, b) => {
+          const timeA = new Date(a.created_at || 0).getTime();
+          const timeB = new Date(b.created_at || 0).getTime();
+          return timeA - timeB;
+        });
+
+        const keepRecord = sortedRecords[0]; // 保留最旧的
+        const duplicateRecords = sortedRecords.slice(1); // 其余的都是重复
+
+        duplicateGroups.push({
+          key: `${key}_${valueKey}`,
+          records: sortedRecords,
+          keepRecord,
+          duplicateRecords
+        });
+      }
+    });
+  });
+
+  return duplicateGroups;
+};
+
+// 批量将重复记录移至回收筒
+export const batchMoveDuplicatesToRecycleBin = async (
+  duplicateRecordIds: number[],
+  deletedBy?: string
+): Promise<void> => {
+  for (const recordId of duplicateRecordIds) {
+    // 获取完整记录
+    const { data: record, error: fetchError } = await supabase
+      .from('健康記錄主表')
+      .select('*')
+      .eq('記錄id', recordId)
+      .single();
+
+    if (fetchError || !record) {
+      console.error(`Error fetching record ${recordId}:`, fetchError);
+      continue; // 跳过这条，继续处理其他记录
+    }
+
+    try {
+      await moveHealthRecordToRecycleBin(record, deletedBy, '记录去重');
+    } catch (error) {
+      console.error(`Error moving record ${recordId} to recycle bin:`, error);
+      throw error; // 失败则中断整个操作
+    }
   }
 };
 

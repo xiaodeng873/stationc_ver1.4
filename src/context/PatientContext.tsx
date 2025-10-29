@@ -6,7 +6,7 @@ import { generateDailyWorkflowRecords } from '../utils/workflowGenerator';
 import { useAuth } from './AuthContext';
 
 // Re-export types from database module
-export type { Patient, HealthRecord, PatientHealthTask, HealthTaskType, FrequencyUnit, FollowUpAppointment, MealGuidance, MealCombinationType, SpecialDietType, PatientLog, PatientRestraintAssessment, WoundAssessment, PatientAdmissionRecord, AdmissionEventType, DailySystemTask } from '../lib/database';
+export type { Patient, HealthRecord, PatientHealthTask, HealthTaskType, FrequencyUnit, FollowUpAppointment, MealGuidance, MealCombinationType, SpecialDietType, PatientLog, PatientRestraintAssessment, WoundAssessment, PatientAdmissionRecord, AdmissionEventType, DailySystemTask, DeletedHealthRecord, DuplicateRecordGroup } from '../lib/database';
 
 // Wound photo interface
 export interface WoundPhoto {
@@ -207,6 +207,16 @@ interface PatientContextType {
   addPrescriptionTimeSlotDefinition: (definition: Omit<PrescriptionTimeSlotDefinition, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   updatePrescriptionTimeSlotDefinition: (definition: PrescriptionTimeSlotDefinition) => Promise<void>;
   deletePrescriptionTimeSlotDefinition: (id: string) => Promise<void>;
+
+  // 健康记录回收筒相关函数
+  deletedHealthRecords: db.DeletedHealthRecord[];
+  fetchDeletedHealthRecords: () => Promise<void>;
+  restoreHealthRecord: (deletedRecordId: string) => Promise<void>;
+  permanentlyDeleteHealthRecord: (deletedRecordId: string) => Promise<void>;
+
+  // 健康记录去重相关函数
+  findDuplicateHealthRecords: () => Promise<db.DuplicateRecordGroup[]>;
+  batchDeleteDuplicateRecords: (duplicateRecordIds: number[], deletedBy?: string) => Promise<void>;
 }
 
 interface PatientProviderProps {
@@ -223,6 +233,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const [schedules, setSchedules] = useState<ScheduleWithDetails[]>([]);
   const [serviceReasons, setServiceReasons] = useState<db.ServiceReason[]>([]);
   const [healthRecords, setHealthRecords] = useState<db.HealthRecord[]>([]);
+  const [deletedHealthRecords, setDeletedHealthRecords] = useState<db.DeletedHealthRecord[]>([]);
   const [followUpAppointments, setFollowUpAppointments] = useState<db.FollowUpAppointment[]>([]);
   const [mealGuidances, setMealGuidances] = useState<db.MealGuidance[]>([]);
   const [patientHealthTasks, setPatientHealthTasks] = useState<db.PatientHealthTask[]>([]);
@@ -1852,6 +1863,59 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
+  // 回收筒相关函数
+  const fetchDeletedHealthRecords = async () => {
+    try {
+      const records = await db.getDeletedHealthRecords();
+      setDeletedHealthRecords(records);
+    } catch (error) {
+      console.error('Error fetching deleted health records:', error);
+      throw error;
+    }
+  };
+
+  const restoreHealthRecord = async (deletedRecordId: string) => {
+    try {
+      await db.restoreHealthRecordFromRecycleBin(deletedRecordId);
+      await fetchDeletedHealthRecords(); // 刷新回收筒列表
+      await refreshData(); // 刷新主列表
+    } catch (error) {
+      console.error('Error restoring health record:', error);
+      throw error;
+    }
+  };
+
+  const permanentlyDeleteHealthRecord = async (deletedRecordId: string) => {
+    try {
+      await db.permanentlyDeleteHealthRecord(deletedRecordId);
+      await fetchDeletedHealthRecords(); // 刷新回收筒列表
+    } catch (error) {
+      console.error('Error permanently deleting health record:', error);
+      throw error;
+    }
+  };
+
+  // 去重相关函数
+  const findDuplicateHealthRecords = async (): Promise<db.DuplicateRecordGroup[]> => {
+    try {
+      return await db.findDuplicateHealthRecords();
+    } catch (error) {
+      console.error('Error finding duplicate health records:', error);
+      throw error;
+    }
+  };
+
+  const batchDeleteDuplicateRecords = async (duplicateRecordIds: number[], deletedBy?: string) => {
+    try {
+      await db.batchMoveDuplicatesToRecycleBin(duplicateRecordIds, deletedBy);
+      await refreshData(); // 刷新主列表
+      await fetchDeletedHealthRecords(); // 刷新回收筒列表
+    } catch (error) {
+      console.error('Error batch deleting duplicate records:', error);
+      throw error;
+    }
+  };
+
   // Follow-up appointment functions
   const addFollowUpAppointment = async (appointment: Omit<db.FollowUpAppointment, '覆診id' | '創建時間' | '更新時間'>) => {
     try {
@@ -2386,7 +2450,17 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       addPrescriptionTimeSlotDefinition,
       updatePrescriptionTimeSlotDefinition,
       deletePrescriptionTimeSlotDefinition,
-      fetchDoctorVisitSchedule
+      fetchDoctorVisitSchedule,
+
+      // 健康记录回收筒相关
+      deletedHealthRecords,
+      fetchDeletedHealthRecords,
+      restoreHealthRecord,
+      permanentlyDeleteHealthRecord,
+
+      // 健康记录去重相关
+      findDuplicateHealthRecords,
+      batchDeleteDuplicateRecords
     }}>
       {children}
     </PatientContext.Provider>

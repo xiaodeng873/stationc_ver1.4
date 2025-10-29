@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { 
-  Heart, 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  Search, 
+import {
+  Heart,
+  Plus,
+  Edit3,
+  Trash2,
+  Search,
   Filter,
   Activity,
   Droplets,
@@ -19,11 +19,15 @@ import {
   ChevronDown,
   Download,
   Upload,
-  X
+  X,
+  Recycle,
+  Copy
 } from 'lucide-react';
-import { usePatients } from '../context/PatientContext';
+import { usePatients, DuplicateRecordGroup } from '../context/PatientContext';
 import HealthRecordModal from '../components/HealthRecordModal';
 import BatchHealthRecordModal from '../components/BatchHealthRecordModal';
+import DeduplicateRecordsModal from '../components/DeduplicateRecordsModal';
+import RecycleBinModal from '../components/RecycleBinModal';
 import { exportHealthRecordsToExcel, type HealthRecordExportData } from '../utils/healthRecordExcelGenerator';
 import { exportVitalSignsToExcel, type VitalSignExportData } from '../utils/vitalsignExcelGenerator';
 import { exportBloodSugarToExcel, type BloodSugarExportData } from '../utils/bloodSugarExcelGenerator';
@@ -46,14 +50,16 @@ interface AdvancedFilters {
 }
 
 const HealthAssessment: React.FC = () => {
-  const { 
-    healthRecords, 
-    patients, 
-    loading, 
+  const {
+    healthRecords,
+    patients,
+    loading,
     deleteHealthRecord,
     generateRandomTemperaturesForActivePatients,
     recordDailyTemperatureGenerationCompletion,
-    checkEligiblePatientsForTemperature
+    checkEligiblePatientsForTemperature,
+    findDuplicateHealthRecords,
+    batchDeleteDuplicateRecords
   } = usePatients();
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -64,6 +70,10 @@ const HealthAssessment: React.FC = () => {
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchRecordType, setBatchRecordType] = useState<'生命表徵' | '血糖控制' | '體重控制'>('生命表徵');
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [showDeduplicateModal, setShowDeduplicateModal] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateRecordGroup[]>([]);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [isAnalyzingDuplicates, setIsAnalyzingDuplicates] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -616,6 +626,34 @@ const HealthAssessment: React.FC = () => {
     setShowBatchModal(true);
   };
 
+  const handleDeduplicateRecords = async () => {
+    setIsAnalyzingDuplicates(true);
+    try {
+      const groups = await findDuplicateHealthRecords();
+      if (groups.length === 0) {
+        alert('未发现重复记录');
+        return;
+      }
+      setDuplicateGroups(groups);
+      setShowDeduplicateModal(true);
+    } catch (error) {
+      console.error('Error analyzing duplicates:', error);
+      alert('分析重复记录失败，请重试');
+    } finally {
+      setIsAnalyzingDuplicates(false);
+    }
+  };
+
+  const handleConfirmDeduplicate = async (recordIds: number[]) => {
+    try {
+      await batchDeleteDuplicateRecords(recordIds);
+      alert(`成功删除 ${recordIds.length} 条重复记录！`);
+    } catch (error) {
+      console.error('Error deleting duplicates:', error);
+      throw error;
+    }
+  };
+
   const handleGenerateRandomTemperatures = async () => {
     try {
       setIsGeneratingTemperature(true);
@@ -750,7 +788,35 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
     <div className="space-y-6">
       <div className="sticky top-0 bg-white z-30 py-4 border-b border-gray-200 shadow-sm">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">監測記錄</h1>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-2xl font-bold text-gray-900">監測記錄</h1>
+            <button
+              onClick={handleDeduplicateRecords}
+              disabled={isAnalyzingDuplicates}
+              className="btn-secondary flex items-center space-x-2"
+              title="分析最近1000笔记录中的重复数据"
+            >
+              {isAnalyzingDuplicates ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <span>分析中...</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  <span>記錄去重</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setShowRecycleBin(true)}
+              className="btn-secondary flex items-center space-x-2"
+              title="查看已删除的记录"
+            >
+              <Recycle className="h-4 w-4" />
+              <span>回收筒</span>
+            </button>
+          </div>
           <div className="flex items-center space-x-2">
             <div className="relative group">
               <button
@@ -1343,6 +1409,24 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
         <BatchHealthRecordModal
           recordType={batchRecordType}
           onClose={() => setShowBatchModal(false)}
+        />
+      )}
+
+      {showDeduplicateModal && (
+        <DeduplicateRecordsModal
+          duplicateGroups={duplicateGroups}
+          onClose={() => {
+            setShowDeduplicateModal(false);
+            setDuplicateGroups([]);
+          }}
+          onConfirm={handleConfirmDeduplicate}
+          patients={patients}
+        />
+      )}
+
+      {showRecycleBin && (
+        <RecycleBinModal
+          onClose={() => setShowRecycleBin(false)}
         />
       )}
 
