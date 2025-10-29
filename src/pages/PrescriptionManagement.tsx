@@ -498,7 +498,13 @@ const PrescriptionManagement: React.FC = () => {
           </div>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => setShowMedicationRecordExportModal(true)}
+              onClick={() => {
+                if (currentPatient) {
+                  setShowSinglePatientExportModal(true);
+                } else {
+                  setShowMedicationRecordExportModal(true);
+                }
+              }}
               className="btn-secondary flex items-center space-x-2"
             >
               <FileText className="h-4 w-4" />
@@ -826,7 +832,6 @@ const PrescriptionManagement: React.FC = () => {
             onSelectAll={handleSelectAll}
             onInvertSelection={handleInvertSelection}
             onBatchUpdate={() => setShowBatchUpdateModal(true)}
-            onExportMedicationRecord={() => setShowSinglePatientExportModal(true)}
             onEdit={handleEdit}
             onTransfer={handleTransfer}
             onStatusChange={handleStatusChange}
@@ -916,7 +921,6 @@ interface IntegratedPrescriptionCardProps {
   onSelectAll: () => void;
   onInvertSelection: () => void;
   onBatchUpdate: () => void;
-  onExportMedicationRecord: () => void;
   onEdit: (prescription: any) => void;
   onTransfer: (prescription: any) => void;
   onStatusChange: (prescription: any, targetStatus: 'active' | 'pending_change' | 'inactive') => void;
@@ -937,7 +941,6 @@ const IntegratedPrescriptionCard: React.FC<IntegratedPrescriptionCardProps> = ({
   onSelectAll,
   onInvertSelection,
   onBatchUpdate,
-  onExportMedicationRecord,
   onEdit,
   onTransfer,
   onStatusChange,
@@ -1266,18 +1269,6 @@ const IntegratedPrescriptionCard: React.FC<IntegratedPrescriptionCardProps> = ({
                     <span>批量更新處方日期</span>
                   </button>
                 )}
-                <button
-                  onClick={onExportMedicationRecord}
-                  className="btn-secondary flex items-center space-x-2 text-sm"
-                  title={selectedPrescriptions.size > 0 ? `匯出已選 ${selectedPrescriptions.size} 個處方` : '匯出該院友所有符合條件的處方'}
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>
-                    {selectedPrescriptions.size > 0
-                      ? `匯出備藥記錄 (已選 ${selectedPrescriptions.size} 個)`
-                      : '匯出備藥記錄 (全部)'}
-                  </span>
-                </button>
               </div>
               <div className="text-sm text-gray-600">
                 已選擇 {selectedInCurrentView.length} / {currentPrescriptions.length} 個處方
