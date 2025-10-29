@@ -528,7 +528,14 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                                         <div className="flex items-baseline">
                                           <span className="font-medium text-gray-900 mr-1.5">檢測：</span>
                                           <span className="text-gray-800">
-                                            {prescription.inspection_rules.map((rule: any) => rule.項目名稱).join('、')}
+                                            {prescription.inspection_rules.map((rule: any) => {
+                                              const operator =
+                                                rule.condition_operator === 'gt' ? '>' :
+                                                rule.condition_operator === 'lt' ? '<' :
+                                                rule.condition_operator === 'gte' ? '≥' :
+                                                rule.condition_operator === 'lte' ? '≤' : '';
+                                              return `${rule.vital_sign_type} ${operator} ${rule.condition_value}`;
+                                            }).join('、')}
                                           </span>
                                         </div>
                                       )}
