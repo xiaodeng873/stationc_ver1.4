@@ -496,13 +496,7 @@ const PrescriptionManagement: React.FC = () => {
           </div>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => {
-                if (currentPatient) {
-                  setShowSinglePatientExportModal(true);
-                } else {
-                  setShowMedicationRecordExportModal(true);
-                }
-              }}
+              onClick={() => setShowMedicationRecordExportModal(true)}
               className="btn-secondary flex items-center space-x-2"
             >
               <FileText className="h-4 w-4" />
