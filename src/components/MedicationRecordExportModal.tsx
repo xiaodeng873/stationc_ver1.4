@@ -28,6 +28,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
 
   const [exportMode, setExportMode] = useState<'batch' | 'current'>(currentPatient ? 'current' : 'batch');
   const [selectedPatientIds, setSelectedPatientIds] = useState<Set<string>>(new Set());
+  const [currentPatientSelectedPrescriptions, setCurrentPatientSelectedPrescriptions] = useState<Set<string>>(selectedPrescriptionIds);
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
@@ -67,6 +68,17 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
     }
   };
 
+  const currentPatientAvailablePrescriptions = useMemo(() => {
+    if (exportMode !== 'current' || !currentPatient) return [];
+
+    return allPrescriptions.filter(p => {
+      if (p.patient_id !== currentPatient.patient.院友id) return false;
+      if (p.status === 'pending_change') return false;
+      if (p.status === 'inactive' && !includeInactive) return false;
+      return true;
+    });
+  }, [exportMode, currentPatient, allPrescriptions, includeInactive]);
+
   const batchRouteStats = useMemo(() => {
     const stats: RouteStats = { oral: 0, injection: 0, topical: 0, noRoute: 0 };
 
@@ -99,22 +111,17 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
   const currentPatientPrescriptionsToExport = useMemo(() => {
     if (exportMode !== 'current' || !currentPatient) return [];
 
-    const isExportAll = selectedPrescriptionIds.size === 0;
+    const isExportAll = currentPatientSelectedPrescriptions.size === 0;
 
     if (isExportAll) {
-      return allPrescriptions.filter(p => {
-        if (p.patient_id !== currentPatient.patient.院友id) return false;
-        if (p.status === 'pending_change') return false;
-        if (p.status === 'inactive' && !includeInactive) return false;
-        return true;
-      });
+      return currentPatientAvailablePrescriptions;
     } else {
       return allPrescriptions.filter(p =>
-        selectedPrescriptionIds.has(p.id) &&
+        currentPatientSelectedPrescriptions.has(p.id) &&
         p.patient_id === currentPatient.patient.院友id
       );
     }
-  }, [exportMode, currentPatient, selectedPrescriptionIds, allPrescriptions, includeInactive]);
+  }, [exportMode, currentPatient, currentPatientSelectedPrescriptions, allPrescriptions, currentPatientAvailablePrescriptions]);
 
   const currentRouteStats = useMemo((): RouteStats => {
     if (exportMode !== 'current') return { oral: 0, injection: 0, topical: 0, noRoute: 0 };
@@ -138,11 +145,29 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
     setSelectedPatientIds(newSet);
   };
 
+  const handleToggleCurrentPatientPrescription = (prescriptionId: string) => {
+    const newSet = new Set(currentPatientSelectedPrescriptions);
+    if (newSet.has(prescriptionId)) {
+      newSet.delete(prescriptionId);
+    } else {
+      newSet.add(prescriptionId);
+    }
+    setCurrentPatientSelectedPrescriptions(newSet);
+  };
+
   const handleSelectAll = () => {
     if (selectedPatientIds.size === filteredPatients.length) {
       setSelectedPatientIds(new Set());
     } else {
       setSelectedPatientIds(new Set(filteredPatients.map(p => p.院友id)));
+    }
+  };
+
+  const handleSelectAllCurrentPatientPrescriptions = () => {
+    if (currentPatientSelectedPrescriptions.size === currentPatientAvailablePrescriptions.length) {
+      setCurrentPatientSelectedPrescriptions(new Set());
+    } else {
+      setCurrentPatientSelectedPrescriptions(new Set(currentPatientAvailablePrescriptions.map(p => p.id)));
     }
   };
 
@@ -171,7 +196,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
 
       if (exportMode === 'current' && currentPatient) {
         await exportSelectedMedicationRecordToExcel(
-          Array.from(selectedPrescriptionIds),
+          Array.from(currentPatientSelectedPrescriptions),
           currentPatient.patient,
           allPrescriptions,
           medicationTemplate,
@@ -259,7 +284,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
   };
 
   const routeStats = exportMode === 'current' ? currentRouteStats : batchRouteStats;
-  const isExportAll = exportMode === 'current' && selectedPrescriptionIds.size === 0;
+  const isExportAll = exportMode === 'current' && currentPatientSelectedPrescriptions.size === 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -291,10 +316,9 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                     className="form-radio h-4 w-4 text-blue-600"
                   />
                   <div>
-                    <span className="font-medium text-gray-900">快速匯出當前院友</span>
+                    <span className="font-medium text-gray-900">匯出當前院友特定處方</span>
                     <p className="text-sm text-gray-600">
-                      匯出 {currentPatient.patient.中文姓氏}{currentPatient.patient.中文名字} 的處方
-                      {selectedPrescriptionIds.size > 0 && ` (已選 ${selectedPrescriptionIds.size} 個處方)`}
+                      匯出 {currentPatient.patient.中文姓氏}{currentPatient.patient.中文名字} 的指定處方
                     </p>
                   </div>
                 </label>
@@ -347,22 +371,108 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
           </div>
 
           {exportMode === 'current' && currentPatient && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900 mb-2">匯出範圍</h4>
-              <div className="text-sm text-blue-800">
-                {isExportAll ? (
-                  <div>
-                    <p className="mb-1">將匯出該院友的所有在服處方（共 {currentPatientPrescriptionsToExport.length} 個）</p>
-                    <ul className="list-disc list-inside space-y-1 ml-2">
-                      <li>不包含待變更處方</li>
-                      <li>停用處方 {includeInactive ? '包含' : '不包含'}</li>
-                    </ul>
-                  </div>
-                ) : (
-                  <p>將只匯出您選中的處方（共 {currentPatientPrescriptionsToExport.length} 個）</p>
-                )}
+            <>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2">匯出範圍</h4>
+                <div className="text-sm text-blue-800">
+                  {isExportAll ? (
+                    <div>
+                      <p className="mb-1">將匯出該院友的所有在服處方（共 {currentPatientAvailablePrescriptions.length} 個）</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>不包含待變更處方</li>
+                        <li>停用處方 {includeInactive ? '包含' : '不包含'}</li>
+                      </ul>
+                      <p className="mt-2 text-blue-900 font-medium">💡 提示：勾選下方特定處方可進行選擇性匯出</p>
+                    </div>
+                  ) : (
+                    <p>將只匯出您勾選的處方（共 {currentPatientSelectedPrescriptions.size} 個）</p>
+                  )}
+                </div>
               </div>
-            </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="form-label flex items-center space-x-2 mb-0">
+                    <Package className="h-4 w-4" />
+                    <span>選擇處方 ({currentPatientSelectedPrescriptions.size}/{currentPatientAvailablePrescriptions.length})</span>
+                  </label>
+                  <button
+                    onClick={handleSelectAllCurrentPatientPrescriptions}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {currentPatientSelectedPrescriptions.size === currentPatientAvailablePrescriptions.length ? '取消全選' : '全選'}
+                  </button>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
+                  {currentPatientAvailablePrescriptions.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">
+                      <Package className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                      <p>沒有可用的處方</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-200">
+                      {currentPatientAvailablePrescriptions.map(prescription => {
+                        const isSelected = currentPatientSelectedPrescriptions.has(prescription.id);
+                        const route = prescription.administration_route;
+                        const routeIcon = route === '口服' ? Pill : route === '注射' ? Syringe : Package;
+                        const RouteIcon = routeIcon;
+                        const routeColor = route === '口服' ? 'text-blue-600' : route === '注射' ? 'text-red-600' : 'text-green-600';
+
+                        return (
+                          <div
+                            key={prescription.id}
+                            onClick={() => handleToggleCurrentPatientPrescription(prescription.id)}
+                            className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${
+                              isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3 flex-1">
+                              {isSelected ? (
+                                <CheckSquare className="h-5 w-5 text-blue-600" />
+                              ) : (
+                                <Square className="h-5 w-5 text-gray-400" />
+                              )}
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-gray-900">{prescription.drug_name}</span>
+                                  {prescription.status === 'inactive' && (
+                                    <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 rounded">已停用</span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-600 mt-1 space-y-1">
+                                  <div className="flex items-center space-x-3">
+                                    {route ? (
+                                      <span className={`inline-flex items-center space-x-1 ${routeColor}`}>
+                                        <RouteIcon className="h-3 w-3" />
+                                        <span>{route}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center space-x-1 text-orange-600">
+                                        <AlertCircle className="h-3 w-3" />
+                                        <span>未設定途徑</span>
+                                      </span>
+                                    )}
+                                    <span>{prescription.dosage} {prescription.unit}</span>
+                                    <span>{prescription.frequency}</span>
+                                  </div>
+                                  {prescription.prescription_date && (
+                                    <div className="text-xs text-gray-500">
+                                      處方日期：{prescription.prescription_date}
+                                      {prescription.end_date && ` ~ ${prescription.end_date}`}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
 
           {exportMode === 'batch' && (
