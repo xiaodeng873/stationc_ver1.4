@@ -467,11 +467,44 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                                           </span>
                                         </div>
                                       )}
+                                      {prescription.frequency_type && (() => {
+                                        const getFrequencyDesc = () => {
+                                          const timeSlotsCount = prescription.medication_time_slots?.length || 0;
+                                          const getAbbr = (count: number) => {
+                                            switch (count) {
+                                              case 1: return 'QD';
+                                              case 2: return 'BD';
+                                              case 3: return 'TDS';
+                                              case 4: return 'QID';
+                                              default: return `${count}次/日`;
+                                            }
+                                          };
+                                          switch (prescription.frequency_type) {
+                                            case 'daily': return getAbbr(timeSlotsCount);
+                                            case 'every_x_days': return `隔${prescription.frequency_value}日服`;
+                                            case 'every_x_months': return `隔${prescription.frequency_value}月服`;
+                                            case 'weekly_days':
+                                              const dayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+                                              const days = prescription.specific_weekdays?.map((day: number) => dayNames[day === 7 ? 0 : day]).join('、') || '';
+                                              return `逢${days}服`;
+                                            case 'odd_even_days':
+                                              return prescription.is_odd_even_day === 'odd' ? '單日服' : prescription.is_odd_even_day === 'even' ? '雙日服' : '單雙日服';
+                                            case 'hourly': return `每${prescription.frequency_value}小時服用`;
+                                            default: return getAbbr(timeSlotsCount);
+                                          }
+                                        };
+                                        return (
+                                          <div className="flex items-baseline">
+                                            <span className="font-medium text-gray-900 mr-1.5">頻率：</span>
+                                            <span className="text-gray-800">{getFrequencyDesc()}</span>
+                                          </div>
+                                        );
+                                      })()}
                                       {prescription.medication_time_slots && prescription.medication_time_slots.length > 0 && (
                                         <div className="flex items-baseline">
-                                          <span className="font-medium text-gray-900 mr-1.5">頻率：</span>
+                                          <span className="font-medium text-gray-900 mr-1.5">每日次數：</span>
                                           <span className="text-gray-800">
-                                            {prescription.medication_time_slots.join(', ')}
+                                            {prescription.medication_time_slots.length}次 ({prescription.medication_time_slots.join(', ')})
                                           </span>
                                         </div>
                                       )}
@@ -479,6 +512,24 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                                         <div className="flex items-baseline">
                                           <span className="font-medium text-gray-900 mr-1.5">用法：</span>
                                           <span className="text-gray-800">{prescription.meal_timing}</span>
+                                        </div>
+                                      )}
+                                      {prescription.preparation_method && (
+                                        <div className="flex items-baseline">
+                                          <span className="font-medium text-gray-900 mr-1.5">備藥：</span>
+                                          <span className="text-gray-800">
+                                            {prescription.preparation_method === 'immediate' ? '即時備藥' :
+                                             prescription.preparation_method === 'advanced' ? '提前備藥' :
+                                             prescription.preparation_method === 'custom' ? '自定義' : prescription.preparation_method}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {prescription.inspection_rules && prescription.inspection_rules.length > 0 && (
+                                        <div className="flex items-baseline">
+                                          <span className="font-medium text-gray-900 mr-1.5">檢測：</span>
+                                          <span className="text-gray-800">
+                                            {prescription.inspection_rules.map((rule: any) => rule.項目名稱).join('、')}
+                                          </span>
                                         </div>
                                       )}
                                     </div>
