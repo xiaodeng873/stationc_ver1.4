@@ -8,6 +8,7 @@ import BatchPrescriptionDateUpdateModal from '../components/BatchPrescriptionDat
 import PrescriptionEndDateModal from '../components/PrescriptionEndDateModal';
 import PatientTooltip from '../components/PatientTooltip';
 import MedicationRecordExportModal from '../components/MedicationRecordExportModal';
+import SinglePatientMedicationExportModal from '../components/SinglePatientMedicationExportModal';
 import { getFormattedEnglishName } from '../utils/nameFormatter';
 
 type PrescriptionStatus = 'active' | 'pending_change' | 'inactive';
@@ -105,6 +106,7 @@ const PrescriptionManagement: React.FC = () => {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [showBatchUpdateModal, setShowBatchUpdateModal] = useState(false);
   const [showMedicationRecordExportModal, setShowMedicationRecordExportModal] = useState(false);
+  const [showSinglePatientExportModal, setShowSinglePatientExportModal] = useState(false);
 
   // 添加途徑過濾狀態
   const [selectedRoute, setSelectedRoute] = useState<string>('全部');
@@ -181,15 +183,20 @@ const PrescriptionManagement: React.FC = () => {
         summary => summary.patient.院友id.toString() === patientIdFromUrl
       );
       if (patientIndex !== -1) {
-        setPatientFilters(prev => ({ 
-          ...prev, 
-          selectedPatientId: patientIdFromUrl 
+        setPatientFilters(prev => ({
+          ...prev,
+          selectedPatientId: patientIdFromUrl
         }));
         // 清除 URL 參數
         setSearchParams({});
       }
     }
   }, [searchParams, patientPrescriptionSummaries, setSearchParams]);
+
+  // 切換院友時清空選擇
+  React.useEffect(() => {
+    setSelectedRows(new Set());
+  }, [currentPatient?.patient.院友id]);
 
   if (loading) {
     return (
@@ -479,19 +486,6 @@ const PrescriptionManagement: React.FC = () => {
         )}
       </div>
     );
-      {showEndDateModal && pendingStatusChange && (
-        <PrescriptionEndDateModal
-          isOpen={showEndDateModal}
-          onClose={() => {
-            setShowEndDateModal(false);
-            setPendingStatusChange(null);
-          }}
-          prescription={pendingStatusChange.prescription}
-          targetStatus={pendingStatusChange.targetStatus}
-          onConfirm={handleEndDateConfirm}
-        />
-      )}
-
   }
 
   return (
@@ -832,6 +826,7 @@ const PrescriptionManagement: React.FC = () => {
             onSelectAll={handleSelectAll}
             onInvertSelection={handleInvertSelection}
             onBatchUpdate={() => setShowBatchUpdateModal(true)}
+            onExportMedicationRecord={() => setShowSinglePatientExportModal(true)}
             onEdit={handleEdit}
             onTransfer={handleTransfer}
             onStatusChange={handleStatusChange}
@@ -883,6 +878,29 @@ const PrescriptionManagement: React.FC = () => {
           onClose={() => setShowMedicationRecordExportModal(false)}
         />
       )}
+
+      {showSinglePatientExportModal && currentPatient && (
+        <SinglePatientMedicationExportModal
+          isOpen={showSinglePatientExportModal}
+          onClose={() => setShowSinglePatientExportModal(false)}
+          currentPatient={currentPatient}
+          selectedPrescriptionIds={selectedRows}
+          allPrescriptions={prescriptions}
+        />
+      )}
+
+      {showEndDateModal && pendingStatusChange && (
+        <PrescriptionEndDateModal
+          isOpen={showEndDateModal}
+          onClose={() => {
+            setShowEndDateModal(false);
+            setPendingStatusChange(null);
+          }}
+          prescription={pendingStatusChange.prescription}
+          targetStatus={pendingStatusChange.targetStatus}
+          onConfirm={handleEndDateConfirm}
+        />
+      )}
     </div>
   );
 };
@@ -898,6 +916,7 @@ interface IntegratedPrescriptionCardProps {
   onSelectAll: () => void;
   onInvertSelection: () => void;
   onBatchUpdate: () => void;
+  onExportMedicationRecord: () => void;
   onEdit: (prescription: any) => void;
   onTransfer: (prescription: any) => void;
   onStatusChange: (prescription: any, targetStatus: 'active' | 'pending_change' | 'inactive') => void;
@@ -918,6 +937,7 @@ const IntegratedPrescriptionCard: React.FC<IntegratedPrescriptionCardProps> = ({
   onSelectAll,
   onInvertSelection,
   onBatchUpdate,
+  onExportMedicationRecord,
   onEdit,
   onTransfer,
   onStatusChange,
@@ -1246,6 +1266,18 @@ const IntegratedPrescriptionCard: React.FC<IntegratedPrescriptionCardProps> = ({
                     <span>批量更新處方日期</span>
                   </button>
                 )}
+                <button
+                  onClick={onExportMedicationRecord}
+                  className="btn-secondary flex items-center space-x-2 text-sm"
+                  title={selectedPrescriptions.size > 0 ? `匯出已選 ${selectedPrescriptions.size} 個處方` : '匯出該院友所有符合條件的處方'}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>
+                    {selectedPrescriptions.size > 0
+                      ? `匯出備藥記錄 (已選 ${selectedPrescriptions.size} 個)`
+                      : '匯出備藥記錄 (全部)'}
+                  </span>
+                </button>
               </div>
               <div className="text-sm text-gray-600">
                 已選擇 {selectedInCurrentView.length} / {currentPrescriptions.length} 個處方

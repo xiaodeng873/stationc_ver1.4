@@ -951,3 +951,143 @@ export const exportMedicationRecordToExcel = async (
     throw error;
   }
 };
+
+// 匯出選中的處方到個人備藥及給藥記錄
+export const exportSelectedMedicationRecordToExcel = async (
+  selectedPrescriptionIds: string[],
+  currentPatient: any,
+  allPrescriptions: any[],
+  medicationTemplate: any,
+  selectedMonth: string,
+  includeInactive: boolean = false
+): Promise<void> => {
+  try {
+    console.log('開始匯出選中的處方到個人備藥及給藥記錄...');
+    console.log('選中的處方數量:', selectedPrescriptionIds.length);
+    console.log('當前院友:', currentPatient.中文姓氏 + currentPatient.中文名字);
+
+    if (!medicationTemplate.extracted_format) {
+      throw new Error('範本格式無效');
+    }
+
+    const templateFormat = medicationTemplate.extracted_format as MedicationRecordTemplateFormat;
+
+    if (!templateFormat.oral || !templateFormat.topical || !templateFormat.injection) {
+      const missingSheets = [];
+      if (!templateFormat.oral) missingSheets.push('口服');
+      if (!templateFormat.topical) missingSheets.push('外用');
+      if (!templateFormat.injection) missingSheets.push('注射');
+      throw new Error('範本格式不完整：缺少 ' + missingSheets.join('、') + ' 工作表格式');
+    }
+
+    // 判斷匯出模式
+    const isExportAll = selectedPrescriptionIds.length === 0;
+    console.log('匯出模式:', isExportAll ? '全部匯出' : '選中匯出');
+
+    // 過濾處方
+    let prescriptionsToExport: any[];
+
+    if (isExportAll) {
+      // 全部匯出模式：過濾該院友的所有符合條件的處方
+      prescriptionsToExport = allPrescriptions.filter(p => {
+        if (p.patient_id !== currentPatient.院友id) return false;
+        if (p.status === 'pending_change') return false;
+        if (p.status === 'inactive' && !includeInactive) return false;
+        return true;
+      });
+      console.log('全部匯出模式：共過濾出', prescriptionsToExport.length, '個處方');
+    } else {
+      // 選中匯出模式：只保留選中的處方並驗證
+      prescriptionsToExport = allPrescriptions.filter(p =>
+        selectedPrescriptionIds.includes(p.id) &&
+        p.patient_id === currentPatient.院友id
+      );
+      console.log('選中匯出模式：共過濾出', prescriptionsToExport.length, '個處方');
+
+      if (prescriptionsToExport.length !== selectedPrescriptionIds.length) {
+        console.warn('警告：部分選中的處方不屬於當前院友，已過濾');
+      }
+    }
+
+    if (prescriptionsToExport.length === 0) {
+      throw new Error('沒有可匯出的處方');
+    }
+
+    // 按途徑分類處方
+    const categorized = categorizePrescriptionsByRoute(prescriptionsToExport);
+
+    console.log('途徑分類結果:');
+    console.log('  口服:', categorized.oral.length, '個');
+    console.log('  注射:', categorized.injection.length, '個');
+    console.log('  外用:', categorized.topical.length, '個');
+    console.log('  缺少途徑:', categorized.noRoute.length, '個');
+
+    if (categorized.noRoute.length > 0) {
+      console.warn('警告: 以下處方缺少途徑資訊，將不會被匯出:');
+      categorized.noRoute.forEach((p: any) => {
+        console.warn('  -', p.medication_name);
+      });
+    }
+
+    // 創建工作簿
+    const workbook = new ExcelJS.Workbook();
+    let totalSheets = 0;
+
+    // 創建口服工作表
+    if (categorized.oral.length > 0) {
+      const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字 + '(口服)';
+      console.log('創建工作表:', sheetName);
+      const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
+      applyMedicationRecordTemplate(worksheet, templateFormat.oral, currentPatient, categorized.oral, selectedMonth, 'oral');
+      totalSheets++;
+    }
+
+    // 創建注射工作表
+    if (categorized.injection.length > 0) {
+      const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字 + '(注射)';
+      console.log('創建工作表:', sheetName);
+      const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
+      applyMedicationRecordTemplate(worksheet, templateFormat.injection, currentPatient, categorized.injection, selectedMonth, 'injection');
+      totalSheets++;
+    }
+
+    // 創建外用工作表
+    if (categorized.topical.length > 0) {
+      const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字 + '(外用)';
+      console.log('創建工作表:', sheetName);
+      const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
+      applyMedicationRecordTemplate(worksheet, templateFormat.topical, currentPatient, categorized.topical, selectedMonth, 'topical');
+      totalSheets++;
+    }
+
+    if (workbook.worksheets.length === 0) {
+      throw new Error('沒有可匯出的處方資料。所有處方可能都缺少途徑資訊。');
+    }
+
+    console.log('匯出統計:');
+    console.log('  總共創建', totalSheets, '個工作表');
+    console.log('  口服處方:', categorized.oral.length, '個');
+    console.log('  注射處方:', categorized.injection.length, '個');
+    console.log('  外用處方:', categorized.topical.length, '個');
+    if (categorized.noRoute.length > 0) {
+      console.log('  ⚠️ 警告:', categorized.noRoute.length, '個處方因缺少途徑資訊而未被匯出');
+    }
+
+    // 生成檔案名稱
+    const templateBaseName = medicationTemplate.original_name.replace(/\.(xlsx|xls)$/i, '');
+    const modeText = isExportAll ? '全部' : '已選' + prescriptionsToExport.length + '個';
+    const finalFilename = currentPatient.床號 + '_' + currentPatient.中文姓氏 + currentPatient.中文名字 +
+      '_' + modeText + '_' + templateBaseName + '.xlsx';
+
+    // 儲存檔案
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, finalFilename);
+
+    console.log('選中處方的個人備藥及給藥記錄匯出完成:', finalFilename);
+
+  } catch (error: any) {
+    console.error('匯出選中處方失敗:', error);
+    throw error;
+  }
+};
