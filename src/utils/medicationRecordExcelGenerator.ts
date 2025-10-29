@@ -389,6 +389,49 @@ const expandInjectionPrescriptions = (prescriptions: any[], routeType: 'oral' | 
   return expandedPrescriptions;
 };
 
+// 拆分口服和外用處方：將超過4個時間點的處方拆分為多個條目
+const expandOralTopicalPrescriptions = (
+  prescriptions: any[],
+  routeType: 'oral' | 'topical' | 'injection'
+): any[] => {
+  // 仅对口服和外用类型处理
+  if (routeType === 'injection') {
+    return prescriptions;
+  }
+
+  const expandedPrescriptions: any[] = [];
+
+  prescriptions.forEach(prescription => {
+    const timeSlots = prescription.medication_time_slots || [];
+
+    // 如果时间点 <= 4，保持原样
+    if (timeSlots.length <= 4) {
+      expandedPrescriptions.push(prescription);
+    } else {
+      // 如果时间点 > 4，需要拆分
+      // 先按时间排序
+      const sortedTimeSlots = [...timeSlots].sort((a, b) =>
+        parseTimeToMinutes(a) - parseTimeToMinutes(b)
+      );
+
+      // 按每4个一组拆分
+      for (let i = 0; i < sortedTimeSlots.length; i += 4) {
+        const batch = sortedTimeSlots.slice(i, i + 4);
+        expandedPrescriptions.push({
+          ...prescription,
+          medication_time_slots: batch
+        });
+      }
+    }
+  });
+
+  if (expandedPrescriptions.length !== prescriptions.length) {
+    console.log(`口服/外用處方拆分: 原始 ${prescriptions.length} 個 -> 拆分後 ${expandedPrescriptions.length} 個`);
+  }
+
+  return expandedPrescriptions;
+};
+
 // 應用範本格式並填入資料
 const applyMedicationRecordTemplate = (
   worksheet: ExcelJS.Worksheet,
@@ -400,8 +443,9 @@ const applyMedicationRecordTemplate = (
 ): void => {
   console.log('開始應用個人備藥及給藥記錄範本: ', patient.中文姓氏 + patient.中文名字);
 
-  // 如果是注射類處方，先進行拆分
-  const processedPrescriptions = expandInjectionPrescriptions(prescriptions, routeType);
+  // 先进行注射类型拆分，再进行口服外用拆分
+  let processedPrescriptions = expandInjectionPrescriptions(prescriptions, routeType);
+  processedPrescriptions = expandOralTopicalPrescriptions(processedPrescriptions, routeType);
 
   // 設定欄寬
   template.columnWidths.forEach((width, idx) => {
@@ -470,12 +514,11 @@ const applyMedicationRecordTemplate = (
     ? new Date(patient.出生日期).toLocaleDateString('zh-TW')
     : '';
 
-  // 填入處方資料
+  // 填入處方資料（智能分页）
   let currentPage = 1;
   let prescriptionIndex = 0;
 
   while (prescriptionIndex < processedPrescriptions.length) {
-    const prescriptionsPerPage = 5;
     const startRow = currentPage === 1 ? 7 : ((currentPage - 1) * 31) + 7;
 
     // 如果是第二頁或之後，需要深層複製第7-37列
@@ -484,19 +527,36 @@ const applyMedicationRecordTemplate = (
       deepCopyRange(worksheet, template, 7, 37, targetStartRow);
     }
 
-    // 收集這一頁的所有服用時間點
+    // 初始化当前页的数据
     const pageTimeSlots: string[] = [];
+    const pagePrescriptions: any[] = [];
 
-    // 填入這一頁的處方（最多5個）
-    for (let i = 0; i < prescriptionsPerPage && prescriptionIndex < processedPrescriptions.length; i++) {
+    // 智能分配处方到当前页
+    while (prescriptionIndex < processedPrescriptions.length && pagePrescriptions.length < 5) {
       const prescription = processedPrescriptions[prescriptionIndex];
+      const prescriptionTimeSlots = prescription.medication_time_slots || [];
+
+      // 检查是否可以加入当前页
+      const combinedTimeSlots = [...pageTimeSlots, ...prescriptionTimeSlots];
+      const uniqueCount = new Set(combinedTimeSlots).size;
+
+      // 如果去重后 <= 6 个，或者当前页还没有处方（确保每页至少1个），则加入
+      if (uniqueCount <= 6 || pagePrescriptions.length === 0) {
+        pagePrescriptions.push(prescription);
+        pageTimeSlots.push(...prescriptionTimeSlots);
+        prescriptionIndex++;
+      } else {
+        // 会导致超过6个时间点，开新页
+        console.log(`页面 ${currentPage} 时间点已达上限，处方 #${prescriptionIndex + 1} 将移至下一页`);
+        break;
+      }
+    }
+
+    // 填入该页的所有处方条目
+    for (let i = 0; i < pagePrescriptions.length; i++) {
+      const prescription = pagePrescriptions[i];
       const groupStartRow = startRow + (i * 5);
-
-      // 填入處方資訊並收集時間點
-      const timeSlots = fillPrescriptionData(worksheet, prescription, groupStartRow, routeType);
-      pageTimeSlots.push(...timeSlots);
-
-      prescriptionIndex++;
+      fillPrescriptionData(worksheet, prescription, groupStartRow, routeType);
     }
 
     // 填入頁面時間點總結 (L32-L37)
@@ -521,22 +581,9 @@ const applyMedicationRecordTemplate = (
 
 // 填入頁面時間點總結 (L32-L37)
 const fillPageTimeSummary = (worksheet: ExcelJS.Worksheet, timeSlots: string[], startRow: number): void => {
-  // 去重並排序時間點
+  // 去重並排序時間點（按24小時制從早到晚）
   const uniqueTimeSlots = [...new Set(timeSlots)].sort((a, b) => {
     return parseTimeToMinutes(a) - parseTimeToMinutes(b);
-  });
-
-  // 按時間範圍分組
-  const morningSlots: string[] = []; // 07:00-11:59 -> L32-L34
-  const afternoonEveningSlots: string[] = []; // 12:00-22:00 -> L35-L37
-
-  uniqueTimeSlots.forEach(timeSlot => {
-    const minutes = parseTimeToMinutes(timeSlot);
-    if (minutes >= 7 * 60 && minutes < 12 * 60) {
-      morningSlots.push(timeSlot);
-    } else if (minutes >= 12 * 60 && minutes <= 22 * 60) {
-      afternoonEveningSlots.push(timeSlot);
-    }
   });
 
   // 計算 L32-L37 的實際列號
@@ -547,14 +594,14 @@ const fillPageTimeSummary = (worksheet: ExcelJS.Worksheet, timeSlots: string[], 
     worksheet.getCell('L' + (summaryStartRow + i)).value = '';
   }
 
-  // 填入早上時段 (L32-L34)
-  for (let i = 0; i < Math.min(morningSlots.length, 3); i++) {
-    worksheet.getCell('L' + (summaryStartRow + i)).value = morningSlots[i];
+  // 填入前6個時間點
+  for (let i = 0; i < Math.min(uniqueTimeSlots.length, 6); i++) {
+    worksheet.getCell('L' + (summaryStartRow + i)).value = uniqueTimeSlots[i];
   }
 
-  // 填入下午晚上時段 (L35-L37)
-  for (let i = 0; i < Math.min(afternoonEveningSlots.length, 3); i++) {
-    worksheet.getCell('L' + (summaryStartRow + 3 + i)).value = afternoonEveningSlots[i];
+  // 如果超過6個時間點，記錄警告（理論上不應該發生，因為分頁時已控制）
+  if (uniqueTimeSlots.length > 6) {
+    console.warn(`警告：頁面時間點超過6個 (共${uniqueTimeSlots.length}個)，應在分頁時避免此情況`);
   }
 };
 
@@ -630,6 +677,44 @@ const parseTimeToMinutes = (timeStr: string): number => {
   return parseInt(match[1]) * 60 + parseInt(match[2]);
 };
 
+// 判断是否需要打破时段限制
+const shouldBreakTimeRangeRule = (timeSlots: string[]): boolean => {
+  const rangeCounts = [0, 0, 0, 0]; // 4个时段的计数器
+
+  timeSlots.forEach(timeSlot => {
+    const minutes = parseTimeToMinutes(timeSlot);
+    if (minutes >= 7 * 60 && minutes < 12 * 60) {
+      rangeCounts[0]++; // 早上时段
+    } else if (minutes >= 12 * 60 && minutes < 16 * 60) {
+      rangeCounts[1]++; // 中午下午时段
+    } else if (minutes >= 16 * 60 && minutes < 20 * 60) {
+      rangeCounts[2]++; // 傍晚时段
+    } else if (minutes >= 20 * 60 && minutes <= 22 * 60) {
+      rangeCounts[3]++; // 晚上时段
+    }
+  });
+
+  // 如果任意时段包含2个或以上时间点，返回 true
+  return rangeCounts.some(count => count >= 2);
+};
+
+// 按时序映射时间点到4个单元格
+const mapTimeSlotsSequentially = (timeSlots: string[]): { [key: number]: string[] } => {
+  // 复制并排序时间点（按24小时制从早到晚）
+  const sortedSlots = [...timeSlots].sort((a, b) =>
+    parseTimeToMinutes(a) - parseTimeToMinutes(b)
+  );
+
+  const timeSlotsMap: { [key: number]: string[] } = {};
+
+  // 最多映射4个时间点
+  sortedSlots.slice(0, 4).forEach((slot, index) => {
+    timeSlotsMap[index + 1] = [slot];
+  });
+
+  return timeSlotsMap;
+};
+
 // 根據時間範圍決定放置的列偏移（口服和外用）
 const getTimeSlotRowOffset = (timeStr: string): number => {
   const minutes = parseTimeToMinutes(timeStr);
@@ -693,18 +778,33 @@ const fillPrescriptionData = (
 
   // L列：服用時間，根據時間範圍放置在不同列
   const timeSlots = prescription.medication_time_slots || [];
-  const timeSlotsMap: { [key: number]: string[] } = {};
+  let timeSlotsMap: { [key: number]: string[] } = {};
 
-  // 根據途徑類型選擇對應的時間點映射函數
-  const getRowOffsetFn = routeType === 'injection' ? getInjectionTimeSlotRowOffset : getTimeSlotRowOffset;
-
-  timeSlots.forEach((timeSlot: string) => {
-    const rowOffset = getRowOffsetFn(timeSlot);
-    if (!timeSlotsMap[rowOffset]) {
-      timeSlotsMap[rowOffset] = [];
+  if (routeType === 'injection') {
+    // 注射类型：所有时间点放在第一个位置
+    timeSlots.forEach((timeSlot: string) => {
+      const rowOffset = 1;
+      if (!timeSlotsMap[rowOffset]) {
+        timeSlotsMap[rowOffset] = [];
+      }
+      timeSlotsMap[rowOffset].push(timeSlot);
+    });
+  } else {
+    // 口服和外用类型：判断是否需要打破时段限制
+    if (shouldBreakTimeRangeRule(timeSlots)) {
+      // 打破时段限制，按时序映射
+      timeSlotsMap = mapTimeSlotsSequentially(timeSlots);
+    } else {
+      // 保持时段映射
+      timeSlots.forEach((timeSlot: string) => {
+        const rowOffset = getTimeSlotRowOffset(timeSlot);
+        if (!timeSlotsMap[rowOffset]) {
+          timeSlotsMap[rowOffset] = [];
+        }
+        timeSlotsMap[rowOffset].push(timeSlot);
+      });
     }
-    timeSlotsMap[rowOffset].push(timeSlot);
-  });
+  }
 
   // 清空 L8-L11 (startRow + 1 到 startRow + 4) - 注射類跳過 startRow + 2
   for (let i = 1; i <= 4; i++) {
@@ -848,6 +948,146 @@ export const exportMedicationRecordToExcel = async (
 
   } catch (error: any) {
     console.error('匯出個人備藥及給藥記錄失敗:', error);
+    throw error;
+  }
+};
+
+// 匯出選中的處方到個人備藥及給藥記錄
+export const exportSelectedMedicationRecordToExcel = async (
+  selectedPrescriptionIds: string[],
+  currentPatient: any,
+  allPrescriptions: any[],
+  medicationTemplate: any,
+  selectedMonth: string,
+  includeInactive: boolean = false
+): Promise<void> => {
+  try {
+    console.log('開始匯出選中的處方到個人備藥及給藥記錄...');
+    console.log('選中的處方數量:', selectedPrescriptionIds.length);
+    console.log('當前院友:', currentPatient.中文姓氏 + currentPatient.中文名字);
+
+    if (!medicationTemplate.extracted_format) {
+      throw new Error('範本格式無效');
+    }
+
+    const templateFormat = medicationTemplate.extracted_format as MedicationRecordTemplateFormat;
+
+    if (!templateFormat.oral || !templateFormat.topical || !templateFormat.injection) {
+      const missingSheets = [];
+      if (!templateFormat.oral) missingSheets.push('口服');
+      if (!templateFormat.topical) missingSheets.push('外用');
+      if (!templateFormat.injection) missingSheets.push('注射');
+      throw new Error('範本格式不完整：缺少 ' + missingSheets.join('、') + ' 工作表格式');
+    }
+
+    // 判斷匯出模式
+    const isExportAll = selectedPrescriptionIds.length === 0;
+    console.log('匯出模式:', isExportAll ? '全部匯出' : '選中匯出');
+
+    // 過濾處方
+    let prescriptionsToExport: any[];
+
+    if (isExportAll) {
+      // 全部匯出模式：過濾該院友的所有符合條件的處方
+      prescriptionsToExport = allPrescriptions.filter(p => {
+        if (p.patient_id !== currentPatient.院友id) return false;
+        if (p.status === 'pending_change') return false;
+        if (p.status === 'inactive' && !includeInactive) return false;
+        return true;
+      });
+      console.log('全部匯出模式：共過濾出', prescriptionsToExport.length, '個處方');
+    } else {
+      // 選中匯出模式：只保留選中的處方並驗證
+      prescriptionsToExport = allPrescriptions.filter(p =>
+        selectedPrescriptionIds.includes(p.id) &&
+        p.patient_id === currentPatient.院友id
+      );
+      console.log('選中匯出模式：共過濾出', prescriptionsToExport.length, '個處方');
+
+      if (prescriptionsToExport.length !== selectedPrescriptionIds.length) {
+        console.warn('警告：部分選中的處方不屬於當前院友，已過濾');
+      }
+    }
+
+    if (prescriptionsToExport.length === 0) {
+      throw new Error('沒有可匯出的處方');
+    }
+
+    // 按途徑分類處方
+    const categorized = categorizePrescriptionsByRoute(prescriptionsToExport);
+
+    console.log('途徑分類結果:');
+    console.log('  口服:', categorized.oral.length, '個');
+    console.log('  注射:', categorized.injection.length, '個');
+    console.log('  外用:', categorized.topical.length, '個');
+    console.log('  缺少途徑:', categorized.noRoute.length, '個');
+
+    if (categorized.noRoute.length > 0) {
+      console.warn('警告: 以下處方缺少途徑資訊，將不會被匯出:');
+      categorized.noRoute.forEach((p: any) => {
+        console.warn('  -', p.medication_name);
+      });
+    }
+
+    // 創建工作簿
+    const workbook = new ExcelJS.Workbook();
+    let totalSheets = 0;
+
+    // 創建口服工作表
+    if (categorized.oral.length > 0) {
+      const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字 + '(口服)';
+      console.log('創建工作表:', sheetName);
+      const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
+      applyMedicationRecordTemplate(worksheet, templateFormat.oral, currentPatient, categorized.oral, selectedMonth, 'oral');
+      totalSheets++;
+    }
+
+    // 創建注射工作表
+    if (categorized.injection.length > 0) {
+      const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字 + '(注射)';
+      console.log('創建工作表:', sheetName);
+      const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
+      applyMedicationRecordTemplate(worksheet, templateFormat.injection, currentPatient, categorized.injection, selectedMonth, 'injection');
+      totalSheets++;
+    }
+
+    // 創建外用工作表
+    if (categorized.topical.length > 0) {
+      const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字 + '(外用)';
+      console.log('創建工作表:', sheetName);
+      const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
+      applyMedicationRecordTemplate(worksheet, templateFormat.topical, currentPatient, categorized.topical, selectedMonth, 'topical');
+      totalSheets++;
+    }
+
+    if (workbook.worksheets.length === 0) {
+      throw new Error('沒有可匯出的處方資料。所有處方可能都缺少途徑資訊。');
+    }
+
+    console.log('匯出統計:');
+    console.log('  總共創建', totalSheets, '個工作表');
+    console.log('  口服處方:', categorized.oral.length, '個');
+    console.log('  注射處方:', categorized.injection.length, '個');
+    console.log('  外用處方:', categorized.topical.length, '個');
+    if (categorized.noRoute.length > 0) {
+      console.log('  ⚠️ 警告:', categorized.noRoute.length, '個處方因缺少途徑資訊而未被匯出');
+    }
+
+    // 生成檔案名稱
+    const templateBaseName = medicationTemplate.original_name.replace(/\.(xlsx|xls)$/i, '');
+    const modeText = isExportAll ? '全部' : '已選' + prescriptionsToExport.length + '個';
+    const finalFilename = currentPatient.床號 + '_' + currentPatient.中文姓氏 + currentPatient.中文名字 +
+      '_' + modeText + '_' + templateBaseName + '.xlsx';
+
+    // 儲存檔案
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, finalFilename);
+
+    console.log('選中處方的個人備藥及給藥記錄匯出完成:', finalFilename);
+
+  } catch (error: any) {
+    console.error('匯出選中處方失敗:', error);
     throw error;
   }
 };
