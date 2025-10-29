@@ -423,46 +423,70 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                           <div
                             key={prescription.id}
                             onClick={() => handleToggleCurrentPatientPrescription(prescription.id)}
-                            className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${
+                            className={`p-4 cursor-pointer transition-colors border-b border-gray-100 last:border-b-0 ${
                               isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'
                             }`}
                           >
-                            <div className="flex items-center space-x-3 flex-1">
-                              {isSelected ? (
-                                <CheckSquare className="h-5 w-5 text-blue-600" />
-                              ) : (
-                                <Square className="h-5 w-5 text-gray-400" />
-                              )}
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2">
-                                  <span className="font-medium text-gray-900">{prescription.drug_name}</span>
+                            <div className="flex items-start space-x-3">
+                              <div className="pt-1">
+                                {isSelected ? (
+                                  <CheckSquare className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                                ) : (
+                                  <Square className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  {route ? (
+                                    <span className={`inline-flex items-center space-x-1 ${routeColor} font-medium`}>
+                                      <RouteIcon className="h-4 w-4 flex-shrink-0" />
+                                      <span className="text-sm">{route}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center space-x-1 text-orange-600 font-medium">
+                                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                      <span className="text-sm">未設定途徑</span>
+                                    </span>
+                                  )}
                                   {prescription.status === 'inactive' && (
-                                    <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 rounded">已停用</span>
+                                    <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 rounded flex-shrink-0">已停用</span>
                                   )}
                                 </div>
-                                <div className="text-sm text-gray-600 mt-1 space-y-1">
-                                  <div className="flex items-center space-x-3">
-                                    {route ? (
-                                      <span className={`inline-flex items-center space-x-1 ${routeColor}`}>
-                                        <RouteIcon className="h-3 w-3" />
-                                        <span>{route}</span>
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center space-x-1 text-orange-600">
-                                        <AlertCircle className="h-3 w-3" />
-                                        <span>未設定途徑</span>
-                                      </span>
-                                    )}
-                                    <span>{prescription.dosage} {prescription.unit}</span>
-                                    <span>{prescription.frequency}</span>
+
+                                <div className="mb-2">
+                                  <div className="font-semibold text-gray-900 text-base mb-1">
+                                    {prescription.drug_name || '未命名藥物'}
                                   </div>
-                                  {prescription.prescription_date && (
-                                    <div className="text-xs text-gray-500">
-                                      處方日期：{prescription.prescription_date}
-                                      {prescription.end_date && ` ~ ${prescription.end_date}`}
+                                  <div className="text-sm text-gray-700 space-y-0.5">
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                      {prescription.dosage && prescription.unit && (
+                                        <span className="inline-flex items-center">
+                                          <span className="text-gray-500 mr-1">劑量：</span>
+                                          <span className="font-medium">{prescription.dosage} {prescription.unit}</span>
+                                        </span>
+                                      )}
+                                      {prescription.frequency && (
+                                        <span className="inline-flex items-center">
+                                          <span className="text-gray-500 mr-1">頻率：</span>
+                                          <span className="font-medium">{prescription.frequency}</span>
+                                        </span>
+                                      )}
                                     </div>
-                                  )}
+                                    {prescription.usage_instructions && (
+                                      <div className="text-gray-600">
+                                        <span className="text-gray-500">用法：</span>
+                                        {prescription.usage_instructions}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
+
+                                {prescription.prescription_date && (
+                                  <div className="text-xs text-gray-500 bg-gray-50 rounded px-2 py-1 inline-block">
+                                    📅 處方日期：{prescription.prescription_date}
+                                    {prescription.end_date && ` ～ ${prescription.end_date}`}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
