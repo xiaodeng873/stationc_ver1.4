@@ -1,15 +1,15 @@
 import { supabase } from '../lib/supabase';
-import { getSupabaseUrl, getSupabaseAnonKey } from '../config/supabase.config';
 
 /**
  * 為指定日期和院友生成藥物工作流程記錄
  */
 export async function generateDailyWorkflowRecords(
-  targetDate: string,
+  targetDate: string, 
   patientId?: number
 ): Promise<{ success: boolean; message: string; recordsGenerated: number }> {
-  const supabaseUrl = getSupabaseUrl();
-  const supabaseAnonKey = getSupabaseAnonKey();
+  // 從 supabase 客戶端獲取 URL 和 key
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mzeptzwuqvpjspxgnzkp.supabase.co';
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16ZXB0end1cXZwanNweGduemtwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwMjM4NjEsImV4cCI6MjA2NzU5OTg2MX0.Uo4fgr2XdUxWY5LZ5Q7A0j6XoCyuUsHhb4WO-eabJWk';
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return {

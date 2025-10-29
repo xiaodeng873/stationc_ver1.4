@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createClient, User, Session } from '@supabase/supabase-js';
-import { getSupabaseUrl, getSupabaseAnonKey } from '../config/supabase.config';
 
-const supabaseUrl = getSupabaseUrl();
-const supabaseAnonKey = getSupabaseAnonKey();
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://zp1v56uxy8rdx5ypatb0ockcb9tr6a.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpwMXY1NnV4eThyZHg1eXBhdGIwb2NrY2I5dHI2YSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzM1NzE0NzE5LCJleHAiOjIwNTEyOTA3MTl9.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8';
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
