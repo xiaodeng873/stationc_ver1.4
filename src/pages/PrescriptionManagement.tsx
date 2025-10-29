@@ -8,7 +8,6 @@ import BatchPrescriptionDateUpdateModal from '../components/BatchPrescriptionDat
 import PrescriptionEndDateModal from '../components/PrescriptionEndDateModal';
 import PatientTooltip from '../components/PatientTooltip';
 import MedicationRecordExportModal from '../components/MedicationRecordExportModal';
-import SinglePatientMedicationExportModal from '../components/SinglePatientMedicationExportModal';
 import { getFormattedEnglishName } from '../utils/nameFormatter';
 
 type PrescriptionStatus = 'active' | 'pending_change' | 'inactive';
@@ -106,7 +105,6 @@ const PrescriptionManagement: React.FC = () => {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [showBatchUpdateModal, setShowBatchUpdateModal] = useState(false);
   const [showMedicationRecordExportModal, setShowMedicationRecordExportModal] = useState(false);
-  const [showSinglePatientExportModal, setShowSinglePatientExportModal] = useState(false);
 
   // 添加途徑過濾狀態
   const [selectedRoute, setSelectedRoute] = useState<string>('全部');
@@ -881,13 +879,6 @@ const PrescriptionManagement: React.FC = () => {
       {showMedicationRecordExportModal && (
         <MedicationRecordExportModal
           onClose={() => setShowMedicationRecordExportModal(false)}
-        />
-      )}
-
-      {showSinglePatientExportModal && currentPatient && (
-        <SinglePatientMedicationExportModal
-          isOpen={showSinglePatientExportModal}
-          onClose={() => setShowSinglePatientExportModal(false)}
           currentPatient={currentPatient}
           selectedPrescriptionIds={selectedRows}
           allPrescriptions={prescriptions}
