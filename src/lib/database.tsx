@@ -1081,7 +1081,9 @@ export const moveHealthRecordToRecycleBin = async (
 
   if (insertError) {
     console.error('Error moving record to recycle bin:', insertError);
-    throw insertError;
+    console.warn('Recycle bin is not available. Record will be permanently deleted instead.');
+    // 如果回收筒不可用，直接删除记录
+    console.log('Falling back to direct deletion for record:', record.記錄id);
   }
 
   // 从原表删除
