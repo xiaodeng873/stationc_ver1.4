@@ -2188,11 +2188,15 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       // 插入事件記錄
       if (events && events.length > 0) {
-        const eventsWithEpisodeId = events.map((event: any, index: number) => ({
-          ...event,
-          episode_id: episode.id,
-          event_order: index + 1
-        }));
+        const eventsWithEpisodeId = events.map((event: any, index: number) => {
+          // 移除 id 字段，讓資料庫自動生成
+          const { id, ...eventWithoutId } = event;
+          return {
+            ...eventWithoutId,
+            episode_id: episode.id,
+            event_order: index + 1
+          };
+        });
 
         console.log('準備插入事件記錄:', eventsWithEpisodeId);
 
@@ -2243,12 +2247,15 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       // 重新插入事件記錄
       if (events && events.length > 0) {
-        const eventsWithEpisodeId = events.map((event: any, index: number) => ({
-          ...event,
-          episode_id: episodeData.id,
-          event_order: index + 1,
-          id: undefined // 讓資料庫生成新的 ID
-        }));
+        const eventsWithEpisodeId = events.map((event: any, index: number) => {
+          // 移除 id 字段，讓資料庫自動生成
+          const { id, ...eventWithoutId } = event;
+          return {
+            ...eventWithoutId,
+            episode_id: episodeData.id,
+            event_order: index + 1
+          };
+        });
 
         const { error: eventsError } = await supabase
           .from('episode_events')
