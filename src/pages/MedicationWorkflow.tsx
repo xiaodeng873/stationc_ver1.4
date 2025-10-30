@@ -25,9 +25,8 @@ import PatientAutocomplete from '../components/PatientAutocomplete';
 import PrescriptionModal from '../components/PrescriptionModal';
 import DispenseReasonModal from '../components/DispenseReasonModal';
 import InspectionCheckModal from '../components/InspectionCheckModal';
-import WorkflowActionModal from '../components/WorkflowActionModal';
-import FailureReasonModal from '../components/FailureReasonModal';
 import InjectionSiteModal from '../components/InjectionSiteModal';
+import RevertConfirmModal from '../components/RevertConfirmModal';
 import { generateDailyWorkflowRecords } from '../utils/workflowGenerator';
 
 interface WorkflowCellProps {
@@ -158,11 +157,10 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
   };
 
   const getClickTooltip = () => {
-    // 移除「僅可操作選取當日」提示
     if (status === 'completed') {
-      return `點擊撤銷${getStepLabel()}`;
+      return `點擊撤銷${getStepLabel()}（需確認）`;
     } else if (status === 'failed') {
-      return `點擊撤銷${getStepLabel()}失敗狀態`;
+      return `點擊撤銷${getStepLabel()}失敗狀態（需確認）`;
     } else if (status === 'pending') {
       if (step === 'preparation') {
         return `點擊執行${getStepLabel()}`;
@@ -237,15 +235,14 @@ const MedicationWorkflow: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDispenseReasonModal, setShowDispenseReasonModal] = useState(false);
   const [showInspectionCheckModal, setShowInspectionCheckModal] = useState(false);
-  const [showWorkflowActionModal, setShowWorkflowActionModal] = useState(false);
-  const [showFailureReasonModal, setShowFailureReasonModal] = useState(false);
   const [showInjectionSiteModal, setShowInjectionSiteModal] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
   const [selectedWorkflowRecord, setSelectedWorkflowRecord] = useState<any>(null);
   const [selectedStep, setSelectedStep] = useState<string>('');
-  const [currentActionRecord, setCurrentActionRecord] = useState<any>(null);
-  const [currentActionStep, setCurrentActionStep] = useState<string>('');
+  const [showRevertConfirmModal, setShowRevertConfirmModal] = useState(false);
+  const [revertActionRecord, setRevertActionRecord] = useState<any>(null);
+  const [revertActionStep, setRevertActionStep] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [oneClickProcessing, setOneClickProcessing] = useState({
@@ -420,13 +417,13 @@ const MedicationWorkflow: React.FC = () => {
       console.error('無效的記錄ID:', recordId);
       return;
     }
-    
+
     if (!selectedPatientId) {
       console.error('缺少必要的院友ID:', { selectedPatientId });
       alert('請先選擇院友');
       return;
     }
-    
+
     // 驗證 selectedPatientId 是否為有效數字
     const patientIdNum = parseInt(selectedPatientId);
     if (isNaN(patientIdNum)) {
@@ -434,25 +431,30 @@ const MedicationWorkflow: React.FC = () => {
       alert('請選擇有效的院友');
       return;
     }
-    
+
     const record = allWorkflowRecords.find(r => r.id === recordId);
     if (!record) {
       console.error('找不到對應的工作流程記錄:', recordId);
       return;
     }
 
-    // 移除日期限制，允許所有日期操作
     // 檢查步驟狀態，決定是執行操作還是撤銷
     const stepStatus = getStepStatus(record, step);
-    
+
     if (stepStatus === 'pending') {
-      // 待處理狀態：打開操作選擇模態框
-      setCurrentActionRecord(record);
-      setCurrentActionStep(step);
-      setShowWorkflowActionModal(true);
+      // 待處理狀態：直接執行操作
+      if (step === 'preparation' || step === 'verification') {
+        // 執藥和核藥：直接完成
+        await handleCompleteWorkflowStep(recordId, step);
+      } else if (step === 'dispensing') {
+        // 派藥：保持原有邏輯，檢查特殊情況
+        await handleCompleteWorkflowStep(recordId, step);
+      }
     } else if (stepStatus === 'completed' || stepStatus === 'failed') {
-      // 已完成或失敗狀態：直接撤銷
-      await handleRevertStep(recordId, step);
+      // 已完成或失敗狀態：打開撤銷確認對話框
+      setRevertActionRecord(record);
+      setRevertActionStep(step);
+      setShowRevertConfirmModal(true);
     }
   };
 
@@ -478,8 +480,6 @@ const MedicationWorkflow: React.FC = () => {
 
   // 處理完成工作流程步驟
   const handleCompleteWorkflowStep = async (recordId: string, step: string) => {
-    if (!currentActionRecord) return;
-
     const patientIdNum = parseInt(selectedPatientId);
     if (isNaN(patientIdNum)) {
       console.error('無效的院友ID:', selectedPatientId);
@@ -487,40 +487,41 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
-    const record = currentActionRecord;
+    const record = allWorkflowRecords.find(r => r.id === recordId);
+    if (!record) {
+      console.error('找不到對應的工作流程記錄:', recordId);
+      return;
+    }
+
     const scheduledDate = record.scheduled_date;
 
     try {
-      switch (step) {
-        case 'preparation':
-          await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
-          break;
-        case 'verification':
-          await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
-          break;
-        case 'dispensing':
-          const prescription = prescriptions.find(p => p.id === record.prescription_id);
-          
-          // 檢查院友是否入院中
-          if (checkPatientHospitalized(patientIdNum)) {
-            alert('此院友正在入院中，無法完成派藥。\n\n如果院友已經出院，請到「出入院記錄」中更新院友狀態，方可進行派藥。');
-            return;
-          }
-          
-          // 針劑需要選擇注射位置
-          if (prescription?.administration_route === '注射') {
-            setCurrentInjectionRecord(record);
-            setShowInjectionSiteModal(true);
-          } else if (prescription?.inspection_rules && prescription.inspection_rules.length > 0) {
-            // 有檢測項要求的藥物需要檢測
-            setSelectedWorkflowRecord(record);
-            setSelectedStep(step);
-            setShowInspectionCheckModal(true);
-          } else {
-            // 無特殊要求的藥物直接派藥
-            await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
-          }
-          break;
+      if (step === 'preparation') {
+        await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
+      } else if (step === 'verification') {
+        await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
+      } else if (step === 'dispensing') {
+        const prescription = prescriptions.find(p => p.id === record.prescription_id);
+
+        // 檢查院友是否入院中
+        if (checkPatientHospitalized(patientIdNum)) {
+          alert('此院友正在入院中，無法完成派藥。\n\n如果院友已經出院，請到「出入院記錄」中更新院友狀態，方可進行派藥。');
+          return;
+        }
+
+        // 針劑需要選擇注射位置
+        if (prescription?.administration_route === '注射') {
+          setCurrentInjectionRecord(record);
+          setShowInjectionSiteModal(true);
+        } else if (prescription?.inspection_rules && prescription.inspection_rules.length > 0) {
+          // 有檢測項要求的藥物需要檢測
+          setSelectedWorkflowRecord(record);
+          setSelectedStep(step);
+          setShowInspectionCheckModal(true);
+        } else {
+          // 無特殊要求的藥物直接派藥
+          await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
+        }
       }
     } catch (error) {
       console.error(`執行${step}失敗:`, error);
@@ -528,76 +529,6 @@ const MedicationWorkflow: React.FC = () => {
     }
   };
 
-  // 處理工作流程步驟失敗
-  const handleFailWorkflowStep = async (recordId: string, step: string) => {
-    const record = allWorkflowRecords.find(r => r.id === recordId);
-    if (!record) return;
-    
-    // 使用 React 的批量更新來確保狀態同時更新
-    React.startTransition(() => {
-      setShowWorkflowActionModal(false);
-      setCurrentActionRecord(record);
-      setCurrentActionStep(step);
-      setShowFailureReasonModal(true);
-    });
-  };
-
-  // 處理確認失敗原因
-  const handleConfirmFailure = async (reason: string, customReason?: string) => {
-    if (!currentActionRecord) return;
-
-    const patientIdNum = parseInt(selectedPatientId);
-    if (isNaN(patientIdNum)) {
-      console.error('無效的院友ID:', selectedPatientId);
-      alert('請選擇有效的院友');
-      return;
-    }
-
-    const record = currentActionRecord;
-    const scheduledDate = record.scheduled_date;
-
-    try {
-      switch (currentActionStep) {
-        case 'preparation':
-          await prepareMedication(
-            record.id, 
-            displayName || '未知', 
-            reason, 
-            customReason,
-            patientIdNum, 
-            scheduledDate
-          );
-          break;
-        case 'verification':
-          await verifyMedication(
-            record.id,
-            displayName || '未知', 
-            reason, 
-            customReason,
-            patientIdNum, 
-            scheduledDate
-          );
-          break;
-        case 'dispensing':
-          await dispenseMedication(
-            record.id, 
-            displayName || '未知', 
-            reason, 
-            customReason,
-            patientIdNum,
-            scheduledDate
-          );
-          break;
-      }
-      
-      setShowFailureReasonModal(false);
-      setCurrentActionRecord(null);
-      setCurrentActionStep('');
-    } catch (error) {
-      console.error('記錄失敗原因失敗:', error);
-      alert(`記錄失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-    }
-  };
 
   // 獲取步驟狀態
   const getStepStatus = (record: any, step: string) => {
@@ -1624,34 +1555,18 @@ const MedicationWorkflow: React.FC = () => {
         />
       )}
 
-      {/* 工作流程操作模態框 */}
-      {showWorkflowActionModal && currentActionRecord && (
-        <WorkflowActionModal
-          isOpen={showWorkflowActionModal}
+      {/* 撤銷確認模態框 */}
+      {showRevertConfirmModal && revertActionRecord && (
+        <RevertConfirmModal
+          isOpen={showRevertConfirmModal}
           onClose={() => {
-            setShowWorkflowActionModal(false);
-            setCurrentActionRecord(null);
-            setCurrentActionStep('');
+            setShowRevertConfirmModal(false);
+            setRevertActionRecord(null);
+            setRevertActionStep('');
           }}
-          workflowRecord={currentActionRecord}
-          step={currentActionStep as any}
-          onComplete={handleCompleteWorkflowStep}
-          onFail={handleFailWorkflowStep}
-        />
-      )}
-
-      {/* 失敗原因模態框 */}
-      {showFailureReasonModal && currentActionRecord && (
-        <FailureReasonModal
-          isOpen={showFailureReasonModal}
-          onClose={() => {
-            setShowFailureReasonModal(false);
-            setCurrentActionRecord(null);
-            setCurrentActionStep('');
-          }}
-          workflowRecord={currentActionRecord}
-          step={currentActionStep as any}
-          onConfirm={handleConfirmFailure}
+          workflowRecord={revertActionRecord}
+          step={revertActionStep as any}
+          onConfirm={() => handleRevertStep(revertActionRecord.id, revertActionStep)}
         />
       )}
 
