@@ -1869,8 +1869,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       const records = await db.getDeletedHealthRecords();
       setDeletedHealthRecords(records);
     } catch (error) {
-      console.error('Error fetching deleted health records:', error);
-      throw error;
+      console.warn('回收筒暂时不可用，跳过获取已删除记录:', error);
+      // 不抛出错误，允许程序继续执行
+      setDeletedHealthRecords([]);
     }
   };
 
@@ -1909,7 +1910,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     try {
       await db.batchMoveDuplicatesToRecycleBin(duplicateRecordIds, deletedBy);
       await refreshData(); // 刷新主列表
-      await fetchDeletedHealthRecords(); // 刷新回收筒列表
+      // 尝试刷新回收筒列表，但即使失败也不影响主流程
+      await fetchDeletedHealthRecords().catch(err => {
+        console.warn('刷新回收筒列表失败，但记录已成功删除:', err);
+      });
     } catch (error) {
       console.error('Error batch deleting duplicate records:', error);
       throw error;

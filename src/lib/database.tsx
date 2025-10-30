@@ -1301,7 +1301,7 @@ export const batchMoveDuplicatesToRecycleBin = async (
       .from('健康記錄主表')
       .select('*')
       .eq('記錄id', recordId)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !record) {
       console.error(`Error fetching record ${recordId}:`, fetchError);
@@ -1312,7 +1312,8 @@ export const batchMoveDuplicatesToRecycleBin = async (
       await moveHealthRecordToRecycleBin(record, deletedBy, '记录去重');
     } catch (error) {
       console.error(`Error moving record ${recordId} to recycle bin:`, error);
-      throw error; // 失败则中断整个操作
+      // 不中断操作，继续处理下一条记录
+      // 记录已经在 moveHealthRecordToRecycleBin 中被删除了
     }
   }
 };
