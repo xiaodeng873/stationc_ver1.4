@@ -33,12 +33,11 @@ interface WorkflowCellProps {
   record: any;
   step: 'preparation' | 'verification' | 'dispensing';
   onStepClick: (recordId: string, step: string) => void;
-  onRevert: (recordId: string, step: string) => void;
   disabled?: boolean;
   selectedDate: string;
 }
 
-const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, onRevert, disabled, selectedDate }) => {
+const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, disabled, selectedDate }) => {
   const { prescriptions } = usePatients();
   
   // 檢查是否為即時備藥處方
@@ -148,12 +147,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
 
   const handleClick = () => {
     if (!isClickable()) return;
-    
-    if (status === 'pending') {
-      onStepClick(record.id, step);
-    } else if (status === 'completed' || status === 'failed') {
-      onRevert(record.id, step);
-    }
+    onStepClick(record.id, step);
   };
 
   const getClickTooltip = () => {
@@ -1422,21 +1416,18 @@ const MedicationWorkflow: React.FC = () => {
                                           record={workflowRecord}
                                           step="preparation"
                                           onStepClick={handleStepClick}
-                                          onRevert={handleRevertStep}
                                           selectedDate={selectedDate}
                                         />
                                         <WorkflowCell
                                           record={workflowRecord}
                                           step="verification"
                                           onStepClick={handleStepClick}
-                                          onRevert={handleRevertStep}
                                           selectedDate={selectedDate}
                                         />
                                         <WorkflowCell
                                           record={workflowRecord}
                                           step="dispensing"
                                           onStepClick={handleStepClick}
-                                          onRevert={handleRevertStep}
                                           selectedDate={selectedDate}
                                         />
                                       </div>
