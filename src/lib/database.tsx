@@ -2276,7 +2276,7 @@ export const getMedicationWorkflowRecords = async (filters?: {
   verification_status?: string;
   dispensing_status?: string;
 }): Promise<MedicationWorkflowRecord[]> => {
-  let query = supabase.from('prescription_workflow_records').select('*');
+  let query = supabase.from('medication_workflow_records').select('*');
 
   if (filters) {
     if (filters.patient_id) {
@@ -2313,7 +2313,7 @@ export const createMedicationWorkflowRecord = async (
   record: Omit<MedicationWorkflowRecord, 'id' | 'created_at' | 'updated_at'>
 ): Promise<MedicationWorkflowRecord> => {
   const { data, error } = await supabase
-    .from('prescription_workflow_records')
+    .from('medication_workflow_records')
     .insert([record])
     .select()
     .single();
@@ -2330,7 +2330,7 @@ export const updateMedicationWorkflowRecord = async (
   record: MedicationWorkflowRecord
 ): Promise<MedicationWorkflowRecord> => {
   const { data, error } = await supabase
-    .from('prescription_workflow_records')
+    .from('medication_workflow_records')
     .update(record)
     .eq('id', record.id)
     .select()
@@ -2346,7 +2346,7 @@ export const updateMedicationWorkflowRecord = async (
 
 export const deleteMedicationWorkflowRecord = async (recordId: string): Promise<void> => {
   const { error } = await supabase
-    .from('prescription_workflow_records')
+    .from('medication_workflow_records')
     .delete()
     .eq('id', recordId);
 
@@ -2383,7 +2383,7 @@ export const updateWorkflowRecordStatus = async (
   }
 
   const { error } = await supabase
-    .from('prescription_workflow_records')
+    .from('medication_workflow_records')
     .update(updateData)
     .eq('id', recordId);
 
@@ -2398,7 +2398,7 @@ export const batchUpdateWorkflowRecords = async (
   updates: Partial<MedicationWorkflowRecord>
 ): Promise<void> => {
   const { error } = await supabase
-    .from('prescription_workflow_records')
+    .from('medication_workflow_records')
     .update(updates)
     .in('id', recordIds);
 
@@ -2413,7 +2413,7 @@ export const getWorkflowRecordsByDateRange = async (
   endDate: string,
   patientId?: number
 ): Promise<MedicationWorkflowRecord[]> => {
-  let query = supabase.from('prescription_workflow_records')
+  let query = supabase.from('medication_workflow_records')
     .select('*')
     .gte('scheduled_date', startDate)
     .lte('scheduled_date', endDate)
@@ -2439,7 +2439,7 @@ export const getWorkflowRecordsByStatus = async (
   status: 'pending' | 'completed' | 'failed'
 ): Promise<MedicationWorkflowRecord[]> => {
   const { data, error } = await supabase
-    .from('prescription_workflow_records')
+    .from('medication_workflow_records')
     .select('*')
     .eq(`${statusType}_status`, status)
     .order('scheduled_date', { ascending: true })
@@ -2504,7 +2504,7 @@ export const generateWorkflowRecordsForPrescription = async (
 
   // Insert records
   const { data, error } = await supabase
-    .from('prescription_workflow_records')
+    .from('medication_workflow_records')
     .insert(records)
     .select();
 
@@ -2543,7 +2543,7 @@ export const batchUpdateWorkflowStatus = async (recordIds: string[], updates: {
   }
 
   const { error } = await supabase
-    .from('prescription_workflow_records')
+    .from('medication_workflow_records')
     .update(updateData)
     .in('id', recordIds);
 
@@ -2577,7 +2577,7 @@ export const resetMedicationWorkflowStep = async (recordId: string, step: 'prepa
   }
 
   const { error } = await supabase
-    .from('prescription_workflow_records')
+    .from('medication_workflow_records')
     .update(updateData)
     .eq('id', recordId);
 

@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
       for (const timeSlot of timeSlots) {
         // 檢查是否已存在記錄
         const { data: existingRecord } = await supabase
-          .from('prescription_workflow_records')
+          .from('medication_workflow_records')
           .select('id')
           .eq('prescription_id', prescription.id)
           .eq('scheduled_date', targetDate)
@@ -131,7 +131,7 @@ Deno.serve(async (req: Request) => {
     // 批量插入工作流程記錄
     if (workflowRecords.length > 0) {
       const { data: insertedRecords, error: insertError } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .insert(workflowRecords)
         .select();
 
