@@ -868,7 +868,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     try {
       // 首先檢查表是否存在，如果不存在則創建工作流程記錄
       const { data: existingRecords, error: fetchError } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('*')
         .eq('patient_id', patientId)
         .eq('scheduled_date', date);
@@ -1018,7 +1018,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
       
       let query = supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('*');
       
       if (validPatientId !== null) {
@@ -1093,7 +1093,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const createPrescriptionWorkflowRecord = async (recordData: Omit<PrescriptionWorkflowRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       const { data, error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .insert([recordData])
         .select()
         .single();
@@ -1108,7 +1108,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const updatePrescriptionWorkflowRecord = async (recordId: string, updateData: Partial<PrescriptionWorkflowRecord>) => {
     try {
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
       
@@ -1165,7 +1165,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
       
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
       
@@ -1215,7 +1215,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       
       // 檢查執藥是否已完成
       const { data: record, error: fetchError } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('preparation_status')
         .eq('id', recordId)
         .single();
@@ -1242,7 +1242,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
       
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
       
@@ -1296,7 +1296,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       
       // 檢查核藥是否已完成
       const { data: record, error: fetchError } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('verification_status, prescription_id, patient_id')
         .eq('id', recordId)
         .single();
@@ -1328,13 +1328,18 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         updateData.notes = notes;
       }
 
-      // 如果有檢測結果，保存到 inspection_check_result 欄位
+      // 如果有檢測結果，嘗試保存到 inspection_check_result 欄位
+      // 如果字段不存在，會被忽略
       if (inspectionCheckResult) {
-        updateData.inspection_check_result = inspectionCheckResult;
+        try {
+          updateData.inspection_check_result = JSON.stringify(inspectionCheckResult);
+        } catch (error) {
+          console.warn('無法保存檢測結果:', error);
+        }
       }
       
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
       
@@ -1502,7 +1507,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     try {
       // 獲取該院友在指定日期時間的所有在服處方工作流程記錄
       const { data: records, error: fetchError } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('id')
         .eq('patient_id', patientId)
         .eq('scheduled_date', scheduledDate)
@@ -1519,7 +1524,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         };
         
         const { error: updateError } = await supabase
-          .from('prescription_workflow_records')
+          .from('medication_workflow_records')
           .update(updateData)
           .in('id', records.map(r => r.id));
         
@@ -1583,7 +1588,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
 
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
 
