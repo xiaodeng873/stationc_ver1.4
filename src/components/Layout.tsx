@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, Users, FileText, BarChart3, Menu, X, Home, Stethoscope, Heart, LogOut, User, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Building2, Settings, ChevronFirst as FirstAid, Guitar as Hospital, Pill } from 'lucide-react';
+import { Users, FileText, BarChart3, Menu, X, Home, LogOut, User, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Settings, Ambulance, Activity, Building2, Bed, Stethoscope, Database, FileHeart, UserSearch, Pill } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { useAuth } from '../context/AuthContext';
 
@@ -43,21 +43,21 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
   const navigation = [
     { name: '主面板', href: '/', icon: Home },
     { name: '院友列表', href: '/patients', icon: Users },
-    { name: '床位管理', href: '/station-bed', icon: Building2 },
-    { name: 'VMO排程', href: '/scheduling', icon: Calendar },
+    { name: '床位管理', href: '/station-bed', icon: Bed },
+    { name: 'VMO排程', href: '/scheduling', icon: Stethoscope },
     { name: '覆診管理', href: '/follow-up', icon: CalendarCheck },
-    { name: '監測記錄', href: '/health', icon: Heart },
-    { name: '健康評估', href: '/health-assessments', icon: Stethoscope },
+    { name: '監測記錄', href: '/health', icon: Activity },
+    { name: '健康評估', href: '/health-assessments', icon: UserSearch },
     { name: '餐膳指引', href: '/meal-guidance', icon: Utensils },
     { name: '院友日誌', href: '/patient-logs', icon: BookOpen },
     { name: '約束物品', href: '/restraint', icon: Shield },
-    { name: '出入院記錄', href: '/admission-records', icon: Hospital }, 
-    { name: '傷口管理', href: '/wound', icon: Heart },
+    { name: '出入院記錄', href: '/admission-records', icon: Ambulance },
+    { name: '傷口管理', href: '/wound', icon: FileHeart },
     { name: '處方管理', href: '/prescriptions', icon: Pill },
-    { name: '藥物資料庫', href: '/drug-database', icon: Pill },
+    { name: '藥物資料庫', href: '/drug-database', icon: Database },
     { name: '藥物工作流程', href: '/medication-workflow', icon: CheckSquare },
     { name: '職員工作面板', href: '/staff-work-panel', icon: Users },
-    { name: '醫院外展', href: '/hospital-outreach', icon: Hospital },
+    { name: '醫院外展', href: '/hospital-outreach', icon: Building2 },
     { name: '範本管理', href: '/templates', icon: FileText },
     { name: '列印表格', href: '/print-forms', icon: Printer },
     { name: '任務管理', href: '/tasks', icon: CheckSquare },
