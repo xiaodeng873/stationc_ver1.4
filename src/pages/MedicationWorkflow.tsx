@@ -24,6 +24,7 @@ import { useAuth } from '../context/AuthContext';
 import PatientAutocomplete from '../components/PatientAutocomplete';
 import PrescriptionModal from '../components/PrescriptionModal';
 import DispenseReasonModal from '../components/DispenseReasonModal';
+import DispenseConfirmModal from '../components/DispenseConfirmModal';
 import InspectionCheckModal from '../components/InspectionCheckModal';
 import InjectionSiteModal from '../components/InjectionSiteModal';
 import RevertConfirmModal from '../components/RevertConfirmModal';
@@ -162,6 +163,8 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         return '需要先完成執藥';
       } else if (step === 'dispensing' && record.verification_status !== 'completed') {
         return '需要先完成核藥';
+      } else if (step === 'dispensing') {
+        return '點擊確認派藥（需選擇執行結果）';
       } else {
         return `點擊執行${getStepLabel()}`;
       }
@@ -228,6 +231,7 @@ const MedicationWorkflow: React.FC = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showDispenseReasonModal, setShowDispenseReasonModal] = useState(false);
+  const [showDispenseConfirmModal, setShowDispenseConfirmModal] = useState(false);
   const [showInspectionCheckModal, setShowInspectionCheckModal] = useState(false);
   const [showInjectionSiteModal, setShowInjectionSiteModal] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -497,12 +501,6 @@ const MedicationWorkflow: React.FC = () => {
       } else if (step === 'dispensing') {
         const prescription = prescriptions.find(p => p.id === record.prescription_id);
 
-        // 檢查院友是否入院中
-        if (checkPatientHospitalized(patientIdNum)) {
-          alert('此院友正在入院中，無法完成派藥。\n\n如果院友已經出院，請到「出入院記錄」中更新院友狀態，方可進行派藥。');
-          return;
-        }
-
         // 針劑需要選擇注射位置
         if (prescription?.administration_route === '注射') {
           setCurrentInjectionRecord(record);
@@ -513,8 +511,10 @@ const MedicationWorkflow: React.FC = () => {
           setSelectedStep(step);
           setShowInspectionCheckModal(true);
         } else {
-          // 無特殊要求的藥物直接派藥
-          await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
+          // 普通藥物：顯示派藥確認對話框
+          setSelectedWorkflowRecord(record);
+          setSelectedStep(step);
+          setShowDispenseConfirmModal(true);
         }
       }
     } catch (error) {
@@ -800,23 +800,13 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
-    const scheduledDate = selectedWorkflowRecord.scheduled_date;
-
-    // 檢查院友是否入院中
-    if (checkPatientHospitalized(patientIdNum)) {
-      alert('此院友正在入院中，無法完成派藥。\n\n如果院友已經出院，請到「出入院記錄」中更新院友狀態，方可進行派藥。');
-      setShowInspectionCheckModal(false);
-      setSelectedWorkflowRecord(null);
-      setSelectedStep('');
-      return;
-    }
-
     try {
-      const patientId = patientIdNum;
-      
       if (canDispense) {
-        await dispenseMedication(selectedWorkflowRecord.id, displayName || '未知', undefined, undefined, patientId, scheduledDate);
+        // 檢測通過，顯示派藥確認對話框
+        setShowInspectionCheckModal(false);
+        setShowDispenseConfirmModal(true);
       } else {
+        // 檢測不通過，顯示失敗原因對話框（保留舊功能）
         setShowInspectionCheckModal(false);
         setShowDispenseReasonModal(true);
       }
@@ -838,59 +828,25 @@ const MedicationWorkflow: React.FC = () => {
 
     const scheduledDate = currentInjectionRecord.scheduled_date;
 
-    // 檢查院友是否入院中
-    if (checkPatientHospitalized(patientIdNum)) {
-      alert('此院友正在入院中，無法完成派藥。\n\n如果院友已經出院，請到「出入院記錄」中更新院友狀態，方可進行派藥。');
-      setShowInjectionSiteModal(false);
-      setCurrentInjectionRecord(null);
-      return;
-    }
-
     try {
       const prescription = prescriptions.find(p => p.id === currentInjectionRecord.prescription_id);
-      
+
       // 針劑派藥時記錄注射位置
       const injectionNotes = `注射位置: ${injectionSite}${notes ? ` | ${notes}` : ''}`;
-      
-      // 如果是即時備藥，需要自動回補執藥和核藥
-      if (prescription?.preparation_method === 'immediate') {
-        // 先完成執藥
-        await prepareMedication(
-          currentInjectionRecord.id, 
-          displayName || '未知', 
-          undefined, 
-          undefined,
-          patientIdNum,
-          scheduledDate
-        );
-        
-        // 再完成核藥
-        await verifyMedication(
-          currentInjectionRecord.id, 
-          displayName || '未知', 
-          undefined, 
-          undefined,
-          patientIdNum,
-          scheduledDate
-        );
-      }
-      
-      // 最後完成派藥
-      await dispenseMedication(
-        currentInjectionRecord.id, 
-        displayName || '未知', 
-        undefined, 
-        undefined,
-        patientIdNum,
-        scheduledDate,
+
+      // 暫存注射位置信息，稍後在確認對話框中使用
+      setSelectedWorkflowRecord({
+        ...currentInjectionRecord,
+        injectionSite,
         injectionNotes
-      );
-      
+      });
+
+      // 關閉注射位置對話框，打開派藥確認對話框
       setShowInjectionSiteModal(false);
-      setCurrentInjectionRecord(null);
+      setShowDispenseConfirmModal(true);
     } catch (error) {
-      console.error('派藥失敗:', error);
-      alert(`派藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      console.error('處理注射位置失敗:', error);
+      alert(`處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
   };
 
@@ -915,11 +871,11 @@ const MedicationWorkflow: React.FC = () => {
 
     try {
       const patientId = patientIdNum;
-      
+
       await dispenseMedication(
-        selectedWorkflowRecord.id, 
-        displayName || '未知', 
-        reason, 
+        selectedWorkflowRecord.id,
+        displayName || '未知',
+        reason,
         customReason,
         patientId,
         scheduledDate
@@ -930,6 +886,83 @@ const MedicationWorkflow: React.FC = () => {
     } catch (error) {
       console.error('記錄派藥失敗原因失敗:', error);
       alert(`記錄失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
+  };
+
+  // 處理派藥確認對話框的結果
+  const handleDispenseConfirm = async (action: 'success' | 'failure', reason?: string, customReason?: string) => {
+    if (!selectedWorkflowRecord) return;
+
+    if (!selectedPatientId) {
+      console.error('缺少必要的院友ID:', { selectedPatientId });
+      return;
+    }
+
+    const patientIdNum = parseInt(selectedPatientId);
+    if (isNaN(patientIdNum)) {
+      console.error('無效的院友ID:', selectedPatientId);
+      alert('請選擇有效的院友');
+      return;
+    }
+
+    const scheduledDate = selectedWorkflowRecord.scheduled_date;
+
+    try {
+      const prescription = prescriptions.find(p => p.id === selectedWorkflowRecord.prescription_id);
+
+      // 如果是即時備藥，需要自動回補執藥和核藥
+      if (prescription?.preparation_method === 'immediate') {
+        await prepareMedication(
+          selectedWorkflowRecord.id,
+          displayName || '未知',
+          undefined,
+          undefined,
+          patientIdNum,
+          scheduledDate
+        );
+
+        await verifyMedication(
+          selectedWorkflowRecord.id,
+          displayName || '未知',
+          undefined,
+          undefined,
+          patientIdNum,
+          scheduledDate
+        );
+      }
+
+      // 執行派藥
+      if (action === 'success') {
+        // 如果有注射位置信息，添加到備註中
+        const notes = selectedWorkflowRecord.injectionNotes || undefined;
+        await dispenseMedication(
+          selectedWorkflowRecord.id,
+          displayName || '未知',
+          undefined,
+          undefined,
+          patientIdNum,
+          scheduledDate,
+          notes
+        );
+      } else {
+        // 派藥失敗，記錄原因
+        await dispenseMedication(
+          selectedWorkflowRecord.id,
+          displayName || '未知',
+          reason,
+          customReason,
+          patientIdNum,
+          scheduledDate
+        );
+      }
+
+      setShowDispenseConfirmModal(false);
+      setSelectedWorkflowRecord(null);
+      setSelectedStep('');
+      setCurrentInjectionRecord(null);
+    } catch (error) {
+      console.error('派藥確認失敗:', error);
+      alert(`派藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
   };
 
@@ -1530,6 +1563,21 @@ const MedicationWorkflow: React.FC = () => {
             setSelectedStep('');
           }}
           onResult={handleDispenseAfterInspection}
+        />
+      )}
+
+      {/* 派藥確認模態框 */}
+      {showDispenseConfirmModal && selectedWorkflowRecord && (
+        <DispenseConfirmModal
+          workflowRecord={selectedWorkflowRecord}
+          prescription={prescriptions.find(p => p.id === selectedWorkflowRecord.prescription_id)}
+          onClose={() => {
+            setShowDispenseConfirmModal(false);
+            setSelectedWorkflowRecord(null);
+            setSelectedStep('');
+            setCurrentInjectionRecord(null);
+          }}
+          onConfirm={handleDispenseConfirm}
         />
       )}
 
