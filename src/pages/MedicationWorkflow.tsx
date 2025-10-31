@@ -104,8 +104,8 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         return { isHospitalized: true };
       }
 
-      // 如果有檢測數據，返回
-      if (result && result.usedVitalSignData) {
+      // 如果有檢測數據，返回（直接使用 usedVitalSignData）
+      if (result && result.usedVitalSignData && Object.keys(result.usedVitalSignData).length > 0) {
         return result.usedVitalSignData;
       }
     } catch (error) {
@@ -960,7 +960,7 @@ const MedicationWorkflow: React.FC = () => {
   };
 
   // 處理檢測通過後的派藥
-  const handleDispenseAfterInspection = async (canDispense: boolean, failureReason?: string) => {
+  const handleDispenseAfterInspection = async (canDispense: boolean, failureReason?: string, inspectionCheckResult?: any) => {
     if (!selectedWorkflowRecord) return;
 
     if (!selectedPatientId) {
@@ -977,9 +977,14 @@ const MedicationWorkflow: React.FC = () => {
     }
 
     try {
-      // 檢測合格時，打開派藥確認對話框
+      // 檢測合格時，將檢測結果附加到 selectedWorkflowRecord，然後打開派藥確認對話框
       // 檢測不合格時，InspectionCheckModal 已經直接處理完成
       if (canDispense) {
+        // 將檢測結果保存到 selectedWorkflowRecord
+        setSelectedWorkflowRecord(prev => ({
+          ...prev,
+          inspectionCheckResult
+        }));
         setShowInspectionCheckModal(false);
         setShowDispenseConfirmModal(true);
       }

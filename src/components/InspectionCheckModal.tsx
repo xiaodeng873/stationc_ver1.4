@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 interface InspectionCheckModalProps {
   workflowRecord: any;
   onClose: () => void;
-  onResult: (canDispense: boolean, failureReason?: string) => void;
+  onResult: (canDispense: boolean, failureReason?: string, inspectionCheckResult?: any) => void;
 }
 
 const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
@@ -181,10 +181,8 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
 
     try {
       if (checkResult.canDispense) {
-        // 檢測合格：將檢測結果附加到 workflowRecord，並打開派藥確認對話框
-        // 通過 onResult 傳遞，這樣 MedicationWorkflow 可以將檢測結果添加到 selectedWorkflowRecord
-        workflowRecord.inspectionCheckResult = checkResult;
-        onResult(true);
+        // 檢測合格：將檢測結果通過 onResult 傳遞給父組件
+        onResult(true, undefined, checkResult);
       } else {
         // 檢測不合格：直接寫入失敗狀態，不彈出派藥確認對話框
         await dispenseMedication(
