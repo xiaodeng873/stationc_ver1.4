@@ -5,3 +5,4 @@ By default, this template supports JSX syntax with Tailwind CSS classes, React h
 Use icons from lucide-react for logos.
 以中文作答
 When the user asks you not to change the unnecessary part of the model and pages, that means you can only change the designated part; the other must remain unchanged.
+我不使用 Bolt Database 数据库，我用SUPABASE数据库，你不容許再提及或修改成Bolt Database 数据库。
