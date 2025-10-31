@@ -1296,7 +1296,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     try {
       console.log('執行派藥操作:', { recordId, staffName, failureReason, failureCustomReason });
 
-      // 檢查核藥是否已完成
+      // 檢查核藥是否已完成（僅在成功派藥時需要檢查）
       const { data: record, error: fetchError } = await supabase
         .from('medication_workflow_records')
         .select('verification_status, prescription_id, patient_id')
@@ -1305,7 +1305,8 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       if (fetchError) throw fetchError;
 
-      if (record.verification_status !== 'completed') {
+      // 只有在沒有失敗原因時（即正常派藥），才需要檢查核藥是否完成
+      if (!failureReason && record.verification_status !== 'completed') {
         throw new Error('必須先完成核藥步驟才能進行派藥');
       }
 
