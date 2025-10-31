@@ -99,6 +99,8 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         ? JSON.parse(record.inspection_check_result)
         : record.inspection_check_result;
 
+      console.log('[WorkflowCell] 解析檢測結果:', { recordId: record.id, result });
+
       // 如果是入院狀態，返回特殊標記
       if (result && result.isHospitalized) {
         return { isHospitalized: true };
@@ -109,7 +111,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         return result.usedVitalSignData;
       }
     } catch (error) {
-      console.error('解析檢測項結果失敗:', error);
+      console.error('[WorkflowCell] 解析檢測項結果失敗:', error, record.inspection_check_result);
     }
 
     return null;
@@ -126,11 +128,13 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         ? JSON.parse(record.inspection_check_result)
         : record.inspection_check_result;
 
+      console.log('[WorkflowCell] 檢測不合格規則:', { recordId: record.id, blockedRules: result?.blockedRules });
+
       if (result && result.blockedRules && result.blockedRules.length > 0) {
         return result.blockedRules;
       }
     } catch (error) {
-      console.error('解析檢測項結果失敗:', error);
+      console.error('[WorkflowCell] 解析檢測項結果失敗:', error, record.inspection_check_result);
     }
 
     return null;
@@ -307,7 +311,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         <div className="mt-1 space-y-0.5">
           {blockedRules.map((rule: any, index: number) => (
             <div key={index} className="text-xs text-red-700">
-              <span className="font-medium">{rule.vital_sign_type}:</span> {rule.actualValue}
+              <span className="font-medium">{rule.vital_sign_type}:</span> {rule.actual_value || rule.actualValue}
             </div>
           ))}
         </div>

@@ -868,7 +868,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     try {
       // 首先檢查表是否存在，如果不存在則創建工作流程記錄
       const { data: existingRecords, error: fetchError } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('*')
         .eq('patient_id', patientId)
         .eq('scheduled_date', date);
@@ -1018,7 +1018,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
       
       let query = supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('*');
       
       if (validPatientId !== null) {
@@ -1093,7 +1093,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const createPrescriptionWorkflowRecord = async (recordData: Omit<PrescriptionWorkflowRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       const { data, error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .insert([recordData])
         .select()
         .single();
@@ -1108,7 +1108,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const updatePrescriptionWorkflowRecord = async (recordId: string, updateData: Partial<PrescriptionWorkflowRecord>) => {
     try {
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
       
@@ -1165,7 +1165,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
       
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
       
@@ -1215,7 +1215,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       
       // 檢查執藥是否已完成
       const { data: record, error: fetchError } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('preparation_status')
         .eq('id', recordId)
         .single();
@@ -1242,7 +1242,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
       
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
       
@@ -1298,7 +1298,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       // 檢查核藥是否已完成
       const { data: record, error: fetchError } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('verification_status, prescription_id, patient_id')
         .eq('id', recordId)
         .single();
@@ -1332,18 +1332,23 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       // 如果有檢測結果，存儲到 inspection_check_result 字段
       if (inspectionCheckResult) {
+        console.log('[dispenseMedication] 儲存檢測結果:', inspectionCheckResult);
         updateData.inspection_check_result = inspectionCheckResult;
       }
 
+      console.log('[dispenseMedication] 更新數據:', updateData);
+
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
 
       if (error) {
-        console.error('Supabase 更新錯誤:', error);
+        console.error('[dispenseMedication] Supabase 更新錯誤:', error);
         throw error;
       }
+
+      console.log('[dispenseMedication] 派藥記錄更新成功');
 
       console.log('派藥操作完成，準備重新載入記錄');
 
@@ -1431,10 +1436,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         
         // 記錄使用的監測數據
         result.usedVitalSignData[rule.vital_sign_type] = actualValue;
-        
+
         // 檢查條件
         let conditionMet = false;
-        
+
         switch (rule.condition_operator) {
           case 'gt':
             conditionMet = actualValue > rule.condition_value;
@@ -1449,7 +1454,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
             conditionMet = actualValue <= rule.condition_value;
             break;
         }
-        
+
         if (conditionMet) {
           result.canDispense = false;
           result.blockedRules.push({
@@ -1461,7 +1466,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
           });
         }
       }
-      
+
+      console.log('[checkPrescriptionInspectionRules] 檢測結果:', result);
+
       return result;
     } catch (error) {
       console.error('檢查處方檢測規則失敗:', error);
@@ -1504,7 +1511,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     try {
       // 獲取該院友在指定日期時間的所有在服處方工作流程記錄
       const { data: records, error: fetchError } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .select('id')
         .eq('patient_id', patientId)
         .eq('scheduled_date', scheduledDate)
@@ -1521,7 +1528,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         };
         
         const { error: updateError } = await supabase
-          .from('prescription_workflow_records')
+          .from('medication_workflow_records')
           .update(updateData)
           .in('id', records.map(r => r.id));
         
@@ -1585,7 +1592,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
 
       const { error } = await supabase
-        .from('prescription_workflow_records')
+        .from('medication_workflow_records')
         .update(updateData)
         .eq('id', recordId);
 
