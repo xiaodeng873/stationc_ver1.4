@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, Users, FileText, BarChart3, Menu, X, Home, Stethoscope, Heart, LogOut, User, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Building2, Settings, ChevronFirst as FirstAid, Guitar as Hospital, Pill } from 'lucide-react';
+import { Calendar, Users, FileText, BarChart3, Menu, X, Home, Stethoscope, Heart, LogOut, User, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Building2, Settings, HouseHeart, ChevronFirst as FirstAid, Guitar as Hospital, Pill } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { useAuth } from '../context/AuthContext';
 
