@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Pill, 
-  Calendar, 
-  ChevronLeft, 
-  ChevronRight, 
-  User, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Pill,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  User,
+  Clock,
+  CheckCircle,
+  XCircle,
   AlertTriangle,
   Settings,
   Filter,
@@ -17,7 +17,8 @@ import {
   Zap,
   FastForward,
   CheckSquare,
-  Users
+  Users,
+  Syringe
 } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
@@ -40,11 +41,11 @@ interface WorkflowCellProps {
 
 const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, disabled, selectedDate }) => {
   const { prescriptions } = usePatients();
-  
+
   // 檢查是否為即時備藥處方
   const prescription = prescriptions.find(p => p.id === record.prescription_id);
   const isImmediatePreparation = prescription?.preparation_method === 'immediate';
-  
+
   const getStepStatus = () => {
     switch (step) {
       case 'preparation':
@@ -87,6 +88,58 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
   const status = getStepStatus();
   const staff = getStepStaff();
   const time = getStepTime();
+
+  // 解析檢測項數值（僅在派藥格子顯示）
+  const getInspectionValues = () => {
+    if (step !== 'dispensing' || !record.inspection_check_result) {
+      return null;
+    }
+
+    try {
+      const result = typeof record.inspection_check_result === 'string'
+        ? JSON.parse(record.inspection_check_result)
+        : record.inspection_check_result;
+
+      if (result && result.usedVitalSignData) {
+        return result.usedVitalSignData;
+      }
+    } catch (error) {
+      console.error('解析檢測項結果失敗:', error);
+    }
+
+    return null;
+  };
+
+  // 提取注射位置（僅在派藥格子顯示）
+  const getInjectionSite = () => {
+    if (step !== 'dispensing' || !record.notes) {
+      return null;
+    }
+
+    const match = record.notes.match(/注射位置[：:]\s*([^|]+)/);
+    return match ? match[1].trim() : null;
+  };
+
+  // 檢查檢測項是否合格
+  const isInspectionPassed = () => {
+    if (step !== 'dispensing' || !record.inspection_check_result) {
+      return null;
+    }
+
+    try {
+      const result = typeof record.inspection_check_result === 'string'
+        ? JSON.parse(record.inspection_check_result)
+        : record.inspection_check_result;
+
+      return result?.canDispense;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const inspectionValues = getInspectionValues();
+  const injectionSite = getInjectionSite();
+  const inspectionPassed = isInspectionPassed();
 
   const getStatusColor = () => {
     switch (status) {
@@ -172,31 +225,63 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
     return '';
   };
 
-  const cellClass = `${getStatusColor()} ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'} ${isImmediatePreparation && (step === 'preparation' || step === 'verification') ? 'bg-gray-200 text-gray-500' : ''}`;
+  // 檢測項背景色覆蓋
+  let cellClass = `${getStatusColor()} ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'} ${isImmediatePreparation && (step === 'preparation' || step === 'verification') ? 'bg-gray-200 text-gray-500' : ''}`;
+
+  // 如果是派藥格子且有檢測項結果，根據是否合格覆蓋背景色
+  if (step === 'dispensing' && status === 'completed' && inspectionPassed !== null) {
+    if (inspectionPassed) {
+      cellClass = `bg-green-50 text-green-800 border-green-200 ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'}`;
+    } else {
+      cellClass = `bg-red-50 text-red-800 border-red-200 ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'}`;
+    }
+  }
 
   return (
     <div
-      className={`px-3 py-3 border rounded text-center text-xs transition-all duration-200 ${cellClass}`}
+      className={`px-2 py-2 border rounded text-center text-xs transition-all duration-200 ${cellClass}`}
       onClick={handleClick}
       title={getClickTooltip()}
     >
       <div className="flex items-center justify-center space-x-1">
         {getStatusIcon()}
-        <span>{getStepLabel()}</span>
+        <span className="font-medium">{getStepLabel()}</span>
       </div>
+
       {status === 'completed' && staff && (
         <div className="text-xs text-gray-500 mt-1 truncate">
           {staff}
         </div>
       )}
+
       {status === 'failed' && record.dispensing_failure_reason && (
-        <div className="text-xs text-red-600 mt-1 truncate">
+        <div className="text-xs text-red-600 mt-1 truncate font-medium">
           {record.dispensing_failure_reason}
         </div>
       )}
+
       {isImmediatePreparation && (step === 'preparation' || step === 'verification') && (
         <div className="text-xs text-gray-500 mt-1">
           即時備藥
+        </div>
+      )}
+
+      {/* 顯示檢測項數值 */}
+      {step === 'dispensing' && status === 'completed' && inspectionValues && (
+        <div className="mt-1 space-y-0.5">
+          {Object.entries(inspectionValues).map(([key, value]) => (
+            <div key={key} className="text-xs">
+              <span className="font-medium">{key}:</span> {value}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 顯示注射位置 */}
+      {step === 'dispensing' && status === 'completed' && injectionSite && (
+        <div className="mt-1 flex items-center justify-center space-x-1 text-xs text-orange-700">
+          <Syringe className="h-3 w-3" />
+          <span>{injectionSite}</span>
         </div>
       )}
     </div>
@@ -661,7 +746,7 @@ const MedicationWorkflow: React.FC = () => {
     return true;
   };
 
-  // 一鍵派藥（即時備藥+口服+無檢測項） 
+  // 一鍵派藥（即時備藥+口服+無檢測項）
   const handleOneClickDispenseSpecial = async () => {
     if (!selectedPatientId || !selectedDate) {
       return;
@@ -672,11 +757,7 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
-    // 檢查院友是否入院中
-    if (checkPatientHospitalized(patientIdNum)) {
-      alert('此院友正在入院中，無法完成派藥。\n\n如果院友已經出院，請到「出入院記錄」中更新院友狀態，方可進行派藥。');
-      return;
-    }
+    const isHospitalized = checkPatientHospitalized(patientIdNum);
 
     setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
 
@@ -693,26 +774,37 @@ const MedicationWorkflow: React.FC = () => {
 
       let successCount = 0;
       let failCount = 0;
+      let hospitalizedCount = 0;
 
       for (const record of eligibleRecords) {
         try {
           // 一鍵完成執藥、核藥、派藥
           await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
           await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
-          await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
-          successCount++;
+
+          if (isHospitalized) {
+            // 如果院友入院中，自動標記為「入院」失敗原因
+            await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
+            hospitalizedCount++;
+          } else {
+            // 正常派藥
+            await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
+            successCount++;
+          }
         } catch (error) {
-          console.error(`一鍵派藥失敗 (記錄ID: ${record.id}):`, error);
+          console.error(`一鍵全程失敗 (記錄ID: ${record.id}):`, error);
           failCount++;
         }
       }
 
-      if (failCount > 0) {
-        alert(`一鍵派藥部分完成：成功 ${successCount} 筆，失敗 ${failCount} 筆`);
+      if (hospitalizedCount > 0) {
+        alert(`已處理入院中院友的派藥記錄：${hospitalizedCount} 筆已標記為「入院」`);
+      } else if (failCount > 0) {
+        alert(`一鍵全程部分完成：成功 ${successCount} 筆，失敗 ${failCount} 筆`);
       }
     } catch (error) {
-      console.error('一鍵派藥失敗:', error);
-      alert(`一鍵派藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      console.error('一鍵全程失敗:', error);
+      alert(`一鍵全程失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     } finally {
       setOneClickProcessing(prev => ({ ...prev, dispensing: false }));
     }
@@ -729,11 +821,7 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
-    // 檢查院友是否入院中
-    if (checkPatientHospitalized(patientIdNum)) {
-      alert('此院友正在入院中，無法完成派藥。\n\n如果院友已經出院，請到「出入院記錄」中更新院友狀態，方可進行派藥。');
-      return;
-    }
+    const isHospitalized = checkPatientHospitalized(patientIdNum);
 
     setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
 
@@ -741,17 +829,17 @@ const MedicationWorkflow: React.FC = () => {
       // 找到所有待派藥的記錄（排除注射類和有檢測項要求的藥物）
       const pendingDispensingRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
-        
+
         // 排除注射類藥物
         if (prescription?.administration_route === '注射') {
           return false;
         }
-        
+
         // 排除有檢測項要求的藥物
         if (prescription?.inspection_rules && prescription.inspection_rules.length > 0) {
           return false;
         }
-        
+
         return r.dispensing_status === 'pending' && r.verification_status === 'completed';
       });
 
@@ -761,18 +849,28 @@ const MedicationWorkflow: React.FC = () => {
 
       let successCount = 0;
       let failCount = 0;
+      let hospitalizedCount = 0;
 
       for (const record of pendingDispensingRecords) {
         try {
-          await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
-          successCount++;
+          if (isHospitalized) {
+            // 如果院友入院中，自動標記為「入院」失敗原因
+            await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
+            hospitalizedCount++;
+          } else {
+            // 正常派藥
+            await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
+            successCount++;
+          }
         } catch (error) {
           console.error(`派藥失敗 (記錄ID: ${record.id}):`, error);
           failCount++;
         }
       }
 
-      if (failCount > 0) {
+      if (hospitalizedCount > 0) {
+        alert(`已處理入院中院友的派藥記錄：${hospitalizedCount} 筆已標記為「入院」`);
+      } else if (failCount > 0) {
         alert(`一鍵派藥部分完成：成功 ${successCount} 筆，失敗 ${failCount} 筆`);
       }
     } catch (error) {

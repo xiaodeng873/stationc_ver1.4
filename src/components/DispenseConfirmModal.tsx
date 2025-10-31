@@ -59,14 +59,6 @@ const DispenseConfirmModal: React.FC<DispenseConfirmModalProps> = ({
       isSuccess: false
     },
     {
-      value: '略去',
-      label: '不滿足檢測項要求',
-      icon: <AlertTriangle className="h-5 w-5" />,
-      color: 'orange',
-      description: '檢測數據不符合用藥條件',
-      isSuccess: false
-    },
-    {
       value: '暫停',
       label: '暫停該次派藥',
       icon: <Pause className="h-5 w-5" />,
