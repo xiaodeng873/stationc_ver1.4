@@ -14,12 +14,13 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   onClose,
   onResult
 }) => {
-  const { 
-    patients, 
-    prescriptions, 
-    checkPrescriptionInspectionRules, 
+  const {
+    patients,
+    prescriptions,
+    checkPrescriptionInspectionRules,
     fetchLatestVitalSigns,
-    addHealthRecord 
+    addHealthRecord,
+    dispenseMedication
   } = usePatients();
   const { displayName } = useAuth();
 
@@ -33,6 +34,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
 
   const patient = patients.find(p => p.院友id === workflowRecord.patient_id);
   const prescription = prescriptions.find(p => p.id === workflowRecord.prescription_id);
+  const isHospitalized = patient?.is_hospitalized || false;
 
   // 檢測項圖標映射
   const getVitalSignIcon = (type: string) => {
@@ -68,6 +70,37 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
         return;
       }
 
+      // 如果院友入院中，直接標記為"入院"失敗，不執行檢測
+      if (isHospitalized) {
+        try {
+          const inspectionResult = {
+            canDispense: false,
+            isHospitalized: true,
+            blockedRules: [],
+            usedVitalSignData: {}
+          };
+
+          await dispenseMedication(
+            workflowRecord.id,
+            displayName || '未知',
+            '入院',
+            undefined,
+            workflowRecord.patient_id,
+            workflowRecord.scheduled_date,
+            undefined,
+            inspectionResult
+          );
+
+          setHasNoRulesAndHandled(true);
+          onClose();
+        } catch (error) {
+          console.error('處理入院中院友派藥失敗:', error);
+          alert(`處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+        }
+        setLoading(false);
+        return;
+      }
+
       try {
         const vitalSignTypes = prescription.inspection_rules.map((rule: any) => rule.vital_sign_type);
         const latestData: any = {};
@@ -88,7 +121,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     };
 
     loadLatestVitalSigns();
-  }, [prescription, workflowRecord.patient_id, fetchLatestVitalSigns, hasNoRulesAndHandled, onResult]);
+  }, [prescription, workflowRecord.patient_id, fetchLatestVitalSigns, hasNoRulesAndHandled, onResult, isHospitalized, dispenseMedication, displayName, workflowRecord, onClose]);
 
   // 處理沒有檢測規則的情況
   useEffect(() => {
@@ -143,11 +176,33 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   };
 
   // 處理確認派藥
-  const handleConfirmDispense = () => {
-    if (checkResult?.canDispense) {
-      onResult(true);
-    } else {
-      onResult(false, '檢測項條件不符');
+  const handleConfirmDispense = async () => {
+    if (!checkResult) return;
+
+    try {
+      if (checkResult.canDispense) {
+        // 檢測合格：將檢測結果附加到 workflowRecord，並打開派藥確認對話框
+        // 通過 onResult 傳遞，這樣 MedicationWorkflow 可以將檢測結果添加到 selectedWorkflowRecord
+        workflowRecord.inspectionCheckResult = checkResult;
+        onResult(true);
+      } else {
+        // 檢測不合格：直接寫入失敗狀態，不彈出派藥確認對話框
+        await dispenseMedication(
+          workflowRecord.id,
+          displayName || '未知',
+          '檢測項條件不符',
+          undefined,
+          workflowRecord.patient_id,
+          workflowRecord.scheduled_date,
+          undefined,
+          checkResult
+        );
+
+        onClose();
+      }
+    } catch (error) {
+      console.error('處理派藥確認失敗:', error);
+      alert(`操作失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
   };
 

@@ -1262,17 +1262,19 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   };
   
   const dispenseMedication = async (
-    recordId: string, 
-    staffName: string, 
-    failureReason?: string, 
+    recordId: string,
+    staffName: string,
+    failureReason?: string,
     failureCustomReason?: string,
     patientId?: number,
-    scheduledDate?: string
+    scheduledDate?: string,
+    notes?: string,
+    inspectionCheckResult?: any
   ) => {
     // 參數驗證和正規化
     const normalizedPatientId = patientId && !isNaN(patientId) && patientId > 0 ? patientId : null;
     const normalizedScheduledDate = scheduledDate && scheduledDate.trim() !== '' ? scheduledDate.trim() : null;
-    
+
     console.log('=== dispenseMedication 參數檢查 ===', {
       recordId,
       staffName,
@@ -1281,9 +1283,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       originalPatientId: patientId,
       originalScheduledDate: scheduledDate,
       normalizedPatientId,
-      normalizedScheduledDate
+      normalizedScheduledDate,
+      notes,
+      inspectionCheckResult
     });
-    
+
     if (!normalizedPatientId || !normalizedScheduledDate) {
       console.error('dispenseMedication 參數無效:', { normalizedPatientId, normalizedScheduledDate });
       throw new Error('院友ID和排程日期為必填項目');
@@ -1291,26 +1295,26 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
     try {
       console.log('執行派藥操作:', { recordId, staffName, failureReason, failureCustomReason });
-      
+
       // 檢查核藥是否已完成
       const { data: record, error: fetchError } = await supabase
         .from('prescription_workflow_records')
         .select('verification_status, prescription_id, patient_id')
         .eq('id', recordId)
         .single();
-      
+
       if (fetchError) throw fetchError;
-      
+
       if (record.verification_status !== 'completed') {
         throw new Error('必須先完成核藥步驟才能進行派藥');
       }
-      
+
       // 正常派藥或手動設定失敗
       const updateData: any = {
         dispensing_staff: staffName,
         dispensing_time: new Date().toISOString()
       };
-      
+
       if (failureReason) {
         updateData.dispensing_status = 'failed';
         updateData.dispensing_failure_reason = failureReason;
@@ -1320,19 +1324,29 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         updateData.dispensing_failure_reason = null;
         updateData.dispensing_failure_custom_reason = null;
       }
-      
+
+      // 如果有備註（如注射位置），添加到更新數據中
+      if (notes) {
+        updateData.notes = notes;
+      }
+
+      // 如果有檢測結果，存儲到 inspection_check_result 字段
+      if (inspectionCheckResult) {
+        updateData.inspection_check_result = inspectionCheckResult;
+      }
+
       const { error } = await supabase
         .from('prescription_workflow_records')
         .update(updateData)
         .eq('id', recordId);
-      
+
       if (error) {
         console.error('Supabase 更新錯誤:', error);
         throw error;
       }
-      
+
       console.log('派藥操作完成，準備重新載入記錄');
-      
+
       // 重新載入該院友該日期的工作流程記錄
       await fetchPrescriptionWorkflowRecords(normalizedPatientId, normalizedScheduledDate);
     } catch (error) {
