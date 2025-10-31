@@ -281,9 +281,11 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         </div>
       )}
 
-      {status === 'failed' && record.dispensing_failure_reason && (
+      {status === 'failed' && record.dispensing_failure_reason && !inspectionValues && !blockedRules && (
         <div className="text-xs text-red-600 mt-1 truncate font-medium">
-          {record.dispensing_failure_reason}
+          {record.dispensing_failure_reason === '其他' && record.custom_failure_reason
+            ? record.custom_failure_reason
+            : record.dispensing_failure_reason}
         </div>
       )}
 

@@ -190,8 +190,8 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
         await dispenseMedication(
           workflowRecord.id,
           displayName || '未知',
+          '其他',
           '檢測項條件不符',
-          undefined,
           workflowRecord.patient_id,
           workflowRecord.scheduled_date,
           undefined,
