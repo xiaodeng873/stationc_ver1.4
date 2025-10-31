@@ -980,17 +980,6 @@ const MedicationWorkflow: React.FC = () => {
       // 檢測合格時，打開派藥確認對話框
       // 檢測不合格時，InspectionCheckModal 已經直接處理完成
       if (canDispense) {
-        // 確保檢測結果正確附加到 selectedWorkflowRecord
-        // 檢測結果已經在 InspectionCheckModal 中附加到 workflowRecord.inspectionCheckResult
-        // 現在需要更新 selectedWorkflowRecord 以包含這個檢測結果
-        const updatedRecord = {
-          ...selectedWorkflowRecord,
-          inspectionCheckResult: selectedWorkflowRecord.inspectionCheckResult
-        };
-
-        console.log('檢測合格，準備打開派藥確認對話框，檢測結果:', updatedRecord.inspectionCheckResult);
-
-        setSelectedWorkflowRecord(updatedRecord);
         setShowInspectionCheckModal(false);
         setShowDispenseConfirmModal(true);
       }
@@ -1018,23 +1007,12 @@ const MedicationWorkflow: React.FC = () => {
       // 針劑派藥時記錄注射位置
       const injectionNotes = `注射位置: ${injectionSite}${notes ? ` | ${notes}` : ''}`;
 
-      console.log('注射位置已選擇:', {
-        injectionSite,
-        notes,
-        injectionNotes,
-        currentInjectionRecord
-      });
-
       // 暫存注射位置信息，稍後在確認對話框中使用
-      const updatedRecord = {
+      setSelectedWorkflowRecord({
         ...currentInjectionRecord,
         injectionSite,
         injectionNotes
-      };
-
-      console.log('更新後的工作流程記錄（含注射位置）:', updatedRecord);
-
-      setSelectedWorkflowRecord(updatedRecord);
+      });
 
       // 關閉注射位置對話框，打開派藥確認對話框
       setShowInjectionSiteModal(false);
@@ -1067,15 +1045,6 @@ const MedicationWorkflow: React.FC = () => {
     try {
       const prescription = prescriptions.find(p => p.id === selectedWorkflowRecord.prescription_id);
 
-      console.log('派藥確認 - 開始處理:', {
-        action,
-        reason,
-        customReason,
-        selectedWorkflowRecord,
-        injectionNotes: selectedWorkflowRecord.injectionNotes,
-        inspectionCheckResult: selectedWorkflowRecord.inspectionCheckResult
-      });
-
       // 如果是即時備藥，需要自動回補執藥和核藥
       if (prescription?.preparation_method === 'immediate') {
         await prepareMedication(
@@ -1105,15 +1074,6 @@ const MedicationWorkflow: React.FC = () => {
         // 如果有檢測結果（從 InspectionCheckModal 傳來），存儲檢測數據
         const inspectionCheckResult = selectedWorkflowRecord.inspectionCheckResult || undefined;
 
-        console.log('準備派藥 - 參數檢查:', {
-          recordId: selectedWorkflowRecord.id,
-          staff: displayName,
-          notes,
-          inspectionCheckResult,
-          patientId: patientIdNum,
-          scheduledDate
-        });
-
         await dispenseMedication(
           selectedWorkflowRecord.id,
           displayName || '未知',
@@ -1124,12 +1084,8 @@ const MedicationWorkflow: React.FC = () => {
           notes,
           inspectionCheckResult
         );
-
-        console.log('派藥成功完成');
       } else {
         // 派藥失敗，記錄原因
-        console.log('派藥失敗 - 記錄原因:', { reason, customReason });
-
         await dispenseMedication(
           selectedWorkflowRecord.id,
           displayName || '未知',
