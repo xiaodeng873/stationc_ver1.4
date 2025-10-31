@@ -2543,7 +2543,7 @@ export const batchUpdateWorkflowStatus = async (recordIds: string[], updates: {
   }
 
   const { error } = await supabase
-    .from('medication_workflow_records')
+    .from('prescription_workflow_records')
     .update(updateData)
     .in('id', recordIds);
 
@@ -2577,7 +2577,7 @@ export const resetMedicationWorkflowStep = async (recordId: string, step: 'prepa
   }
 
   const { error } = await supabase
-    .from('medication_workflow_records')
+    .from('prescription_workflow_records')
     .update(updateData)
     .eq('id', recordId);
 
