@@ -24,7 +24,6 @@ import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
 import PatientAutocomplete from '../components/PatientAutocomplete';
 import PrescriptionModal from '../components/PrescriptionModal';
-import DispenseReasonModal from '../components/DispenseReasonModal';
 import DispenseConfirmModal from '../components/DispenseConfirmModal';
 import InspectionCheckModal from '../components/InspectionCheckModal';
 import InjectionSiteModal from '../components/InjectionSiteModal';
@@ -315,7 +314,6 @@ const MedicationWorkflow: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(getTodayLocalDate());
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showDispenseReasonModal, setShowDispenseReasonModal] = useState(false);
   const [showDispenseConfirmModal, setShowDispenseConfirmModal] = useState(false);
   const [showInspectionCheckModal, setShowInspectionCheckModal] = useState(false);
   const [showInjectionSiteModal, setShowInjectionSiteModal] = useState(false);
@@ -887,15 +885,10 @@ const MedicationWorkflow: React.FC = () => {
     }
 
     try {
-      if (canDispense) {
-        // 檢測通過，顯示派藥確認對話框
-        setShowInspectionCheckModal(false);
-        setShowDispenseConfirmModal(true);
-      } else {
-        // 檢測不通過，顯示失敗原因對話框（保留舊功能）
-        setShowInspectionCheckModal(false);
-        setShowDispenseReasonModal(true);
-      }
+      // 無論檢測是否通過，都顯示派藥確認對話框
+      // 檢測結果已經通過顏色和數值直接顯示在派藥格子上
+      setShowInspectionCheckModal(false);
+      setShowDispenseConfirmModal(true);
     } catch (error) {
       console.error('派藥失敗:', error);
       alert(`派藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
@@ -936,44 +929,6 @@ const MedicationWorkflow: React.FC = () => {
     }
   };
 
-  // 處理派藥失敗原因確認
-  const handleDispenseFailureConfirm = async (reason: string, customReason?: string) => {
-    if (!selectedWorkflowRecord) return;
-
-    if (!selectedPatientId) {
-      console.error('缺少必要的院友ID:', { selectedPatientId });
-      return;
-    }
-
-    // 驗證 selectedPatientId 是否為有效數字
-    const patientIdNum = parseInt(selectedPatientId);
-    if (isNaN(patientIdNum)) {
-      console.error('無效的院友ID:', selectedPatientId);
-      alert('請選擇有效的院友');
-      return;
-    }
-
-    const scheduledDate = selectedWorkflowRecord.scheduled_date;
-
-    try {
-      const patientId = patientIdNum;
-
-      await dispenseMedication(
-        selectedWorkflowRecord.id,
-        displayName || '未知',
-        reason,
-        customReason,
-        patientId,
-        scheduledDate
-      );
-      setShowDispenseReasonModal(false);
-      setSelectedWorkflowRecord(null);
-      setSelectedStep('');
-    } catch (error) {
-      console.error('記錄派藥失敗原因失敗:', error);
-      alert(`記錄失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-    }
-  };
 
   // 處理派藥確認對話框的結果
   const handleDispenseConfirm = async (action: 'success' | 'failure', reason?: string, customReason?: string) => {
@@ -1402,9 +1357,14 @@ const MedicationWorkflow: React.FC = () => {
                       const weekday = weekdays[weekdayIndex];
                       const isSelectedDate = date === selectedDate;
                       return (
-                        <th key={date} className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider ${
-                          isSelectedDate ? 'bg-blue-100 text-blue-800' : 'text-gray-500'
-                        }`}>
+                        <th
+                          key={date}
+                          className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer transition-colors ${
+                            isSelectedDate ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-blue-50'
+                          }`}
+                          onClick={() => setSelectedDate(date)}
+                          title={`點擊跳轉到 ${month}/${dayOfMonth}`}
+                        >
                           {month}/{dayOfMonth}<br/>({weekday})
                         </th>
                       );
@@ -1664,19 +1624,6 @@ const MedicationWorkflow: React.FC = () => {
             setCurrentInjectionRecord(null);
           }}
           onConfirm={handleDispenseConfirm}
-        />
-      )}
-
-      {/* 派藥失敗原因模態框 */}
-      {showDispenseReasonModal && selectedWorkflowRecord && (
-        <DispenseReasonModal
-          workflowRecord={selectedWorkflowRecord}
-          onClose={() => {
-            setShowDispenseReasonModal(false);
-            setSelectedWorkflowRecord(null);
-            setSelectedStep('');
-          }}
-          onConfirm={handleDispenseFailureConfirm}
         />
       )}
 
