@@ -126,7 +126,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
           <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 flex-shrink-0">
             {!sidebarCollapsed && (
               <div className="flex items-center space-x-2">
-                <Stethoscope className="h-8 w-8 text-blue-600" />
+              
                 <span className="text-xl font-bold text-gray-900">StationC</span>
               </div>
             )}
