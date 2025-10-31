@@ -1157,11 +1157,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       if (failureReason) {
         updateData.preparation_status = 'failed';
         updateData.dispensing_failure_reason = failureReason;
-        updateData.dispensing_failure_custom_reason = failureCustomReason || null;
+        updateData.custom_failure_reason = failureCustomReason || null;
       } else {
         updateData.preparation_status = 'completed';
         updateData.dispensing_failure_reason = null;
-        updateData.dispensing_failure_custom_reason = null;
+        updateData.custom_failure_reason = null;
       }
       
       const { error } = await supabase
@@ -1234,11 +1234,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       if (failureReason) {
         updateData.verification_status = 'failed';
         updateData.dispensing_failure_reason = failureReason;
-        updateData.dispensing_failure_custom_reason = failureCustomReason || null;
+        updateData.custom_failure_reason = failureCustomReason || null;
       } else {
         updateData.verification_status = 'completed';
         updateData.dispensing_failure_reason = null;
-        updateData.dispensing_failure_custom_reason = null;
+        updateData.custom_failure_reason = null;
       }
       
       const { error } = await supabase
@@ -1318,11 +1318,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       if (failureReason) {
         updateData.dispensing_status = 'failed';
         updateData.dispensing_failure_reason = failureReason;
-        updateData.dispensing_failure_custom_reason = failureCustomReason || null;
+        updateData.custom_failure_reason = failureCustomReason || null;
       } else {
         updateData.dispensing_status = 'completed';
         updateData.dispensing_failure_reason = null;
-        updateData.dispensing_failure_custom_reason = null;
+        updateData.custom_failure_reason = null;
       }
 
       // 如果有備註（如注射位置），添加到更新數據中
@@ -1569,7 +1569,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
           updateData.dispensing_staff = null;
           updateData.dispensing_time = null;
           updateData.dispensing_failure_reason = null;
-          updateData.dispensing_failure_custom_reason = null;
+          updateData.custom_failure_reason = null;
           break;
         case 'verification':
           updateData.verification_status = 'pending';
@@ -1580,14 +1580,14 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
           updateData.dispensing_staff = null;
           updateData.dispensing_time = null;
           updateData.dispensing_failure_reason = null;
-          updateData.dispensing_failure_custom_reason = null;
+          updateData.custom_failure_reason = null;
           break;
         case 'dispensing':
           updateData.dispensing_status = 'pending';
           updateData.dispensing_staff = null;
           updateData.dispensing_time = null;
           updateData.dispensing_failure_reason = null;
-          updateData.dispensing_failure_custom_reason = null;
+          updateData.custom_failure_reason = null;
           break;
       }
 

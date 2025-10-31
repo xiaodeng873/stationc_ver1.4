@@ -660,15 +660,16 @@ const MedicationWorkflow: React.FC = () => {
           return;
         }
 
-        // 針劑需要選擇注射位置
-        if (prescription?.administration_route === '注射') {
-          setCurrentInjectionRecord(record);
-          setShowInjectionSiteModal(true);
-        } else if (prescription?.inspection_rules && prescription.inspection_rules.length > 0) {
+        // 正確流程：優先檢測項 → 注射位置 → 派藥確認
+        if (prescription?.inspection_rules && prescription.inspection_rules.length > 0) {
           // 有檢測項要求的藥物需要檢測
           setSelectedWorkflowRecord(record);
           setSelectedStep(step);
           setShowInspectionCheckModal(true);
+        } else if (prescription?.administration_route === '注射') {
+          // 針劑需要選擇注射位置（無檢測項要求）
+          setCurrentInjectionRecord(record);
+          setShowInjectionSiteModal(true);
         } else {
           // 普通藥物：顯示派藥確認對話框
           setSelectedWorkflowRecord(record);
@@ -981,20 +982,31 @@ const MedicationWorkflow: React.FC = () => {
     }
 
     try {
-      // 檢測合格時，將檢測結果附加到 selectedWorkflowRecord，然後打開派藥確認對話框
+      // 檢測合格時
       // 檢測不合格時，InspectionCheckModal 已經直接處理完成
       if (canDispense) {
         // 將檢測結果保存到 selectedWorkflowRecord
-        setSelectedWorkflowRecord(prev => ({
-          ...prev,
+        const updatedRecord = {
+          ...selectedWorkflowRecord,
           inspectionCheckResult
-        }));
+        };
+        setSelectedWorkflowRecord(updatedRecord);
         setShowInspectionCheckModal(false);
-        setShowDispenseConfirmModal(true);
+
+        // 檢查是否為注射類藥物
+        const prescription = prescriptions.find(p => p.id === selectedWorkflowRecord.prescription_id);
+        if (prescription?.administration_route === '注射') {
+          // 是注射類，需要選擇注射位置
+          setCurrentInjectionRecord(updatedRecord);
+          setShowInjectionSiteModal(true);
+        } else {
+          // 不是注射類，直接打開派藥確認對話框
+          setShowDispenseConfirmModal(true);
+        }
       }
     } catch (error) {
-      console.error('派藥失敗:', error);
-      alert(`派藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      console.error('檢測後處理失敗:', error);
+      alert(`處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
   };
 
@@ -1016,11 +1028,13 @@ const MedicationWorkflow: React.FC = () => {
       // 針劑派藥時記錄注射位置
       const injectionNotes = `注射位置: ${injectionSite}${notes ? ` | ${notes}` : ''}`;
 
-      // 暫存注射位置信息，稍後在確認對話框中使用
+      // 保存注射位置信息，同時保留之前的檢測結果（如果有）
       setSelectedWorkflowRecord({
         ...currentInjectionRecord,
         injectionSite,
-        injectionNotes
+        injectionNotes,
+        // 保留檢測結果（如果有）
+        inspectionCheckResult: currentInjectionRecord.inspectionCheckResult || selectedWorkflowRecord?.inspectionCheckResult
       });
 
       // 關閉注射位置對話框，打開派藥確認對話框
