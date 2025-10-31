@@ -5,4 +5,6 @@ By default, this template supports JSX syntax with Tailwind CSS classes, React h
 Use icons from lucide-react for logos.
 以中文作答
 When the user asks you not to change the unnecessary part of the model and pages, that means you can only change the designated part; the other must remain unchanged.
+保持以下資料庫連接，除非另行通知，否則不能改動.env檔
+VITE_SUPABASE_URL=https://kzuhukvdhnuphuilkdmd.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16ZXB0end1cXZwanNweGduemtwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwMjM4NjEsImV4cCI6MjA2NzU5OTg2MX0.Uo4fgr2XdUxWY5LZ5Q7A0j6XoCyuUsHhb4WO-eabJWk
