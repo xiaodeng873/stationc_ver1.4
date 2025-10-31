@@ -246,6 +246,15 @@ const DispenseConfirmModal: React.FC<DispenseConfirmModalProps> = ({
                         推薦
                       </span>
                     )}
+                    {option.value === '入院' && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        isHospitalized
+                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                          : 'bg-gray-100 text-gray-600 border border-gray-300'
+                      }`}>
+                        {isHospitalized ? '✓ 目前入院中' : '目前非入院'}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-600">{option.description}</p>
                 </div>

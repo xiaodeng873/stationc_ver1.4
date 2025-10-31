@@ -797,10 +797,10 @@ const MedicationWorkflow: React.FC = () => {
         }
       }
 
-      if (hospitalizedCount > 0) {
-        alert(`已處理入院中院友的派藥記錄：${hospitalizedCount} 筆已標記為「入院」`);
-      } else if (failCount > 0) {
-        alert(`一鍵全程部分完成：成功 ${successCount} 筆，失敗 ${failCount} 筆`);
+      if (failCount > 0) {
+        alert(`一鍵全程部分完成：成功 ${successCount} 筆，入院 ${hospitalizedCount} 筆，失敗 ${failCount} 筆`);
+      } else if (hospitalizedCount > 0 && successCount > 0) {
+        alert(`一鍵全程完成：成功 ${successCount} 筆，入院 ${hospitalizedCount} 筆`);
       }
     } catch (error) {
       console.error('一鍵全程失敗:', error);
@@ -868,10 +868,10 @@ const MedicationWorkflow: React.FC = () => {
         }
       }
 
-      if (hospitalizedCount > 0) {
-        alert(`已處理入院中院友的派藥記錄：${hospitalizedCount} 筆已標記為「入院」`);
-      } else if (failCount > 0) {
-        alert(`一鍵派藥部分完成：成功 ${successCount} 筆，失敗 ${failCount} 筆`);
+      if (failCount > 0) {
+        alert(`一鍵派藥部分完成：成功 ${successCount} 筆，入院 ${hospitalizedCount} 筆，失敗 ${failCount} 筆`);
+      } else if (hospitalizedCount > 0 && successCount > 0) {
+        alert(`一鍵派藥完成：成功 ${successCount} 筆，入院 ${hospitalizedCount} 筆`);
       }
     } catch (error) {
       console.error('一鍵派藥失敗:', error);
