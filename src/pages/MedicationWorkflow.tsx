@@ -1295,7 +1295,8 @@ const MedicationWorkflow: React.FC = () => {
                   onClick={handleOneClickDispense}
                   disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
                     const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                    const isHospitalized = checkPatientHospitalized(patientIdNum);
+                    const patientIdNum = parseInt(selectedPatientId);
+                    const isHospitalized = !isNaN(patientIdNum) ? checkPatientHospitalized(patientIdNum) : false;
                     // 如果院友入院中，也能處理有檢測項的處方
                     const hasInspectionRules = prescription?.inspection_rules && prescription.inspection_rules.length > 0;
                     return r.dispensing_status === 'pending' &&
