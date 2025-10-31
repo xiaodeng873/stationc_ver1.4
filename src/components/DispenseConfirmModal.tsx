@@ -242,9 +242,7 @@ const DispenseConfirmModal: React.FC<DispenseConfirmModalProps> = ({
                     <span className={getIconColorClass(option.color)}>{option.icon}</span>
                     <span className="font-medium text-gray-900 text-base">{option.label}</span>
                     {option.isSuccess && (
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
-                        推薦
-                      </span>
+                     
                     )}
                     {option.value === '入院' && (
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
