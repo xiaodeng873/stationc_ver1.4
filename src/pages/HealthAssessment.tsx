@@ -437,23 +437,50 @@ const HealthAssessment: React.FC = () => {
 
     const selectedRecords = sortedRecords.filter(r => selectedRows.has(r.記錄id));
     const confirmMessage = `確定要刪除 ${selectedRows.size} 筆監測記錄嗎？\n\n此操作無法復原。`;
-    
+
     if (!confirm(confirmMessage)) {
       return;
     }
 
     const deletingArray = Array.from(selectedRows);
     setDeletingIds(new Set(deletingArray));
-    
+
+    let successCount = 0;
+    let failCount = 0;
+    const failedIds: number[] = [];
+
     try {
+      console.log(`[批量刪除] 開始刪除 ${deletingArray.length} 筆記錄`);
+
       for (const recordId of deletingArray) {
-        await deleteHealthRecord(recordId);
+        try {
+          await deleteHealthRecord(recordId);
+          successCount++;
+          console.log(`[批量刪除] 成功刪除記錄 ${recordId}, 進度: ${successCount}/${deletingArray.length}`);
+        } catch (deleteError) {
+          failCount++;
+          failedIds.push(recordId);
+          console.error(`[批量刪除] 刪除記錄 ${recordId} 失敗:`, deleteError);
+          // 繼續刪除其他記錄，不中斷整個流程
+        }
       }
-      setSelectedRows(new Set());
-      alert(`成功刪除 ${deletingArray.length} 筆監測記錄`);
+
+      // 清除已成功刪除的記錄
+      const newSelectedRows = new Set<number>();
+      failedIds.forEach(id => newSelectedRows.add(id));
+      setSelectedRows(newSelectedRows);
+
+      // 顯示結果
+      if (failCount === 0) {
+        alert(`成功刪除 ${successCount} 筆監測記錄`);
+      } else {
+        alert(`刪除完成：\n成功 ${successCount} 筆\n失敗 ${failCount} 筆\n\n失敗的記錄已保持選中狀態，您可以稍後重試。`);
+      }
+
+      console.log(`[批量刪除] 完成，成功: ${successCount}, 失敗: ${failCount}`);
     } catch (error) {
-      console.error('批量刪除監測記錄失敗:', error);
-      alert('批量刪除監測記錄失敗，請重試');
+      console.error('[批量刪除] 發生未預期的錯誤:', error);
+      alert(`批量刪除過程中發生錯誤\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
     } finally {
       setDeletingIds(new Set());
     }

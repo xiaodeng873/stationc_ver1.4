@@ -1915,10 +1915,17 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
   const deleteHealthRecord = async (id: number) => {
     try {
+      console.log('[deleteHealthRecord] 刪除健康記錄 ID:', id);
       await db.deleteHealthRecord(id);
-      await refreshData();
+
+      // 只刷新健康記錄，不需要刷新所有數據
+      console.log('[deleteHealthRecord] 刷新健康記錄列表');
+      const healthRecordsData = await db.getHealthRecords();
+      setHealthRecords(healthRecordsData);
+
+      console.log('[deleteHealthRecord] 刪除成功');
     } catch (error) {
-      console.error('Error deleting health record:', error);
+      console.error('[deleteHealthRecord] 刪除失敗:', error);
       throw error;
     }
   };
