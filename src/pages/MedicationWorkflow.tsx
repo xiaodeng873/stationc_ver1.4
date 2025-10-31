@@ -796,12 +796,6 @@ const MedicationWorkflow: React.FC = () => {
           failCount++;
         }
       }
-
-      if (failCount > 0) {
-        alert(`一鍵全程部分完成：成功 ${successCount} 筆，入院 ${hospitalizedCount} 筆，失敗 ${failCount} 筆`);
-      } else if (hospitalizedCount > 0 && successCount > 0) {
-        alert(`一鍵全程完成：成功 ${successCount} 筆，入院 ${hospitalizedCount} 筆`);
-      }
     } catch (error) {
       console.error('一鍵全程失敗:', error);
       alert(`一鍵全程失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
@@ -866,12 +860,6 @@ const MedicationWorkflow: React.FC = () => {
           console.error(`派藥失敗 (記錄ID: ${record.id}):`, error);
           failCount++;
         }
-      }
-
-      if (failCount > 0) {
-        alert(`一鍵派藥部分完成：成功 ${successCount} 筆，入院 ${hospitalizedCount} 筆，失敗 ${failCount} 筆`);
-      } else if (hospitalizedCount > 0 && successCount > 0) {
-        alert(`一鍵派藥完成：成功 ${successCount} 筆，入院 ${hospitalizedCount} 筆`);
       }
     } catch (error) {
       console.error('一鍵派藥失敗:', error);
