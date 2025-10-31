@@ -81,7 +81,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
           <div className="absolute inset-0 flex flex-col">
             <div className="h-16 px-6 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center space-x-2">
-                <Stethoscope className="h-8 w-8 text-blue-600" />
+
                 <span className="text-xl font-bold text-gray-900">StationC</span>
               </div>
               <button onClick={() => setSidebarOpen(false)} className="text-gray-400 hover:text-gray-600">
