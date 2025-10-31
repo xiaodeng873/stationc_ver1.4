@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 interface InspectionCheckModalProps {
   workflowRecord: any;
   onClose: () => void;
-  onResult: (canDispense: boolean, failureReason?: string, inspectionCheckResult?: any) => void;
+  onResult: (canDispense: boolean, failureReason?: string) => void;
 }
 
 const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
@@ -30,11 +30,9 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   const [isChecking, setIsChecking] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasNoRulesAndHandled, setHasNoRulesAndHandled] = useState(false);
-  const [isHospitalizedAndHandled, setIsHospitalizedAndHandled] = useState(false);
 
   const patient = patients.find(p => p.院友id === workflowRecord.patient_id);
   const prescription = prescriptions.find(p => p.id === workflowRecord.prescription_id);
-  const isHospitalized = patient?.is_hospitalized || false;
 
   // 檢測項圖標映射
   const getVitalSignIcon = (type: string) => {
@@ -60,21 +58,6 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   // 載入最新監測記錄
   useEffect(() => {
     const loadLatestVitalSigns = async () => {
-      // 如果院友入院中，直接標記為入院失敗，不進行檢測
-      if (isHospitalized && !isHospitalizedAndHandled) {
-        setIsHospitalizedAndHandled(true);
-        // 直接調用失敗結果，寫入「入院」原因
-        const hospitalizedResult = {
-          canDispense: false,
-          blockedRules: [],
-          usedVitalSignData: {},
-          message: '院友入院中'
-        };
-        onResult(false, '入院', hospitalizedResult);
-        setLoading(false);
-        return;
-      }
-
       // 如果沒有檢測規則，直接允許派藥
       if (!prescription?.inspection_rules || prescription.inspection_rules.length === 0) {
         if (!hasNoRulesAndHandled) {
@@ -105,14 +88,14 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     };
 
     loadLatestVitalSigns();
-  }, [prescription, workflowRecord.patient_id, fetchLatestVitalSigns, hasNoRulesAndHandled, isHospitalized, isHospitalizedAndHandled, onResult]);
+  }, [prescription, workflowRecord.patient_id, fetchLatestVitalSigns, hasNoRulesAndHandled, onResult]);
 
-  // 處理沒有檢測規則或入院的情況
+  // 處理沒有檢測規則的情況
   useEffect(() => {
-    if (hasNoRulesAndHandled || isHospitalizedAndHandled) {
+    if (hasNoRulesAndHandled) {
       return;
     }
-  }, [hasNoRulesAndHandled, isHospitalizedAndHandled]);
+  }, [hasNoRulesAndHandled]);
 
   // 執行檢測檢查
   const performInspectionCheck = async () => {
@@ -159,16 +142,13 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     }
   };
 
-  // 處理確認派藥（檢測通過）
+  // 處理確認派藥
   const handleConfirmDispense = () => {
-    // 檢測通過，需要繼續彈出派藥確認對話框
-    onResult(true, undefined, checkResult);
-  };
-
-  // 處理無法派藥（檢測不通過）
-  const handleCannotDispense = () => {
-    // 檢測不通過，直接寫入失敗狀態，不需要彈出派藥確認對話框
-    onResult(false, '檢測項條件不符', checkResult);
+    if (checkResult?.canDispense) {
+      onResult(true);
+    } else {
+      onResult(false, '檢測項條件不符');
+    }
   };
 
   // 處理新數據輸入
@@ -190,8 +170,8 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     );
   }
 
-  // 如果沒有檢測規則且已處理，或入院且已處理，不渲染模態框
-  if (hasNoRulesAndHandled || isHospitalizedAndHandled) {
+  // 如果沒有檢測規則且已處理，不渲染模態框
+  if (hasNoRulesAndHandled) {
     return null;
   }
 
@@ -219,16 +199,6 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
               <X className="h-6 w-6" />
             </button>
           </div>
-
-          {/* 入院提示 */}
-          {isHospitalized && (
-            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start space-x-2">
-              <AlertTriangle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-800">
-                <strong>注意：</strong>此院友目前標記為入院中狀態，無需進行檢測，將直接記錄為「入院」狀態。
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="p-6 space-y-6">
@@ -406,21 +376,24 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
                   </>
                 )}
               </button>
-            ) : checkResult.canDispense ? (
-              <button
-                onClick={handleConfirmDispense}
-                className="flex-1 flex items-center justify-center space-x-2 btn-primary"
-              >
-                <CheckCircle className="h-4 w-4" />
-                <span>確認派藥</span>
-              </button>
             ) : (
               <button
-                onClick={handleCannotDispense}
-                className="flex-1 flex items-center justify-center space-x-2 btn-danger"
+                onClick={handleConfirmDispense}
+                className={`flex-1 flex items-center justify-center space-x-2 ${
+                  checkResult.canDispense ? 'btn-primary' : 'btn-danger'
+                }`}
               >
-                <XCircle className="h-4 w-4" />
-                <span>無法派藥</span>
+                {checkResult.canDispense ? (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    <span>確認派藥</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4" />
+                    <span>無法派藥</span>
+                  </>
+                )}
               </button>
             )}
             
