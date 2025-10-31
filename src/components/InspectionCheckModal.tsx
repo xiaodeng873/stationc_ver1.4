@@ -135,41 +135,71 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     setIsChecking(true);
 
     try {
-      let vitalSignDataToUse = null;
+      console.log('[InspectionCheckModal] 開始執行檢測檢查');
 
       // 如果用戶選擇使用新數據，先新增健康記錄
       if (useNewData && Object.keys(newVitalSignData).length > 0) {
-        const healthRecord = {
-          院友id: workflowRecord.patient_id,
-          記錄日期: workflowRecord.scheduled_date,
-          記錄時間: workflowRecord.scheduled_time,
-          記錄類型: '生命表徵' as const,
-          血壓收縮壓: newVitalSignData.上壓 ? parseInt(newVitalSignData.上壓) : null,
-          血壓舒張壓: newVitalSignData.下壓 ? parseInt(newVitalSignData.下壓) : null,
-          脈搏: newVitalSignData.脈搏 ? parseInt(newVitalSignData.脈搏) : null,
-          體溫: newVitalSignData.體溫 ? parseFloat(newVitalSignData.體溫) : null,
-          血含氧量: newVitalSignData.血含氧量 ? parseInt(newVitalSignData.血含氧量) : null,
-          呼吸頻率: newVitalSignData.呼吸 ? parseInt(newVitalSignData.呼吸) : null,
-          血糖值: newVitalSignData.血糖值 ? parseFloat(newVitalSignData.血糖值) : null,
-          備註: '派藥前檢測',
-          記錄人員: displayName || '系統'
-        };
+        console.log('[InspectionCheckModal] 準備保存新監測數據:', newVitalSignData);
 
-        await addHealthRecord(healthRecord);
-        vitalSignDataToUse = newVitalSignData;
+        // 確定記錄類型：如果只有血糖值，使用血糖控制；否則使用生命表徵
+        const hasBloodSugar = newVitalSignData.血糖值 !== undefined && newVitalSignData.血糖值 !== '';
+        const hasVitalSigns = ['上壓', '下壓', '脈搏', '體溫', '血含氧量', '呼吸'].some(
+          key => newVitalSignData[key] !== undefined && newVitalSignData[key] !== ''
+        );
+
+        // 如果有血糖值，需要保存血糖控制記錄
+        if (hasBloodSugar) {
+          const bloodSugarRecord = {
+            院友id: workflowRecord.patient_id,
+            記錄日期: workflowRecord.scheduled_date,
+            記錄時間: workflowRecord.scheduled_time,
+            記錄類型: '血糖控制' as const,
+            血糖值: parseFloat(newVitalSignData.血糖值),
+            備註: '派藥前檢測',
+            記錄人員: displayName || '系統'
+          };
+          console.log('[InspectionCheckModal] 保存血糖控制記錄:', bloodSugarRecord);
+          await addHealthRecord(bloodSugarRecord);
+        }
+
+        // 如果有生命表徵數據，需要保存生命表徵記錄
+        if (hasVitalSigns) {
+          const vitalSignsRecord = {
+            院友id: workflowRecord.patient_id,
+            記錄日期: workflowRecord.scheduled_date,
+            記錄時間: workflowRecord.scheduled_time,
+            記錄類型: '生命表徵' as const,
+            血壓收縮壓: newVitalSignData.上壓 ? parseInt(newVitalSignData.上壓) : null,
+            血壓舒張壓: newVitalSignData.下壓 ? parseInt(newVitalSignData.下壓) : null,
+            脈搏: newVitalSignData.脈搏 ? parseInt(newVitalSignData.脈搏) : null,
+            體溫: newVitalSignData.體溫 ? parseFloat(newVitalSignData.體溫) : null,
+            血含氧量: newVitalSignData.血含氧量 ? parseInt(newVitalSignData.血含氧量) : null,
+            呼吸頻率: newVitalSignData.呼吸 ? parseInt(newVitalSignData.呼吸) : null,
+            備註: '派藥前檢測',
+            記錄人員: displayName || '系統'
+          };
+          console.log('[InspectionCheckModal] 保存生命表徵記錄:', vitalSignsRecord);
+          await addHealthRecord(vitalSignsRecord);
+        }
+
+        // 等待短暫時間確保數據庫寫入完成
+        console.log('[InspectionCheckModal] 等待數據寫入完成...');
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      // 執行檢測規則檢查
+      // 執行檢測規則檢查（不再傳遞 vitalSignDataToUse，因為數據已經保存到數據庫）
+      console.log('[InspectionCheckModal] 開始執行檢測規則檢查');
       const result = await checkPrescriptionInspectionRules(
         workflowRecord.prescription_id,
-        workflowRecord.patient_id,
-        vitalSignDataToUse
+        workflowRecord.patient_id
       );
 
+      console.log('[InspectionCheckModal] 檢測結果:', result);
       setCheckResult(result);
     } catch (error) {
-      console.error('檢測檢查失敗:', error);
-      alert(`檢測檢查失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      console.error('[InspectionCheckModal] 檢測檢查失敗:', error);
+      const errorMessage = error instanceof Error ? error.message : '未知錯誤';
+      alert(`檢測檢查失敗: ${errorMessage}\n\n請檢查網絡連接或聯繫技術支持。`);
     } finally {
       setIsChecking(false);
     }

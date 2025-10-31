@@ -1361,43 +1361,46 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   };
   
   const checkPrescriptionInspectionRules = async (
-    prescriptionId: string, 
-    patientId: number, 
+    prescriptionId: string,
+    patientId: number,
     newVitalSignData?: Omit<db.HealthRecord, '記錄id'>
   ): Promise<InspectionCheckResult> => {
     try {
+      console.log('[checkPrescriptionInspectionRules] 開始檢查，處方ID:', prescriptionId, '院友ID:', patientId);
+
       // 獲取處方的檢測規則
       const { data: prescription, error: prescriptionError } = await supabase
         .from('new_medication_prescriptions')
         .select('inspection_rules')
         .eq('id', prescriptionId)
         .single();
-      
-      if (prescriptionError) throw prescriptionError;
-      
+
+      if (prescriptionError) {
+        console.error('[checkPrescriptionInspectionRules] 獲取處方失敗:', prescriptionError);
+        throw prescriptionError;
+      }
+
       const inspectionRules = prescription.inspection_rules || [];
-      
+      console.log('[checkPrescriptionInspectionRules] 檢測規則:', inspectionRules);
+
       if (inspectionRules.length === 0) {
+        console.log('[checkPrescriptionInspectionRules] 無檢測規則，允許派藥');
         return {
           canDispense: true,
           blockedRules: [],
           usedVitalSignData: {}
         };
       }
-      
+
       const result: InspectionCheckResult = {
         canDispense: true,
         blockedRules: [],
         usedVitalSignData: {}
       };
-      
-      // 如果有新的監測數據，先儲存
-      if (newVitalSignData) {
-        await addHealthRecord(newVitalSignData);
-      }
-      
+
       // 檢查每個檢測規則
       for (const rule of inspectionRules) {
+        console.log('[checkPrescriptionInspectionRules] 檢查規則:', rule);
         const latestVitalSign = await fetchLatestVitalSigns(patientId, rule.vital_sign_type);
         
         if (!latestVitalSign) {
@@ -1478,17 +1481,22 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   
   const fetchLatestVitalSigns = async (patientId: number, vitalSignType: string): Promise<db.HealthRecord | null> => {
     try {
+      console.log(`[fetchLatestVitalSigns] 開始查詢，院友ID: ${patientId}, 檢測類型: ${vitalSignType}`);
+
       // 根據檢測項類型決定要查詢的記錄類型
       let recordType = '';
-      
+
       if (['上壓', '下壓', '脈搏', '呼吸', '血含氧量', '體溫'].includes(vitalSignType)) {
         recordType = '生命表徵';
       } else if (vitalSignType === '血糖值') {
         recordType = '血糖控制';
       } else {
+        console.warn(`[fetchLatestVitalSigns] 未知的檢測類型: ${vitalSignType}`);
         return null;
       }
-      
+
+      console.log(`[fetchLatestVitalSigns] 查詢記錄類型: ${recordType}`);
+
       const { data, error } = await supabase
         .from('健康記錄主表')
         .select('*')
@@ -1497,12 +1505,18 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         .order('記錄日期', { ascending: false })
         .order('記錄時間', { ascending: false })
         .limit(1);
-      
-      if (error) throw error;
-      
-      return data && data.length > 0 ? data[0] : null;
+
+      if (error) {
+        console.error('[fetchLatestVitalSigns] 查詢失敗:', error);
+        throw new Error(`查詢${recordType}記錄失敗: ${error.message}`);
+      }
+
+      const result = data && data.length > 0 ? data[0] : null;
+      console.log(`[fetchLatestVitalSigns] 查詢結果:`, result ? `找到記錄ID ${result.記錄id}` : '無記錄');
+
+      return result;
     } catch (error) {
-      console.error('獲取最新監測記錄失敗:', error);
+      console.error('[fetchLatestVitalSigns] 獲取最新監測記錄失敗:', error);
       throw error;
     }
   };
