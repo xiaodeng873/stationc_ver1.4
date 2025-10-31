@@ -194,7 +194,7 @@ interface PatientContextType {
   updatePrescriptionWorkflowRecord: (recordId: string, updateData: Partial<PrescriptionWorkflowRecord>) => Promise<void>;
   prepareMedication: (recordId: string, staffId: string) => Promise<void>;
   verifyMedication: (recordId: string, staffId: string) => Promise<void>;
-  dispenseMedication: (recordId: string, staffId: string, failureReason?: string, customReason?: string, newVitalSignData?: Omit<db.HealthRecord, '記錄id'>) => Promise<void>;
+  dispenseMedication: (recordId: string, staffId: string, failureReason?: string, customReason?: string, patientId?: number, scheduledDate?: string, notes?: string, inspectionCheckResult?: any) => Promise<void>;
   checkPrescriptionInspectionRules: (prescriptionId: string, patientId: number, newVitalSignData?: Omit<db.HealthRecord, '記錄id'>) => Promise<InspectionCheckResult>;
   fetchLatestVitalSigns: (patientId: number, vitalSignType: string) => Promise<db.HealthRecord | null>;
   batchSetDispenseFailure: (patientId: number, scheduledDate: string, scheduledTime: string, reason: string) => Promise<void>;
@@ -1262,12 +1262,14 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   };
   
   const dispenseMedication = async (
-    recordId: string, 
-    staffName: string, 
-    failureReason?: string, 
+    recordId: string,
+    staffName: string,
+    failureReason?: string,
     failureCustomReason?: string,
     patientId?: number,
-    scheduledDate?: string
+    scheduledDate?: string,
+    notes?: string,
+    inspectionCheckResult?: any
   ) => {
     // 參數驗證和正規化
     const normalizedPatientId = patientId && !isNaN(patientId) && patientId > 0 ? patientId : null;
@@ -1310,7 +1312,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         dispensing_staff: staffName,
         dispensing_time: new Date().toISOString()
       };
-      
+
       if (failureReason) {
         updateData.dispensing_status = 'failed';
         updateData.dispensing_failure_reason = failureReason;
@@ -1319,6 +1321,16 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         updateData.dispensing_status = 'completed';
         updateData.dispensing_failure_reason = null;
         updateData.dispensing_failure_custom_reason = null;
+      }
+
+      // 如果有備註，保存到 notes 欄位
+      if (notes) {
+        updateData.notes = notes;
+      }
+
+      // 如果有檢測結果，保存到 inspection_check_result 欄位
+      if (inspectionCheckResult) {
+        updateData.inspection_check_result = inspectionCheckResult;
       }
       
       const { error } = await supabase

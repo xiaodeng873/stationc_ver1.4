@@ -782,7 +782,13 @@ const MedicationWorkflow: React.FC = () => {
 
           if (isHospitalized) {
             // 如果院友入院中，自動標記為「入院」失敗原因
-            await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
+            const hospitalizedResult = {
+              canDispense: false,
+              blockedRules: [],
+              usedVitalSignData: {},
+              message: '院友入院中'
+            };
+            await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate, undefined, hospitalizedResult);
             hospitalizedCount++;
           } else {
             // 正常派藥
@@ -818,17 +824,19 @@ const MedicationWorkflow: React.FC = () => {
     setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
 
     try {
-      // 找到所有待派藥的記錄（排除注射類和有檢測項要求的藥物）
+      // 找到所有待派藥的記錄
+      // 如果院友入院中，包括有檢測項的處方
+      // 如果院友未入院，排除注射類和有檢測項要求的藥物
       const pendingDispensingRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
-        // 排除注射類藥物
+        // 排除注射類藥物（即使入院也不處理）
         if (prescription?.administration_route === '注射') {
           return false;
         }
 
-        // 排除有檢測項要求的藥物
-        if (prescription?.inspection_rules && prescription.inspection_rules.length > 0) {
+        // 如果院友未入院，排除有檢測項要求的藥物
+        if (!isHospitalized && prescription?.inspection_rules && prescription.inspection_rules.length > 0) {
           return false;
         }
 
@@ -847,7 +855,14 @@ const MedicationWorkflow: React.FC = () => {
         try {
           if (isHospitalized) {
             // 如果院友入院中，自動標記為「入院」失敗原因
-            await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
+            // 即使有檢測項也直接記錄為入院
+            const hospitalizedResult = {
+              canDispense: false,
+              blockedRules: [],
+              usedVitalSignData: {},
+              message: '院友入院中'
+            };
+            await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate, undefined, hospitalizedResult);
             hospitalizedCount++;
           } else {
             // 正常派藥
@@ -868,7 +883,7 @@ const MedicationWorkflow: React.FC = () => {
   };
 
   // 處理檢測通過後的派藥
-  const handleDispenseAfterInspection = async (canDispense: boolean, failureReason?: string) => {
+  const handleDispenseAfterInspection = async (canDispense: boolean, failureReason?: string, inspectionCheckResult?: any) => {
     if (!selectedWorkflowRecord) return;
 
     if (!selectedPatientId) {
@@ -884,11 +899,34 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
+    const scheduledDate = selectedWorkflowRecord.scheduled_date;
+
     try {
-      // 無論檢測是否通過，都顯示派藥確認對話框
-      // 檢測結果已經通過顏色和數值直接顯示在派藥格子上
-      setShowInspectionCheckModal(false);
-      setShowDispenseConfirmModal(true);
+      if (canDispense) {
+        // 檢測通過，顯示派藥確認對話框，讓使用者選擇順利派藥或失敗原因
+        // 將檢測結果暂存到 selectedWorkflowRecord，便於後續保存
+        setSelectedWorkflowRecord({
+          ...selectedWorkflowRecord,
+          inspectionCheckResult
+        });
+        setShowInspectionCheckModal(false);
+        setShowDispenseConfirmModal(true);
+      } else {
+        // 檢測不通過，直接寫入失敗狀態，不彈出派藥確認對話框
+        await dispenseMedication(
+          selectedWorkflowRecord.id,
+          displayName || '未知',
+          failureReason || '檢測項條件不符',
+          undefined,
+          patientIdNum,
+          scheduledDate,
+          undefined,
+          inspectionCheckResult
+        );
+        setShowInspectionCheckModal(false);
+        setSelectedWorkflowRecord(null);
+        setSelectedStep('');
+      }
     } catch (error) {
       console.error('派藥失敗:', error);
       alert(`派藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
@@ -976,6 +1014,8 @@ const MedicationWorkflow: React.FC = () => {
       if (action === 'success') {
         // 如果有注射位置信息，添加到備註中
         const notes = selectedWorkflowRecord.injectionNotes || undefined;
+        // 獲取檢測結果（如果有）
+        const inspectionCheckResult = selectedWorkflowRecord.inspectionCheckResult || undefined;
         await dispenseMedication(
           selectedWorkflowRecord.id,
           displayName || '未知',
@@ -983,7 +1023,8 @@ const MedicationWorkflow: React.FC = () => {
           undefined,
           patientIdNum,
           scheduledDate,
-          notes
+          notes,
+          inspectionCheckResult
         );
       } else {
         // 派藥失敗，記錄原因
@@ -1254,10 +1295,13 @@ const MedicationWorkflow: React.FC = () => {
                   onClick={handleOneClickDispense}
                   disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
                     const prescription = prescriptions.find(p => p.id === r.prescription_id);
+                    const isHospitalized = checkPatientHospitalized(patientIdNum);
+                    // 如果院友入院中，也能處理有檢測項的處方
+                    const hasInspectionRules = prescription?.inspection_rules && prescription.inspection_rules.length > 0;
                     return r.dispensing_status === 'pending' &&
                            r.verification_status === 'completed' &&
                            prescription?.administration_route !== '注射' &&
-                           !(prescription?.inspection_rules && prescription.inspection_rules.length > 0);
+                           (isHospitalized || !hasInspectionRules);
                   })}
                   className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 lg:w-full xl:w-auto"
                 >
