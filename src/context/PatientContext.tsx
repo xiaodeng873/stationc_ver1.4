@@ -1483,25 +1483,45 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     try {
       console.log(`[fetchLatestVitalSigns] 開始查詢，院友ID: ${patientId}, 檢測類型: ${vitalSignType}`);
 
-      // 根據檢測項類型決定要查詢的記錄類型
+      // 根據檢測項類型決定要查詢的記錄類型和字段名
       let recordType = '';
+      let fieldName = '';
 
-      if (['上壓', '下壓', '脈搏', '呼吸', '血含氧量', '體溫'].includes(vitalSignType)) {
+      if (vitalSignType === '上壓') {
         recordType = '生命表徵';
+        fieldName = '血壓收縮壓';
+      } else if (vitalSignType === '下壓') {
+        recordType = '生命表徵';
+        fieldName = '血壓舒張壓';
+      } else if (vitalSignType === '脈搏') {
+        recordType = '生命表徵';
+        fieldName = '脈搏';
+      } else if (vitalSignType === '呼吸') {
+        recordType = '生命表徵';
+        fieldName = '呼吸頻率';
+      } else if (vitalSignType === '血含氧量') {
+        recordType = '生命表徵';
+        fieldName = '血含氧量';
+      } else if (vitalSignType === '體溫') {
+        recordType = '生命表徵';
+        fieldName = '體溫';
       } else if (vitalSignType === '血糖值') {
         recordType = '血糖控制';
+        fieldName = '血糖值';
       } else {
         console.warn(`[fetchLatestVitalSigns] 未知的檢測類型: ${vitalSignType}`);
         return null;
       }
 
-      console.log(`[fetchLatestVitalSigns] 查詢記錄類型: ${recordType}`);
+      console.log(`[fetchLatestVitalSigns] 查詢記錄類型: ${recordType}, 字段名: ${fieldName}`);
 
+      // 查詢該記錄類型的多條記錄，然後找到第一條包含該字段數據的記錄
       const { data, error } = await supabase
         .from('健康記錄主表')
         .select('*')
         .eq('院友id', patientId)
         .eq('記錄類型', recordType)
+        .not(fieldName, 'is', null)
         .order('記錄日期', { ascending: false })
         .order('記錄時間', { ascending: false })
         .limit(1);
@@ -1512,7 +1532,12 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
 
       const result = data && data.length > 0 ? data[0] : null;
-      console.log(`[fetchLatestVitalSigns] 查詢結果:`, result ? `找到記錄ID ${result.記錄id}` : '無記錄');
+
+      if (result) {
+        console.log(`[fetchLatestVitalSigns] 查詢結果: 找到記錄ID ${result.記錄id}, ${fieldName}=${result[fieldName]}, 日期=${result.記錄日期}, 時間=${result.記錄時間}`);
+      } else {
+        console.log(`[fetchLatestVitalSigns] 查詢結果: 無包含${fieldName}的${recordType}記錄`);
+      }
 
       return result;
     } catch (error) {
