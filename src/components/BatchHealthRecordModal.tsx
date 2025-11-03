@@ -750,6 +750,9 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                               min="0"
                               max="300"
                               disabled={record.isAbsent}
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              autoComplete="off"
                             />
                             <span className="flex items-center text-gray-500">/</span>
                             <input
@@ -761,6 +764,9 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                               min="0"
                               max="200"
                               disabled={record.isAbsent}
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              autoComplete="off"
                             />
                           </div>
                         </div>
@@ -775,6 +781,9 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                             min="0"
                             max="300"
                             disabled={record.isAbsent}
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            autoComplete="off"
                           />
                         </div>
                         <div>
@@ -789,6 +798,9 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                             max="45"
                             step="0.1"
                             disabled={record.isAbsent}
+                            inputMode="decimal"
+                            pattern="[0-9.]*"
+                            autoComplete="off"
                           />
                         </div>
                       </div>
@@ -805,6 +817,9 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                             min="0"
                             max="100"
                             disabled={record.isAbsent}
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            autoComplete="off"
                           />
                         </div>
                         <div>
@@ -818,6 +833,9 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                             min="0"
                             max="100"
                             disabled={record.isAbsent}
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            autoComplete="off"
                           />
                         </div>
                         <div>
@@ -850,6 +868,9 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                           step="0.1"
                           required
                           disabled={record.isAbsent}
+                          inputMode="decimal"
+                          pattern="[0-9.]*"
+                          autoComplete="off"
                         />
                       </div>
                       <div>
@@ -881,6 +902,9 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                           step="0.1"
                           required
                           disabled={record.isAbsent}
+                          inputMode="decimal"
+                          pattern="[0-9.]*"
+                          autoComplete="off"
                         />
                       </div>
                     </div>

@@ -564,6 +564,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                       min="0"
                       max="300"
                       disabled={formData.isAbsent}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      autoComplete="off"
                     />
                     <span className="flex items-center text-gray-500">/</span>
                     <input
@@ -575,6 +578,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                       min="0"
                       max="200"
                       disabled={formData.isAbsent}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -589,6 +595,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                     min="0"
                     max="300"
                     disabled={formData.isAbsent}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="off"
                   />
                 </div>
                 <div>
@@ -603,6 +612,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                     max="45"
                     step="0.1"
                     disabled={formData.isAbsent}
+                    inputMode="decimal"
+                    pattern="[0-9.]*"
+                    autoComplete="off"
                   />
                 </div>
               </div>
@@ -618,6 +630,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                     min="0"
                     max="100"
                     disabled={formData.isAbsent}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="off"
                   />
                 </div>
                 <div>
@@ -631,6 +646,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                     min="0"
                     max="100"
                     disabled={formData.isAbsent}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="off"
                   />
                 </div>
                 <div>
@@ -663,6 +681,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                   step="0.1"
                   required
                   disabled={formData.isAbsent}
+                  inputMode="decimal"
+                  pattern="[0-9.]*"
+                  autoComplete="off"
                 />
               </div>
               <div>
@@ -694,6 +715,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                   step="0.1"
                   required
                   disabled={formData.isAbsent}
+                  inputMode="decimal"
+                  pattern="[0-9.]*"
+                  autoComplete="off"
                 />
               </div>
             </div>
