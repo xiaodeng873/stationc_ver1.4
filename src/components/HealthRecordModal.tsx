@@ -556,13 +556,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                   <label className="form-label">血壓 (mmHg)</label>
                   <div className="flex space-x-2">
                     <input
-                      type="number"
+                      type="text"
                       value={formData.血壓收縮壓}
-                      onChange={(e) => updateFormData('血壓收縮壓', e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 300)) {
+                          updateFormData('血壓收縮壓', value);
+                        }
+                      }}
                       className="form-input"
                       placeholder="120"
-                      min="0"
-                      max="300"
                       disabled={formData.isAbsent}
                       inputMode="numeric"
                       pattern="[0-9]*"
@@ -570,13 +573,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                     />
                     <span className="flex items-center text-gray-500">/</span>
                     <input
-                      type="number"
+                      type="text"
                       value={formData.血壓舒張壓}
-                      onChange={(e) => updateFormData('血壓舒張壓', e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 200)) {
+                          updateFormData('血壓舒張壓', value);
+                        }
+                      }}
                       className="form-input"
                       placeholder="80"
-                      min="0"
-                      max="200"
                       disabled={formData.isAbsent}
                       inputMode="numeric"
                       pattern="[0-9]*"
@@ -587,13 +593,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                 <div>
                   <label className="form-label">脈搏 (每分鐘)</label>
                   <input
-                    type="number"
+                    type="text"
                     value={formData.脈搏}
-                    onChange={(e) => updateFormData('脈搏', e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 300)) {
+                        updateFormData('脈搏', value);
+                      }
+                    }}
                     className="form-input"
                     placeholder="72"
-                    min="0"
-                    max="300"
                     disabled={formData.isAbsent}
                     inputMode="numeric"
                     pattern="[0-9]*"
@@ -603,14 +612,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                 <div>
                   <label className="form-label">體溫 (°C)</label>
                   <input
-                    type="number"
+                    type="text"
                     value={formData.體溫}
-                    onChange={(e) => updateFormData('體溫', e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9.]/g, '');
+                      if (value === '' || (parseFloat(value) >= 30 && parseFloat(value) <= 45) || value.endsWith('.')) {
+                        updateFormData('體溫', value);
+                      }
+                    }}
                     className="form-input"
                     placeholder="36.5"
-                    min="30"
-                    max="45"
-                    step="0.1"
                     disabled={formData.isAbsent}
                     inputMode="decimal"
                     pattern="[0-9.]*"
@@ -622,13 +633,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                 <div>
                   <label className="form-label">血含氧量 (%)</label>
                   <input
-                    type="number"
+                    type="text"
                     value={formData.血含氧量}
-                    onChange={(e) => updateFormData('血含氧量', e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                        updateFormData('血含氧量', value);
+                      }
+                    }}
                     className="form-input"
                     placeholder="98"
-                    min="0"
-                    max="100"
                     disabled={formData.isAbsent}
                     inputMode="numeric"
                     pattern="[0-9]*"
@@ -638,13 +652,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                 <div>
                   <label className="form-label">呼吸頻率 (每分鐘)</label>
                   <input
-                    type="number"
+                    type="text"
                     value={formData.呼吸頻率}
-                    onChange={(e) => updateFormData('呼吸頻率', e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                        updateFormData('呼吸頻率', value);
+                      }
+                    }}
                     className="form-input"
                     placeholder="18"
-                    min="0"
-                    max="100"
                     disabled={formData.isAbsent}
                     inputMode="numeric"
                     pattern="[0-9]*"
@@ -671,14 +688,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
               <div>
                 <label className="form-label">血糖值 (mmol/L) *</label>
                 <input
-                  type="number"
+                  type="text"
                   value={formData.血糖值}
-                  onChange={(e) => updateFormData('血糖值', e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9.]/g, '');
+                    if (value === '' || (parseFloat(value) >= 0 && parseFloat(value) <= 50) || value.endsWith('.')) {
+                      updateFormData('血糖值', value);
+                    }
+                  }}
                   className="form-input"
                   placeholder="5.5"
-                  min="0"
-                  max="50"
-                  step="0.1"
                   required
                   disabled={formData.isAbsent}
                   inputMode="decimal"
@@ -705,14 +724,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
               <div>
                 <label className="form-label">體重 (kg) *</label>
                 <input
-                  type="number"
+                  type="text"
                   value={formData.體重}
-                  onChange={(e) => updateFormData('體重', e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9.]/g, '');
+                    if (value === '' || (parseFloat(value) >= 0 && parseFloat(value) <= 300) || value.endsWith('.')) {
+                      updateFormData('體重', value);
+                    }
+                  }}
                   className="form-input"
                   placeholder="65.0"
-                  min="0"
-                  max="300"
-                  step="0.1"
                   required
                   disabled={formData.isAbsent}
                   inputMode="decimal"

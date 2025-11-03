@@ -742,13 +742,16 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                           <label className="form-label">血壓 (mmHg)</label>
                           <div className="flex space-x-2">
                             <input
-                              type="number"
+                              type="text"
                               value={record.血壓收縮壓}
-                              onChange={(e) => updateRecord(record.id, '血壓收縮壓', e.target.value)}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/[^0-9]/g, '');
+                                if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 300)) {
+                                  updateRecord(record.id, '血壓收縮壓', value);
+                                }
+                              }}
                               className="form-input"
                               placeholder="120"
-                              min="0"
-                              max="300"
                               disabled={record.isAbsent}
                               inputMode="numeric"
                               pattern="[0-9]*"
@@ -756,13 +759,16 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                             />
                             <span className="flex items-center text-gray-500">/</span>
                             <input
-                              type="number"
+                              type="text"
                               value={record.血壓舒張壓}
-                              onChange={(e) => updateRecord(record.id, '血壓舒張壓', e.target.value)}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/[^0-9]/g, '');
+                                if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 200)) {
+                                  updateRecord(record.id, '血壓舒張壓', value);
+                                }
+                              }}
                               className="form-input"
                               placeholder="80"
-                              min="0"
-                              max="200"
                               disabled={record.isAbsent}
                               inputMode="numeric"
                               pattern="[0-9]*"
@@ -773,13 +779,16 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                         <div>
                           <label className="form-label">脈搏 (每分鐘)</label>
                           <input
-                            type="number"
+                            type="text"
                             value={record.脈搏}
-                            onChange={(e) => updateRecord(record.id, '脈搏', e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^0-9]/g, '');
+                              if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 300)) {
+                                updateRecord(record.id, '脈搏', value);
+                              }
+                            }}
                             className="form-input"
                             placeholder="72"
-                            min="0"
-                            max="300"
                             disabled={record.isAbsent}
                             inputMode="numeric"
                             pattern="[0-9]*"
@@ -789,14 +798,16 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                         <div>
                           <label className="form-label">體溫 (°C)</label>
                           <input
-                            type="number"
+                            type="text"
                             value={record.體溫}
-                            onChange={(e) => updateRecord(record.id, '體溫', e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^0-9.]/g, '');
+                              if (value === '' || (parseFloat(value) >= 30 && parseFloat(value) <= 45) || value.endsWith('.')) {
+                                updateRecord(record.id, '體溫', value);
+                              }
+                            }}
                             className="form-input"
                             placeholder="36.5"
-                            min="30"
-                            max="45"
-                            step="0.1"
                             disabled={record.isAbsent}
                             inputMode="decimal"
                             pattern="[0-9.]*"
@@ -809,13 +820,16 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                         <div>
                           <label className="form-label">血含氧量 (%)</label>
                           <input
-                            type="number"
+                            type="text"
                             value={record.血含氧量}
-                            onChange={(e) => updateRecord(record.id, '血含氧量', e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^0-9]/g, '');
+                              if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                                updateRecord(record.id, '血含氧量', value);
+                              }
+                            }}
                             className="form-input"
                             placeholder="98"
-                            min="0"
-                            max="100"
                             disabled={record.isAbsent}
                             inputMode="numeric"
                             pattern="[0-9]*"
@@ -825,13 +839,16 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                         <div>
                           <label className="form-label">呼吸頻率 (每分鐘)</label>
                           <input
-                            type="number"
+                            type="text"
                             value={record.呼吸頻率}
-                            onChange={(e) => updateRecord(record.id, '呼吸頻率', e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^0-9]/g, '');
+                              if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                                updateRecord(record.id, '呼吸頻率', value);
+                              }
+                            }}
                             className="form-input"
                             placeholder="18"
-                            min="0"
-                            max="100"
                             disabled={record.isAbsent}
                             inputMode="numeric"
                             pattern="[0-9]*"
@@ -858,14 +875,16 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                       <div>
                         <label className="form-label">血糖值 (mmol/L) *</label>
                         <input
-                          type="number"
+                          type="text"
                           value={record.血糖值}
-                          onChange={(e) => updateRecord(record.id, '血糖值', e.target.value)}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^0-9.]/g, '');
+                            if (value === '' || (parseFloat(value) >= 0 && parseFloat(value) <= 50) || value.endsWith('.')) {
+                              updateRecord(record.id, '血糖值', value);
+                            }
+                          }}
                           className="form-input"
                           placeholder="5.5"
-                          min="0"
-                          max="50"
-                          step="0.1"
                           required
                           disabled={record.isAbsent}
                           inputMode="decimal"
@@ -892,14 +911,16 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
                       <div>
                         <label className="form-label">體重 (kg) *</label>
                         <input
-                          type="number"
+                          type="text"
                           value={record.體重}
-                          onChange={(e) => updateRecord(record.id, '體重', e.target.value)}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^0-9.]/g, '');
+                            if (value === '' || (parseFloat(value) >= 0 && parseFloat(value) <= 300) || value.endsWith('.')) {
+                              updateRecord(record.id, '體重', value);
+                            }
+                          }}
                           className="form-input"
                           placeholder="65.0"
-                          min="0"
-                          max="300"
-                          step="0.1"
                           required
                           disabled={record.isAbsent}
                           inputMode="decimal"

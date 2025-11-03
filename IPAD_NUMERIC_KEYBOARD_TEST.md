@@ -27,28 +27,45 @@
 ### 純整數輸入欄位配置
 ```html
 <input
-  type="number"
+  type="text"
   inputMode="numeric"
   pattern="[0-9]*"
   autoComplete="off"
 />
 ```
+- **`type="text"`**：使用 text 類型而非 number，以確保 iOS Safari 正確識別 inputMode 屬性（重要！）
 - `inputMode="numeric"`：在 iOS 裝置上顯示純數字鍵盤（0-9）
 - `pattern="[0-9]*"`：提供額外的驗證和舊版 iOS 兼容性
 - `autoComplete="off"`：禁用自動完成功能
+- **JavaScript 驗證**：在 onChange 事件中使用正則表達式過濾非數字字符，並驗證數值範圍
 
 ### 小數輸入欄位配置
 ```html
 <input
-  type="number"
+  type="text"
   inputMode="decimal"
   pattern="[0-9.]*"
   autoComplete="off"
 />
 ```
+- **`type="text"`**：使用 text 類型而非 number，以確保 iOS Safari 正確識別 inputMode 屬性（重要！）
 - `inputMode="decimal"`：在 iOS 裝置上顯示帶小數點的數字鍵盤
 - `pattern="[0-9.]*"`：允許數字和小數點輸入
 - `autoComplete="off"`：禁用自動完成功能
+- **JavaScript 驗證**：在 onChange 事件中使用正則表達式過濾非數字和小數點字符，並驗證數值範圍
+
+### 為什麼使用 `type="text"` 而非 `type="number"`？
+
+在 iOS Safari 上，當 input 元素的 type 設為 "number" 時，瀏覽器會優先使用自己的數字輸入處理邏輯，**忽略 `inputMode` 屬性**。這會導致：
+1. 仍然顯示完整的 QWERTY 鍵盤
+2. `inputMode="numeric"` 和 `inputMode="decimal"` 無效
+3. 用戶體驗不佳
+
+使用 `type="text"` 配合 `inputMode` 和 JavaScript 驗證可以完美解決此問題：
+- iOS 會正確顯示數字鍵盤
+- 通過 JavaScript 過濾確保只能輸入數字
+- 通過範圍驗證確保數值有效性
+- 完全控制輸入行為
 
 ## 測試步驟
 
@@ -125,12 +142,18 @@
 
 ## 更新日誌
 
-### 2025-11-03
+### 2025-11-03 (版本 2 - 修正)
+- **關鍵修正**：將所有數字輸入欄位從 `type="number"` 改為 `type="text"`
+- 原因：iOS Safari 會忽略 `type="number"` 元素的 `inputMode` 屬性
+- 為所有數字輸入欄位添加 JavaScript 驗證以確保數據有效性
+- 純整數欄位：過濾非數字字符並驗證範圍（血壓、脈搏、血氧、呼吸頻率）
+- 小數欄位：過濾非數字和小數點字符並驗證範圍（體溫、血糖、體重）
 - 為 HealthRecordModal 添加數字鍵盤支援
 - 為 BatchHealthRecordModal 添加數字鍵盤支援
 - 所有數字輸入欄位添加 `autoComplete="off"`
-- 純整數欄位使用 `inputMode="numeric"`
-- 小數欄位使用 `inputMode="decimal"`
+
+### 2025-11-03 (版本 1 - 初始版本，已廢棄)
+- ~~使用 `type="number"` 配合 `inputMode`~~（此方法在 iOS Safari 上無效）
 
 ## 相關文件
 - [MDN: inputmode 屬性](https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/inputmode)
