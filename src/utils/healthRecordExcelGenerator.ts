@@ -156,7 +156,7 @@ const extractHealthRecordTemplateFormat = async (templateFile: File): Promise<Ex
   return extractedTemplate;
 };
 
-// 應用範本格式並填入健康記錄資料
+// 應用範本格式並填入監測記錄資料
 const applyHealthRecordTemplateFormat = (
   worksheet: ExcelJS.Worksheet,
   template: ExtractedTemplate,
