@@ -399,7 +399,7 @@ const HealthAssessment: React.FC = () => {
   };
 
   const handleEdit = (record: any) => {
-    console.log('編輯健康記錄:', record);
+    console.log('編輯監測記錄:', record);
     setSelectedRecord(record);
     setShowModal(true);
   };
