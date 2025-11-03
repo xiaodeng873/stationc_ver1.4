@@ -940,7 +940,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     try {
       const { eligiblePatients, targetDate: today } = checkEligiblePatientsForTemperature(targetDate);
 
-      // 為每位符合條件的院友建立健康記錄
+      // 為每位符合條件的院友建立監測記錄
       const newHealthRecords = eligiblePatients.map(patient => ({
         院友id: patient.院友id,
         記錄日期: today,
@@ -958,7 +958,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         記錄人員: null
       }));
 
-      // 批量插入健康記錄
+      // 批量插入監測記錄
       await db.createBatchHealthRecords(newHealthRecords);
       
       // 刷新資料
@@ -1916,11 +1916,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
   const deleteHealthRecord = async (id: number) => {
     try {
-      console.log('[deleteHealthRecord] 刪除健康記錄 ID:', id);
+      console.log('[deleteHealthRecord] 刪除監測記錄 ID:', id);
       await db.deleteHealthRecord(id);
 
-      // 只刷新健康記錄，不需要刷新所有數據
-      console.log('[deleteHealthRecord] 刷新健康記錄列表');
+      // 只刷新監測記錄，不需要刷新所有數據
+      console.log('[deleteHealthRecord] 刷新監測記錄列表');
       const healthRecordsData = await db.getHealthRecords();
       setHealthRecords(healthRecordsData);
 
