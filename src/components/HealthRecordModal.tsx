@@ -408,7 +408,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
             {formData.記錄類型 === '血糖控制' && <Droplets className="h-5 w-5 text-red-600" />}
             {formData.記錄類型 === '體重控制' && <Scale className="h-5 w-5 text-green-600" />}
             <h2 className="text-xl font-semibold text-gray-900">
-              {record ? '編輯健康記錄' : '新增健康記錄'}
+              {record ? '編輯監測記錄' : '新增監測記錄'}
             </h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
