@@ -414,7 +414,7 @@ const calculateAge = (birthDate: string): number => {
   return age;
 };
 
-// 創建健康記錄工作簿
+// 創建監測記錄工作簿
 const createHealthRecordWorkbook = async (
   sheetsConfig: SheetConfig[]
 ): Promise<ExcelJS.Workbook> => {
