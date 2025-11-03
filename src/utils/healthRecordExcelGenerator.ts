@@ -245,7 +245,7 @@ const applyHealthRecordTemplateFormat = (
   }
 
   // Step 6: Fill record data starting from row 6 (after header)
-  console.log('第6步: 填充健康記錄資料...');
+  console.log('第6步: 填充監測記錄資料...');
   records.forEach((record, index) => {
     const rowIndex = 6 + index;
     
