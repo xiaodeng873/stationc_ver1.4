@@ -484,10 +484,10 @@ const saveExcelFile = async (
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, filename);
-  console.log(`健康記錄 Excel 檔案 ${filename} 保存成功`);
+  console.log(`監測記錄 Excel 檔案 ${filename} 保存成功`);
 };
 
-// 匯出健康記錄到 Excel
+// 匯出監測記錄到 Excel
 export const exportHealthRecordsToExcel = async (
   records: HealthRecordExportData[],
   patients: any[],
@@ -668,7 +668,7 @@ export const exportHealthRecordsToExcel = async (
     });
     
   } catch (error) {
-    console.error('❌ 匯出健康記錄失敗:', error);
+    console.error('❌ 匯出監測記錄失敗:', error);
     throw error;
   }
 };
