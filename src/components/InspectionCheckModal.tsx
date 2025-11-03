@@ -137,7 +137,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     try {
       console.log('[InspectionCheckModal] 開始執行檢測檢查');
 
-      // 如果用戶選擇使用新數據，先新增健康記錄
+      // 如果用戶選擇使用新數據，先新增監測記錄
       if (useNewData && Object.keys(newVitalSignData).length > 0) {
         console.log('[InspectionCheckModal] 準備保存新監測數據:', newVitalSignData);
 
