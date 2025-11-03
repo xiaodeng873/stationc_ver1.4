@@ -1378,7 +1378,7 @@ const Dashboard: React.FC = () => {
         />
       )}
       
-      {/* 健康記錄模態框 */}
+      {/* 監測記錄模態框 */}
       {showHealthRecordModal && (
         <HealthRecordModal
           initialData={selectedHealthRecordInitialData}
