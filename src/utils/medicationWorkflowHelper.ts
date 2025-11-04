@@ -161,6 +161,16 @@ export const formatWorkflowCellContent = (
     ? staffCodeMapping[workflowRecord.verification_staff] || ''
     : '';
 
+  console.log('[formatWorkflowCellContent]', {
+    recordId: workflowRecord.id.substring(0, 8),
+    prepStatus: workflowRecord.preparation_status,
+    verifyStatus: workflowRecord.verification_status,
+    prepStaffOriginal: workflowRecord.preparation_staff,
+    verifyStaffOriginal: workflowRecord.verification_staff,
+    prepStaffCode: prepStaff,
+    verifyStaffCode: verifyStaff
+  });
+
   if (prepStaff && verifyStaff) {
     return `${prepStaff}  ${verifyStaff}`;
   } else if (prepStaff) {
@@ -190,6 +200,13 @@ export const formatDispenseCellContent = (
   const dispenseStaff = workflowRecord.dispensing_status === 'completed' && workflowRecord.dispensing_staff
     ? staffCodeMapping[workflowRecord.dispensing_staff] || ''
     : '';
+
+  console.log('[formatDispenseCellContent]', {
+    recordId: workflowRecord.id.substring(0, 8),
+    dispenseStatus: workflowRecord.dispensing_status,
+    dispenseStaffOriginal: workflowRecord.dispensing_staff,
+    dispenseStaffCode: dispenseStaff
+  });
 
   return dispenseStaff;
 };

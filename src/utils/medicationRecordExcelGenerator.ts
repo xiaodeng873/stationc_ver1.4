@@ -464,11 +464,19 @@ const applyMedicationRecordTemplate = async (
   let workflowRecords: WorkflowRecord[] = [];
   let staffCodeMapping: StaffCodeMapping = {};
   if (includeWorkflowRecords) {
+    console.log('[applyMedicationRecordTemplate] 開始獲取執核派記錄');
     const prescriptionIds = processedPrescriptions.map(p => p.id);
+    console.log('  處方 IDs:', prescriptionIds);
     workflowRecords = await fetchWorkflowRecordsForMonth(patient.院友id, prescriptionIds, selectedMonth);
+    console.log('  查詢到的記錄數:', workflowRecords.length);
+
     const staffNames = extractStaffNamesFromWorkflowRecords(workflowRecords);
+    console.log('  提取的人員姓名:', staffNames);
+
     staffCodeMapping = generateStaffCodeMapping(staffNames);
-    console.log('執核派人員代號映射:', staffCodeMapping);
+    console.log('  執核派人員代號映射:', staffCodeMapping);
+  } else {
+    console.log('[applyMedicationRecordTemplate] includeWorkflowRecords = false，跳過執核派記錄');
   }
 
   // 設定欄寬
@@ -896,6 +904,12 @@ const fillWorkflowRecordsForPage = (
   selectedMonth: string,
   routeType: 'oral' | 'topical' | 'injection'
 ): void => {
+  console.log('[fillWorkflowRecordsForPage] 開始填入執核派記錄');
+  console.log('  處方數量:', pagePrescriptions.length);
+  console.log('  工作流程記錄數量:', workflowRecords.length);
+  console.log('  人員代號映射:', staffCodeMapping);
+  console.log('  選擇月份:', selectedMonth);
+
   const [year, month] = selectedMonth.split('-');
   const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
 
@@ -956,6 +970,14 @@ const fillWorkflowRecordsForPage = (
         const content = formatWorkflowCellContent(workflowRecord, staffCodeMapping);
         if (content) {
           cell.value = content;
+          console.log(`  [執核派] 寫入單元格 ${cellAddress}: "${content}"`);
+        } else if (workflowRecord) {
+          console.log(`  [執核派] 記錄存在但內容為空 ${cellAddress}:`, {
+            prep: workflowRecord.preparation_status,
+            verify: workflowRecord.verification_status,
+            prepStaff: workflowRecord.preparation_staff,
+            verifyStaff: workflowRecord.verification_staff
+          });
         }
       }
     });
@@ -1010,6 +1032,7 @@ const fillWorkflowRecordsForPage = (
         if (content) {
           dispenseContent = content;
           hasDispensed = true;
+          console.log(`  [派藥] 寫入單元格 ${cellAddress}: "${content}"`);
           break;
         }
       }
