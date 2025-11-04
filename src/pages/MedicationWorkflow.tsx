@@ -45,6 +45,32 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
   const prescription = prescriptions.find(p => p.id === record.prescription_id);
   const isImmediatePreparation = prescription?.preparation_method === 'immediate';
 
+  // 判斷是否為自理處方且在更新後的時間範圍內
+  const isSelfCareAfterUpdate = () => {
+    if (!prescription || prescription.preparation_method !== 'custom') {
+      return false;
+    }
+
+    // 處方更新時間
+    const prescriptionUpdatedAt = new Date(prescription.updated_at);
+
+    // 當前記錄的時間點（scheduled_date + scheduled_time）
+    const recordDateTime = new Date(`${record.scheduled_date}T${record.scheduled_time}`);
+
+    // 處方結束時間
+    const prescriptionEndDateTime = prescription.end_date && prescription.end_time
+      ? new Date(`${prescription.end_date}T${prescription.end_time}`)
+      : null;
+
+    // 判斷：記錄時間 >= 更新時間 且 <= 結束時間
+    const isAfterUpdate = recordDateTime >= prescriptionUpdatedAt;
+    const isBeforeEnd = !prescriptionEndDateTime || recordDateTime <= prescriptionEndDateTime;
+
+    return isAfterUpdate && isBeforeEnd;
+  };
+
+  const isSelfCare = isSelfCareAfterUpdate();
+
   const getStepStatus = () => {
     switch (step) {
       case 'preparation':
@@ -211,27 +237,28 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
 
   const isClickable = () => {
     if (disabled) return false;
-    
+    if (isSelfCare) return false;
+
     // 移除日期限制，允許所有日期操作
     if (step === 'preparation') {
       return true;
     }
-    
+
     // 核藥：需要執藥完成才能執行，但總是可以撤銷
     if (step === 'verification') {
       return status === 'pending' ? record.preparation_status === 'completed' : true;
     }
-    
+
     // 派藥：需要核藥完成才能執行，但總是可以撤銷
     if (step === 'dispensing') {
       return status === 'pending' ? record.verification_status === 'completed' : true;
     }
-    
+
     return false;
   };
 
   const handleClick = () => {
-    if (!isClickable()) return;
+    if (!isClickable() || isSelfCare) return;
     onStepClick(record.id, step);
   };
 
@@ -256,16 +283,35 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
     return '';
   };
 
+  // 自理處方：淡藍色背景，不可點擊（優先級最高）
+  let cellClass = '';
+  if (isSelfCare) {
+    cellClass = 'bg-blue-100 text-blue-800 border-blue-200 cursor-not-allowed';
+  }
   // 檢測項背景色覆蓋
-  let cellClass = `${getStatusColor()} ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'} ${isImmediatePreparation && (step === 'preparation' || step === 'verification') ? 'bg-gray-200 text-gray-500' : ''}`;
+  else {
+    cellClass = `${getStatusColor()} ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'} ${isImmediatePreparation && (step === 'preparation' || step === 'verification') ? 'bg-gray-200 text-gray-500' : ''}`;
 
-  // 如果是派藥格子且有檢測項結果，根據是否合格覆蓋背景色
-  if (step === 'dispensing' && status === 'completed' && inspectionPassed !== null) {
-    if (inspectionPassed) {
-      cellClass = `bg-green-50 text-green-800 border-green-200 ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'}`;
-    } else {
-      cellClass = `bg-red-50 text-red-800 border-red-200 ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'}`;
+    // 如果是派藥格子且有檢測項結果，根據是否合格覆蓋背景色
+    if (step === 'dispensing' && status === 'completed' && inspectionPassed !== null) {
+      if (inspectionPassed) {
+        cellClass = `bg-green-50 text-green-800 border-green-200 ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'}`;
+      } else {
+        cellClass = `bg-red-50 text-red-800 border-red-200 ${isClickable() ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'}`;
+      }
     }
+  }
+
+  // 自理處方：只顯示「自理」文字
+  if (isSelfCare) {
+    return (
+      <div
+        className={`px-2 py-2 border rounded text-center text-xs transition-all duration-200 ${cellClass}`}
+        title="自理處方，無需執核派操作"
+      >
+        <div className="font-medium text-sm">自理</div>
+      </div>
+    );
   }
 
   return (
