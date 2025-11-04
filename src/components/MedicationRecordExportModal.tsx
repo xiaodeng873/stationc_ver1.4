@@ -34,6 +34,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
     return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   });
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [includeWorkflowRecords, setIncludeWorkflowRecords] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -201,7 +202,8 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
           allPrescriptions,
           medicationTemplate,
           selectedMonth,
-          includeInactive
+          includeInactive,
+          includeWorkflowRecords
         );
 
         const totalPrescriptions = currentRouteStats.oral + currentRouteStats.injection + currentRouteStats.topical;
@@ -256,7 +258,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
           return;
         }
 
-        await exportMedicationRecordToExcel(selectedPatients, medicationTemplate, selectedMonth);
+        await exportMedicationRecordToExcel(selectedPatients, medicationTemplate, selectedMonth, undefined, includeWorkflowRecords);
 
         const totalPrescriptions = batchRouteStats.oral + batchRouteStats.injection + batchRouteStats.topical;
         let successMessage = `匯出成功！\n\n`;
@@ -353,8 +355,8 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
               />
             </div>
 
-            {(exportMode === 'batch' || isExportAll) && (
-              <div className="flex items-center space-x-2 pt-8">
+            <div className="flex flex-col space-y-2 pt-8">
+              {(exportMode === 'batch' || isExportAll) && (
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -366,8 +368,17 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                     {exportMode === 'batch' ? '匯出停用處方' : '包含停用處方'}
                   </span>
                 </label>
-              </div>
-            )}
+              )}
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeWorkflowRecords}
+                  onChange={(e) => setIncludeWorkflowRecords(e.target.checked)}
+                  className="form-checkbox h-5 w-5 text-blue-600 rounded"
+                />
+                <span className="text-sm text-gray-700">包含執核派記錄</span>
+              </label>
+            </div>
           </div>
 
           {exportMode === 'current' && currentPatient && (
@@ -520,7 +531,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                                           <span className="text-gray-800">
                                             {prescription.preparation_method === 'immediate' ? '即時備藥' :
                                              prescription.preparation_method === 'advanced' ? '提前備藥' :
-                                             prescription.preparation_method === 'custom' ? '自定義' : prescription.preparation_method}
+                                             prescription.preparation_method === 'custom' ? '自理' : prescription.preparation_method}
                                           </span>
                                         </div>
                                       )}
@@ -570,6 +581,15 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                 <li>• 停用處方預設不匯出，可勾選「匯出停用處方」來包含</li>
                 <li>• 每位院友會根據途徑（口服/注射/外用）生成獨立工作表</li>
                 <li>• <span className="font-semibold">外用</span>包含：外用、滴眼、滴耳、鼻胃管、吸入、舌下、直腸等所有非口服、非注射途徑</li>
+                {includeWorkflowRecords && (
+                  <>
+                    <li className="font-semibold mt-2">• 執核派記錄說明：</li>
+                    <li className="ml-4">- 將填入每個處方每日的執藥、核藥、派藥人員代號</li>
+                    <li className="ml-4">- 人員代號以英文字母表示（B-Z，跳過 A、S、R、O）</li>
+                    <li className="ml-4">- A=入院、S=自理、R=拒服、O=暫停</li>
+                    <li className="ml-4">- 備藥方式為「自理」的處方將以淡藍色背景顯示</li>
+                  </>
+                )}
               </ul>
             </div>
           )}

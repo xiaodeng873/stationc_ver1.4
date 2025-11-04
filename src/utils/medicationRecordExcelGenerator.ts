@@ -1,5 +1,16 @@
 import ExcelJS from '@zurmokeeper/exceljs';
 import { saveAs } from 'file-saver';
+import {
+  fetchWorkflowRecordsForMonth,
+  generateStaffCodeMapping,
+  formatStaffCodeNotation,
+  extractStaffNamesFromWorkflowRecords,
+  getWorkflowRecordForPrescriptionDateTimeSlot,
+  formatWorkflowCellContent,
+  formatDispenseCellContent,
+  type WorkflowRecord,
+  type StaffCodeMapping
+} from './medicationWorkflowHelper';
 
 // 範本格式提取介面
 interface ExtractedTemplate {
@@ -433,19 +444,32 @@ const expandOralTopicalPrescriptions = (
 };
 
 // 應用範本格式並填入資料
-const applyMedicationRecordTemplate = (
+const applyMedicationRecordTemplate = async (
   worksheet: ExcelJS.Worksheet,
   template: ExtractedTemplate,
   patient: any,
   prescriptions: any[],
   selectedMonth: string,
-  routeType: 'oral' | 'topical' | 'injection'
-): void => {
+  routeType: 'oral' | 'topical' | 'injection',
+  includeWorkflowRecords: boolean = false
+): Promise<void> => {
   console.log('開始應用個人備藥及給藥記錄範本: ', patient.中文姓氏 + patient.中文名字);
+  console.log('是否包含執核派記錄:', includeWorkflowRecords);
 
   // 先进行注射类型拆分，再进行口服外用拆分
   let processedPrescriptions = expandInjectionPrescriptions(prescriptions, routeType);
   processedPrescriptions = expandOralTopicalPrescriptions(processedPrescriptions, routeType);
+
+  // 獲取執核派記錄（如果需要）
+  let workflowRecords: WorkflowRecord[] = [];
+  let staffCodeMapping: StaffCodeMapping = {};
+  if (includeWorkflowRecords) {
+    const prescriptionIds = processedPrescriptions.map(p => p.id);
+    workflowRecords = await fetchWorkflowRecordsForMonth(patient.院友id, prescriptionIds, selectedMonth);
+    const staffNames = extractStaffNamesFromWorkflowRecords(workflowRecords);
+    staffCodeMapping = generateStaffCodeMapping(staffNames);
+    console.log('執核派人員代號映射:', staffCodeMapping);
+  }
 
   // 設定欄寬
   template.columnWidths.forEach((width, idx) => {
@@ -561,6 +585,29 @@ const applyMedicationRecordTemplate = (
 
     // 填入頁面時間點總結 (L32-L37)
     fillPageTimeSummary(worksheet, pageTimeSlots, startRow);
+
+    // 填入執核派記錄（如果需要）
+    if (includeWorkflowRecords && workflowRecords.length > 0) {
+      fillWorkflowRecordsForPage(
+        worksheet,
+        pagePrescriptions,
+        workflowRecords,
+        staffCodeMapping,
+        startRow,
+        selectedMonth,
+        routeType
+      );
+
+      // 填入人員代號備註到 A36 和 A37
+      const notationStartRow = startRow + 29;
+      const { line1, line2 } = formatStaffCodeNotation(staffCodeMapping);
+      if (line1) {
+        worksheet.getCell('A' + notationStartRow).value = line1;
+      }
+      if (line2) {
+        worksheet.getCell('A' + (notationStartRow + 1)).value = line2;
+      }
+    }
 
     // 修復該頁的邊框
     fixCellBorders(worksheet, startRow);
@@ -828,12 +875,193 @@ const fillPrescriptionData = (
   return timeSlots;
 };
 
+// 獲取列字母（A-Z, AA-AZ, BA-BZ...）
+const getColumnLetter = (columnNumber: number): string => {
+  let letter = '';
+  while (columnNumber > 0) {
+    const remainder = (columnNumber - 1) % 26;
+    letter = String.fromCharCode(65 + remainder) + letter;
+    columnNumber = Math.floor((columnNumber - 1) / 26);
+  }
+  return letter;
+};
+
+// 填入執核派記錄到頁面
+const fillWorkflowRecordsForPage = (
+  worksheet: ExcelJS.Worksheet,
+  pagePrescriptions: any[],
+  workflowRecords: WorkflowRecord[],
+  staffCodeMapping: StaffCodeMapping,
+  startRow: number,
+  selectedMonth: string,
+  routeType: 'oral' | 'topical' | 'injection'
+): void => {
+  const [year, month] = selectedMonth.split('-');
+  const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
+
+  // 處理每個處方條目的執核派記錄
+  pagePrescriptions.forEach((prescription, prescriptionIndex) => {
+    const groupStartRow = startRow + (prescriptionIndex * 5);
+    const timeSlots = prescription.medication_time_slots || [];
+    const isSelfCare = prescription.preparation_method === 'custom';
+
+    // 為每個時間點填入執核派記錄
+    timeSlots.forEach((timeSlot: string, timeSlotIndex: number) => {
+      if (timeSlotIndex >= 4) return;
+
+      const rowOffset = timeSlotIndex + 1;
+      const recordRow = groupStartRow + rowOffset;
+
+      // N 列開始（第14列），共31格（N-AR，即第14-44列）
+      for (let day = 1; day <= daysInMonth; day++) {
+        const columnIndex = 14 + day - 1;
+        const columnLetter = getColumnLetter(columnIndex);
+        const cellAddress = columnLetter + recordRow;
+        const cell = worksheet.getCell(cellAddress);
+
+        const dateStr = `${year}-${month.padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+
+        // 檢查是否在處方有效期內
+        const isWithinRange = isDateInPrescriptionRange(dateStr, timeSlot, prescription);
+
+        if (!isWithinRange) {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD3D3D3' }
+          };
+          continue;
+        }
+
+        // 處理自理處方
+        if (isSelfCare) {
+          cell.value = '自理';
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFB0E0E6' }
+          };
+          continue;
+        }
+
+        // 查找對應的工作流程記錄
+        const workflowRecord = getWorkflowRecordForPrescriptionDateTimeSlot(
+          workflowRecords,
+          prescription.id,
+          dateStr,
+          timeSlot
+        );
+
+        // 填入執核記錄
+        const content = formatWorkflowCellContent(workflowRecord, staffCodeMapping);
+        if (content) {
+          cell.value = content;
+        }
+      }
+    });
+  });
+
+  // 填入時間點總結區域的派藥記錄（N32-AR37）
+  const pageTimeSlots = [...new Set(pagePrescriptions.flatMap(p => p.medication_time_slots || []))].sort(
+    (a, b) => parseTimeToMinutes(a) - parseTimeToMinutes(b)
+  );
+
+  pageTimeSlots.slice(0, 6).forEach((timeSlot, timeSlotIndex) => {
+    const summaryRow = startRow + 25 + timeSlotIndex;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const columnIndex = 14 + day - 1;
+      const columnLetter = getColumnLetter(columnIndex);
+      const cellAddress = columnLetter + summaryRow;
+      const cell = worksheet.getCell(cellAddress);
+
+      const dateStr = `${year}-${month.padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+
+      // 檢查該時間點是否有任何處方成功派藥
+      let hasDispensed = false;
+      let dispenseContent = '';
+
+      for (const prescription of pagePrescriptions) {
+        if (!(prescription.medication_time_slots || []).includes(timeSlot)) continue;
+
+        const isWithinRange = isDateInPrescriptionRange(dateStr, timeSlot, prescription);
+        if (!isWithinRange) continue;
+
+        const isSelfCare = prescription.preparation_method === 'custom';
+        if (isSelfCare) {
+          dispenseContent = '自理';
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFB0E0E6' }
+          };
+          hasDispensed = true;
+          break;
+        }
+
+        const workflowRecord = getWorkflowRecordForPrescriptionDateTimeSlot(
+          workflowRecords,
+          prescription.id,
+          dateStr,
+          timeSlot
+        );
+
+        const content = formatDispenseCellContent(workflowRecord, staffCodeMapping);
+        if (content) {
+          dispenseContent = content;
+          hasDispensed = true;
+          break;
+        }
+      }
+
+      if (hasDispensed) {
+        cell.value = dispenseContent;
+      }
+    }
+  });
+};
+
+// 判斷日期和時間是否在處方有效範圍內
+const isDateInPrescriptionRange = (
+  dateStr: string,
+  timeSlot: string,
+  prescription: any
+): boolean => {
+  const checkDate = new Date(dateStr);
+  const startDate = prescription.start_date ? new Date(prescription.start_date) : null;
+  const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
+
+  if (startDate && checkDate < startDate) {
+    const startTime = prescription.start_time || '00:00';
+    if (dateStr === prescription.start_date && timeSlot < startTime) {
+      return false;
+    }
+    if (checkDate < startDate) {
+      return false;
+    }
+  }
+
+  if (endDate && checkDate > endDate) {
+    return false;
+  }
+
+  if (endDate && dateStr === prescription.end_date) {
+    const endTime = prescription.end_time || '23:59';
+    if (timeSlot > endTime) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 // 匯出個人備藥及給藥記錄
 export const exportMedicationRecordToExcel = async (
   selectedPatients: any[],
   template: any,
   selectedMonth: string,
-  filename?: string
+  filename?: string,
+  includeWorkflowRecords: boolean = false
 ): Promise<void> => {
   try {
     console.log('開始匯出個人備藥及給藥記錄...');
@@ -896,7 +1124,7 @@ export const exportMedicationRecordToExcel = async (
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(口服)';
         console.log(`  創建工作表: ${sheetName}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-        applyMedicationRecordTemplate(worksheet, templateFormat.oral, patient, categorized.oral, selectedMonth, 'oral');
+        await applyMedicationRecordTemplate(worksheet, templateFormat.oral, patient, categorized.oral, selectedMonth, 'oral', includeWorkflowRecords);
         totalSheets++;
       }
 
@@ -905,7 +1133,7 @@ export const exportMedicationRecordToExcel = async (
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(注射)';
         console.log(`  創建工作表: ${sheetName}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-        applyMedicationRecordTemplate(worksheet, templateFormat.injection, patient, categorized.injection, selectedMonth, 'injection');
+        await applyMedicationRecordTemplate(worksheet, templateFormat.injection, patient, categorized.injection, selectedMonth, 'injection', includeWorkflowRecords);
         totalSheets++;
       }
 
@@ -914,7 +1142,7 @@ export const exportMedicationRecordToExcel = async (
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(外用)';
         console.log(`  創建工作表: ${sheetName}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-        applyMedicationRecordTemplate(worksheet, templateFormat.topical, patient, categorized.topical, selectedMonth, 'topical');
+        await applyMedicationRecordTemplate(worksheet, templateFormat.topical, patient, categorized.topical, selectedMonth, 'topical', includeWorkflowRecords);
         totalSheets++;
       }
     }
@@ -959,7 +1187,8 @@ export const exportSelectedMedicationRecordToExcel = async (
   allPrescriptions: any[],
   medicationTemplate: any,
   selectedMonth: string,
-  includeInactive: boolean = false
+  includeInactive: boolean = false,
+  includeWorkflowRecords: boolean = false
 ): Promise<void> => {
   try {
     console.log('開始匯出選中的處方到個人備藥及給藥記錄...');
@@ -1038,7 +1267,7 @@ export const exportSelectedMedicationRecordToExcel = async (
       const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字 + '(口服)';
       console.log('創建工作表:', sheetName);
       const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-      applyMedicationRecordTemplate(worksheet, templateFormat.oral, currentPatient, categorized.oral, selectedMonth, 'oral');
+      await applyMedicationRecordTemplate(worksheet, templateFormat.oral, currentPatient, categorized.oral, selectedMonth, 'oral', includeWorkflowRecords);
       totalSheets++;
     }
 
@@ -1047,7 +1276,7 @@ export const exportSelectedMedicationRecordToExcel = async (
       const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字 + '(注射)';
       console.log('創建工作表:', sheetName);
       const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-      applyMedicationRecordTemplate(worksheet, templateFormat.injection, currentPatient, categorized.injection, selectedMonth, 'injection');
+      await applyMedicationRecordTemplate(worksheet, templateFormat.injection, currentPatient, categorized.injection, selectedMonth, 'injection', includeWorkflowRecords);
       totalSheets++;
     }
 
@@ -1056,7 +1285,7 @@ export const exportSelectedMedicationRecordToExcel = async (
       const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字 + '(外用)';
       console.log('創建工作表:', sheetName);
       const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
-      applyMedicationRecordTemplate(worksheet, templateFormat.topical, currentPatient, categorized.topical, selectedMonth, 'topical');
+      await applyMedicationRecordTemplate(worksheet, templateFormat.topical, currentPatient, categorized.topical, selectedMonth, 'topical', includeWorkflowRecords);
       totalSheets++;
     }
 

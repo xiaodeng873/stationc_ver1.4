@@ -750,7 +750,7 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
                 >
                   <option value="immediate">即時備藥</option>
                   <option value="advanced">提前備藥</option>
-                  <option value="custom">自定義</option>
+                  <option value="custom">自理</option>
                 </select>
               </div>
             </div>
