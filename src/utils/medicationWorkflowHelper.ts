@@ -43,11 +43,20 @@ export const generateStaffCodeMapping = (staffNames: string[]): StaffCodeMapping
   const availableCodes = getAvailableStaffCodes();
   const mapping: StaffCodeMapping = {};
 
+  console.log('[generateStaffCodeMapping] 輸入人員姓名數量:', staffNames.length);
+  console.log('[generateStaffCodeMapping] 去重後人員數量:', uniqueStaffNames.length);
+  console.log('[generateStaffCodeMapping] 可用代號數量:', availableCodes.length);
+
   uniqueStaffNames.forEach((name, index) => {
     if (index < availableCodes.length) {
       mapping[name] = availableCodes[index];
+      console.log(`  [映射] ${name} → ${availableCodes[index]}`);
+    } else {
+      console.warn(`  [警告] 人員 "${name}" 超出可用代號範圍 (index=${index})`);
     }
   });
+
+  console.log('[generateStaffCodeMapping] 生成映射完成，共', Object.keys(mapping).length, '個人員');
 
   return mapping;
 };
@@ -119,18 +128,38 @@ export const getWorkflowRecordForPrescriptionDateTimeSlot = (
 
 export const extractStaffNamesFromWorkflowRecords = (workflowRecords: WorkflowRecord[]): string[] => {
   const staffNames: string[] = [];
+  let prepCount = 0, verifyCount = 0, dispenseCount = 0;
+  let prepCompletedCount = 0, verifyCompletedCount = 0, dispenseCompletedCount = 0;
 
   workflowRecords.forEach(record => {
-    if (record.preparation_staff && record.preparation_status === 'completed') {
-      staffNames.push(record.preparation_staff);
+    if (record.preparation_staff) {
+      prepCount++;
+      if (record.preparation_status === 'completed') {
+        prepCompletedCount++;
+        staffNames.push(record.preparation_staff);
+      }
     }
-    if (record.verification_staff && record.verification_status === 'completed') {
-      staffNames.push(record.verification_staff);
+    if (record.verification_staff) {
+      verifyCount++;
+      if (record.verification_status === 'completed') {
+        verifyCompletedCount++;
+        staffNames.push(record.verification_staff);
+      }
     }
-    if (record.dispensing_staff && record.dispensing_status === 'completed') {
-      staffNames.push(record.dispensing_staff);
+    if (record.dispensing_staff) {
+      dispenseCount++;
+      if (record.dispensing_status === 'completed') {
+        dispenseCompletedCount++;
+        staffNames.push(record.dispensing_staff);
+      }
     }
   });
+
+  console.log('[extractStaffNamesFromWorkflowRecords] 統計:');
+  console.log(`  執藥: ${prepCompletedCount}/${prepCount} 已完成`);
+  console.log(`  核藥: ${verifyCompletedCount}/${verifyCount} 已完成`);
+  console.log(`  派藥: ${dispenseCompletedCount}/${dispenseCount} 已完成`);
+  console.log(`  提取到 ${staffNames.length} 個人員姓名 (含重複)`);
 
   return staffNames;
 };
@@ -153,22 +182,34 @@ export const formatWorkflowCellContent = (
     if (reason === '其他' && workflowRecord.custom_failure_reason === '暫停') return 'O';
   }
 
-  const prepStaff = workflowRecord.preparation_status === 'completed' && workflowRecord.preparation_staff
-    ? staffCodeMapping[workflowRecord.preparation_staff] || ''
+  const prepStaffName = workflowRecord.preparation_staff;
+  const verifyStaffName = workflowRecord.verification_staff;
+
+  const isPrepCompleted = workflowRecord.preparation_status === 'completed';
+  const isVerifyCompleted = workflowRecord.verification_status === 'completed';
+
+  const prepStaff = isPrepCompleted && prepStaffName
+    ? staffCodeMapping[prepStaffName] || ''
     : '';
 
-  const verifyStaff = workflowRecord.verification_status === 'completed' && workflowRecord.verification_staff
-    ? staffCodeMapping[workflowRecord.verification_staff] || ''
+  const verifyStaff = isVerifyCompleted && verifyStaffName
+    ? staffCodeMapping[verifyStaffName] || ''
     : '';
+
+  const prepStaffInMapping = prepStaffName ? (prepStaffName in staffCodeMapping) : false;
+  const verifyStaffInMapping = verifyStaffName ? (verifyStaffName in staffCodeMapping) : false;
 
   console.log('[formatWorkflowCellContent]', {
     recordId: workflowRecord.id.substring(0, 8),
     prepStatus: workflowRecord.preparation_status,
     verifyStatus: workflowRecord.verification_status,
-    prepStaffOriginal: workflowRecord.preparation_staff,
-    verifyStaffOriginal: workflowRecord.verification_staff,
+    prepStaffOriginal: prepStaffName,
+    verifyStaffOriginal: verifyStaffName,
+    prepStaffInMapping: prepStaffInMapping,
+    verifyStaffInMapping: verifyStaffInMapping,
     prepStaffCode: prepStaff,
-    verifyStaffCode: verifyStaff
+    verifyStaffCode: verifyStaff,
+    finalResult: prepStaff && verifyStaff ? `${prepStaff}  ${verifyStaff}` : (prepStaff || verifyStaff || '')
   });
 
   if (prepStaff && verifyStaff) {
@@ -197,15 +238,22 @@ export const formatDispenseCellContent = (
     if (reason === '其他' && workflowRecord.custom_failure_reason === '暫停') return 'O';
   }
 
-  const dispenseStaff = workflowRecord.dispensing_status === 'completed' && workflowRecord.dispensing_staff
-    ? staffCodeMapping[workflowRecord.dispensing_staff] || ''
+  const dispenseStaffName = workflowRecord.dispensing_staff;
+  const isDispenseCompleted = workflowRecord.dispensing_status === 'completed';
+
+  const dispenseStaff = isDispenseCompleted && dispenseStaffName
+    ? staffCodeMapping[dispenseStaffName] || ''
     : '';
+
+  const dispenseStaffInMapping = dispenseStaffName ? (dispenseStaffName in staffCodeMapping) : false;
 
   console.log('[formatDispenseCellContent]', {
     recordId: workflowRecord.id.substring(0, 8),
     dispenseStatus: workflowRecord.dispensing_status,
-    dispenseStaffOriginal: workflowRecord.dispensing_staff,
-    dispenseStaffCode: dispenseStaff
+    dispenseStaffOriginal: dispenseStaffName,
+    dispenseStaffInMapping: dispenseStaffInMapping,
+    dispenseStaffCode: dispenseStaff,
+    finalResult: dispenseStaff
   });
 
   return dispenseStaff;

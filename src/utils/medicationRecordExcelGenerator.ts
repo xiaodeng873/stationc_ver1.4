@@ -472,9 +472,15 @@ const applyMedicationRecordTemplate = async (
 
     const staffNames = extractStaffNamesFromWorkflowRecords(workflowRecords);
     console.log('  提取的人員姓名:', staffNames);
+    console.log('  去重後人員數量:', [...new Set(staffNames)].length);
 
     staffCodeMapping = generateStaffCodeMapping(staffNames);
     console.log('  執核派人員代號映射:', staffCodeMapping);
+    console.log('  映射包含人員數量:', Object.keys(staffCodeMapping).length);
+    console.log('  詳細映射內容:');
+    Object.entries(staffCodeMapping).forEach(([name, code]) => {
+      console.log(`    ${name} → ${code}`);
+    });
   } else {
     console.log('[applyMedicationRecordTemplate] includeWorkflowRecords = false，跳過執核派記錄');
   }
@@ -607,13 +613,29 @@ const applyMedicationRecordTemplate = async (
       );
 
       // 填入人員代號備註到 A36 和 A37
-      const notationStartRow = startRow + 29;
+      const notationStartRow = startRow + 29;  // A36的列號 (7 + 29 = 36)
+      const notationSecondRow = startRow + 30; // A37的列號 (7 + 30 = 37)
+      console.log(`[人員備註] 第${currentPage}頁 startRow=${startRow}, 備註將寫入 A${notationStartRow} 和 A${notationSecondRow}`);
+
       const { line1, line2 } = formatStaffCodeNotation(staffCodeMapping);
+      console.log('[人員備註] line1:', line1);
+      console.log('[人員備註] line2:', line2);
+
       if (line1) {
-        worksheet.getCell('A' + notationStartRow).value = line1;
+        const cellAddress = 'A' + notationStartRow;
+        const cell = worksheet.getCell(cellAddress);
+        const existingValue = cell.value;
+        console.log(`[人員備註] ${cellAddress} 原有內容:`, existingValue);
+        console.log(`[人員備註] 寫入 ${cellAddress}:`, line1);
+        cell.value = line1;
       }
       if (line2) {
-        worksheet.getCell('A' + (notationStartRow + 1)).value = line2;
+        const cellAddress = 'A' + notationSecondRow;
+        const cell = worksheet.getCell(cellAddress);
+        const existingValue = cell.value;
+        console.log(`[人員備註] ${cellAddress} 原有內容:`, existingValue);
+        console.log(`[人員備註] 寫入 ${cellAddress}:`, line2);
+        cell.value = line2;
       }
     }
 
@@ -907,8 +929,10 @@ const fillWorkflowRecordsForPage = (
   console.log('[fillWorkflowRecordsForPage] 開始填入執核派記錄');
   console.log('  處方數量:', pagePrescriptions.length);
   console.log('  工作流程記錄數量:', workflowRecords.length);
-  console.log('  人員代號映射:', staffCodeMapping);
+  console.log('  人員代號映射包含', Object.keys(staffCodeMapping).length, '個人員');
+  console.log('  詳細映射:', JSON.stringify(staffCodeMapping, null, 2));
   console.log('  選擇月份:', selectedMonth);
+  console.log('  startRow:', startRow);
 
   const [year, month] = selectedMonth.split('-');
   const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
@@ -966,18 +990,16 @@ const fillWorkflowRecordsForPage = (
           timeSlot
         );
 
+        if (!workflowRecord) {
+          // 沒有找到對應的工作流程記錄
+          continue;
+        }
+
         // 填入執核記錄
         const content = formatWorkflowCellContent(workflowRecord, staffCodeMapping);
         if (content) {
           cell.value = content;
           console.log(`  [執核派] 寫入單元格 ${cellAddress}: "${content}"`);
-        } else if (workflowRecord) {
-          console.log(`  [執核派] 記錄存在但內容為空 ${cellAddress}:`, {
-            prep: workflowRecord.preparation_status,
-            verify: workflowRecord.verification_status,
-            prepStaff: workflowRecord.preparation_staff,
-            verifyStaff: workflowRecord.verification_staff
-          });
         }
       }
     });
@@ -1027,6 +1049,10 @@ const fillWorkflowRecordsForPage = (
           dateStr,
           timeSlot
         );
+
+        if (!workflowRecord) {
+          continue;
+        }
 
         const content = formatDispenseCellContent(workflowRecord, staffCodeMapping);
         if (content) {
