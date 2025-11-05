@@ -117,12 +117,52 @@ export const getWorkflowRecordForPrescriptionDateTimeSlot = (
   date: string,
   timeSlot: string
 ): WorkflowRecord | null => {
+  // 標準化時間格式為 HH:MM
+  const normalizeTime = (time: string): string => {
+    if (!time) return '';
+    return time.substring(0, 5); // 只取前5個字符 "HH:MM"
+  };
+
+  const normalizedTimeSlot = normalizeTime(timeSlot);
+
+  console.log('[getWorkflowRecord] 查找條件:', {
+    prescriptionId,
+    date,
+    timeSlot,
+    normalizedTimeSlot,
+    recordsCount: workflowRecords.length
+  });
+
   const record = workflowRecords.find(
-    r =>
-      r.prescription_id === prescriptionId &&
-      r.scheduled_date === date &&
-      r.scheduled_time === timeSlot
+    r => {
+      const matches =
+        r.prescription_id === prescriptionId &&
+        r.scheduled_date === date &&
+        normalizeTime(r.scheduled_time) === normalizedTimeSlot;
+
+      if (matches) {
+        console.log('[getWorkflowRecord] 找到匹配記錄:', {
+          recordId: r.id.substring(0, 8),
+          prescription_id: r.prescription_id,
+          scheduled_date: r.scheduled_date,
+          scheduled_time: r.scheduled_time
+        });
+      }
+
+      return matches;
+    }
   );
+
+  if (!record) {
+    console.log('[getWorkflowRecord] 未找到記錄，檢查前3條記錄:',
+      workflowRecords.slice(0, 3).map(r => ({
+        prescription_id: r.prescription_id,
+        scheduled_date: r.scheduled_date,
+        scheduled_time: r.scheduled_time
+      }))
+    );
+  }
+
   return record || null;
 };
 

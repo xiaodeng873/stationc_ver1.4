@@ -983,6 +983,8 @@ const fillWorkflowRecordsForPage = (
         }
 
         // 查找對應的工作流程記錄
+        console.log(`[查找記錄] 單元格 ${cellAddress} - 處方ID: ${prescription.id}, 日期: ${dateStr}, 時間: ${timeSlot}`);
+
         const workflowRecord = getWorkflowRecordForPrescriptionDateTimeSlot(
           workflowRecords,
           prescription.id,
@@ -990,16 +992,23 @@ const fillWorkflowRecordsForPage = (
           timeSlot
         );
 
+        console.log(`[查找結果] 單元格 ${cellAddress}:`, workflowRecord ? `找到記錄 ${workflowRecord.id.substring(0, 8)}` : '未找到記錄');
+
         if (!workflowRecord) {
           // 沒有找到對應的工作流程記錄
+          console.log(`[跳過] 單元格 ${cellAddress}: 無對應工作流程記錄`);
           continue;
         }
 
         // 填入執核記錄
         const content = formatWorkflowCellContent(workflowRecord, staffCodeMapping);
+        console.log(`[執核內容] 單元格 ${cellAddress}: "${content}"`);
+
         if (content) {
           cell.value = content;
           console.log(`  [執核派] 寫入單元格 ${cellAddress}: "${content}"`);
+        } else {
+          console.log(`  [警告] 單元格 ${cellAddress}: 執核內容為空`);
         }
       }
     });
@@ -1043,6 +1052,8 @@ const fillWorkflowRecordsForPage = (
           break;
         }
 
+        console.log(`[查找派藥記錄] 單元格 ${cellAddress} - 處方ID: ${prescription.id}, 日期: ${dateStr}, 時間: ${timeSlot}`);
+
         const workflowRecord = getWorkflowRecordForPrescriptionDateTimeSlot(
           workflowRecords,
           prescription.id,
@@ -1050,16 +1061,23 @@ const fillWorkflowRecordsForPage = (
           timeSlot
         );
 
+        console.log(`[派藥查找結果] 單元格 ${cellAddress}:`, workflowRecord ? `找到記錄 ${workflowRecord.id.substring(0, 8)}` : '未找到記錄');
+
         if (!workflowRecord) {
+          console.log(`[跳過派藥] 單元格 ${cellAddress}: 無對應工作流程記錄`);
           continue;
         }
 
         const content = formatDispenseCellContent(workflowRecord, staffCodeMapping);
+        console.log(`[派藥內容] 單元格 ${cellAddress}: "${content}"`);
+
         if (content) {
           dispenseContent = content;
           hasDispensed = true;
           console.log(`  [派藥] 寫入單元格 ${cellAddress}: "${content}"`);
           break;
+        } else {
+          console.log(`  [警告] 單元格 ${cellAddress}: 派藥內容為空`);
         }
       }
 
