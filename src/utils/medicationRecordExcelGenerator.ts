@@ -464,23 +464,56 @@ const applyMedicationRecordTemplate = async (
   let workflowRecords: WorkflowRecord[] = [];
   let staffCodeMapping: StaffCodeMapping = {};
   if (includeWorkflowRecords) {
-    console.log('[applyMedicationRecordTemplate] 開始獲取執核派記錄');
+    console.log('\n========== 處方ID驗證與去重 ==========');
+    console.log(`院友: ${patient.床號}${patient.中文姓氏}${patient.中文名字} (ID: ${patient.院友id})`);
+    console.log(`途徑類型: ${routeType}`);
+    console.log(`原始處方數量: ${prescriptions.length}`);
+    console.log(`拆分後處方數量: ${processedPrescriptions.length}`);
+
     const prescriptionIds = processedPrescriptions.map(p => p.id);
-    console.log('  處方 IDs:', prescriptionIds);
+    const uniquePrescriptionIds = [...new Set(prescriptionIds)];
+
+    console.log(`提取的處方ID數量 (去重前): ${prescriptionIds.length}`);
+    console.log(`提取的處方ID數量 (去重後): ${uniquePrescriptionIds.length}`);
+
+    if (prescriptionIds.length !== uniquePrescriptionIds.length) {
+      console.warn(`⚠️ 警告：處方ID有重複！重複數量: ${prescriptionIds.length - uniquePrescriptionIds.length}`);
+      const duplicateIds = prescriptionIds.filter((id, index) => prescriptionIds.indexOf(id) !== index);
+      console.warn('重複的處方ID:', [...new Set(duplicateIds)]);
+    }
+
+    console.log('處方ID資料型別檢查:');
+    prescriptionIds.forEach((id, idx) => {
+      const idType = typeof id;
+      const isString = idType === 'string';
+      const isUUID = isString && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      console.log(`  [${idx + 1}] ID: ${id}, 型別: ${idType}, 是字串: ${isString}, 是UUID: ${isUUID}`);
+    });
+
+    console.log('處方詳細資訊:');
+    processedPrescriptions.forEach((p, idx) => {
+      console.log(`  [${idx + 1}] ID: ${p.id}, 藥物: ${p.medication_name}, 途徑: ${p.administration_route}, 時間: ${p.meal_timing || p.administration_times}`);
+    });
+
+    console.log('開始查詢執核派記錄...');
     workflowRecords = await fetchWorkflowRecordsForMonth(patient.院友id, prescriptionIds, selectedMonth);
-    console.log('  查詢到的記錄數:', workflowRecords.length);
+
+    if (workflowRecords.length === 0) {
+      console.error('❌ 致命錯誤：查詢返回0條執核派記錄！');
+      console.error('這將導致該工作表無法匯出執核派記錄。');
+      console.error(`途徑: ${routeType}, 處方數量: ${processedPrescriptions.length}`);
+    } else {
+      console.log(`✓ 查詢成功，共 ${workflowRecords.length} 條執核派記錄`);
+    }
 
     const staffNames = extractStaffNamesFromWorkflowRecords(workflowRecords);
-    console.log('  提取的人員姓名:', staffNames);
-    console.log('  去重後人員數量:', [...new Set(staffNames)].length);
+    console.log('提取的人員姓名:', staffNames);
+    console.log('去重後人員數量:', [...new Set(staffNames)].length);
 
     staffCodeMapping = generateStaffCodeMapping(staffNames);
-    console.log('  執核派人員代號映射:', staffCodeMapping);
-    console.log('  映射包含人員數量:', Object.keys(staffCodeMapping).length);
-    console.log('  詳細映射內容:');
-    Object.entries(staffCodeMapping).forEach(([name, code]) => {
-      console.log(`    ${name} → ${code}`);
-    });
+    console.log('執核派人員代號映射:', staffCodeMapping);
+    console.log('映射包含人員數量:', Object.keys(staffCodeMapping).length);
+    console.log('========================================\n');
   } else {
     console.log('[applyMedicationRecordTemplate] includeWorkflowRecords = false，跳過執核派記錄');
   }
@@ -1189,28 +1222,34 @@ export const exportMedicationRecordToExcel = async (
       // 創建口服工作表
       if (categorized.oral.length > 0) {
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(口服)';
-        console.log(`  創建工作表: ${sheetName}`);
+        console.log(`\n📄 創建工作表: ${sheetName}`);
+        console.log(`   途徑: 口服, 處方數量: ${categorized.oral.length}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
         await applyMedicationRecordTemplate(worksheet, templateFormat.oral, patient, categorized.oral, selectedMonth, 'oral', includeWorkflowRecords);
         totalSheets++;
+        console.log(`✓ 口服工作表創建完成`);
       }
 
       // 創建注射工作表
       if (categorized.injection.length > 0) {
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(注射)';
-        console.log(`  創建工作表: ${sheetName}`);
+        console.log(`\n📄 創建工作表: ${sheetName}`);
+        console.log(`   途徑: 注射, 處方數量: ${categorized.injection.length}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
         await applyMedicationRecordTemplate(worksheet, templateFormat.injection, patient, categorized.injection, selectedMonth, 'injection', includeWorkflowRecords);
         totalSheets++;
+        console.log(`✓ 注射工作表創建完成`);
       }
 
       // 創建外用工作表
       if (categorized.topical.length > 0) {
         const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字 + '(外用)';
-        console.log(`  創建工作表: ${sheetName}`);
+        console.log(`\n📄 創建工作表: ${sheetName}`);
+        console.log(`   途徑: 外用, 處方數量: ${categorized.topical.length}`);
         const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
         await applyMedicationRecordTemplate(worksheet, templateFormat.topical, patient, categorized.topical, selectedMonth, 'topical', includeWorkflowRecords);
         totalSheets++;
+        console.log(`✓ 外用工作表創建完成`);
       }
     }
 

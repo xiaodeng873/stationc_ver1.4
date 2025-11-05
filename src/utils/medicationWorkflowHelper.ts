@@ -86,27 +86,81 @@ export const fetchWorkflowRecordsForMonth = async (
     const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
     const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
 
-    console.log(`查詢執核派記錄: 院友 ${patientId}, 處方 ${prescriptionIds.length} 個, 日期範圍 ${startDate} ~ ${endDate}`);
+    const uniquePrescriptionIds = [...new Set(prescriptionIds)];
+
+    console.log('\n========== 執核派記錄查詢診斷 ==========');
+    console.log(`院友ID: ${patientId}`);
+    console.log(`查詢月份: ${yearMonth} (${startDate} ~ ${endDate})`);
+    console.log(`處方數量 (原始): ${prescriptionIds.length} 個`);
+    console.log(`處方數量 (去重): ${uniquePrescriptionIds.length} 個`);
+    console.log(`處方ID列表:`, uniquePrescriptionIds);
+    console.log(`處方ID類型檢查:`, uniquePrescriptionIds.map(id => `${id} (${typeof id})`));
 
     const { data, error } = await supabase
       .from('medication_workflow_records')
       .select('*')
       .eq('patient_id', patientId)
-      .in('prescription_id', prescriptionIds)
+      .in('prescription_id', uniquePrescriptionIds)
       .gte('scheduled_date', startDate)
       .lte('scheduled_date', endDate)
       .order('scheduled_date', { ascending: true })
       .order('scheduled_time', { ascending: true });
 
     if (error) {
-      console.error('查詢執核派記錄失敗:', error);
+      console.error('❌ 查詢執核派記錄失敗:', error);
+      console.error('錯誤詳情:', JSON.stringify(error, null, 2));
       throw error;
     }
 
-    console.log(`查詢到 ${data?.length || 0} 條執核派記錄`);
+    console.log(`✓ 查詢成功，返回 ${data?.length || 0} 條執核派記錄`);
+
+    if (!data || data.length === 0) {
+      console.warn('⚠️ 警告：查詢返回空結果！');
+      console.warn('正在驗證資料庫中是否存在該院友的執核派記錄...');
+
+      const { data: allRecords, error: verifyError } = await supabase
+        .from('medication_workflow_records')
+        .select('prescription_id, scheduled_date')
+        .eq('patient_id', patientId)
+        .gte('scheduled_date', startDate)
+        .lte('scheduled_date', endDate);
+
+      if (!verifyError && allRecords) {
+        console.warn(`資料庫中該院友在 ${yearMonth} 共有 ${allRecords.length} 條執核派記錄`);
+
+        if (allRecords.length > 0) {
+          const dbPrescriptionIds = [...new Set(allRecords.map(r => r.prescription_id))];
+          console.warn('資料庫中的處方ID:', dbPrescriptionIds);
+          console.warn('資料庫中的處方ID類型:', dbPrescriptionIds.map(id => `${id} (${typeof id})`));
+
+          const missingInQuery = dbPrescriptionIds.filter(id => !uniquePrescriptionIds.includes(id));
+          const missingInDb = uniquePrescriptionIds.filter(id => !dbPrescriptionIds.includes(id));
+
+          if (missingInQuery.length > 0) {
+            console.warn('❗ 資料庫中存在但查詢中遺漏的處方ID:', missingInQuery);
+          }
+          if (missingInDb.length > 0) {
+            console.warn('❗ 查詢中包含但資料庫中不存在的處方ID:', missingInDb);
+          }
+
+          console.warn('採樣資料庫記錄 (前3條):', allRecords.slice(0, 3));
+        }
+      }
+    } else {
+      console.log('採樣查詢結果 (前3條):');
+      data.slice(0, 3).forEach((record, idx) => {
+        console.log(`  [${idx + 1}] 處方ID: ${record.prescription_id}, 日期: ${record.scheduled_date}, 時間: ${record.scheduled_time}`);
+      });
+
+      const recordPrescriptionIds = [...new Set(data.map(r => r.prescription_id))];
+      console.log(`查詢結果包含 ${recordPrescriptionIds.length} 個不同的處方ID:`, recordPrescriptionIds);
+    }
+    console.log('========================================\n');
+
     return data || [];
   } catch (error) {
-    console.error('fetchWorkflowRecordsForMonth 錯誤:', error);
+    console.error('❌ fetchWorkflowRecordsForMonth 發生錯誤:', error);
+    console.error('錯誤堆疊:', error instanceof Error ? error.stack : '無堆疊資訊');
     return [];
   }
 };
