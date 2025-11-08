@@ -12,8 +12,9 @@ import { extractFollowUpTemplateFormat } from '../utils/followUpListGenerator';
 import { extractPrintFormTemplateFormat } from '../utils/printFormExcelGenerator';
 import { extractDiaperChangeTemplateFormat } from '../utils/diaperChangeExcelGenerator';
 import { extractMedicationRecordTemplateFormat } from '../utils/medicationRecordExcelGenerator';
+import { extractPersonalMedicationListTemplateFormat } from '../utils/personalMedicationListExcelGenerator';
 
-type TemplateType = 'waiting-list' | 'prescription' | 'medication-record' | 'consent-form' | 'vital-signs' | 'blood-sugar' | 'weight-control' | 'follow-up-list' | 'restraint-observation' | 'diaper-change-record' | 'personal-hygiene-record' | 'admission-layout';
+type TemplateType = 'waiting-list' | 'prescription' | 'medication-record' | 'personal-medication-list' | 'consent-form' | 'vital-signs' | 'blood-sugar' | 'weight-control' | 'follow-up-list' | 'restraint-observation' | 'diaper-change-record' | 'personal-hygiene-record' | 'admission-layout';
 
 interface TemplateMetadata {
   id: number;
@@ -40,6 +41,7 @@ const TemplateManagement: React.FC = () => {
     { value: 'waiting-list', label: '院友候診記錄表', description: '醫生到診時的院友候診記錄' },
     { value: 'prescription', label: 'VMO處方箋', description: '醫生開立的處方箋' },
     { value: 'medication-record', label: '個人備藥及給藥記錄', description: '院友的個人用藥記錄' },
+    { value: 'personal-medication-list', label: '個人藥物記錄', description: '院友的個人藥物處方清單' },
     { value: 'consent-form', label: '約束物品同意書', description: '約束物品使用同意書' },
     { value: 'vital-signs', label: '生命表徵觀察記錄表', description: '院友生命表徵監測記錄' },
     { value: 'blood-sugar', label: '血糖測試記錄表', description: '院友血糖監測記錄' },
@@ -121,6 +123,8 @@ const TemplateManagement: React.FC = () => {
           return await extractDiaperChangeTemplateFormat(file);
         case 'medication-record':
           return await extractMedicationRecordTemplateFormat(file);
+        case 'personal-medication-list':
+          return await extractPersonalMedicationListTemplateFormat(file);
         case 'personal-hygiene-record':
         case 'admission-layout':
         case 'bed-layout':
@@ -306,6 +310,7 @@ const TemplateManagement: React.FC = () => {
       'restraint-observation': 'bg-orange-100 text-orange-800',
       'diaper-change-record': 'bg-cyan-100 text-cyan-800',
       'personal-hygiene-record': 'bg-lime-100 text-lime-800',
+      'personal-medication-list': 'bg-violet-100 text-violet-800',
       'admission-layout': 'bg-amber-100 text-amber-800',
       'bed-layout': 'bg-emerald-100 text-emerald-800'
     };
