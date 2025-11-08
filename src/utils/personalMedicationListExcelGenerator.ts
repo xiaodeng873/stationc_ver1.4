@@ -337,6 +337,19 @@ const applyPersonalMedicationListTemplate = async (
     worksheet.getRow(idx + 1).height = height;
   });
 
+  // Debug: Check if I7 is in template.cellData
+  console.log('🔍 範本 cellData 包含的儲存格數量:', Object.keys(template.cellData).length);
+  if (template.cellData['I7']) {
+    console.log('✅ template.cellData 包含 I7:', template.cellData['I7'].value);
+  } else {
+    console.warn('⚠️ template.cellData 不包含 I7！');
+  }
+  if (template.cellData['I8']) {
+    console.log('✅ template.cellData 包含 I8');
+  } else {
+    console.warn('⚠️ template.cellData 不包含 I8！');
+  }
+
   // Apply all template cells including A6 and I7
   Object.entries(template.cellData).forEach(([address, cellData]) => {
     const cell = worksheet.getCell(address);
