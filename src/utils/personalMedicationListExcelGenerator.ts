@@ -68,6 +68,17 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
       // This ensures template cells like A6 and I7 are preserved
       cellData.value = cell.value;
 
+      // Debug: Log I column cells
+      if (col === 9 && (row === 7 || row === 8)) {
+        console.log(`🔍 提取範本 ${address}:`, {
+          value: cell.value,
+          hasFont: !!cell.font,
+          hasBorder: !!cell.border,
+          hasAlignment: !!cell.alignment,
+          hasFill: !!cell.fill
+        });
+      }
+
       if (cell.font) {
         cellData.font = { ...cell.font, name: 'MingLiU' };
       } else {
@@ -106,11 +117,27 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
 
   console.log('提取了', extractedCellCount, '個儲存格的格式');
 
-  // Debug: 檢查 I7 是否被提取
+  // Debug: 檢查 I7 和 I8 是否被提取
   if (extractedTemplate.cellData['I7']) {
-    console.log('✅ I7 已提取:', extractedTemplate.cellData['I7'].value);
+    console.log('✅ I7 已提取:', {
+      value: extractedTemplate.cellData['I7'].value,
+      font: extractedTemplate.cellData['I7'].font,
+      border: extractedTemplate.cellData['I7'].border,
+      fill: extractedTemplate.cellData['I7'].fill
+    });
   } else {
-    console.warn('⚠️ I7 未被提取！');
+    console.warn('⚠️ I7 未被提取到 cellData 中！');
+  }
+
+  if (extractedTemplate.cellData['I8']) {
+    console.log('✅ I8 已提取:', {
+      value: extractedTemplate.cellData['I8'].value,
+      font: extractedTemplate.cellData['I8'].font,
+      border: extractedTemplate.cellData['I8'].border,
+      fill: extractedTemplate.cellData['I8'].fill
+    });
+  } else {
+    console.warn('⚠️ I8 未被提取到 cellData 中！');
   }
 
   return extractedTemplate;
