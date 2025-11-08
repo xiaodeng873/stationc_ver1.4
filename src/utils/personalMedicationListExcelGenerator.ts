@@ -30,8 +30,8 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
     cellData: {}
   };
 
-  const maxCol = 8;
-  const maxRow = 9;
+  const maxCol = 9;
+  const maxRow = 8;
 
   for (let col = 1; col <= maxCol; col++) {
     let width = worksheet.getColumn(col).width;
@@ -69,10 +69,9 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
       }
 
       if (cell.font) {
-        cellData.font = { ...cell.font };
-        if (cellData.font.name === 'Segoe UI Symbol' || cellData.font.name === 'Segoe UI Emoji') {
-          cellData.font.name = 'Arial Unicode MS';
-        }
+        cellData.font = { ...cell.font, name: 'MingLiU' };
+      } else {
+        cellData.font = { name: 'MingLiU' };
       }
 
       if (cell.alignment) {
@@ -157,7 +156,9 @@ const deepCopyRange = (
         targetCell.value = cellData.value;
       }
       if (cellData.font) {
-        targetCell.font = cellData.font;
+        targetCell.font = { ...cellData.font, name: 'MingLiU' };
+      } else {
+        targetCell.font = { name: 'MingLiU' };
       }
       if (cellData.alignment) {
         targetCell.alignment = cellData.alignment;
@@ -354,12 +355,26 @@ const applyPersonalMedicationListTemplate = async (
     : 'NKADR';
   worksheet.getCell('C5').value = reactions;
 
+  const updateDate = new Date().toLocaleDateString('zh-TW');
+  if (worksheet.getCell('C6').value) {
+    worksheet.getCell('C6').value = updateDate;
+  } else if (worksheet.getCell('F6').value) {
+    worksheet.getCell('F6').value = updateDate;
+  }
+
+  worksheet.getCell('B3').font = { name: 'MingLiU' };
+  worksheet.getCell('C3').font = { name: 'MingLiU' };
+  worksheet.getCell('F3').font = { name: 'MingLiU' };
+  worksheet.getCell('I3').font = { name: 'MingLiU' };
+  worksheet.getCell('C4').font = { name: 'MingLiU' };
+  worksheet.getCell('C5').font = { name: 'MingLiU' };
+
   const sortedPrescriptions = sortPrescriptions(prescriptions, sortBy);
   console.log('處方排序完成，排序方式:', sortBy, '處方數量:', sortedPrescriptions.length);
 
   const itemsPerPage = 15;
   let currentPage = 1;
-  let currentRow = 9;
+  let currentRow = 8;
 
   sortedPrescriptions.forEach((prescription, index) => {
     const pageIndex = Math.floor(index / itemsPerPage);
@@ -367,9 +382,9 @@ const applyPersonalMedicationListTemplate = async (
 
     if (isNewPage) {
       currentPage = pageIndex + 1;
-      const pageStartRow = 1 + (currentPage - 1) * (8 + itemsPerPage);
+      const pageStartRow = 1 + (currentPage - 1) * (7 + itemsPerPage);
 
-      for (let headerRow = 1; headerRow <= 8; headerRow++) {
+      for (let headerRow = 1; headerRow <= 7; headerRow++) {
         const targetRow = pageStartRow + headerRow - 1;
         Object.entries(template.cellData).forEach(([address, cellData]) => {
           const cell = worksheet.getCell(address);
@@ -378,7 +393,7 @@ const applyPersonalMedicationListTemplate = async (
             const targetCell = worksheet.getCell(colLetter + targetRow);
 
             if (cellData.value !== undefined) targetCell.value = cellData.value;
-            if (cellData.font) targetCell.font = cellData.font;
+            if (cellData.font) targetCell.font = { ...cellData.font, name: 'MingLiU' };
             if (cellData.alignment) targetCell.alignment = cellData.alignment;
             if (cellData.border) targetCell.border = cellData.border;
             if (cellData.fill) targetCell.fill = cellData.fill;
@@ -388,22 +403,42 @@ const applyPersonalMedicationListTemplate = async (
       }
 
       worksheet.getCell('B' + (pageStartRow + 2)).value = patient.中文姓氏 + patient.中文名字;
-      worksheet.getCell('C' + (pageStartRow + 2)).value = englishName;
-      worksheet.getCell('F' + (pageStartRow + 2)).value = patient.身份證號碼 || '';
-      worksheet.getCell('I' + (pageStartRow + 2)).value = patient.床號 || '';
-      worksheet.getCell('C' + (pageStartRow + 3)).value = allergies;
-      worksheet.getCell('C' + (pageStartRow + 4)).value = reactions;
+      worksheet.getCell('B' + (pageStartRow + 2)).font = { name: 'MingLiU' };
 
-      currentRow = pageStartRow + 8;
+      worksheet.getCell('C' + (pageStartRow + 2)).value = englishName;
+      worksheet.getCell('C' + (pageStartRow + 2)).font = { name: 'MingLiU' };
+
+      worksheet.getCell('F' + (pageStartRow + 2)).value = patient.身份證號碼 || '';
+      worksheet.getCell('F' + (pageStartRow + 2)).font = { name: 'MingLiU' };
+
+      worksheet.getCell('I' + (pageStartRow + 2)).value = patient.床號 || '';
+      worksheet.getCell('I' + (pageStartRow + 2)).font = { name: 'MingLiU' };
+
+      worksheet.getCell('C' + (pageStartRow + 3)).value = allergies;
+      worksheet.getCell('C' + (pageStartRow + 3)).font = { name: 'MingLiU' };
+
+      worksheet.getCell('C' + (pageStartRow + 4)).value = reactions;
+      worksheet.getCell('C' + (pageStartRow + 4)).font = { name: 'MingLiU' };
+
+      if (worksheet.getCell('C' + (pageStartRow + 5)).value) {
+        worksheet.getCell('C' + (pageStartRow + 5)).value = updateDate;
+        worksheet.getCell('C' + (pageStartRow + 5)).font = { name: 'MingLiU' };
+      } else if (worksheet.getCell('F' + (pageStartRow + 5)).value) {
+        worksheet.getCell('F' + (pageStartRow + 5)).value = updateDate;
+        worksheet.getCell('F' + (pageStartRow + 5)).font = { name: 'MingLiU' };
+      }
+
+      currentRow = pageStartRow + 7;
     }
 
     const itemRow = currentRow + (index % itemsPerPage);
 
     if (index % itemsPerPage > 0 || isNewPage) {
-      deepCopyRange(worksheet, template, 9, itemRow);
+      deepCopyRange(worksheet, template, 8, itemRow);
     }
 
     worksheet.getCell('A' + itemRow).value = (index + 1) + '.';
+    worksheet.getCell('A' + itemRow).font = { name: 'MingLiU' };
 
     const medicationNameCell = worksheet.getCell('B' + itemRow);
     const details = formatMedicationDetails(prescription);
@@ -412,40 +447,53 @@ const applyPersonalMedicationListTemplate = async (
       medicationNameCell.value = {
         richText: [
           {
-            font: { bold: true },
+            font: { bold: true, name: 'MingLiU' },
             text: prescription.medication_name || ''
           },
           {
+            font: { name: 'MingLiU' },
             text: '\n' + details.join(', ')
           }
         ]
       };
     } else {
       medicationNameCell.value = prescription.medication_name || '';
-      medicationNameCell.font = { bold: true };
+      medicationNameCell.font = { bold: true, name: 'MingLiU' };
     }
 
-    worksheet.getCell('C' + itemRow).value = prescription.is_prn ? '需要時' : '';
+    const prnCell = worksheet.getCell('D' + itemRow);
+    prnCell.value = prescription.is_prn ? '需要時' : '';
+    prnCell.font = { name: 'MingLiU' };
 
-    worksheet.getCell('D' + itemRow).value = prescription.start_date
+    const startDateCell = worksheet.getCell('E' + itemRow);
+    startDateCell.value = prescription.start_date
       ? new Date(prescription.start_date).toLocaleDateString('zh-TW')
       : '';
+    startDateCell.font = { name: 'MingLiU' };
 
-    worksheet.getCell('E' + itemRow).value = prescription.end_date
+    const endDateCell = worksheet.getCell('F' + itemRow);
+    endDateCell.value = prescription.end_date
       ? new Date(prescription.end_date).toLocaleDateString('zh-TW')
       : '';
+    endDateCell.font = { name: 'MingLiU' };
 
-    worksheet.getCell('F' + itemRow).value = prescription.medication_source || '';
+    const sourceCell = worksheet.getCell('G' + itemRow);
+    sourceCell.value = prescription.medication_source || '';
+    sourceCell.font = { name: 'MingLiU' };
 
-    worksheet.getCell('G' + itemRow).value = prescription.notes || prescription.special_instructions || '';
+    const notesCell = worksheet.getCell('H' + itemRow);
+    notesCell.value = prescription.notes || prescription.special_instructions || '';
+    notesCell.font = { name: 'MingLiU' };
 
-    worksheet.getCell('H' + itemRow).value = prescription.last_modified_by || prescription.created_by || '';
+    const modifiedByCell = worksheet.getCell('I' + itemRow);
+    modifiedByCell.value = prescription.last_modified_by || prescription.created_by || '';
+    modifiedByCell.font = { name: 'MingLiU' };
   });
 
   if (template.printSettings) {
     worksheet.pageSetup = {
       ...template.printSettings,
-      printTitlesRow: '1:8'
+      printTitlesRow: '1:7'
     };
   }
 
@@ -497,11 +545,10 @@ export const exportPersonalMedicationListToExcel = async (
       throw new Error('沒有可匯出的資料。所有選中的院友可能都沒有在服處方。');
     }
 
-    const templateBaseName = template.original_name.replace(/\.(xlsx|xls)$/i, '');
     const finalFilename = filename ||
       (selectedPatients.length === 1
-        ? selectedPatients[0].床號 + '_' + selectedPatients[0].中文姓氏 + selectedPatients[0].中文名字 + '_' + templateBaseName + '.xlsx'
-        : templateBaseName + '_' + selectedPatients.length + '名院友.xlsx');
+        ? selectedPatients[0].床號 + '_' + selectedPatients[0].中文姓氏 + selectedPatients[0].中文名字 + '_個人藥物記錄.xlsx'
+        : '個人藥物記錄_' + selectedPatients.length + '名院友.xlsx');
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -565,10 +612,9 @@ export const exportSelectedPersonalMedicationListToExcel = async (
     const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
     await applyPersonalMedicationListTemplate(worksheet, templateFormat, currentPatient, prescriptionsToExport, sortBy);
 
-    const templateBaseName = template.original_name.replace(/\.(xlsx|xls)$/i, '');
     const modeText = isExportAll ? '全部' : '已選' + prescriptionsToExport.length + '個';
     const finalFilename = currentPatient.床號 + '_' + currentPatient.中文姓氏 + currentPatient.中文名字 +
-      '_' + modeText + '_' + templateBaseName + '.xlsx';
+      '_' + modeText + '_個人藥物記錄.xlsx';
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
