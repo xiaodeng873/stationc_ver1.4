@@ -471,30 +471,36 @@ const applyPersonalMedicationListTemplate = async (
       medicationNameCell.font = { bold: true, name: 'MingLiU' };
     }
 
-    const prnCell = worksheet.getCell('C' + itemRow);
+    // D欄：需要時
+    const prnCell = worksheet.getCell('D' + itemRow);
     prnCell.value = prescription.is_prn ? '需要時' : '';
     prnCell.font = { name: 'MingLiU' };
 
-    const startDateCell = worksheet.getCell('D' + itemRow);
+    // E欄：開始日期
+    const startDateCell = worksheet.getCell('E' + itemRow);
     startDateCell.value = prescription.start_date
       ? new Date(prescription.start_date).toLocaleDateString('zh-TW')
       : '';
     startDateCell.font = { name: 'MingLiU' };
 
-    const endDateCell = worksheet.getCell('E' + itemRow);
+    // F欄：結束日期
+    const endDateCell = worksheet.getCell('F' + itemRow);
     endDateCell.value = prescription.end_date
       ? new Date(prescription.end_date).toLocaleDateString('zh-TW')
       : '';
     endDateCell.font = { name: 'MingLiU' };
 
-    const sourceCell = worksheet.getCell('F' + itemRow);
+    // G欄：藥物來源
+    const sourceCell = worksheet.getCell('G' + itemRow);
     sourceCell.value = prescription.medication_source || '';
     sourceCell.font = { name: 'MingLiU' };
 
-    const notesCell = worksheet.getCell('G' + itemRow);
+    // H欄：處方備註
+    const notesCell = worksheet.getCell('H' + itemRow);
     notesCell.value = prescription.notes || prescription.special_instructions || '';
     notesCell.font = { name: 'MingLiU' };
 
+    // I欄：修改者（登入者）
     const modifiedByCell = worksheet.getCell('I' + itemRow);
     modifiedByCell.value = prescription.last_modified_by || prescription.created_by || '';
     modifiedByCell.font = { name: 'MingLiU' };
