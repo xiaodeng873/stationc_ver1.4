@@ -461,27 +461,27 @@ const applyPersonalMedicationListTemplate = async (
       medicationNameCell.font = { bold: true, name: 'MingLiU' };
     }
 
-    const prnCell = worksheet.getCell('D' + itemRow);
+    const prnCell = worksheet.getCell('C' + itemRow);
     prnCell.value = prescription.is_prn ? '需要時' : '';
     prnCell.font = { name: 'MingLiU' };
 
-    const startDateCell = worksheet.getCell('E' + itemRow);
+    const startDateCell = worksheet.getCell('D' + itemRow);
     startDateCell.value = prescription.start_date
       ? new Date(prescription.start_date).toLocaleDateString('zh-TW')
       : '';
     startDateCell.font = { name: 'MingLiU' };
 
-    const endDateCell = worksheet.getCell('F' + itemRow);
+    const endDateCell = worksheet.getCell('E' + itemRow);
     endDateCell.value = prescription.end_date
       ? new Date(prescription.end_date).toLocaleDateString('zh-TW')
       : '';
     endDateCell.font = { name: 'MingLiU' };
 
-    const sourceCell = worksheet.getCell('G' + itemRow);
+    const sourceCell = worksheet.getCell('F' + itemRow);
     sourceCell.value = prescription.medication_source || '';
     sourceCell.font = { name: 'MingLiU' };
 
-    const notesCell = worksheet.getCell('H' + itemRow);
+    const notesCell = worksheet.getCell('G' + itemRow);
     notesCell.value = prescription.notes || prescription.special_instructions || '';
     notesCell.font = { name: 'MingLiU' };
 
@@ -612,9 +612,7 @@ export const exportSelectedPersonalMedicationListToExcel = async (
     const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
     await applyPersonalMedicationListTemplate(worksheet, templateFormat, currentPatient, prescriptionsToExport, sortBy);
 
-    const modeText = isExportAll ? '全部' : '已選' + prescriptionsToExport.length + '個';
-    const finalFilename = currentPatient.床號 + '_' + currentPatient.中文姓氏 + currentPatient.中文名字 +
-      '_' + modeText + '_個人藥物記錄.xlsx';
+    const finalFilename = currentPatient.床號 + '_' + currentPatient.中文姓氏 + currentPatient.中文名字 + '_個人藥物記錄.xlsx';
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
