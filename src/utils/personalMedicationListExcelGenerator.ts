@@ -105,6 +105,14 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
   }
 
   console.log('提取了', extractedCellCount, '個儲存格的格式');
+
+  // Debug: 檢查 I7 是否被提取
+  if (extractedTemplate.cellData['I7']) {
+    console.log('✅ I7 已提取:', extractedTemplate.cellData['I7'].value);
+  } else {
+    console.warn('⚠️ I7 未被提取！');
+  }
+
   return extractedTemplate;
 };
 
@@ -365,6 +373,12 @@ const applyPersonalMedicationListTemplate = async (
     : 'NKADR';
   worksheet.getCell('C5').value = reactions;
 
+  // 記錄 A6 在填入日期前的狀態
+  console.log('🔍 填入日期前的 A6:', {
+    value: worksheet.getCell('A6').value,
+    isMerged: worksheet.getCell('A6').isMerged
+  });
+
   const updateDate = new Date().toLocaleDateString('zh-TW');
   if (worksheet.getCell('C6').value) {
     worksheet.getCell('C6').value = updateDate;
@@ -374,8 +388,22 @@ const applyPersonalMedicationListTemplate = async (
     worksheet.getCell('F6').font = { name: 'MingLiU' };
   }
 
+  // 記錄 A6 在填入日期後的狀態
+  console.log('🔍 填入日期後的 A6:', {
+    value: worksheet.getCell('A6').value,
+    isMerged: worksheet.getCell('A6').isMerged
+  });
+
   // 明確保持 A6 從範本的預設內容，不覆寫
   // A6 will keep its template default value
+  // 如果 A6 被意外覆寫，強制恢復範本值
+  if (template.cellData['A6']) {
+    const a6TemplateValue = template.cellData['A6'].value;
+    if (worksheet.getCell('A6').value !== a6TemplateValue) {
+      console.warn('⚠️ A6 被覆寫！恢復範本值:', a6TemplateValue);
+      worksheet.getCell('A6').value = a6TemplateValue;
+    }
+  }
 
   worksheet.getCell('B3').font = { name: 'MingLiU' };
   worksheet.getCell('C3').font = { name: 'MingLiU' };
