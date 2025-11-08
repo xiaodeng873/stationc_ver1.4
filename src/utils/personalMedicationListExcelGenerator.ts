@@ -309,6 +309,16 @@ const applyPersonalMedicationListTemplate = async (
     // Always apply value (even if null) to preserve template defaults
     cell.value = cellData.value;
 
+    // Debug logging for A6 and I7
+    if (address === 'A6' || address === 'I7') {
+      console.log(`📝 應用範本儲存格 ${address}:`, {
+        value: cellData.value,
+        hasFont: !!cellData.font,
+        hasBorder: !!cellData.border,
+        hasFill: !!cellData.fill
+      });
+    }
+
     if (cellData.font) {
       cell.font = cellData.font;
     }
@@ -502,8 +512,20 @@ const applyPersonalMedicationListTemplate = async (
 
     // I欄：修改者（登入者）
     const modifiedByCell = worksheet.getCell('I' + itemRow);
-    modifiedByCell.value = prescription.last_modified_by || prescription.created_by || '';
+    const modifiedByValue = prescription.last_modified_by || prescription.created_by || '';
+    modifiedByCell.value = modifiedByValue;
     modifiedByCell.font = { name: 'MingLiU' };
+
+    // Debug logging for first prescription
+    if (index === 0) {
+      console.log('📊 第一筆處方的 I 欄資料:', {
+        itemRow,
+        last_modified_by: prescription.last_modified_by,
+        created_by: prescription.created_by,
+        finalValue: modifiedByValue,
+        prescriptionId: prescription.id
+      });
+    }
   });
 
   if (template.printSettings) {
