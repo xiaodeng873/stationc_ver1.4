@@ -1228,6 +1228,19 @@ const IntegratedPrescriptionCard: React.FC<IntegratedPrescriptionCardProps> = ({
       </div>
 
       <div className="p-6">
+        {/* 匯出個人藥物記錄按鈕 */}
+        {currentPrescriptions.length > 0 && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={() => setShowMedicationRecordExportModal(true)}
+              className="btn-secondary flex items-center space-x-2"
+            >
+              <FileText className="h-4 w-4" />
+              <span>匯出個人藥物記錄</span>
+            </button>
+          </div>
+        )}
+
         {/* 選取控制 */}
         {currentPrescriptions.length > 0 && (
           <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
