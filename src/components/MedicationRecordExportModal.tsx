@@ -3,6 +3,7 @@ import { X, FileDown, Calendar, Users, CheckSquare, Square, AlertCircle, Pill, S
 import { usePatients } from '../context/PatientContext';
 import { getTemplatesMetadata } from '../lib/database';
 import { exportMedicationRecordToExcel, exportSelectedMedicationRecordToExcel, categorizePrescriptionsByRoute } from '../utils/medicationRecordExcelGenerator';
+import { exportPersonalMedicationListToExcel, exportSelectedPersonalMedicationListToExcel } from '../utils/personalMedicationListExcelGenerator';
 
 interface MedicationRecordExportModalProps {
   onClose: () => void;
@@ -35,6 +36,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
   });
   const [includeInactive, setIncludeInactive] = useState(false);
   const [includeWorkflowRecords, setIncludeWorkflowRecords] = useState(false);
+  const [includePersonalMedicationList, setIncludePersonalMedicationList] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -178,7 +180,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
       return;
     }
 
-    if (exportMode === 'current' && currentPatientPrescriptionsToExport.length === 0) {
+    if (exportMode === 'current' && currentPatientPrescriptionsToExport.length === 0 && !includePersonalMedicationList) {
       alert('沒有可匯出的處方');
       return;
     }
@@ -188,35 +190,74 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
     try {
       const templates = await getTemplatesMetadata();
       const medicationTemplate = templates.find(t => t.type === 'medication-record');
+      const personalMedicationTemplate = templates.find(t => t.type === 'personal-medication-list');
 
-      if (!medicationTemplate) {
+      const shouldExportMedicationRecord = !includePersonalMedicationList || includeInactive || includeWorkflowRecords;
+      const shouldExportPersonalMedicationList = includePersonalMedicationList;
+
+      if (shouldExportMedicationRecord && !medicationTemplate) {
         alert('找不到個人備藥及給藥記錄範本，請先在範本管理上傳範本');
         setIsExporting(false);
         return;
       }
 
+      if (shouldExportPersonalMedicationList && !personalMedicationTemplate) {
+        alert('找不到個人藥物記錄範本，請先在範本管理上傳範本');
+        setIsExporting(false);
+        return;
+      }
+
+      let medicationRecordSuccess = false;
+      let personalMedicationListSuccess = false;
+      let medicationRecordMessage = '';
+      let personalMedicationListMessage = '';
+
       if (exportMode === 'current' && currentPatient) {
-        await exportSelectedMedicationRecordToExcel(
-          Array.from(currentPatientSelectedPrescriptions),
-          currentPatient.patient,
-          allPrescriptions,
-          medicationTemplate,
-          selectedMonth,
-          includeInactive,
-          includeWorkflowRecords
-        );
+        if (shouldExportMedicationRecord && medicationTemplate) {
+          await exportSelectedMedicationRecordToExcel(
+            Array.from(currentPatientSelectedPrescriptions),
+            currentPatient.patient,
+            allPrescriptions,
+            medicationTemplate,
+            selectedMonth,
+            includeInactive,
+            includeWorkflowRecords
+          );
 
-        const totalPrescriptions = currentRouteStats.oral + currentRouteStats.injection + currentRouteStats.topical;
-        let successMessage = `匯出成功！\n\n`;
-        successMessage += `共匯出 ${totalPrescriptions} 個處方\n\n`;
-        successMessage += `途徑分布：\n`;
-        if (currentRouteStats.oral > 0) successMessage += `  口服：${currentRouteStats.oral} 個\n`;
-        if (currentRouteStats.injection > 0) successMessage += `  注射：${currentRouteStats.injection} 個\n`;
-        if (currentRouteStats.topical > 0) successMessage += `  外用：${currentRouteStats.topical} 個\n`;
+          medicationRecordSuccess = true;
+          const totalPrescriptions = currentRouteStats.oral + currentRouteStats.injection + currentRouteStats.topical;
+          medicationRecordMessage = `【個人備藥及給藥記錄】\n`;
+          medicationRecordMessage += `共匯出 ${totalPrescriptions} 個處方\n\n`;
+          medicationRecordMessage += `途徑分布：\n`;
+          if (currentRouteStats.oral > 0) medicationRecordMessage += `  口服：${currentRouteStats.oral} 個\n`;
+          if (currentRouteStats.injection > 0) medicationRecordMessage += `  注射：${currentRouteStats.injection} 個\n`;
+          if (currentRouteStats.topical > 0) medicationRecordMessage += `  外用：${currentRouteStats.topical} 個\n`;
 
-        if (currentRouteStats.noRoute > 0) {
-          successMessage += `\n⚠️ 注意：有 ${currentRouteStats.noRoute} 個處方因缺少途徑資訊而未被匯出`;
+          if (currentRouteStats.noRoute > 0) {
+            medicationRecordMessage += `\n⚠️ 注意：有 ${currentRouteStats.noRoute} 個處方因缺少途徑資訊而未被匯出`;
+          }
         }
+
+        if (shouldExportPersonalMedicationList && personalMedicationTemplate) {
+          await exportSelectedPersonalMedicationListToExcel(
+            Array.from(currentPatientSelectedPrescriptions),
+            currentPatient.patient,
+            allPrescriptions,
+            personalMedicationTemplate,
+            'start_date',
+            includeInactive
+          );
+
+          personalMedicationListSuccess = true;
+          const activePrescriptions = currentPatientPrescriptionsToExport.filter(p => p.status === 'active');
+          personalMedicationListMessage = `【個人藥物記錄】\n`;
+          personalMedicationListMessage += `共匯出 ${activePrescriptions.length} 個在服處方\n`;
+          personalMedicationListMessage += `排序方式：按開始使用藥物日期`;
+        }
+
+        let successMessage = '匯出成功！\n\n';
+        if (medicationRecordSuccess) successMessage += medicationRecordMessage + '\n\n';
+        if (personalMedicationListSuccess) successMessage += personalMedicationListMessage;
 
         alert(successMessage);
       } else {
@@ -252,26 +293,69 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
           })
           .filter(p => p.prescriptions.length > 0);
 
-        if (selectedPatients.length === 0) {
+        if (selectedPatients.length === 0 && !shouldExportPersonalMedicationList) {
           alert('所選院友在指定月份沒有符合條件的處方記錄');
           setIsExporting(false);
           return;
         }
 
-        await exportMedicationRecordToExcel(selectedPatients, medicationTemplate, selectedMonth, undefined, includeWorkflowRecords);
+        if (shouldExportMedicationRecord && medicationTemplate && selectedPatients.length > 0) {
+          await exportMedicationRecordToExcel(selectedPatients, medicationTemplate, selectedMonth, undefined, includeWorkflowRecords);
 
-        const totalPrescriptions = batchRouteStats.oral + batchRouteStats.injection + batchRouteStats.topical;
-        let successMessage = `匯出成功！\n\n`;
-        successMessage += `共匯出 ${selectedPatients.length} 位院友的處方記錄\n`;
-        successMessage += `總處方數：${totalPrescriptions} 個\n\n`;
-        successMessage += `途徑分布：\n`;
-        if (batchRouteStats.oral > 0) successMessage += `  口服：${batchRouteStats.oral} 個\n`;
-        if (batchRouteStats.injection > 0) successMessage += `  注射：${batchRouteStats.injection} 個\n`;
-        if (batchRouteStats.topical > 0) successMessage += `  外用：${batchRouteStats.topical} 個\n`;
+          medicationRecordSuccess = true;
+          const totalPrescriptions = batchRouteStats.oral + batchRouteStats.injection + batchRouteStats.topical;
+          medicationRecordMessage = `【個人備藥及給藥記錄】\n`;
+          medicationRecordMessage += `共匯出 ${selectedPatients.length} 位院友的處方記錄\n`;
+          medicationRecordMessage += `總處方數：${totalPrescriptions} 個\n\n`;
+          medicationRecordMessage += `途徑分布：\n`;
+          if (batchRouteStats.oral > 0) medicationRecordMessage += `  口服：${batchRouteStats.oral} 個\n`;
+          if (batchRouteStats.injection > 0) medicationRecordMessage += `  注射：${batchRouteStats.injection} 個\n`;
+          if (batchRouteStats.topical > 0) medicationRecordMessage += `  外用：${batchRouteStats.topical} 個\n`;
 
-        if (batchRouteStats.noRoute > 0) {
-          successMessage += `\n⚠️ 注意：有 ${batchRouteStats.noRoute} 個處方因缺少途徑資訊而未被匯出`;
+          if (batchRouteStats.noRoute > 0) {
+            medicationRecordMessage += `\n⚠️ 注意：有 ${batchRouteStats.noRoute} 個處方因缺少途徑資訊而未被匯出`;
+          }
         }
+
+        if (shouldExportPersonalMedicationList && personalMedicationTemplate) {
+          const patientsForPersonalList = activePatients
+            .filter(p => selectedPatientIds.has(p.院友id))
+            .map(patient => {
+              const patientPrescriptions = prescriptions.filter(p =>
+                p.patient_id === patient.院友id &&
+                p.status === 'active'
+              );
+
+              return {
+                ...patient,
+                prescriptions: patientPrescriptions
+              };
+            })
+            .filter(p => p.prescriptions.length > 0);
+
+          if (patientsForPersonalList.length > 0) {
+            await exportPersonalMedicationListToExcel(
+              patientsForPersonalList,
+              personalMedicationTemplate,
+              'start_date'
+            );
+
+            personalMedicationListSuccess = true;
+            const totalActivePrescriptions = patientsForPersonalList.reduce((sum, p) => sum + p.prescriptions.length, 0);
+            personalMedicationListMessage = `【個人藥物記錄】\n`;
+            personalMedicationListMessage += `共匯出 ${patientsForPersonalList.length} 位院友\n`;
+            personalMedicationListMessage += `總在服處方數：${totalActivePrescriptions} 個\n`;
+            personalMedicationListMessage += `排序方式：按開始使用藥物日期`;
+          } else {
+            alert('所選院友沒有在服處方，無法匯出個人藥物記錄');
+            setIsExporting(false);
+            return;
+          }
+        }
+
+        let successMessage = '匯出成功！\n\n';
+        if (medicationRecordSuccess) successMessage += medicationRecordMessage + '\n\n';
+        if (personalMedicationListSuccess) successMessage += personalMedicationListMessage;
 
         alert(successMessage);
       }
@@ -377,6 +461,15 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                   className="form-checkbox h-5 w-5 text-blue-600 rounded"
                 />
                 <span className="text-sm text-gray-700">包含執核派記錄</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includePersonalMedicationList}
+                  onChange={(e) => setIncludePersonalMedicationList(e.target.checked)}
+                  className="form-checkbox h-5 w-5 text-blue-600 rounded"
+                />
+                <span className="text-sm text-gray-700">匯出個人藥物記錄</span>
               </label>
             </div>
           </div>
