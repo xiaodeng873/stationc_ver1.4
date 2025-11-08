@@ -405,6 +405,16 @@ const applyPersonalMedicationListTemplate = async (
     }
   }
 
+  // 檢查 I7 的完整格式
+  const i7Cell = worksheet.getCell('I7');
+  console.log('📊 I7 的完整格式:', {
+    value: i7Cell.value,
+    font: i7Cell.font,
+    border: i7Cell.border,
+    alignment: i7Cell.alignment,
+    fill: i7Cell.fill
+  });
+
   worksheet.getCell('B3').font = { name: 'MingLiU' };
   worksheet.getCell('C3').font = { name: 'MingLiU' };
   worksheet.getCell('F3').font = { name: 'MingLiU' };
@@ -481,8 +491,14 @@ const applyPersonalMedicationListTemplate = async (
 
     const itemRow = currentRow + (index % itemsPerPage);
 
+    // CRITICAL: Always copy template format for all prescription rows
+    // This ensures I column formatting is preserved for all rows including first row
     if (index % itemsPerPage > 0 || isNewPage) {
       deepCopyRange(worksheet, template, 8, itemRow);
+    } else if (index === 0) {
+      // First prescription on first page: Row 8 already has template format applied
+      // No need to deepCopyRange as template format is already in place
+      console.log('第一筆處方使用範本第 8 列的格式');
     }
 
     worksheet.getCell('A' + itemRow).value = (index + 1) + '.';
@@ -542,7 +558,10 @@ const applyPersonalMedicationListTemplate = async (
     const modifiedByCell = worksheet.getCell('I' + itemRow);
     const modifiedByValue = prescription.last_modified_by || prescription.created_by || '';
     modifiedByCell.value = modifiedByValue;
-    modifiedByCell.font = { name: 'MingLiU' };
+
+    // CRITICAL: Preserve existing font attributes from template, only ensure MingLiU font name
+    const existingFont = modifiedByCell.font || {};
+    modifiedByCell.font = { ...existingFont, name: 'MingLiU' };
 
     // Debug logging for first prescription
     if (index === 0) {
@@ -552,6 +571,13 @@ const applyPersonalMedicationListTemplate = async (
         created_by: prescription.created_by,
         finalValue: modifiedByValue,
         prescriptionId: prescription.id
+      });
+      console.log('📊 I8 的完整格式:', {
+        value: modifiedByCell.value,
+        font: modifiedByCell.font,
+        border: modifiedByCell.border,
+        alignment: modifiedByCell.alignment,
+        fill: modifiedByCell.fill
       });
     }
   });
