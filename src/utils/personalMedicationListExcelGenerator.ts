@@ -358,9 +358,14 @@ const applyPersonalMedicationListTemplate = async (
   const updateDate = new Date().toLocaleDateString('zh-TW');
   if (worksheet.getCell('C6').value) {
     worksheet.getCell('C6').value = updateDate;
+    worksheet.getCell('C6').font = { name: 'MingLiU' };
   } else if (worksheet.getCell('F6').value) {
     worksheet.getCell('F6').value = updateDate;
+    worksheet.getCell('F6').font = { name: 'MingLiU' };
   }
+
+  // 明確保持 A6 從範本的預設內容，不覆寫
+  // A6 will keep its template default value
 
   worksheet.getCell('B3').font = { name: 'MingLiU' };
   worksheet.getCell('C3').font = { name: 'MingLiU' };
@@ -427,6 +432,9 @@ const applyPersonalMedicationListTemplate = async (
         worksheet.getCell('F' + (pageStartRow + 5)).value = updateDate;
         worksheet.getCell('F' + (pageStartRow + 5)).font = { name: 'MingLiU' };
       }
+
+      // 明確保持 A + (pageStartRow + 5) 從範本的預設內容，不覆寫
+      // Preserve A6 equivalent on each page with template default
 
       currentRow = pageStartRow + 7;
     }

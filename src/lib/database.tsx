@@ -895,6 +895,32 @@ export async function deleteDrug(id: string) {
   }
 }
 
+// Helper function to get current user info
+async function getCurrentUserInfo(): Promise<string> {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+
+    if (error) {
+      console.warn('⚠️ Unable to get current user:', error);
+      return '系統';
+    }
+
+    if (!user) {
+      console.warn('⚠️ No user logged in');
+      return '系統';
+    }
+
+    // Use email if available, otherwise use user ID
+    const userIdentifier = user.email || user.id || '系統';
+    console.log('👤 Current user:', userIdentifier);
+
+    return userIdentifier;
+  } catch (error) {
+    console.error('❌ Error getting current user:', error);
+    return '系統';
+  }
+}
+
 // Prescription functions
 export async function getPrescriptions() {
   try {
@@ -903,16 +929,16 @@ export async function getPrescriptions() {
       .from('new_medication_prescriptions')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       console.error('❌ Error fetching prescriptions:', error);
       throw error;
     }
-    
+
     console.log('✅ Successfully fetched prescriptions:', {
       count: data?.length || 0
     });
-    
+
     return data || [];
   } catch (error) {
     console.error('❌ getPrescriptions failed:', error);
@@ -923,17 +949,31 @@ export async function getPrescriptions() {
 export async function createPrescription(prescription: any) {
   try {
     console.log('🔍 Creating prescription:', prescription);
+
+    // Get current user info and add to prescription
+    const currentUser = await getCurrentUserInfo();
+    const prescriptionWithUser = {
+      ...prescription,
+      created_by: currentUser,
+      last_modified_by: currentUser
+    };
+
+    console.log('👤 Adding user tracking:', {
+      created_by: currentUser,
+      last_modified_by: currentUser
+    });
+
     const { data, error } = await supabase
       .from('new_medication_prescriptions')
-      .insert([prescription])
+      .insert([prescriptionWithUser])
       .select()
       .single();
-    
+
     if (error) {
       console.error('❌ Error creating prescription:', error);
       throw error;
     }
-    
+
     console.log('✅ Successfully created prescription:', data);
     return data;
   } catch (error) {
@@ -945,18 +985,29 @@ export async function createPrescription(prescription: any) {
 export async function updatePrescription(prescription: any) {
   try {
     console.log('🔍 Updating prescription:', prescription);
+
+    // Get current user info and update last_modified_by
+    const currentUser = await getCurrentUserInfo();
+    const prescriptionWithUser = {
+      ...prescription,
+      last_modified_by: currentUser,
+      updated_at: new Date().toISOString()
+    };
+
+    console.log('👤 Updating last_modified_by:', currentUser);
+
     const { data, error } = await supabase
       .from('new_medication_prescriptions')
-      .update(prescription)
+      .update(prescriptionWithUser)
       .eq('id', prescription.id)
       .select()
       .single();
-    
+
     if (error) {
       console.error('❌ Error updating prescription:', error);
       throw error;
     }
-    
+
     console.log('✅ Successfully updated prescription:', data);
     return data;
   } catch (error) {
