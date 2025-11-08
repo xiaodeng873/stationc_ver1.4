@@ -64,9 +64,9 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
 
       const cellData: any = {};
 
-      if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
-        cellData.value = cell.value;
-      }
+      // CRITICAL: Always extract value, even if null or empty
+      // This ensures template cells like A6 and I7 are preserved
+      cellData.value = cell.value;
 
       if (cell.font) {
         cellData.font = { ...cell.font, name: 'MingLiU' };
@@ -98,10 +98,9 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
         cellData.numFmt = cell.numFmt;
       }
 
-      if (Object.keys(cellData).length > 0) {
-        extractedTemplate.cellData[address] = cellData;
-        extractedCellCount++;
-      }
+      // Always save cell data to preserve all template cells
+      extractedTemplate.cellData[address] = cellData;
+      extractedCellCount++;
     }
   }
 
@@ -152,9 +151,9 @@ const deepCopyRange = (
       const targetAddress = colLetter + targetRow;
       const targetCell = worksheet.getCell(targetAddress);
 
-      if (cellData.value !== undefined) {
-        targetCell.value = cellData.value;
-      }
+      // Always copy value to preserve template format (including column I)
+      targetCell.value = cellData.value;
+
       if (cellData.font) {
         targetCell.font = { ...cellData.font, name: 'MingLiU' };
       } else {
@@ -303,12 +302,13 @@ const applyPersonalMedicationListTemplate = async (
     worksheet.getRow(idx + 1).height = height;
   });
 
+  // Apply all template cells including A6 and I7
   Object.entries(template.cellData).forEach(([address, cellData]) => {
     const cell = worksheet.getCell(address);
 
-    if (cellData.value !== undefined) {
-      cell.value = cellData.value;
-    }
+    // Always apply value (even if null) to preserve template defaults
+    cell.value = cellData.value;
+
     if (cellData.font) {
       cell.font = cellData.font;
     }
@@ -389,6 +389,7 @@ const applyPersonalMedicationListTemplate = async (
       currentPage = pageIndex + 1;
       const pageStartRow = 1 + (currentPage - 1) * (7 + itemsPerPage);
 
+      // Copy all header rows (1-7) including A6 and I7
       for (let headerRow = 1; headerRow <= 7; headerRow++) {
         const targetRow = pageStartRow + headerRow - 1;
         Object.entries(template.cellData).forEach(([address, cellData]) => {
@@ -397,7 +398,8 @@ const applyPersonalMedicationListTemplate = async (
             const colLetter = address.replace(/\d+/, '');
             const targetCell = worksheet.getCell(colLetter + targetRow);
 
-            if (cellData.value !== undefined) targetCell.value = cellData.value;
+            // Always copy value to preserve template defaults (including A6 and I7)
+            targetCell.value = cellData.value;
             if (cellData.font) targetCell.font = { ...cellData.font, name: 'MingLiU' };
             if (cellData.alignment) targetCell.alignment = cellData.alignment;
             if (cellData.border) targetCell.border = cellData.border;
