@@ -960,8 +960,6 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
-    const isHospitalized = checkPatientHospitalized(patientIdNum);
-
     setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
 
     try {
@@ -981,12 +979,19 @@ const MedicationWorkflow: React.FC = () => {
 
       for (const record of eligibleRecords) {
         try {
+          // 檢查此筆記錄的服藥時間是否在入院期間
+          const inHospitalizationPeriod = isInHospitalizationPeriod(
+            patientIdNum,
+            record.scheduled_date,
+            record.scheduled_time
+          );
+
           // 一鍵完成執藥、核藥、派藥
           await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
           await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
 
-          if (isHospitalized) {
-            // 如果院友入院中，自動標記為「入院」失敗原因
+          if (inHospitalizationPeriod) {
+            // 如果服藥時間在入院期間，自動標記為「入院」失敗原因
             await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
             hospitalizedCount++;
           } else {
@@ -1018,8 +1023,6 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
-    const isHospitalized = checkPatientHospitalized(patientIdNum);
-
     setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
 
     try {
@@ -1032,8 +1035,15 @@ const MedicationWorkflow: React.FC = () => {
           return false;
         }
 
+        // 檢查此筆記錄的服藥時間是否在入院期間
+        const inHospitalizationPeriod = isInHospitalizationPeriod(
+          patientIdNum,
+          r.scheduled_date,
+          r.scheduled_time
+        );
+
         // 如果有檢測項要求且院友未入院，排除（需要手動檢測）
-        if (prescription?.inspection_rules && prescription.inspection_rules.length > 0 && !isHospitalized) {
+        if (prescription?.inspection_rules && prescription.inspection_rules.length > 0 && !inHospitalizationPeriod) {
           return false;
         }
 
@@ -1054,8 +1064,15 @@ const MedicationWorkflow: React.FC = () => {
           const prescription = prescriptions.find(p => p.id === record.prescription_id);
           const hasInspectionRules = prescription?.inspection_rules && prescription.inspection_rules.length > 0;
 
-          if (isHospitalized) {
-            // 如果院友入院中，自動標記為「入院」失敗原因
+          // 檢查此筆記錄的服藥時間是否在入院期間
+          const inHospitalizationPeriod = isInHospitalizationPeriod(
+            patientIdNum,
+            record.scheduled_date,
+            record.scheduled_time
+          );
+
+          if (inHospitalizationPeriod) {
+            // 如果服藥時間在入院期間，自動標記為「入院」失敗原因
             const inspectionResult = hasInspectionRules ? {
               canDispense: false,
               isHospitalized: true,
