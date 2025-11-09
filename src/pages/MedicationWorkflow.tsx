@@ -658,13 +658,20 @@ const MedicationWorkflow: React.FC = () => {
   // 當 weekDates 或 patient 改變時，清空並重新載入一週記錄
   useEffect(() => {
     if (selectedPatientId && weekDates.length > 0) {
+      console.log('\n🔄 重新載入當周工作流程記錄');
+      console.log('院友ID:', selectedPatientId);
+      console.log('週期:', weekDates[0], '至', weekDates[6]);
+
       setAllWorkflowRecords([]);
       const patientIdNum = parseInt(selectedPatientId);
       if (!isNaN(patientIdNum)) {
         (async () => {
-          for (const date of weekDates) {
+          for (let i = 0; i < weekDates.length; i++) {
+            const date = weekDates[i];
+            console.log(`\n[${i + 1}/7] 載入 ${date} 的記錄...`);
             await fetchPrescriptionWorkflowRecords(patientIdNum, date);
           }
+          console.log('\n✅ 當周所有記錄載入完成\n');
         })();
       }
     }
@@ -672,13 +679,26 @@ const MedicationWorkflow: React.FC = () => {
 
   // 監聽 context 的 prescriptionWorkflowRecords 改變，合併/替換到本地 allWorkflowRecords
   useEffect(() => {
-    if (prescriptionWorkflowRecords.length > 0 && selectedPatientId) {
+    if (selectedPatientId) {
       setAllWorkflowRecords(prev => {
         const newRecords = prescriptionWorkflowRecords.filter(r => r.patient_id.toString() === selectedPatientId);
-        if (newRecords.length === 0) return prev;
-        const fetchDate = newRecords[0].scheduled_date; // 假設 fetch 是單日
-        const filteredPrev = prev.filter(r => r.scheduled_date !== fetchDate);
-        return [...filteredPrev, ...newRecords];
+
+        if (newRecords.length === 0) {
+          console.log('📭 收到空的工作流程記錄更新');
+          return prev;
+        }
+
+        // 獲取這次更新涉及的所有日期
+        const updatedDates = [...new Set(newRecords.map(r => r.scheduled_date))];
+        console.log(`📥 收到 ${newRecords.length} 筆工作流程記錄，涉及日期:`, updatedDates);
+
+        // 移除這些日期的舊記錄
+        const filteredPrev = prev.filter(r => !updatedDates.includes(r.scheduled_date));
+
+        const merged = [...filteredPrev, ...newRecords];
+        console.log(`📊 合併後總記錄數: ${merged.length} (舊: ${filteredPrev.length}, 新: ${newRecords.length})`);
+
+        return merged;
       });
     }
   }, [prescriptionWorkflowRecords, selectedPatientId]);
