@@ -29,6 +29,7 @@ import InspectionCheckModal from '../components/InspectionCheckModal';
 import InjectionSiteModal from '../components/InjectionSiteModal';
 import RevertConfirmModal from '../components/RevertConfirmModal';
 import { generateDailyWorkflowRecords, generateBatchWorkflowRecords } from '../utils/workflowGenerator';
+import { supabase } from '../lib/supabase';
 
 interface WorkflowCellProps {
   record: any;
@@ -410,6 +411,7 @@ const MedicationWorkflow: React.FC = () => {
   const [currentInjectionRecord, setCurrentInjectionRecord] = useState<any>(null);
   const [allWorkflowRecords, setAllWorkflowRecords] = useState<any[]>([]);
   const [preparationFilter, setPreparationFilter] = useState<'all' | 'advanced' | 'immediate'>('all');
+  const [autoGenerationChecked, setAutoGenerationChecked] = useState(false);
 
   // 計算一週日期（周日開始）
   const computeWeekDates = (dateStr: string): string[] => {
@@ -429,6 +431,103 @@ const MedicationWorkflow: React.FC = () => {
 
   const weekDates = useMemo(() => computeWeekDates(selectedDate), [selectedDate]);
 
+  // 檢查當周工作流程記錄是否完整
+  const checkWeekWorkflowCompleteness = async (patientIdNum: number, weekDates: string[]) => {
+    try {
+      console.log('=== 檢查當周工作流程完整性 ===');
+      console.log('院友ID:', patientIdNum);
+      console.log('檢查週期:', weekDates[0], '至', weekDates[6]);
+
+      // 查詢該院友的所有在服處方
+      const activePrescriptionsForPatient = prescriptions.filter(p => {
+        if (p.patient_id.toString() !== patientIdNum.toString() || p.status !== 'active') {
+          return false;
+        }
+        return true;
+      });
+
+      console.log('在服處方數量:', activePrescriptionsForPatient.length);
+
+      if (activePrescriptionsForPatient.length === 0) {
+        console.log('此院友無在服處方，無需生成工作流程');
+        return { complete: true, shouldGenerate: false };
+      }
+
+      // 計算當周應該生成的記錄總數
+      let expectedRecordsCount = 0;
+      weekDates.forEach(date => {
+        activePrescriptionsForPatient.forEach(prescription => {
+          const dateObj = new Date(date);
+          const startDate = new Date(prescription.start_date);
+          const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
+
+          // 檢查日期是否在處方有效期內
+          if (dateObj >= startDate && (!endDate || dateObj <= endDate)) {
+            const timeSlots = prescription.medication_time_slots || [];
+            expectedRecordsCount += timeSlots.length;
+          }
+        });
+      });
+
+      console.log('預期記錄數量:', expectedRecordsCount);
+
+      // 查詢當周實際存在的記錄數量
+      const { data: existingRecords, error } = await supabase
+        .from('medication_workflow_records')
+        .select('id', { count: 'exact' })
+        .eq('patient_id', patientIdNum)
+        .gte('scheduled_date', weekDates[0])
+        .lte('scheduled_date', weekDates[6]);
+
+      if (error) {
+        console.error('查詢現有記錄失敗:', error);
+        return { complete: false, shouldGenerate: false };
+      }
+
+      const actualRecordsCount = existingRecords?.length || 0;
+      console.log('實際記錄數量:', actualRecordsCount);
+
+      const isComplete = actualRecordsCount >= expectedRecordsCount;
+      console.log('完整性檢查結果:', isComplete ? '完整' : '不完整');
+
+      return { complete: isComplete, shouldGenerate: !isComplete && expectedRecordsCount > 0 };
+    } catch (error) {
+      console.error('檢查工作流程完整性失敗:', error);
+      return { complete: false, shouldGenerate: false };
+    }
+  };
+
+  // 自動生成當周工作流程記錄
+  const autoGenerateWeekWorkflow = async (patientIdNum: number, weekDates: string[]) => {
+    try {
+      console.log('=== 開始自動生成當周工作流程 ===');
+      console.log('院友ID:', patientIdNum);
+      console.log('生成週期:', weekDates[0], '至', weekDates[6]);
+
+      const startDate = weekDates[0];
+      const endDate = weekDates[6];
+
+      const result = await generateBatchWorkflowRecords(startDate, endDate, patientIdNum);
+
+      if (result.success) {
+        console.log('✓ 自動生成完成:', result.message);
+        console.log('生成記錄數:', result.totalRecords);
+
+        // 重新載入數據
+        for (const date of weekDates) {
+          await fetchPrescriptionWorkflowRecords(patientIdNum, date);
+        }
+      } else {
+        console.warn('自動生成失敗:', result.message);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('自動生成工作流程失敗:', error);
+      return { success: false, message: '自動生成失敗', totalRecords: 0 };
+    }
+  };
+
   // 按床號排序的在住院友列表
   const sortedActivePatients = useMemo(() => {
     return patients
@@ -442,6 +541,48 @@ const MedicationWorkflow: React.FC = () => {
       setSelectedPatientId(sortedActivePatients[0].院友id.toString());
     }
   }, [selectedPatientId, sortedActivePatients]);
+
+  // 自動檢測並生成當周工作流程
+  useEffect(() => {
+    const checkAndGenerateWorkflow = async () => {
+      if (!selectedPatientId || autoGenerationChecked || weekDates.length === 0) {
+        return;
+      }
+
+      const patientIdNum = parseInt(selectedPatientId);
+      if (isNaN(patientIdNum)) {
+        return;
+      }
+
+      // 等待處方數據載入完成
+      if (prescriptions.length === 0) {
+        return;
+      }
+
+      console.log('\n====================================');
+      console.log('自動檢測當周工作流程記錄');
+      console.log('====================================');
+
+      const { complete, shouldGenerate } = await checkWeekWorkflowCompleteness(patientIdNum, weekDates);
+
+      if (shouldGenerate) {
+        console.log('檢測到當周工作流程不完整，開始自動生成...');
+        await autoGenerateWeekWorkflow(patientIdNum, weekDates);
+      } else if (complete) {
+        console.log('當周工作流程記錄已完整，無需生成');
+      }
+
+      setAutoGenerationChecked(true);
+      console.log('====================================\n');
+    };
+
+    checkAndGenerateWorkflow();
+  }, [selectedPatientId, weekDates, prescriptions, autoGenerationChecked]);
+
+  // 當院友或日期改變時，重置自動生成標記
+  useEffect(() => {
+    setAutoGenerationChecked(false);
+  }, [selectedPatientId, selectedDate]);
 
   // 當 weekDates 或 patient 改變時，清空並重新載入一週記錄
   useEffect(() => {
@@ -499,29 +640,48 @@ const MedicationWorkflow: React.FC = () => {
     setSelectedPatientId(sortedActivePatients[nextIndex].院友id.toString());
   };
   
-  // 過濾處方：只顯示在選定日期有效的處方
+  // 獲取當周所有工作流程記錄涉及的處方ID
+  const weekPrescriptionIds = useMemo(() => {
+    const ids = new Set<string>();
+    allWorkflowRecords.forEach(record => {
+      ids.add(record.prescription_id);
+    });
+    return ids;
+  }, [allWorkflowRecords]);
+
+  // 過濾處方：顯示在服處方 + 停用但在當周有工作流程記錄的處方
   const activePrescriptions = prescriptions.filter(p => {
-    if (p.patient_id.toString() !== selectedPatientId || p.status !== 'active') {
+    if (p.patient_id.toString() !== selectedPatientId) {
       return false;
     }
 
-    const selectedDateObj = new Date(selectedDate);
-    const startDate = new Date(p.start_date);
+    // 如果是在服處方，檢查日期有效性
+    if (p.status === 'active') {
+      const selectedDateObj = new Date(selectedDate);
+      const startDate = new Date(p.start_date);
 
-    // 檢查是否在開始日期之前
-    if (selectedDateObj < startDate) {
-      return false;
-    }
-
-    // 檢查是否在結束日期之後
-    if (p.end_date) {
-      const endDate = new Date(p.end_date);
-      if (selectedDateObj > endDate) {
+      // 檢查是否在開始日期之前
+      if (selectedDateObj < startDate) {
         return false;
       }
+
+      // 檢查是否在結束日期之後
+      if (p.end_date) {
+        const endDate = new Date(p.end_date);
+        if (selectedDateObj > endDate) {
+          return false;
+        }
+      }
+
+      return true;
     }
 
-    return true;
+    // 如果是停用處方，檢查當周是否有相關工作流程記錄
+    if (p.status === 'inactive') {
+      return weekPrescriptionIds.has(p.id);
+    }
+
+    return false;
   });
 
   // 根據備藥方式過濾處方
@@ -577,7 +737,6 @@ const MedicationWorkflow: React.FC = () => {
 
     if (!selectedPatientId) {
       console.error('缺少必要的院友ID:', { selectedPatientId });
-      alert('請先選擇院友');
       return;
     }
 
@@ -585,7 +744,6 @@ const MedicationWorkflow: React.FC = () => {
     const patientIdNum = parseInt(selectedPatientId);
     if (isNaN(patientIdNum)) {
       console.error('無效的院友ID:', selectedPatientId);
-      alert('請選擇有效的院友');
       return;
     }
 
@@ -620,7 +778,6 @@ const MedicationWorkflow: React.FC = () => {
     const patientIdNum = parseInt(selectedPatientId);
     if (isNaN(patientIdNum)) {
       console.error('無效的院友ID:', selectedPatientId);
-      alert('請選擇有效的院友');
       return;
     }
 
@@ -631,7 +788,6 @@ const MedicationWorkflow: React.FC = () => {
       await revertPrescriptionWorkflowStep(recordId, step as any, patientIdNum, record.scheduled_date);
     } catch (error) {
       console.error(`撤銷${step}失敗:`, error);
-      alert(`撤銷失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
   };
 
@@ -738,7 +894,6 @@ const MedicationWorkflow: React.FC = () => {
     const patientIdNum = parseInt(selectedPatientId);
     if (isNaN(patientIdNum)) {
       console.error('無效的院友ID:', selectedPatientId);
-      alert('請選擇有效的院友');
       return;
     }
 
@@ -807,7 +962,6 @@ const MedicationWorkflow: React.FC = () => {
       }
     } catch (error) {
       console.error(`執行${step}失敗:`, error);
-      alert(`執行失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
   };
 
@@ -832,7 +986,7 @@ const MedicationWorkflow: React.FC = () => {
     return patient?.is_hospitalized || false;
   };
 
-  // 一鍵執藥（僅當日）
+  // 一鍵執藥（僅當日）- 優化並行處理
   const handleOneClickPrepare = async () => {
     if (!selectedPatientId || !selectedDate) {
       return;
@@ -846,6 +1000,7 @@ const MedicationWorkflow: React.FC = () => {
     setOneClickProcessing(prev => ({ ...prev, preparation: true }));
 
     try {
+      console.log('=== 一鍵執藥開始 ===');
       // 找到所有待執藥的記錄（排除即時備藥）
       const pendingPreparationRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
@@ -853,34 +1008,37 @@ const MedicationWorkflow: React.FC = () => {
       });
 
       if (pendingPreparationRecords.length === 0) {
+        console.log('沒有需要執藥的記錄');
         return;
       }
 
-      let successCount = 0;
-      let failCount = 0;
+      console.log(`找到 ${pendingPreparationRecords.length} 筆待執藥記錄`);
 
-      for (const record of pendingPreparationRecords) {
-        try {
-          await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
-          successCount++;
-        } catch (error) {
-          console.error(`執藥失敗 (記錄ID: ${record.id}):`, error);
-          failCount++;
+      // 並行處理所有執藥操作
+      const results = await Promise.allSettled(
+        pendingPreparationRecords.map(record =>
+          prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate)
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`一鍵執藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`執藥失敗 (記錄ID: ${pendingPreparationRecords[index].id}):`, result.reason);
         }
-      }
-
-      if (failCount > 0) {
-        alert(`一鍵執藥部分完成：成功 ${successCount} 筆，失敗 ${failCount} 筆`);
-      }
+      });
     } catch (error) {
       console.error('一鍵執藥失敗:', error);
-      alert(`一鍵執藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     } finally {
       setOneClickProcessing(prev => ({ ...prev, preparation: false }));
     }
   };
 
-  // 一鍵核藥（僅當日）
+  // 一鍵核藥（僅當日）- 優化並行處理
   const handleOneClickVerify = async () => {
     if (!selectedPatientId || !selectedDate) {
       return;
@@ -894,38 +1052,42 @@ const MedicationWorkflow: React.FC = () => {
     setOneClickProcessing(prev => ({ ...prev, verification: true }));
 
     try {
+      console.log('=== 一鍵核藥開始 ===');
       // 找到所有待核藥且執藥已完成的記錄（排除即時備藥）
       const pendingVerificationRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
-        return r.verification_status === 'pending' && 
-               r.preparation_status === 'completed' && 
+        return r.verification_status === 'pending' &&
+               r.preparation_status === 'completed' &&
                prescription?.preparation_method !== 'immediate';
       });
 
       if (pendingVerificationRecords.length === 0) {
+        console.log('沒有需要核藥的記錄');
         return;
       }
 
-      let successCount = 0;
-      let failCount = 0;
+      console.log(`找到 ${pendingVerificationRecords.length} 筆待核藥記錄`);
 
-      for (const record of pendingVerificationRecords) {
-        try {
-          await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
-          successCount++;
-        } catch (error) {
-          console.error(`核藥失敗 (記錄ID: ${record.id}):`, error);
-          failCount++;
+      // 並行處理所有核藥操作
+      const results = await Promise.allSettled(
+        pendingVerificationRecords.map(record =>
+          verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate)
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`一鍵核藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`核藥失敗 (記錄ID: ${pendingVerificationRecords[index].id}):`, result.reason);
         }
-      }
-
-      if (failCount > 0) {
-        alert(`一鍵核藥部分完成：成功 ${successCount} 筆，失敗 ${failCount} 筆`);
-      }
+      });
     } catch (error) {
       console.error('一鍵核藥失敗:', error);
-      alert(`一鍵核藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-    } finally { 
+    } finally {
       setOneClickProcessing(prev => ({ ...prev, verification: false }));
     }
   };
@@ -949,7 +1111,7 @@ const MedicationWorkflow: React.FC = () => {
     return true;
   };
 
-  // 一鍵派藥（即時備藥+口服+無檢測項）
+  // 一鍵派藥（即時備藥+口服+無檢測項）- 優化並行處理
   const handleOneClickDispenseSpecial = async () => {
     if (!selectedPatientId || !selectedDate) {
       return;
@@ -963,6 +1125,7 @@ const MedicationWorkflow: React.FC = () => {
     setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
 
     try {
+      console.log('=== 一鍵全程開始 ===');
       // 找到符合一鍵派藥條件的記錄
       const eligibleRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
@@ -970,15 +1133,15 @@ const MedicationWorkflow: React.FC = () => {
       });
 
       if (eligibleRecords.length === 0) {
+        console.log('沒有符合一鍵全程條件的記錄');
         return;
       }
 
-      let successCount = 0;
-      let failCount = 0;
-      let hospitalizedCount = 0;
+      console.log(`找到 ${eligibleRecords.length} 筆符合條件的記錄`);
 
-      for (const record of eligibleRecords) {
-        try {
+      // 並行處理所有記錄
+      const results = await Promise.allSettled(
+        eligibleRecords.map(async (record) => {
           // 檢查此筆記錄的服藥時間是否在入院期間
           const inHospitalizationPeriod = isInHospitalizationPeriod(
             patientIdNum,
@@ -993,26 +1156,34 @@ const MedicationWorkflow: React.FC = () => {
           if (inHospitalizationPeriod) {
             // 如果服藥時間在入院期間，自動標記為「入院」失敗原因
             await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
-            hospitalizedCount++;
+            return { type: 'hospitalized' };
           } else {
             // 正常派藥
             await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
-            successCount++;
+            return { type: 'success' };
           }
-        } catch (error) {
-          console.error(`一鍵全程失敗 (記錄ID: ${record.id}):`, error);
-          failCount++;
+        })
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'success').length;
+      const hospitalizedCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'hospitalized').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`一鍵全程完成: 成功 ${successCount} 筆, 入院 ${hospitalizedCount} 筆, 失敗 ${failCount} 筆`);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`一鍵全程失敗 (記錄ID: ${eligibleRecords[index].id}):`, result.reason);
         }
-      }
+      });
     } catch (error) {
       console.error('一鍵全程失敗:', error);
-      alert(`一鍵全程失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     } finally {
       setOneClickProcessing(prev => ({ ...prev, dispensing: false }));
     }
   };
 
-  // 一鍵派藥（僅當日）
+  // 一鍵派藥（僅當日）- 優化並行處理
   const handleOneClickDispense = async () => {
     if (!selectedPatientId || !selectedDate) {
       return;
@@ -1026,6 +1197,7 @@ const MedicationWorkflow: React.FC = () => {
     setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
 
     try {
+      console.log('=== 一鍵派藥開始 ===');
       // 找到所有待派藥的記錄
       const pendingDispensingRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
@@ -1052,15 +1224,15 @@ const MedicationWorkflow: React.FC = () => {
       });
 
       if (pendingDispensingRecords.length === 0) {
+        console.log('沒有需要派藥的記錄');
         return;
       }
 
-      let successCount = 0;
-      let failCount = 0;
-      let hospitalizedCount = 0;
+      console.log(`找到 ${pendingDispensingRecords.length} 筆待派藥記錄`);
 
-      for (const record of pendingDispensingRecords) {
-        try {
+      // 並行處理所有派藥操作
+      const results = await Promise.allSettled(
+        pendingDispensingRecords.map(async (record) => {
           const prescription = prescriptions.find(p => p.id === record.prescription_id);
           const hasInspectionRules = prescription?.inspection_rules && prescription.inspection_rules.length > 0;
 
@@ -1090,20 +1262,28 @@ const MedicationWorkflow: React.FC = () => {
               undefined,
               inspectionResult
             );
-            hospitalizedCount++;
+            return { type: 'hospitalized' };
           } else {
             // 正常派藥（無檢測項要求）
             await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
-            successCount++;
+            return { type: 'success' };
           }
-        } catch (error) {
-          console.error(`派藥失敗 (記錄ID: ${record.id}):`, error);
-          failCount++;
+        })
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'success').length;
+      const hospitalizedCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'hospitalized').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`一鍵派藥完成: 成功 ${successCount} 筆, 入院 ${hospitalizedCount} 筆, 失敗 ${failCount} 筆`);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`派藥失敗 (記錄ID: ${pendingDispensingRecords[index].id}):`, result.reason);
         }
-      }
+      });
     } catch (error) {
       console.error('一鍵派藥失敗:', error);
-      alert(`一鍵派藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     } finally {
       setOneClickProcessing(prev => ({ ...prev, dispensing: false }));
     }
@@ -1122,7 +1302,6 @@ const MedicationWorkflow: React.FC = () => {
     const patientIdNum = parseInt(selectedPatientId);
     if (isNaN(patientIdNum)) {
       console.error('無效的院友ID:', selectedPatientId);
-      alert('請選擇有效的院友');
       return;
     }
 
@@ -1151,7 +1330,6 @@ const MedicationWorkflow: React.FC = () => {
       }
     } catch (error) {
       console.error('檢測後處理失敗:', error);
-      alert(`處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
   };
 
@@ -1161,7 +1339,7 @@ const MedicationWorkflow: React.FC = () => {
 
     const patientIdNum = parseInt(selectedPatientId);
     if (isNaN(patientIdNum)) {
-      alert('請選擇有效的院友');
+      console.error('無效的院友ID:', selectedPatientId);
       return;
     }
 
@@ -1187,7 +1365,6 @@ const MedicationWorkflow: React.FC = () => {
       setShowDispenseConfirmModal(true);
     } catch (error) {
       console.error('處理注射位置失敗:', error);
-      alert(`處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
   };
 
@@ -1204,7 +1381,6 @@ const MedicationWorkflow: React.FC = () => {
     const patientIdNum = parseInt(selectedPatientId);
     if (isNaN(patientIdNum)) {
       console.error('無效的院友ID:', selectedPatientId);
-      alert('請選擇有效的院友');
       return;
     }
 
@@ -1270,7 +1446,6 @@ const MedicationWorkflow: React.FC = () => {
       setCurrentInjectionRecord(null);
     } catch (error) {
       console.error('派藥確認失敗:', error);
-      alert(`派藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
   };
 
@@ -1292,16 +1467,17 @@ const MedicationWorkflow: React.FC = () => {
     }
   };
 
-  // 生成今日工作流程記錄
+  // 生成今日工作流程記錄（手動觸發）
   const handleGenerateWorkflow = async () => {
     const patientIdNum = parseInt(selectedPatientId);
     if (!selectedPatientId || selectedPatientId === '' || isNaN(patientIdNum)) {
-      alert('請先選擇院友');
+      console.warn('請先選擇院友');
       return;
     }
 
     setGenerating(true);
     try {
+      console.log('=== 手動生成本週工作流程 ===');
       // 生成整週的工作流程（從週日到週六，共7天）
       const startDate = weekDates[0];
       const endDate = weekDates[6];
@@ -1309,15 +1485,17 @@ const MedicationWorkflow: React.FC = () => {
       const result = await generateBatchWorkflowRecords(startDate, endDate, patientIdNum);
 
       if (result.success) {
-        alert(`${result.message}\n\n生成了 ${result.totalRecords} 筆工作流程記錄`);
+        console.log('✓ 生成成功:', result.message);
+        console.log('生成記錄數:', result.totalRecords);
         // 重新載入數據
-        await fetchPrescriptionWorkflowRecords(patientIdNum, selectedDate);
+        for (const date of weekDates) {
+          await fetchPrescriptionWorkflowRecords(patientIdNum, date);
+        }
       } else {
-        alert(`生成失敗: ${result.message}`);
+        console.error('生成失敗:', result.message);
       }
     } catch (error) {
       console.error('生成工作流程記錄失敗:', error);
-      alert('生成工作流程記錄失敗，請重試');
     } finally {
       setGenerating(false);
     }
