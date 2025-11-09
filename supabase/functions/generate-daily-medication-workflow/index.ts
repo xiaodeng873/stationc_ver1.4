@@ -94,47 +94,99 @@ Deno.serve(async (req: Request) => {
     console.log(`找到 ${prescriptions?.length || 0} 個在服處方`);
 
     const workflowRecords: WorkflowRecord[] = [];
-    const targetDateObj = new Date(targetDate);
+    // 修正：使用本地日期避免時區問題
+    const [year, month, day] = targetDate.split('-').map(Number);
+    const targetDateObj = new Date(year, month - 1, day);
+
+    console.log(`目標日期字串: ${targetDate}`);
+    console.log(`目標日期物件: ${targetDateObj.toISOString()}`);
+    console.log(`目標日期本地: ${targetDateObj.getFullYear()}-${(targetDateObj.getMonth() + 1).toString().padStart(2, '0')}-${targetDateObj.getDate().toString().padStart(2, '0')}`);
 
     // 為每個處方生成工作流程記錄
     for (const prescription of prescriptions || []) {
+      console.log(`\n========== 處理處方: ${prescription.medication_name} (ID: ${prescription.id}) ==========`);
+      console.log(`院友ID: ${prescription.patient_id}`);
+      console.log(`頻率類型: ${prescription.frequency_type}`);
+      console.log(`頻率值: ${prescription.frequency_value}`);
+      console.log(`特定星期: ${JSON.stringify(prescription.specific_weekdays)}`);
+      console.log(`單雙日: ${prescription.is_odd_even_day}`);
+      console.log(`時間槽: ${JSON.stringify(prescription.medication_time_slots)}`);
+      console.log(`開始日期: ${prescription.start_date}`);
+      console.log(`結束日期: ${prescription.end_date || '無'}`);
+
       // 檢查處方是否在目標日期有效
-      const startDate = new Date(prescription.start_date);
-      const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
+      // 修正：解析日期字串為本地日期，避免時區問題
+      const [startYear, startMonth, startDay] = prescription.start_date.split('-').map(Number);
+      const startDate = new Date(startYear, startMonth - 1, startDay);
+
+      let endDate: Date | null = null;
+      if (prescription.end_date) {
+        const [endYear, endMonth, endDay] = prescription.end_date.split('-').map(Number);
+        endDate = new Date(endYear, endMonth - 1, endDay);
+      }
+
+      console.log(`開始日期物件: ${startDate.toISOString()}`);
+      console.log(`結束日期物件: ${endDate ? endDate.toISOString() : '無'}`);
+
+      // 使用日期字串比較，更準確
+      const targetDateStr = targetDate;
+      const startDateStr = prescription.start_date;
+      const endDateStr = prescription.end_date;
+
+      console.log(`日期比較 (字串): 目標=${targetDateStr}, 開始=${startDateStr}, 結束=${endDateStr || '無'}`);
 
       // 檢查是否在開始日期之前
-      if (targetDateObj < startDate) {
-        console.log(`處方 ${prescription.medication_name} 尚未開始 (開始日期: ${prescription.start_date})`);
+      if (targetDateStr < startDateStr) {
+        console.log(`❌ 跳過：處方尚未開始 (${targetDateStr} < ${startDateStr})`);
         continue;
       }
 
       // 檢查是否在結束日期之後（等於結束日期當天仍然有效）
-      if (endDate && targetDateObj > endDate) {
-        console.log(`處方 ${prescription.medication_name} 已結束 (結束日期: ${prescription.end_date})`);
+      if (endDateStr && targetDateStr > endDateStr) {
+        console.log(`❌ 跳過：處方已結束 (${targetDateStr} > ${endDateStr})`);
         continue;
       }
 
+      console.log(`✓ 日期有效性檢查通過`);
+
       // 根據頻率類型判斷是否需要在目標日期服藥
       const shouldTakeMedication = checkMedicationSchedule(prescription, targetDateObj);
-      
+      console.log(`頻率判斷結果: ${shouldTakeMedication ? '✓ 需要服藥' : '❌ 不需要服藥'}`);
+
       if (!shouldTakeMedication) {
+        console.log(`❌ 跳過：根據頻率判斷，今日不需要服藥`);
         continue;
       }
 
       // 為每個服用時間點生成記錄
       const timeSlots = prescription.medication_time_slots || [];
-      
+      console.log(`時間槽數量: ${timeSlots.length}`);
+
+      if (timeSlots.length === 0) {
+        console.log(`⚠️ 警告：此處方沒有設定時間槽！`);
+        continue;
+      }
+
       for (const timeSlot of timeSlots) {
+        console.log(`  處理時間槽: ${timeSlot}`);
+
         // 檢查是否已存在記錄
-        const { data: existingRecord } = await supabase
+        const { data: existingRecord, error: checkError } = await supabase
           .from('medication_workflow_records')
           .select('id')
           .eq('prescription_id', prescription.id)
           .eq('scheduled_date', targetDate)
           .eq('scheduled_time', timeSlot)
-          .single();
+          .maybeSingle();
 
-        if (!existingRecord) {
+        if (checkError) {
+          console.log(`  ⚠️ 檢查現有記錄時發生錯誤: ${checkError.message}`);
+        }
+
+        if (existingRecord) {
+          console.log(`  ⏭️  跳過：記錄已存在 (ID: ${existingRecord.id})`);
+        } else {
+          console.log(`  ✓ 準備生成新記錄`);
           workflowRecords.push({
             patient_id: prescription.patient_id,
             prescription_id: prescription.id,
@@ -146,6 +198,7 @@ Deno.serve(async (req: Request) => {
           });
         }
       }
+      console.log(`========== 完成處理: ${prescription.medication_name} ==========\n`);
     }
 
     console.log(`準備插入 ${workflowRecords.length} 筆工作流程記錄`);
@@ -204,41 +257,60 @@ function checkMedicationSchedule(prescription: Prescription, targetDate: Date): 
   const { frequency_type, frequency_value, specific_weekdays, is_odd_even_day } = prescription;
   const startDate = new Date(prescription.start_date);
 
+  console.log(`  [頻率檢查] 類型: ${frequency_type}`);
+
   // 注意：日期有效性檢查已在主函數中完成，這裡只檢查頻率邏輯
 
   switch (frequency_type) {
     case 'daily':
+      console.log(`  [頻率檢查] 每日服 -> 返回 true`);
       return true; // 每日服
 
     case 'every_x_days':
-      // 隔X日服
-      const daysDiff = Math.floor((targetDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      return daysDiff % (frequency_value || 1) === 0;
+      // 隔X日服 - 修正：使用UTC日期避免時區問題
+      const targetDateOnly = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+      const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      const daysDiff = Math.floor((targetDateOnly.getTime() - startDateOnly.getTime()) / (1000 * 60 * 60 * 24));
+      const interval = frequency_value || 1;
+      const shouldTake = daysDiff % interval === 0;
+      console.log(`  [頻率檢查] 隔${interval}日服 - 日期差: ${daysDiff}, 應服藥: ${shouldTake}`);
+      return shouldTake;
 
     case 'weekly_days':
       // 逢星期X服
       const dayOfWeek = targetDate.getDay(); // 0=週日, 1=週一, ..., 6=週六
       const targetDay = dayOfWeek === 0 ? 7 : dayOfWeek; // 轉換為 1-7 格式
-      return specific_weekdays?.includes(targetDay) || false;
+      const result = specific_weekdays?.includes(targetDay) || false;
+      console.log(`  [頻率檢查] 逢星期${targetDay}服 - 指定星期: ${JSON.stringify(specific_weekdays)}, 結果: ${result}`);
+      return result;
 
     case 'odd_even_days':
       // 單日/雙日服
       const dateNumber = targetDate.getDate();
+      let oddEvenResult = false;
       if (is_odd_even_day === 'odd') {
-        return dateNumber % 2 === 1; // 單日
+        oddEvenResult = dateNumber % 2 === 1; // 單日
+        console.log(`  [頻率檢查] 單日服 - 日期: ${dateNumber}, 結果: ${oddEvenResult}`);
       } else if (is_odd_even_day === 'even') {
-        return dateNumber % 2 === 0; // 雙日
+        oddEvenResult = dateNumber % 2 === 0; // 雙日
+        console.log(`  [頻率檢查] 雙日服 - 日期: ${dateNumber}, 結果: ${oddEvenResult}`);
+      } else {
+        console.log(`  [頻率檢查] 單雙日服設定錯誤: ${is_odd_even_day}`);
       }
-      return false;
+      return oddEvenResult;
 
     case 'every_x_months':
       // 隔X月服
-      const monthsDiff = (targetDate.getFullYear() - startDate.getFullYear()) * 12 + 
+      const monthsDiff = (targetDate.getFullYear() - startDate.getFullYear()) * 12 +
                         (targetDate.getMonth() - startDate.getMonth());
-      return monthsDiff % (frequency_value || 1) === 0 && 
+      const monthInterval = frequency_value || 1;
+      const monthResult = monthsDiff % monthInterval === 0 &&
              targetDate.getDate() === startDate.getDate();
+      console.log(`  [頻率檢查] 隔${monthInterval}月服 - 月份差: ${monthsDiff}, 日期匹配: ${targetDate.getDate() === startDate.getDate()}, 結果: ${monthResult}`);
+      return monthResult;
 
     default:
+      console.log(`  [頻率檢查] 未知類型或無設定 -> 返回 true (預設需要服藥)`);
       return true; // 預設為需要服藥
   }
 }
