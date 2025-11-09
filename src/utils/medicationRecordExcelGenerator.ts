@@ -996,11 +996,24 @@ const fillWorkflowRecordsForPage = (
         const isWithinRange = isDateInPrescriptionRange(dateStr, timeSlot, prescription);
 
         if (!isWithinRange) {
+          // 填充灰色背景
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
             fgColor: { argb: 'FFD3D3D3' }
           };
+          // 移除斜線格式
+          if (cell.border) {
+            cell.border = {
+              top: cell.border.top,
+              left: cell.border.left,
+              bottom: cell.border.bottom,
+              right: cell.border.right,
+              diagonal: undefined,
+              diagonalUp: false,
+              diagonalDown: false
+            };
+          }
           continue;
         }
 
@@ -1038,8 +1051,22 @@ const fillWorkflowRecordsForPage = (
         console.log(`[執核內容] 單元格 ${cellAddress}: "${content}"`);
 
         if (content) {
+          // 如果是特殊執行結果 (A, S, R, O, HL)，先清除斜線格式
+          const isSpecialCode = ['A', 'S', 'R', 'O', 'HL'].includes(content);
+          if (isSpecialCode && cell.border) {
+            // 保留其他邊框，移除對角線邊框
+            cell.border = {
+              top: cell.border.top,
+              left: cell.border.left,
+              bottom: cell.border.bottom,
+              right: cell.border.right,
+              diagonal: undefined,
+              diagonalUp: false,
+              diagonalDown: false
+            };
+          }
           cell.value = content;
-          console.log(`  [執核派] 寫入單元格 ${cellAddress}: "${content}"`);
+          console.log(`  [執核派] 寫入單元格 ${cellAddress}: "${content}"${isSpecialCode ? ' (已清除斜線)' : ''}`);
         } else {
           console.log(`  [警告] 單元格 ${cellAddress}: 執核內容為空`);
         }
@@ -1066,11 +1093,15 @@ const fillWorkflowRecordsForPage = (
       // 檢查該時間點是否有任何處方成功派藥
       let hasDispensed = false;
       let dispenseContent = '';
+      let shouldBeGray = true; // 預設為灰色，直到找到一個在範圍內的處方
 
       for (const prescription of pagePrescriptions) {
         if (!(prescription.medication_time_slots || []).includes(timeSlot)) continue;
 
         const isWithinRange = isDateInPrescriptionRange(dateStr, timeSlot, prescription);
+        if (isWithinRange) {
+          shouldBeGray = false; // 至少有一個處方在範圍內
+        }
         if (!isWithinRange) continue;
 
         const isSelfCare = prescription.preparation_method === 'custom';
@@ -1115,13 +1146,47 @@ const fillWorkflowRecordsForPage = (
       }
 
       if (hasDispensed) {
+        // 如果是特殊執行結果 (A, S, R, O, HL)，先清除斜線格式
+        const isSpecialCode = ['A', 'S', 'R', 'O', 'HL'].includes(dispenseContent);
+        if (isSpecialCode && cell.border) {
+          // 保留其他邊框，移除對角線邊框
+          cell.border = {
+            top: cell.border.top,
+            left: cell.border.left,
+            bottom: cell.border.bottom,
+            right: cell.border.right,
+            diagonal: undefined,
+            diagonalUp: false,
+            diagonalDown: false
+          };
+        }
         cell.value = dispenseContent;
+      } else if (shouldBeGray) {
+        // 如果所有處方都不在範圍內，填充灰色背景
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFD3D3D3' }
+        };
+        // 移除斜線格式
+        if (cell.border) {
+          cell.border = {
+            top: cell.border.top,
+            left: cell.border.left,
+            bottom: cell.border.bottom,
+            right: cell.border.right,
+            diagonal: undefined,
+            diagonalUp: false,
+            diagonalDown: false
+          };
+        }
       }
     }
   });
 };
 
 // 判斷日期和時間是否在處方有效範圍內
+// 返回 true 表示在範圍內（不填灰色），返回 false 表示不在範圍內（填灰色）
 const isDateInPrescriptionRange = (
   dateStr: string,
   timeSlot: string,
@@ -1131,26 +1196,43 @@ const isDateInPrescriptionRange = (
   const startDate = prescription.start_date ? new Date(prescription.start_date) : null;
   const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
 
-  if (startDate && checkDate < startDate) {
-    const startTime = prescription.start_time || '00:00';
-    if (dateStr === prescription.start_date && timeSlot < startTime) {
-      return false;
-    }
+  // 處理開始時間（如果沒有設定，預設為 00:00）
+  const startTime = prescription.start_time || '00:00';
+  // 處理結束時間（如果沒有設定，預設為 23:59）
+  const endTime = prescription.end_time || '23:59';
+
+  // 檢查是否在開始日期之前
+  if (startDate) {
     if (checkDate < startDate) {
+      // 完全在開始日期之前
       return false;
+    }
+
+    // 如果是開始日期當天，需要檢查時間點
+    if (dateStr === prescription.start_date) {
+      // 比較時間點：如果服藥時間點早於開始時間，則不在範圍內
+      if (timeSlot < startTime) {
+        return false;
+      }
     }
   }
 
-  if (endDate && checkDate > endDate) {
-    return false;
-  }
-
-  if (endDate && dateStr === prescription.end_date) {
-    const endTime = prescription.end_time || '23:59';
-    if (timeSlot > endTime) {
+  // 檢查是否在結束日期之後
+  if (endDate) {
+    if (checkDate > endDate) {
+      // 完全在結束日期之後
       return false;
     }
+
+    // 如果是結束日期當天，需要檢查時間點
+    if (dateStr === prescription.end_date) {
+      // 比較時間點：如果服藥時間點晚於結束時間，則不在範圍內
+      if (timeSlot > endTime) {
+        return false;
+      }
+    }
   }
+  // 如果沒有結束日期，表示處方持續有效，不會因為日期過晚而變灰
 
   return true;
 };

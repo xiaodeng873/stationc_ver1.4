@@ -266,14 +266,27 @@ export const formatWorkflowCellContent = (
     return '';
   }
 
+  // 檢查是否有失敗狀態，返回特殊代號
   if (workflowRecord.preparation_status === 'failed' ||
       workflowRecord.verification_status === 'failed' ||
       workflowRecord.dispensing_status === 'failed') {
 
     const reason = workflowRecord.dispensing_failure_reason;
+    const customReason = workflowRecord.custom_failure_reason;
+
+    // 處理所有特殊執行結果
     if (reason === '入院') return 'A';
+    if (reason === '自理') return 'S';
     if (reason === '拒服') return 'R';
-    if (reason === '其他' && workflowRecord.custom_failure_reason === '暫停') return 'O';
+    if (reason === '暫停') return 'O';
+    if (reason === '回家渡假') return 'HL';
+
+    // 處理「其他」類別中的特殊情況
+    if (reason === '其他') {
+      if (customReason === '暫停') return 'O';
+      if (customReason === '回家渡假') return 'HL';
+      if (customReason === '自理') return 'S';
+    }
   }
 
   const prepStaffName = workflowRecord.preparation_staff;
@@ -325,11 +338,24 @@ export const formatDispenseCellContent = (
     return '';
   }
 
+  // 檢查派藥是否失敗，返回特殊代號
   if (workflowRecord.dispensing_status === 'failed') {
     const reason = workflowRecord.dispensing_failure_reason;
+    const customReason = workflowRecord.custom_failure_reason;
+
+    // 處理所有特殊執行結果
     if (reason === '入院') return 'A';
+    if (reason === '自理') return 'S';
     if (reason === '拒服') return 'R';
-    if (reason === '其他' && workflowRecord.custom_failure_reason === '暫停') return 'O';
+    if (reason === '暫停') return 'O';
+    if (reason === '回家渡假') return 'HL';
+
+    // 處理「其他」類別中的特殊情況
+    if (reason === '其他') {
+      if (customReason === '暫停') return 'O';
+      if (customReason === '回家渡假') return 'HL';
+      if (customReason === '自理') return 'S';
+    }
   }
 
   const dispenseStaffName = workflowRecord.dispensing_staff;
