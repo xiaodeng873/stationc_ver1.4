@@ -51,33 +51,11 @@ Deno.serve(async (req: Request) => {
 
     console.log(`生成日期 ${targetDate} 的藥物工作流程記錄${patientId ? ` (院友ID: ${patientId})` : ''}`);
 
-    // 先檢查並更新到期的在服處方
-    const { data: expiredPrescriptions } = await supabase
-      .from('new_medication_prescriptions')
-      .select('*')
-      .eq('status', 'active')
-      .not('end_date', 'is', null)
-      .lt('end_date', targetDate);
-
-    if (expiredPrescriptions && expiredPrescriptions.length > 0) {
-      console.log(`發現 ${expiredPrescriptions.length} 個已到期的在服處方，準備轉為停用`);
-
-      // 一次批量更新所有到期處方
-      for (const prescription of expiredPrescriptions) {
-        await supabase
-          .from('new_medication_prescriptions')
-          .update({ status: 'inactive' })
-          .eq('id', prescription.id);
-      }
-
-      console.log(`已將 ${expiredPrescriptions.length} 個到期處方轉為停用`);
-    }
-
-    // 查詢所有在服處方
+    // 查詢所有處方（不限狀態）
+    // 只要處方開始日期在目標日期之前或等於目標日期即可
     let prescriptionQuery = supabase
       .from('new_medication_prescriptions')
       .select('*')
-      .eq('status', 'active')
       .lte('start_date', targetDate);
 
     // 如果指定了院友ID，只查詢該院友的處方
@@ -91,7 +69,7 @@ Deno.serve(async (req: Request) => {
       throw new Error(`查詢處方失敗: ${prescriptionError.message}`);
     }
 
-    console.log(`找到 ${prescriptions?.length || 0} 個在服處方`);
+    console.log(`找到 ${prescriptions?.length || 0} 個處方（包含在服和停用）`);
 
     const workflowRecords: WorkflowRecord[] = [];
     // 修正：使用本地日期避免時區問題
@@ -106,6 +84,7 @@ Deno.serve(async (req: Request) => {
     for (const prescription of prescriptions || []) {
       console.log(`\n========== 處理處方: ${prescription.medication_name} (ID: ${prescription.id}) ==========`);
       console.log(`院友ID: ${prescription.patient_id}`);
+      console.log(`處方狀態: ${prescription.status === 'active' ? '在服' : prescription.status === 'inactive' ? '停用' : prescription.status}`);
       console.log(`頻率類型: ${prescription.frequency_type}`);
       console.log(`頻率值: ${prescription.frequency_value}`);
       console.log(`特定星期: ${JSON.stringify(prescription.specific_weekdays)}`);
@@ -141,14 +120,13 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      // 註解：移除結束日期檢查，容許為過去日期的處方生成工作流程記錄
-      // 這樣用戶可以為已經過期的處方補充歷史記錄
-      // if (endDateStr && targetDateStr > endDateStr) {
-      //   console.log(`❌ 跳過：處方已結束 (${targetDateStr} > ${endDateStr})`);
-      //   continue;
-      // }
+      // 檢查是否超過結束日期
+      if (endDateStr && targetDateStr > endDateStr) {
+        console.log(`❌ 跳過：目標日期超出處方有效期 (${targetDateStr} > ${endDateStr})`);
+        continue;
+      }
 
-      console.log(`✓ 日期有效性檢查通過（已開始，不檢查是否已結束）`);
+      console.log(`✓ 日期有效性檢查通過（在處方有效期內）`);
 
       // 根據頻率類型判斷是否需要在目標日期服藥
       const shouldTakeMedication = checkMedicationSchedule(prescription, targetDateObj);

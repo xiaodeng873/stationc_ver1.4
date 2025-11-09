@@ -17,46 +17,29 @@ export async function diagnoseWorkflowDisplayIssue(
   // 第1步：檢查處方數據（包含在服和停用處方）
   console.log('\n===== 第1步：檢查處方（包含在服和停用） =====');
 
-  // 先查詢在服處方
-  let activePrescQuery = supabase
+  // 查詢所有處方（不限狀態），只要開始日期在查詢期間內或之前
+  let prescQuery = supabase
     .from('new_medication_prescriptions')
     .select('*')
-    .eq('status', 'active')
     .lte('start_date', endDate);
 
   if (patientId) {
-    activePrescQuery = activePrescQuery.eq('patient_id', patientId);
+    prescQuery = prescQuery.eq('patient_id', patientId);
   }
 
-  const { data: activePrescriptions, error: activePrescError } = await activePrescQuery;
+  const { data: prescriptions, error: prescError } = await prescQuery;
 
-  if (activePrescError) {
-    console.error('❌ 查詢在服處方失敗:', activePrescError);
+  if (prescError) {
+    console.error('❌ 查詢處方失敗:', prescError);
     return;
   }
 
-  console.log(`✅ 找到 ${activePrescriptions?.length || 0} 個在服處方`);
+  const activePrescriptions = prescriptions?.filter(p => p.status === 'active') || [];
+  const inactivePrescriptions = prescriptions?.filter(p => p.status === 'inactive') || [];
 
-  // 查詢停用處方（可能在該週期內仍有記錄）
-  let inactivePrescQuery = supabase
-    .from('new_medication_prescriptions')
-    .select('*')
-    .eq('status', 'inactive');
-
-  if (patientId) {
-    inactivePrescQuery = inactivePrescQuery.eq('patient_id', patientId);
-  }
-
-  const { data: inactivePrescriptions, error: inactivePrescError } = await inactivePrescQuery;
-
-  if (inactivePrescError) {
-    console.error('❌ 查詢停用處方失敗:', inactivePrescError);
-  } else {
-    console.log(`✅ 找到 ${inactivePrescriptions?.length || 0} 個停用處方`);
-  }
-
-  // 合併處方列表
-  const prescriptions = [...(activePrescriptions || []), ...(inactivePrescriptions || [])];
+  console.log(`✅ 找到 ${prescriptions?.length || 0} 個處方`);
+  console.log(`  - 在服處方: ${activePrescriptions.length} 個`);
+  console.log(`  - 停用處方: ${inactivePrescriptions.length} 個`);
 
   // 分析每個處方的頻率設定
   prescriptions.forEach((p: any) => {
@@ -82,11 +65,11 @@ export async function diagnoseWorkflowDisplayIssue(
 
     // 對於停用處方，額外說明
     if (p.status === 'inactive') {
-      console.log(`  ⚠️ 注意: 此為停用處方，但在該期間可能仍有已生成的工作流程記錄`);
+      console.log(`  ℹ️ 此為停用處方，系統現在支援為其有效期內的日期生成工作流程記錄`);
     }
 
-    // 檢查每一天是否應該服藥（僅對在服處方或期間內有效的停用處方進行判斷）
-    if (p.status === 'active' || isValid) {
+    // 檢查每一天是否應該服藥（對所有在期間內有效的處方進行判斷）
+    if (isValid) {
       const dates = [];
       let currentDate = new Date(startDate);
       while (currentDate <= new Date(endDate)) {
@@ -220,16 +203,11 @@ export async function diagnoseWorkflowDisplayIssue(
     console.log(`處方 ${p.medication_name} (${statusLabel}):`);
     console.log(`  預期: ${prescExpected} 筆, 實際: ${actualCount} 筆 ${match}`);
 
-    // 對停用處方，如果有實際記錄但預期為0，特別說明
-    if (p.status === 'inactive' && prescExpected === 0 && actualCount > 0) {
-      console.log(`  ℹ️ 說明: 此停用處方在查詢期間不應有新記錄，但有${actualCount}筆已存在的記錄（可能是停用前生成的）`);
-    }
-
     expectedTotal += prescExpected;
   });
 
   console.log(`\n總計:`);
-  console.log(`  預期總記錄數: ${expectedTotal} (僅計算在服處方及期間內有效的停用處方)`);
+  console.log(`  預期總記錄數: ${expectedTotal} (計算所有處方在有效期內的記錄)`);
   console.log(`  實際總記錄數: ${records.length}`);
 
   // 更精確的匹配判斷
@@ -240,10 +218,11 @@ export async function diagnoseWorkflowDisplayIssue(
     console.log(`  匹配狀態: ✅ 完全匹配`);
   } else if (records.length > expectedTotal) {
     console.log(`  匹配狀態: ⚠️ 記錄數多於預期`);
-    console.log(`  ℹ️ 可能原因: 包含停用處方在停用前生成的記錄`);
+    console.log(`  ℹ️ 可能原因: 存在重複記錄或計算邏輯有誤`);
   } else {
     console.log(`  匹配狀態: ❌ 記錄數少於預期`);
     console.log(`  ℹ️ 可能原因: 工作流程記錄尚未生成或已被刪除`);
+    console.log(`  💡 提示: 請在藥物工作流程頁面使用「生成記錄」功能為缺失的日期補充記錄`);
   }
 
   console.log(`\n處方摘要:`);
