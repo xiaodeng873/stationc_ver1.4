@@ -807,22 +807,18 @@ const MedicationWorkflow: React.FC = () => {
         const weekEnd = new Date(weekDates[6]);
         const startDate = new Date(p.start_date);
 
-        // 檢查處方的開始日期是否在當前週範圍內或之前
-        // 只要處方已經開始，就顯示（不檢查是否已經結束）
-        // 這樣可以容許用戶查看和補充已過期處方的歷史記錄
-
-        // 如果處方開始日期在週結束日期之後，不顯示
+        // 處方必須在週結束日期之前或當天開始
         if (startDate > weekEnd) {
           return false;
         }
 
-        // 移除結束日期檢查，容許顯示已過期的處方
-        // if (p.end_date) {
-        //   const endDate = new Date(p.end_date);
-        //   if (endDate < weekStart) {
-        //     return false;
-        //   }
-        // }
+        // 如果有結束日期，處方必須在週開始日期之後或當天結束
+        if (p.end_date) {
+          const endDate = new Date(p.end_date);
+          if (endDate < weekStart) {
+            return false;
+          }
+        }
 
         return true;
     }
@@ -832,6 +828,7 @@ const MedicationWorkflow: React.FC = () => {
         return weekPrescriptionIds.has(p.id);
       }
 
+      // 其他狀態（如 pending_change）不顯示
       return false;
     });
 
