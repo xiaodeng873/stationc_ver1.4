@@ -152,11 +152,12 @@ const PrescriptionTransferModal: React.FC<PrescriptionTransferModalProps> = ({
       // 如果是轉為在服處方且有衝突，處理現有處方
       if (finalTargetStatus === 'active' && comparisonResult?.existingPrescription) {
         if (selectedAction === 'replace') {
-          // 將現有處方轉為停用
+          // 將現有處方轉為停用，設定結束日期和時間為當前系統時間
           await updatePrescription({
             ...comparisonResult.existingPrescription,
             status: 'inactive',
-            end_date: getHongKongDate() // 設定今天為結束日期
+            end_date: getHongKongDate(),
+            end_time: getHongKongTime()
           });
         }
         // 如果選擇保留兩者，不需要額外操作
@@ -176,6 +177,12 @@ const PrescriptionTransferModal: React.FC<PrescriptionTransferModalProps> = ({
     const now = new Date();
     const hongKongTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
     return hongKongTime.toISOString().split('T')[0];
+  };
+
+  const getHongKongTime = () => {
+    const now = new Date();
+    const hongKongTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+    return hongKongTime.toISOString().split('T')[1].substring(0, 8); // HH:MM:SS
   };
 
   const handleInitiateTransfer = () => {

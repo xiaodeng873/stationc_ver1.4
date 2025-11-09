@@ -698,7 +698,7 @@ const PrescriptionManagement: React.FC = () => {
               </div>
               
               <div className="flex-1">
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   {/* 基本資訊 */}
                   <div>
                     <PatientTooltip patient={currentPatient.patient}>
@@ -1257,9 +1257,6 @@ const IntegratedPrescriptionCard: React.FC<IntegratedPrescriptionCardProps> = ({
               </div>
               <div className="text-sm text-gray-600">
                 已選擇 {selectedInCurrentView.length} / {currentPrescriptions.length} 個處方
-                {isPartiallySelected && (
-                  <span className="ml-2 text-blue-600">(部分選中)</span>
-                )}
               </div>
             </div>
           </div>
