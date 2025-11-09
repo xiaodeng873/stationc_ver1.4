@@ -1798,7 +1798,9 @@ const MedicationWorkflow: React.FC = () => {
 
       if (result) {
         console.log('\n📊 診斷結果摘要:');
-        console.log('處方數量:', result.prescriptions.length);
+        console.log('處方總數:', result.prescriptions.length);
+        console.log('  - 在服處方:', result.activePrescCount);
+        console.log('  - 停用處方:', result.inactivePrescCount);
         console.log('數據庫記錄數:', result.actualTotal);
         console.log('預期記錄數:', result.expectedTotal);
         console.log('本地記錄數:', allWorkflowRecords.length);
@@ -1809,10 +1811,13 @@ const MedicationWorkflow: React.FC = () => {
           console.warn('⚠️ 本地記錄與數據庫不同步！');
           console.warn(`本地: ${allWorkflowRecords.length} 筆, 數據庫: ${result.actualTotal} 筆`);
           alert(`診斷完成！\n\n發現數據不同步:\n本地記錄: ${allWorkflowRecords.length} 筆\n數據庫記錄: ${result.actualTotal} 筆\n\n建議點擊「刷新」按鈕重新載入數據。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+        } else if (result.actualTotal > result.expectedTotal && result.inactivePrescCount > 0) {
+          // 記錄數多於預期，且有停用處方
+          alert(`診斷完成！\n\n處方統計:\n- 在服處方: ${result.activePrescCount} 個\n- 停用處方: ${result.inactivePrescCount} 個\n\n記錄統計:\n- 預期記錄: ${result.expectedTotal} 筆\n- 實際記錄: ${result.actualTotal} 筆\n\n⚠️ 記錄數多於預期，可能包含停用處方在停用前生成的記錄。\n這是正常情況，停用處方的歷史記錄會繼續顯示。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
         } else if (!result.isMatched) {
-          alert(`診斷完成！\n\n預期記錄數: ${result.expectedTotal} 筆\n實際記錄數: ${result.actualTotal} 筆\n\n記錄數不匹配，可能需要重新生成工作流程。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          alert(`診斷完成！\n\n處方統計:\n- 在服處方: ${result.activePrescCount} 個\n- 停用處方: ${result.inactivePrescCount} 個\n\n記錄統計:\n- 預期記錄: ${result.expectedTotal} 筆\n- 實際記錄: ${result.actualTotal} 筆\n\n記錄數不匹配，可能需要重新生成工作流程。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
         } else {
-          alert(`診斷完成！\n\n✅ 數據正常\n記錄數: ${result.actualTotal} 筆\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          alert(`診斷完成！\n\n✅ 數據正常\n\n處方統計:\n- 在服處方: ${result.activePrescCount} 個\n- 停用處方: ${result.inactivePrescCount} 個\n\n記錄數: ${result.actualTotal} 筆\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
         }
       }
     } catch (error) {
