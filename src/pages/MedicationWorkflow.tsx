@@ -2039,6 +2039,35 @@ const MedicationWorkflow: React.FC = () => {
                                   normalizeTime(r.scheduled_time) === normalizeTime(timeSlot)
                                 );
 
+                                // 診斷：如果是 Ciprofloxacin 且找不到記錄
+                                if (!workflowRecord && prescription.medication_name.includes('Ciprofloxacin') && date === selectedDate) {
+                                  console.log('🔍 Ciprofloxacin 找不到記錄:');
+                                  console.log('  處方ID:', prescription.id);
+                                  console.log('  日期:', date);
+                                  console.log('  時間段 (timeSlot):', timeSlot, '類型:', typeof timeSlot);
+                                  console.log('  標準化後:', normalizeTime(timeSlot));
+
+                                  // 檢查該處方的所有記錄
+                                  const allCiproRecords = allWorkflowRecords.filter(r => r.prescription_id === prescription.id);
+                                  console.log('  該處方的所有記錄數:', allCiproRecords.length);
+                                  if (allCiproRecords.length > 0) {
+                                    console.log('  所有記錄:', allCiproRecords.map(r => ({
+                                      scheduled_date: r.scheduled_date,
+                                      scheduled_time: r.scheduled_time,
+                                      scheduled_time_normalized: normalizeTime(r.scheduled_time),
+                                      matches_date: r.scheduled_date === date,
+                                      matches_time: normalizeTime(r.scheduled_time) === normalizeTime(timeSlot)
+                                    })));
+                                  }
+
+                                  // 檢查該日期的所有記錄
+                                  const sameDateRecords = allWorkflowRecords.filter(r => r.scheduled_date === date);
+                                  console.log('  該日期的所有記錄數:', sameDateRecords.length);
+                                  if (sameDateRecords.length > 0 && sameDateRecords.length <= 10) {
+                                    console.log('  該日期的處方ID列表:', [...new Set(sameDateRecords.map(r => r.prescription_id))]);
+                                  }
+                                }
+
                                 return (
                                   <div key={timeSlot} className="border border-gray-200 rounded-lg p-1 bg-white">
                                     <div className="flex items-center justify-between mb-1">
