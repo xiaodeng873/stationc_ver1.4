@@ -790,24 +790,6 @@ const PrescriptionManagement: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  
-                  {/* 處方統計 */}
-                  <div className="flex items-center justify-center lg:justify-end">
-                    <div className="flex items-center space-x-6">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">{currentPatient.prescriptions.active.length}</div>
-                        <div className="text-sm text-gray-600">在服處方</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-yellow-600">{currentPatient.prescriptions.pending_change.length}</div>
-                        <div className="text-sm text-gray-600">待變更處方</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-600">{currentPatient.prescriptions.inactive.length}</div>
-                        <div className="text-sm text-gray-600">停用處方</div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
