@@ -1829,13 +1829,13 @@ const MedicationWorkflow: React.FC = () => {
   // 日期導航
   const goToPreviousDay = () => {
     const date = new Date(selectedDate);
-    date.setDate(date.getDate() - 1);
+    date.setDate(date.getDate() - 7);
     setSelectedDate(date.toISOString().split('T')[0]);
   };
 
   const goToNextDay = () => {
     const date = new Date(selectedDate);
-    date.setDate(date.getDate() + 1);
+    date.setDate(date.getDate() + 7);
     setSelectedDate(date.toISOString().split('T')[0]);
   };
 

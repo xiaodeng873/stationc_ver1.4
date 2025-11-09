@@ -1029,12 +1029,46 @@ const fillWorkflowRecordsForPage = (
     const timeSlots = prescription.medication_time_slots || [];
     const isSelfCare = prescription.preparation_method === 'custom';
 
-    // 為每個時間點填入執核派記錄
-    timeSlots.forEach((timeSlot: string, timeSlotIndex: number) => {
-      if (timeSlotIndex >= 4) return;
+    // 建立時間點到行的映射（與 fillPrescriptionData 使用相同的邏輯）
+    let timeSlotsMap: { [key: number]: string[] } = {};
 
-      const rowOffset = timeSlotIndex + 1;
+    if (routeType === 'injection') {
+      // 注射类型：所有时间点放在第一个位置
+      timeSlots.forEach((timeSlot: string) => {
+        const rowOffset = 1;
+        if (!timeSlotsMap[rowOffset]) {
+          timeSlotsMap[rowOffset] = [];
+        }
+        timeSlotsMap[rowOffset].push(timeSlot);
+      });
+    } else {
+      // 口服和外用类型：判断是否需要打破时段限制
+      if (shouldBreakTimeRangeRule(timeSlots)) {
+        // 打破时段限制，按时序映射
+        timeSlotsMap = mapTimeSlotsSequentially(timeSlots);
+      } else {
+        // 保持时段映射
+        timeSlots.forEach((timeSlot: string) => {
+          const rowOffset = getTimeSlotRowOffset(timeSlot);
+          if (!timeSlotsMap[rowOffset]) {
+            timeSlotsMap[rowOffset] = [];
+          }
+          timeSlotsMap[rowOffset].push(timeSlot);
+        });
+      }
+    }
+
+    // 為每個時間點填入執核派記錄
+    Object.entries(timeSlotsMap).forEach(([rowOffsetStr, slotsInRow]) => {
+      const rowOffset = parseInt(rowOffsetStr);
+      if (routeType === 'injection' && rowOffset === 2) {
+        return; // 注射類跳過 startRow + 2
+      }
+
       const recordRow = groupStartRow + rowOffset;
+
+      // 處理該行的每個時間點
+      slotsInRow.forEach((timeSlot: string) => {
 
       // N 列開始（第14列），共31格（N-AR，即第14-44列）
       for (let day = 1; day <= daysInMonth; day++) {
@@ -1137,6 +1171,7 @@ const fillWorkflowRecordsForPage = (
           console.log(`  [警告] 單元格 ${cellAddress}: 執核內容為空`);
         }
       }
+      });
     });
   });
 

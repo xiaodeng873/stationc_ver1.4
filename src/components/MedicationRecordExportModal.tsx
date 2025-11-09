@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, FileDown, Calendar, Users, CheckSquare, Square, AlertCircle, Pill, Syringe, Package } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { getTemplatesMetadata } from '../lib/database';
 import { exportMedicationRecordToExcel, exportSelectedMedicationRecordToExcel, categorizePrescriptionsByRoute } from '../utils/medicationRecordExcelGenerator';
 import { exportPersonalMedicationListToExcel, exportSelectedPersonalMedicationListToExcel } from '../utils/personalMedicationListExcelGenerator';
+import { supabase } from '../lib/supabase';
 
 interface MedicationRecordExportModalProps {
   onClose: () => void;
@@ -39,6 +40,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
   const [includePersonalMedicationList, setIncludePersonalMedicationList] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [prescriptionsWithWorkflowRecords, setPrescriptionsWithWorkflowRecords] = useState<Set<string>>(new Set());
 
   const activePatients = useMemo(() => {
     return patients.filter(p => p.在住狀態 === '在住')
@@ -55,6 +57,36 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
       return name.includes(term) || bed.includes(term);
     });
   }, [activePatients, searchTerm]);
+
+  // 查詢在選定月份有工作流程記錄的處方
+  useEffect(() => {
+    const fetchPrescriptionsWithRecords = async () => {
+      if (!includeWorkflowRecords) {
+        setPrescriptionsWithWorkflowRecords(new Set());
+        return;
+      }
+
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const monthStart = new Date(year, month - 1, 1).toISOString().split('T')[0];
+      const monthEnd = new Date(year, month, 0).toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('medication_workflow')
+        .select('prescription_id')
+        .gte('scheduled_date', monthStart)
+        .lte('scheduled_date', monthEnd);
+
+      if (error) {
+        console.error('查詢工作流程記錄失敗:', error);
+        return;
+      }
+
+      const prescriptionIds = new Set(data?.map(r => r.prescription_id) || []);
+      setPrescriptionsWithWorkflowRecords(prescriptionIds);
+    };
+
+    fetchPrescriptionsWithRecords();
+  }, [selectedMonth, includeWorkflowRecords]);
 
   const isInDateRange = (prescriptionDate: string, endDate: string | null, targetMonth: string): boolean => {
     const [year, month] = targetMonth.split('-').map(Number);
@@ -84,10 +116,14 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
     return allPrescriptions.filter(p => {
       if (p.patient_id !== currentPatient.patient.院友id) return false;
       if (p.status === 'pending_change') return false;
-      if (p.status === 'inactive' && !includeInactive && !includeWorkflowRecords) return false;
+      if (p.status === 'inactive') {
+        if (includeInactive) return true;
+        if (includeWorkflowRecords && prescriptionsWithWorkflowRecords.has(p.id)) return true;
+        return false;
+      }
       return true;
     });
-  }, [exportMode, currentPatient, allPrescriptions, includeInactive, includeWorkflowRecords]);
+  }, [exportMode, currentPatient, allPrescriptions, includeInactive, includeWorkflowRecords, prescriptionsWithWorkflowRecords]);
 
   const batchRouteStats = useMemo(() => {
     const stats: RouteStats = { oral: 0, injection: 0, topical: 0, noRoute: 0 };
@@ -97,7 +133,11 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
 
       patientPrescriptions.forEach(prescription => {
         if (prescription.status === 'pending_change') return;
-        if (prescription.status === 'inactive' && !includeInactive && !includeWorkflowRecords) return;
+        if (prescription.status === 'inactive') {
+          if (!includeInactive && !(includeWorkflowRecords && prescriptionsWithWorkflowRecords.has(prescription.id))) {
+            return;
+          }
+        }
         if (!prescription.prescription_date) return;
         if (!isInDateRange(prescription.prescription_date, prescription.end_date || null, selectedMonth)) return;
 
@@ -278,8 +318,10 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                 return false;
               }
 
-              if (prescription.status === 'inactive' && !includeInactive && !includeWorkflowRecords) {
-                return false;
+              if (prescription.status === 'inactive') {
+                if (!includeInactive && !(includeWorkflowRecords && prescriptionsWithWorkflowRecords.has(prescription.id))) {
+                  return false;
+                }
               }
 
               if (!prescription.prescription_date) {
@@ -800,7 +842,11 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                       const patientPrescriptions = prescriptions.filter(p => p.patient_id === patient.院友id);
                       const validPrescriptions = patientPrescriptions.filter(prescription => {
                         if (prescription.status === 'pending_change') return false;
-                        if (prescription.status === 'inactive' && !includeInactive && !includeWorkflowRecords) return false;
+                        if (prescription.status === 'inactive') {
+                          if (!includeInactive && !(includeWorkflowRecords && prescriptionsWithWorkflowRecords.has(prescription.id))) {
+                            return false;
+                          }
+                        }
                         if (!prescription.prescription_date) return false;
                         return isInDateRange(
                           prescription.prescription_date,
