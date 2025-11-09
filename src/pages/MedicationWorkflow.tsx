@@ -780,20 +780,25 @@ const MedicationWorkflow: React.FC = () => {
         return false;
       }
 
-      // 如果是在服處方，檢查日期有效性
+      // 如果是在服處方，檢查日期有效性（使用週範圍而非單一日期）
       if (p.status === 'active') {
-        const selectedDateObj = new Date(selectedDate);
+        // 使用週範圍的開始和結束日期進行檢查
+        const weekStart = new Date(weekDates[0]);
+        const weekEnd = new Date(weekDates[6]);
         const startDate = new Date(p.start_date);
 
-        // 檢查是否在開始日期之前
-        if (selectedDateObj < startDate) {
+        // 檢查處方的有效期是否與當前週有交集
+        // 條件：處方結束日期 >= 週開始日期 AND 處方開始日期 <= 週結束日期
+
+        // 如果處方開始日期在週結束日期之後，不顯示
+        if (startDate > weekEnd) {
           return false;
         }
 
-        // 檢查是否在結束日期之後
+        // 如果處方有結束日期，且結束日期在週開始日期之前，不顯示
         if (p.end_date) {
           const endDate = new Date(p.end_date);
-          if (selectedDateObj > endDate) {
+          if (endDate < weekStart) {
             return false;
           }
         }
@@ -810,7 +815,7 @@ const MedicationWorkflow: React.FC = () => {
     });
 
     return filtered;
-  }, [prescriptions, selectedPatientId, selectedDate, weekPrescriptionIds]);
+  }, [prescriptions, selectedPatientId, weekDates, weekPrescriptionIds]);
 
   // 根據備藥方式過濾處方
   const filteredPrescriptions = activePrescriptions.filter(p => {
