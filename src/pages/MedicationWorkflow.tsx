@@ -431,6 +431,52 @@ const MedicationWorkflow: React.FC = () => {
 
   const weekDates = useMemo(() => computeWeekDates(selectedDate), [selectedDate]);
 
+  // 檢查處方是否應在指定日期服藥（與 Edge Function 邏輯一致）
+  const shouldTakeMedicationOnDate = (prescription: any, targetDate: Date): boolean => {
+    const { frequency_type, frequency_value, specific_weekdays, is_odd_even_day } = prescription;
+    const startDate = new Date(prescription.start_date);
+
+    switch (frequency_type) {
+      case 'daily':
+        return true; // 每日服
+
+      case 'every_x_days':
+        // 隔X日服
+        const targetDateOnly = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+        const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+        const daysDiff = Math.floor((targetDateOnly.getTime() - startDateOnly.getTime()) / (1000 * 60 * 60 * 24));
+        const interval = frequency_value || 1;
+        return daysDiff % interval === 0;
+
+      case 'weekly_days':
+        // 逢星期X服
+        const dayOfWeek = targetDate.getDay(); // 0=週日, 1=週一, ..., 6=週六
+        const targetDay = dayOfWeek === 0 ? 7 : dayOfWeek; // 轉換為 1-7 格式
+        return specific_weekdays?.includes(targetDay) || false;
+
+      case 'odd_even_days':
+        // 單日/雙日服
+        const dateNumber = targetDate.getDate();
+        if (is_odd_even_day === 'odd') {
+          return dateNumber % 2 === 1; // 單日
+        } else if (is_odd_even_day === 'even') {
+          return dateNumber % 2 === 0; // 雙日
+        }
+        return false;
+
+      case 'every_x_months':
+        // 隔X月服
+        const monthsDiff = (targetDate.getFullYear() - startDate.getFullYear()) * 12 +
+                          (targetDate.getMonth() - startDate.getMonth());
+        const monthInterval = frequency_value || 1;
+        return monthsDiff % monthInterval === 0 &&
+               targetDate.getDate() === startDate.getDate();
+
+      default:
+        return true; // 預設為需要服藥
+    }
+  };
+
   // 檢查當周工作流程記錄是否完整
   const checkWeekWorkflowCompleteness = async (patientIdNum: number, weekDates: string[]) => {
     try {
@@ -453,8 +499,10 @@ const MedicationWorkflow: React.FC = () => {
         return { complete: true, shouldGenerate: false };
       }
 
-      // 計算當周應該生成的記錄總數
+      // 計算當周應該生成的記錄總數（考慮頻率規則）
       let expectedRecordsCount = 0;
+      const expectedDetails: string[] = [];
+
       weekDates.forEach(date => {
         activePrescriptionsForPatient.forEach(prescription => {
           const dateObj = new Date(date);
@@ -463,18 +511,23 @@ const MedicationWorkflow: React.FC = () => {
 
           // 檢查日期是否在處方有效期內
           if (dateObj >= startDate && (!endDate || dateObj <= endDate)) {
-            const timeSlots = prescription.medication_time_slots || [];
-            expectedRecordsCount += timeSlots.length;
+            // 檢查是否根據頻率規則需要服藥
+            if (shouldTakeMedicationOnDate(prescription, dateObj)) {
+              const timeSlots = prescription.medication_time_slots || [];
+              expectedRecordsCount += timeSlots.length;
+              expectedDetails.push(`${date}: ${prescription.medication_name} x${timeSlots.length}`);
+            }
           }
         });
       });
 
       console.log('預期記錄數量:', expectedRecordsCount);
+      console.log('預期記錄明細:', expectedDetails);
 
       // 查詢當周實際存在的記錄數量
       const { data: existingRecords, error } = await supabase
         .from('medication_workflow_records')
-        .select('id', { count: 'exact' })
+        .select('id, scheduled_date, prescription_id', { count: 'exact' })
         .eq('patient_id', patientIdNum)
         .gte('scheduled_date', weekDates[0])
         .lte('scheduled_date', weekDates[6]);
@@ -486,6 +539,16 @@ const MedicationWorkflow: React.FC = () => {
 
       const actualRecordsCount = existingRecords?.length || 0;
       console.log('實際記錄數量:', actualRecordsCount);
+
+      // 如果記錄數量差距過大，輸出詳細信息
+      if (actualRecordsCount < expectedRecordsCount) {
+        const existingByDate: { [date: string]: number } = {};
+        existingRecords?.forEach(record => {
+          existingByDate[record.scheduled_date] = (existingByDate[record.scheduled_date] || 0) + 1;
+        });
+        console.log('實際記錄按日期分布:', existingByDate);
+        console.log('缺少記錄數:', expectedRecordsCount - actualRecordsCount);
+      }
 
       const isComplete = actualRecordsCount >= expectedRecordsCount;
       console.log('完整性檢查結果:', isComplete ? '完整' : '不完整');
@@ -518,13 +581,21 @@ const MedicationWorkflow: React.FC = () => {
           await fetchPrescriptionWorkflowRecords(patientIdNum, date);
         }
       } else {
-        console.warn('自動生成失敗:', result.message);
+        console.warn('⚠️ 自動生成部分失敗:', result.message);
+        if (result.failedDates && result.failedDates.length > 0) {
+          console.warn('失敗的日期:', result.failedDates);
+        }
+
+        // 即使部分失敗，也重新載入已成功生成的數據
+        for (const date of weekDates) {
+          await fetchPrescriptionWorkflowRecords(patientIdNum, date);
+        }
       }
 
       return result;
     } catch (error) {
       console.error('自動生成工作流程失敗:', error);
-      return { success: false, message: '自動生成失敗', totalRecords: 0 };
+      return { success: false, message: '自動生成失敗', totalRecords: 0, failedDates: [] };
     }
   };
 
@@ -1492,7 +1563,14 @@ const MedicationWorkflow: React.FC = () => {
           await fetchPrescriptionWorkflowRecords(patientIdNum, date);
         }
       } else {
-        console.error('生成失敗:', result.message);
+        console.error('⚠️ 生成部分失敗:', result.message);
+        if (result.failedDates && result.failedDates.length > 0) {
+          console.error('失敗的日期:', result.failedDates);
+        }
+        // 即使部分失敗，也重新載入已成功生成的數據
+        for (const date of weekDates) {
+          await fetchPrescriptionWorkflowRecords(patientIdNum, date);
+        }
       }
     } catch (error) {
       console.error('生成工作流程記錄失敗:', error);
