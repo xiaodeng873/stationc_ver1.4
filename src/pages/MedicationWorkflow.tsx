@@ -640,82 +640,89 @@ const MedicationWorkflow: React.FC = () => {
     console.log('🔍 檢查入院期間:', { patientId, scheduledDate, scheduledTime });
     console.log('📋 所有住院事件:', hospitalEpisodes);
 
-    const patientEpisodes = hospitalEpisodes.filter(ep => ep.patient_id === patientId && ep.status === 'active');
-    console.log('👤 病人的活躍住院事件:', patientEpisodes);
+    // 不限制狀態，檢查所有住院事件（active 和 completed 都要）
+    const patientEpisodes = hospitalEpisodes.filter(ep => ep.patient_id === patientId);
+    console.log('👤 病人的所有住院事件:', patientEpisodes);
 
     if (patientEpisodes.length === 0) {
-      console.log('❌ 沒有活躍的住院事件');
-      return false;
-    }
-
-    // 取得最新的活躍住院事件
-    const activeEpisode = patientEpisodes.sort((a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )[0];
-    console.log('📌 最新的住院事件:', activeEpisode);
-
-    if (!activeEpisode.episode_events || activeEpisode.episode_events.length === 0) {
-      console.log('❌ 沒有事件記錄');
-      return false;
-    }
-
-    // 找出最後一次入院事件和最後一次出院事件
-    const admissionEvents = activeEpisode.episode_events
-      .filter((e: any) => e.event_type === 'admission')
-      .sort((a: any, b: any) => {
-        const dateA = new Date(`${a.event_date}T${a.event_time || '00:00:00'}`);
-        const dateB = new Date(`${b.event_date}T${b.event_time || '00:00:00'}`);
-        return dateB.getTime() - dateA.getTime();
-      });
-
-    const dischargeEvents = activeEpisode.episode_events
-      .filter((e: any) => e.event_type === 'discharge')
-      .sort((a: any, b: any) => {
-        const dateA = new Date(`${a.event_date}T${a.event_time || '00:00:00'}`);
-        const dateB = new Date(`${b.event_date}T${b.event_time || '00:00:00'}`);
-        return dateB.getTime() - dateA.getTime();
-      });
-
-    const lastAdmission = admissionEvents[0];
-    const lastDischarge = dischargeEvents[0];
-
-    console.log('🏥 最後入院事件:', lastAdmission);
-    console.log('🚪 最後出院事件:', lastDischarge);
-
-    if (!lastAdmission) {
-      console.log('❌ 沒有入院事件');
+      console.log('❌ 沒有住院事件');
       return false;
     }
 
     // 服藥時間點
     const medicationDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
-
-    // 入院時間
-    const admissionDateTime = new Date(`${lastAdmission.event_date}T${lastAdmission.event_time || '00:00:00'}`);
-
     console.log('⏰ 服藥時間:', medicationDateTime.toISOString());
-    console.log('🏥 入院時間:', admissionDateTime.toISOString());
 
-    // 如果服藥時間在入院時間之前，則不在入院期間
-    if (medicationDateTime < admissionDateTime) {
-      console.log('❌ 服藥時間在入院之前');
-      return false;
-    }
+    // 檢查所有住院事件，看服藥時間是否落在任何一個入院期間
+    for (const episode of patientEpisodes) {
+      console.log('📌 檢查住院事件:', episode);
 
-    // 如果有出院事件，且服藥時間在出院時間之後，則不在入院期間
-    if (lastDischarge) {
-      const dischargeDateTime = new Date(`${lastDischarge.event_date}T${lastDischarge.event_time || '00:00:00'}`);
-      console.log('🚪 出院時間:', dischargeDateTime.toISOString());
+      if (!episode.episode_events || episode.episode_events.length === 0) {
+        console.log('  ⚠️ 此事件沒有事件記錄，跳過');
+        continue;
+      }
 
-      if (medicationDateTime >= dischargeDateTime) {
-        console.log('❌ 服藥時間在出院之後');
-        return false;
+      // 找出該住院事件的所有入院和出院事件
+      const admissionEvents = episode.episode_events
+        .filter((e: any) => e.event_type === 'admission')
+        .sort((a: any, b: any) => {
+          const dateA = new Date(`${a.event_date}T${a.event_time || '00:00:00'}`);
+          const dateB = new Date(`${b.event_date}T${b.event_time || '00:00:00'}`);
+          return dateA.getTime() - dateB.getTime(); // 按時間順序排序
+        });
+
+      const dischargeEvents = episode.episode_events
+        .filter((e: any) => e.event_type === 'discharge')
+        .sort((a: any, b: any) => {
+          const dateA = new Date(`${a.event_date}T${a.event_time || '00:00:00'}`);
+          const dateB = new Date(`${b.event_date}T${b.event_time || '00:00:00'}`);
+          return dateA.getTime() - dateB.getTime(); // 按時間順序排序
+        });
+
+      console.log('  🏥 入院事件:', admissionEvents);
+      console.log('  🚪 出院事件:', dischargeEvents);
+
+      // 檢查每個入院事件
+      for (const admission of admissionEvents) {
+        const admissionDateTime = new Date(`${admission.event_date}T${admission.event_time || '00:00:00'}`);
+        console.log('  🏥 入院時間:', admissionDateTime.toISOString());
+
+        // 如果服藥時間早於入院時間，跳過此入院事件
+        if (medicationDateTime < admissionDateTime) {
+          console.log('  ❌ 服藥時間在此入院之前，跳過');
+          continue;
+        }
+
+        // 找出此入院後的第一個出院事件
+        const nextDischarge = dischargeEvents.find((discharge: any) => {
+          const dischargeDateTime = new Date(`${discharge.event_date}T${discharge.event_time || '00:00:00'}`);
+          return dischargeDateTime > admissionDateTime;
+        });
+
+        if (nextDischarge) {
+          const dischargeDateTime = new Date(`${nextDischarge.event_date}T${nextDischarge.event_time || '00:00:00'}`);
+          console.log('  🚪 對應出院時間:', dischargeDateTime.toISOString());
+
+          // 檢查服藥時間是否在入院和出院之間
+          if (medicationDateTime >= admissionDateTime && medicationDateTime < dischargeDateTime) {
+            console.log('  ✅ 服藥時間在此入院期間內！');
+            return true;
+          } else {
+            console.log('  ❌ 服藥時間不在此入院期間內');
+          }
+        } else {
+          // 沒有對應的出院事件，表示仍在住院中
+          console.log('  📌 此入院尚未出院');
+          if (medicationDateTime >= admissionDateTime) {
+            console.log('  ✅ 服藥時間在入院之後（尚未出院）！');
+            return true;
+          }
+        }
       }
     }
 
-    // 服藥時間在入院之後，且在出院之前（或沒有出院）
-    console.log('✅ 在入院期間，應標記為「入院」');
-    return true;
+    console.log('❌ 服藥時間不在任何入院期間內');
+    return false;
   };
 
   // 處理完成工作流程步驟
