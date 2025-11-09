@@ -790,11 +790,18 @@ const MedicationWorkflow: React.FC = () => {
     allWorkflowRecords.forEach(record => {
       ids.add(record.prescription_id);
     });
+    console.log(`📋 當周工作流程記錄數: ${allWorkflowRecords.length}`);
+    console.log(`📋 涉及的處方ID數: ${ids.size}`);
+    if (ids.size > 0) {
+      console.log(`📋 處方ID列表:`, Array.from(ids));
+    }
     return ids;
   }, [allWorkflowRecords]);
 
   // 過濾處方：顯示在服處方 + 停用但在當周有工作流程記錄的處方
   const activePrescriptions = useMemo(() => {
+    console.log(`\n🔍 開始過濾處方 (院友ID: ${selectedPatientId}, 週期: ${weekDates[0]} ~ ${weekDates[6]})`);
+
     const filtered = prescriptions.filter(p => {
       if (p.patient_id.toString() !== selectedPatientId) {
         return false;
@@ -809,6 +816,7 @@ const MedicationWorkflow: React.FC = () => {
 
         // 處方必須在週結束日期之前或當天開始
         if (startDate > weekEnd) {
+          console.log(`  ❌ ${p.medication_name}: start_date(${p.start_date}) > weekEnd(${weekDates[6]})`);
           return false;
         }
 
@@ -816,22 +824,28 @@ const MedicationWorkflow: React.FC = () => {
         if (p.end_date) {
           const endDate = new Date(p.end_date);
           if (endDate < weekStart) {
+            console.log(`  ❌ ${p.medication_name}: end_date(${p.end_date}) < weekStart(${weekDates[0]})`);
             return false;
           }
         }
 
+        console.log(`  ✅ ${p.medication_name} (active): 通過日期檢查`);
         return true;
     }
 
       // 如果是停用處方，檢查當周是否有相關工作流程記錄
       if (p.status === 'inactive') {
-        return weekPrescriptionIds.has(p.id);
+        const hasRecords = weekPrescriptionIds.has(p.id);
+        console.log(`  ${hasRecords ? '✅' : '❌'} ${p.medication_name} (inactive): ${hasRecords ? '有' : '無'}工作流程記錄`);
+        return hasRecords;
       }
 
       // 其他狀態（如 pending_change）不顯示
+      console.log(`  ⏭️  ${p.medication_name} (${p.status}): 跳過`);
       return false;
     });
 
+    console.log(`🔍 過濾結果: ${filtered.length} 個處方通過`);
     return filtered;
   }, [prescriptions, selectedPatientId, weekDates, weekPrescriptionIds]);
 
