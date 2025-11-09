@@ -28,7 +28,7 @@ import DispenseConfirmModal from '../components/DispenseConfirmModal';
 import InspectionCheckModal from '../components/InspectionCheckModal';
 import InjectionSiteModal from '../components/InjectionSiteModal';
 import RevertConfirmModal from '../components/RevertConfirmModal';
-import { generateDailyWorkflowRecords } from '../utils/workflowGenerator';
+import { generateDailyWorkflowRecords, generateBatchWorkflowRecords } from '../utils/workflowGenerator';
 
 interface WorkflowCellProps {
   record: any;
@@ -1302,10 +1302,14 @@ const MedicationWorkflow: React.FC = () => {
 
     setGenerating(true);
     try {
-      const result = await generateDailyWorkflowRecords(selectedDate, patientIdNum);
-      
+      // 生成整週的工作流程（從週日到週六，共7天）
+      const startDate = weekDates[0];
+      const endDate = weekDates[6];
+
+      const result = await generateBatchWorkflowRecords(startDate, endDate, patientIdNum);
+
       if (result.success) {
-        alert(`${result.message}\n\n生成了 ${result.recordsGenerated} 筆工作流程記錄`);
+        alert(`${result.message}\n\n生成了 ${result.totalRecords} 筆工作流程記錄`);
         // 重新載入數據
         await fetchPrescriptionWorkflowRecords(patientIdNum, selectedDate);
       } else {
@@ -1369,6 +1373,7 @@ const MedicationWorkflow: React.FC = () => {
               onClick={handleGenerateWorkflow}
               disabled={generating || !selectedPatientId}
               className="btn-primary flex items-center space-x-2"
+              title="為選定院友生成本週（7天）的藥物工作流程"
             >
               {generating ? (
                 <>
@@ -1378,7 +1383,7 @@ const MedicationWorkflow: React.FC = () => {
               ) : (
                 <>
                   <Zap className="h-4 w-4" />
-                  <span>生成工作流程</span>
+                  <span>生成本週工作流程</span>
                 </>
               )}
             </button>
@@ -1847,7 +1852,7 @@ const MedicationWorkflow: React.FC = () => {
               </div>
               <div className="text-sm text-blue-800 space-y-2 text-left">
                 <p><strong>1. 選擇院友：</strong>在上方下拉選單中選擇要處理的院友</p>
-                <p><strong>2. 生成工作流程：</strong>點擊「生成工作流程」按鈕為該院友創建當日的藥物任務</p>
+                <p><strong>2. 生成工作流程：</strong>點擊「生成本週工作流程」按鈕為該院友創建整週（7天）的藥物任務</p>
                 <p><strong>3. 執行任務：</strong>依序點擊「執藥」→「核藥」→「派藥」完成流程</p>
               </div>
             </div>

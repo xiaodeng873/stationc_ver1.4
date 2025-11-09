@@ -142,8 +142,10 @@ const PrescriptionTransferModal: React.FC<PrescriptionTransferModalProps> = ({
         // 轉移到停用處方：必須有結束日期
         updateData.end_date = finalEndDate;
       } else {
-        // 轉移到在服/待變更處方：清空結束日期
-        updateData.end_date = null;
+        // 轉移到在服/待變更處方：允許保留用戶輸入的結束日期
+        if (finalEndDate !== undefined) {
+          updateData.end_date = finalEndDate;
+        }
       }
 
       // 更新處方

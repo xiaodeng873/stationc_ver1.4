@@ -51,6 +51,28 @@ Deno.serve(async (req: Request) => {
 
     console.log(`生成日期 ${targetDate} 的藥物工作流程記錄${patientId ? ` (院友ID: ${patientId})` : ''}`);
 
+    // 先檢查並更新到期的在服處方
+    const { data: expiredPrescriptions } = await supabase
+      .from('new_medication_prescriptions')
+      .select('*')
+      .eq('status', 'active')
+      .not('end_date', 'is', null)
+      .lt('end_date', targetDate);
+
+    if (expiredPrescriptions && expiredPrescriptions.length > 0) {
+      console.log(`發現 ${expiredPrescriptions.length} 個已到期的在服處方，準備轉為停用`);
+
+      // 一次批量更新所有到期處方
+      for (const prescription of expiredPrescriptions) {
+        await supabase
+          .from('new_medication_prescriptions')
+          .update({ status: 'inactive' })
+          .eq('id', prescription.id);
+      }
+
+      console.log(`已將 ${expiredPrescriptions.length} 個到期處方轉為停用`);
+    }
+
     // 查詢所有在服處方
     let prescriptionQuery = supabase
       .from('new_medication_prescriptions')
@@ -79,14 +101,14 @@ Deno.serve(async (req: Request) => {
       // 檢查處方是否在目標日期有效
       const startDate = new Date(prescription.start_date);
       const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
-      
+
       // 檢查是否在開始日期之前
       if (targetDateObj < startDate) {
         console.log(`處方 ${prescription.medication_name} 尚未開始 (開始日期: ${prescription.start_date})`);
         continue;
       }
-      
-      // 檢查是否在結束日期之後
+
+      // 檢查是否在結束日期之後（等於結束日期當天仍然有效）
       if (endDate && targetDateObj > endDate) {
         console.log(`處方 ${prescription.medication_name} 已結束 (結束日期: ${prescription.end_date})`);
         continue;
