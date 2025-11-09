@@ -33,8 +33,8 @@ const PrescriptionEndDateModal: React.FC<PrescriptionEndDateModalProps> = ({
         // 轉移到停用處方：如果已有結束日期則使用，否則使用今天
         setEndDate(prescription?.end_date || getHongKongDate());
       } else {
-        // 轉移到在服/待變更處方：清空結束日期
-        setEndDate('');
+        // 轉移到在服/待變更處方：保留原有的結束日期（如果有）
+        setEndDate(prescription?.end_date || '');
       }
       setError('');
     }
@@ -100,12 +100,8 @@ const PrescriptionEndDateModal: React.FC<PrescriptionEndDateModalProps> = ({
       return;
     }
 
-    if (targetStatus === 'inactive') {
-      onConfirm(endDate);
-    } else {
-      // 轉移到在服/待變更處方時，清空結束日期
-      onConfirm(null);
-    }
+    // 如果有輸入結束日期，則使用；否則傳遞 null
+    onConfirm(endDate || null);
   };
 
   const getStatusLabel = (status: string) => {
@@ -141,7 +137,7 @@ const PrescriptionEndDateModal: React.FC<PrescriptionEndDateModalProps> = ({
               )}
             </div>
             <h2 className="text-xl font-semibold text-gray-900">
-              {targetStatus === 'inactive' ? '設定處方結束日期' : '移除處方結束日期'}
+              {targetStatus === 'inactive' ? '設定處方結束日期' : '確認處方結束日期'}
             </h2>
           </div>
           <button
@@ -191,37 +187,29 @@ const PrescriptionEndDateModal: React.FC<PrescriptionEndDateModalProps> = ({
           </div>
 
           {/* 結束日期 */}
-          {targetStatus === 'inactive' ? (
-            <div>
-              <label className="form-label">
-                <Clock className="h-4 w-4 inline mr-1" />
-                結束日期 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className={`form-input ${error ? 'border-red-300' : ''}`}
-                min={prescription?.start_date}
-                required
-              />
-              {error && (
-                <p className="text-red-500 text-sm mt-1">{error}</p>
-              )}
-            </div>
-          ) : (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center space-x-2 text-blue-800">
-                <AlertTriangle className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  轉移到{getStatusLabel(targetStatus)}將清除結束日期
-                </span>
-              </div>
+          <div>
+            <label className="form-label">
+              <Clock className="h-4 w-4 inline mr-1" />
+              結束日期 {targetStatus === 'inactive' && <span className="text-red-500">*</span>}
+              <span className="text-xs text-gray-500 ml-2">(可選，留空表示無結束日期)</span>
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className={`form-input ${error ? 'border-red-300' : ''}`}
+              min={prescription?.start_date}
+              required={targetStatus === 'inactive'}
+            />
+            {error && (
+              <p className="text-red-500 text-sm mt-1">{error}</p>
+            )}
+            {targetStatus !== 'inactive' && endDate && (
               <p className="text-xs text-blue-600 mt-1">
-                在服和待變更處方不需要結束日期
+                到期後此處方將自動轉為停用
               </p>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* 天數計算 */}
           {targetStatus === 'inactive' && totalDays !== null && (
@@ -246,8 +234,8 @@ const PrescriptionEndDateModal: React.FC<PrescriptionEndDateModalProps> = ({
             <div className="font-medium mb-1">處方日期管理規則：</div>
             <ul className="text-xs space-y-1 list-disc list-inside">
               <li><strong>停用處方：</strong>必須有開始日期和結束日期</li>
-              <li><strong>在服處方：</strong>只需要開始日期，結束日期為空</li>
-              <li><strong>待變更處方：</strong>只需要開始日期，結束日期為空</li>
+              <li><strong>在服處方：</strong>只需要開始日期，結束日期可選（到期後自動轉為停用）</li>
+              <li><strong>待變更處方：</strong>只需要開始日期，結束日期可選</li>
             </ul>
           </div>
         </div>
@@ -259,7 +247,7 @@ const PrescriptionEndDateModal: React.FC<PrescriptionEndDateModalProps> = ({
             disabled={targetStatus === 'inactive' && (!endDate || !!error)}
             className="btn-primary flex-1"
           >
-            {targetStatus === 'inactive' ? '設定結束日期並轉移' : '清除結束日期並轉移'}
+            {targetStatus === 'inactive' ? '設定結束日期並轉移' : endDate ? '保留結束日期並轉移' : '移除結束日期並轉移'}
           </button>
           <button
             onClick={onClose}
