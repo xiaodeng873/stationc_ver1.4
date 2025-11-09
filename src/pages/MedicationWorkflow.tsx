@@ -18,7 +18,8 @@ import {
   FastForward,
   CheckSquare,
   Users,
-  Syringe
+  Syringe,
+  Trash2
 } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
@@ -28,6 +29,7 @@ import DispenseConfirmModal from '../components/DispenseConfirmModal';
 import InspectionCheckModal from '../components/InspectionCheckModal';
 import InjectionSiteModal from '../components/InjectionSiteModal';
 import RevertConfirmModal from '../components/RevertConfirmModal';
+import WorkflowDeduplicateModal from '../components/WorkflowDeduplicateModal';
 import { generateDailyWorkflowRecords, generateBatchWorkflowRecords } from '../utils/workflowGenerator';
 import { diagnoseWorkflowDisplayIssue } from '../utils/diagnoseTool';
 import { supabase } from '../lib/supabase';
@@ -413,6 +415,11 @@ const MedicationWorkflow: React.FC = () => {
   const [allWorkflowRecords, setAllWorkflowRecords] = useState<any[]>([]);
   const [preparationFilter, setPreparationFilter] = useState<'all' | 'advanced' | 'immediate'>('all');
   const [autoGenerationChecked, setAutoGenerationChecked] = useState(false);
+  const [showDeduplicateModal, setShowDeduplicateModal] = useState(false);
+
+  // 防抖控制：使用 ref 追蹤生成狀態，防止併發
+  const isGeneratingRef = React.useRef(false);
+  const generationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // 計算一週日期（周日開始）
   const computeWeekDates = (dateStr: string): string[] => {
@@ -567,9 +574,18 @@ const MedicationWorkflow: React.FC = () => {
     }
   };
 
-  // 自動生成當周工作流程記錄
+  // 自動生成當周工作流程記錄（添加防抖鎖定）
   const autoGenerateWeekWorkflow = async (patientIdNum: number, weekDates: string[]) => {
+    // 檢查是否正在生成，防止併發
+    if (isGeneratingRef.current) {
+      console.log('⚠️ 已有生成任務進行中，跳過此次請求');
+      return { success: false, message: '生成任務進行中', totalRecords: 0, failedDates: [] };
+    }
+
     try {
+      // 設置生成鎖定
+      isGeneratingRef.current = true;
+
       console.log('=== 開始自動生成當周工作流程 ===');
       console.log('院友ID:', patientIdNum);
       console.log('生成週期:', weekDates[0], '至', weekDates[6]);
@@ -630,6 +646,9 @@ const MedicationWorkflow: React.FC = () => {
     } catch (error) {
       console.error('自動生成工作流程失敗:', error);
       return { success: false, message: '自動生成失敗', totalRecords: 0, failedDates: [] };
+    } finally {
+      // 釋放生成鎖定
+      isGeneratingRef.current = false;
     }
   };
 
@@ -647,8 +666,13 @@ const MedicationWorkflow: React.FC = () => {
     }
   }, [selectedPatientId, sortedActivePatients]);
 
-  // 自動檢測並生成當周工作流程
+  // 自動檢測並生成當周工作流程（添加防抖延遲）
   useEffect(() => {
+    // 清除之前的定時器
+    if (generationTimeoutRef.current) {
+      clearTimeout(generationTimeoutRef.current);
+    }
+
     const checkAndGenerateWorkflow = async () => {
       if (!selectedPatientId || autoGenerationChecked || weekDates.length === 0) {
         return;
@@ -661,6 +685,12 @@ const MedicationWorkflow: React.FC = () => {
 
       // 等待處方數據載入完成
       if (prescriptions.length === 0) {
+        return;
+      }
+
+      // 檢查是否正在生成
+      if (isGeneratingRef.current) {
+        console.log('⚠️ 生成任務進行中，延後檢查');
         return;
       }
 
@@ -681,7 +711,17 @@ const MedicationWorkflow: React.FC = () => {
       console.log('====================================\n');
     };
 
-    checkAndGenerateWorkflow();
+    // 添加 300ms 防抖延遲，避免快速切換時重複觸發
+    generationTimeoutRef.current = setTimeout(() => {
+      checkAndGenerateWorkflow();
+    }, 300);
+
+    // 清理函數
+    return () => {
+      if (generationTimeoutRef.current) {
+        clearTimeout(generationTimeoutRef.current);
+      }
+    };
   }, [selectedPatientId, weekDates, prescriptions, autoGenerationChecked]);
 
   // 當院友或日期改變時，重置自動生成標記
@@ -1909,6 +1949,14 @@ const MedicationWorkflow: React.FC = () => {
                 </>
               )}
             </button>
+            <button
+              onClick={() => setShowDeduplicateModal(true)}
+              className="btn-secondary flex items-center space-x-2"
+              title="檢測並清理重複的工作流程記錄"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>清理重複記錄</span>
+            </button>
           </div>
         </div>
       </div> 
@@ -2453,6 +2501,19 @@ const MedicationWorkflow: React.FC = () => {
           }}
           workflowRecord={currentInjectionRecord}
           onSiteSelected={handleInjectionSiteSelected}
+        />
+      )}
+
+      {/* 工作流程記錄去重模態框 */}
+      {showDeduplicateModal && (
+        <WorkflowDeduplicateModal
+          onClose={() => setShowDeduplicateModal(false)}
+          patients={patients}
+          prescriptions={prescriptions}
+          onSuccess={() => {
+            setShowDeduplicateModal(false);
+            handleRefresh();
+          }}
         />
       )}
     </div>
