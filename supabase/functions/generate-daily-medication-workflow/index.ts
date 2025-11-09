@@ -141,13 +141,14 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      // 檢查是否在結束日期之後（等於結束日期當天仍然有效）
-      if (endDateStr && targetDateStr > endDateStr) {
-        console.log(`❌ 跳過：處方已結束 (${targetDateStr} > ${endDateStr})`);
-        continue;
-      }
+      // 註解：移除結束日期檢查，容許為過去日期的處方生成工作流程記錄
+      // 這樣用戶可以為已經過期的處方補充歷史記錄
+      // if (endDateStr && targetDateStr > endDateStr) {
+      //   console.log(`❌ 跳過：處方已結束 (${targetDateStr} > ${endDateStr})`);
+      //   continue;
+      // }
 
-      console.log(`✓ 日期有效性檢查通過`);
+      console.log(`✓ 日期有效性檢查通過（已開始，不檢查是否已結束）`);
 
       // 根據頻率類型判斷是否需要在目標日期服藥
       const shouldTakeMedication = checkMedicationSchedule(prescription, targetDateObj);
