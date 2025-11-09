@@ -576,9 +576,24 @@ const MedicationWorkflow: React.FC = () => {
         console.log('✓ 自動生成完成:', result.message);
         console.log('生成記錄數:', result.totalRecords);
 
-        // 重新載入數據
-        for (const date of weekDates) {
-          await fetchPrescriptionWorkflowRecords(patientIdNum, date);
+        // 等待 500ms 確保 Supabase 數據一致性
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 直接查詢 Supabase 重新載入數據
+        const { data, error } = await supabase
+          .from('medication_workflow_records')
+          .select('*')
+          .eq('patient_id', patientIdNum)
+          .gte('scheduled_date', weekDates[0])
+          .lte('scheduled_date', weekDates[6])
+          .order('scheduled_date')
+          .order('scheduled_time');
+
+        if (!error && data) {
+          setAllWorkflowRecords(data);
+          console.log(`✅ 自動載入完成: ${data.length} 筆記錄`);
+        } else {
+          console.error('❌ 自動載入失敗:', error);
         }
       } else {
         console.warn('⚠️ 自動生成部分失敗:', result.message);
@@ -586,9 +601,21 @@ const MedicationWorkflow: React.FC = () => {
           console.warn('失敗的日期:', result.failedDates);
         }
 
-        // 即使部分失敗，也重新載入已成功生成的數據
-        for (const date of weekDates) {
-          await fetchPrescriptionWorkflowRecords(patientIdNum, date);
+        // 即使部分失敗，也嘗試重新載入已成功生成的數據
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const { data } = await supabase
+          .from('medication_workflow_records')
+          .select('*')
+          .eq('patient_id', patientIdNum)
+          .gte('scheduled_date', weekDates[0])
+          .lte('scheduled_date', weekDates[6])
+          .order('scheduled_date')
+          .order('scheduled_time');
+
+        if (data) {
+          setAllWorkflowRecords(data);
+          console.log(`✅ 部分成功載入: ${data.length} 筆記錄`);
         }
       }
 
@@ -1550,35 +1577,60 @@ const MedicationWorkflow: React.FC = () => {
     }
   };
 
-  // 刷新數據（僅當日）
+  // 刷新數據（整週）
   const handleRefresh = async () => {
     const patientIdNum = parseInt(selectedPatientId);
     if (!selectedPatientId || selectedPatientId === '' || isNaN(patientIdNum)) {
       console.warn('無效的院友ID，無法刷新數據:', selectedPatientId);
       return;
     }
-    
+
     setRefreshing(true);
     try {
-      await fetchPrescriptionWorkflowRecords(patientIdNum, selectedDate);
+      console.log('🔄 刷新當週工作流程記錄...');
+      console.log('院友ID:', patientIdNum);
+      console.log('週期:', weekDates[0], '至', weekDates[6]);
+
+      // 直接查詢 Supabase，載入整週的記錄
+      const { data, error } = await supabase
+        .from('medication_workflow_records')
+        .select('*')
+        .eq('patient_id', patientIdNum)
+        .gte('scheduled_date', weekDates[0])
+        .lte('scheduled_date', weekDates[6])
+        .order('scheduled_date')
+        .order('scheduled_time');
+
+      if (error) {
+        console.error('❌ 刷新失敗:', error);
+        throw error;
+      }
+
+      console.log(`✅ 刷新成功: 載入 ${data?.length || 0} 筆記錄`);
+      // 直接更新 allWorkflowRecords
+      setAllWorkflowRecords(data || []);
     } catch (error) {
       console.error('刷新數據失敗:', error);
+      alert('刷新數據失敗，請稍後再試');
     } finally {
       setRefreshing(false);
     }
   };
 
-  // 生成今日工作流程記錄（手動觸發）
+  // 生成本週工作流程記錄（手動觸發）
   const handleGenerateWorkflow = async () => {
     const patientIdNum = parseInt(selectedPatientId);
     if (!selectedPatientId || selectedPatientId === '' || isNaN(patientIdNum)) {
       console.warn('請先選擇院友');
+      alert('請先選擇院友');
       return;
     }
 
     setGenerating(true);
     try {
       console.log('=== 手動生成本週工作流程 ===');
+      console.log('生成前記錄數:', allWorkflowRecords.length);
+
       // 生成整週的工作流程（從週日到週六，共7天）
       const startDate = weekDates[0];
       const endDate = weekDates[6];
@@ -1588,22 +1640,95 @@ const MedicationWorkflow: React.FC = () => {
       if (result.success) {
         console.log('✓ 生成成功:', result.message);
         console.log('生成記錄數:', result.totalRecords);
-        // 重新載入數據
-        for (const date of weekDates) {
-          await fetchPrescriptionWorkflowRecords(patientIdNum, date);
+
+        // 等待 500ms 確保 Supabase 數據一致性
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 重新載入數據 - 使用重試機制
+        let retryCount = 0;
+        const maxRetries = 3;
+        let loadedSuccessfully = false;
+
+        while (retryCount < maxRetries && !loadedSuccessfully) {
+          try {
+            console.log(`🔄 嘗試重新載入數據 (第 ${retryCount + 1} 次)...`);
+
+            const { data, error } = await supabase
+              .from('medication_workflow_records')
+              .select('*')
+              .eq('patient_id', patientIdNum)
+              .gte('scheduled_date', weekDates[0])
+              .lte('scheduled_date', weekDates[6])
+              .order('scheduled_date')
+              .order('scheduled_time');
+
+            if (error) {
+              console.error('❌ 查詢失敗:', error);
+              throw error;
+            }
+
+            console.log(`✅ 查詢成功: 載入 ${data?.length || 0} 筆記錄`);
+
+            // 驗證是否載入到新生成的記錄
+            if (data && data.length > 0) {
+              setAllWorkflowRecords(data);
+              loadedSuccessfully = true;
+              console.log('✅ 數據已更新到界面');
+              console.log('更新後記錄數:', data.length);
+
+              alert(`✅ 成功生成並載入 ${data.length} 筆工作流程記錄！`);
+            } else if (result.totalRecords > 0) {
+              // 生成了記錄但查詢不到，需要重試
+              console.warn('⚠️ 生成了記錄但查詢不到，等待後重試...');
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              retryCount++;
+            } else {
+              // 沒有生成記錄（可能該院友無在服處方）
+              setAllWorkflowRecords([]);
+              loadedSuccessfully = true;
+              alert('此院友目前無在服處方，無工作流程記錄需要生成');
+            }
+          } catch (error) {
+            console.error(`❌ 第 ${retryCount + 1} 次載入失敗:`, error);
+            retryCount++;
+            if (retryCount < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        }
+
+        if (!loadedSuccessfully) {
+          console.error('❌ 多次重試後仍無法載入數據');
+          alert('生成成功，但載入數據失敗。請點擊「刷新」按鈕手動重新載入。');
         }
       } else {
         console.error('⚠️ 生成部分失敗:', result.message);
         if (result.failedDates && result.failedDates.length > 0) {
           console.error('失敗的日期:', result.failedDates);
         }
-        // 即使部分失敗，也重新載入已成功生成的數據
-        for (const date of weekDates) {
-          await fetchPrescriptionWorkflowRecords(patientIdNum, date);
+
+        // 即使部分失敗，也嘗試重新載入已成功生成的數據
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const { data } = await supabase
+          .from('medication_workflow_records')
+          .select('*')
+          .eq('patient_id', patientIdNum)
+          .gte('scheduled_date', weekDates[0])
+          .lte('scheduled_date', weekDates[6])
+          .order('scheduled_date')
+          .order('scheduled_time');
+
+        if (data) {
+          setAllWorkflowRecords(data);
+          console.log(`✅ 部分成功: 載入 ${data.length} 筆記錄`);
         }
+
+        alert(`⚠️ ${result.message}\n已載入 ${data?.length || 0} 筆記錄`);
       }
     } catch (error) {
       console.error('生成工作流程記錄失敗:', error);
+      alert(`❌ 生成失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     } finally {
       setGenerating(false);
     }
