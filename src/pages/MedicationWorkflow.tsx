@@ -363,15 +363,16 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
 };
 
 const MedicationWorkflow: React.FC = () => {
-  const { 
-    patients, 
-    prescriptions, 
+  const {
+    patients,
+    prescriptions,
     prescriptionWorkflowRecords,
     fetchPrescriptionWorkflowRecords,
     prepareMedication,
     revertPrescriptionWorkflowStep,
     verifyMedication,
     dispenseMedication,
+    hospitalEpisodes,
     loading 
   } = usePatients();
   const { displayName } = useAuth();
@@ -634,6 +635,70 @@ const MedicationWorkflow: React.FC = () => {
     }
   };
 
+  // 檢查服藥時間點是否在入院期間
+  const isInHospitalizationPeriod = (patientId: number, scheduledDate: string, scheduledTime: string): boolean => {
+    const patientEpisodes = hospitalEpisodes.filter(ep => ep.patient_id === patientId && ep.status === 'active');
+
+    if (patientEpisodes.length === 0) {
+      return false;
+    }
+
+    // 取得最新的活躍住院事件
+    const activeEpisode = patientEpisodes.sort((a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0];
+
+    if (!activeEpisode.episode_events || activeEpisode.episode_events.length === 0) {
+      return false;
+    }
+
+    // 找出最後一次入院事件和最後一次出院事件
+    const admissionEvents = activeEpisode.episode_events
+      .filter((e: any) => e.event_type === 'admission')
+      .sort((a: any, b: any) => {
+        const dateA = new Date(`${a.event_date}T${a.event_time || '00:00:00'}`);
+        const dateB = new Date(`${b.event_date}T${b.event_time || '00:00:00'}`);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+    const dischargeEvents = activeEpisode.episode_events
+      .filter((e: any) => e.event_type === 'discharge')
+      .sort((a: any, b: any) => {
+        const dateA = new Date(`${a.event_date}T${a.event_time || '00:00:00'}`);
+        const dateB = new Date(`${b.event_date}T${b.event_time || '00:00:00'}`);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+    const lastAdmission = admissionEvents[0];
+    const lastDischarge = dischargeEvents[0];
+
+    if (!lastAdmission) {
+      return false;
+    }
+
+    // 服藥時間點
+    const medicationDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+
+    // 入院時間
+    const admissionDateTime = new Date(`${lastAdmission.event_date}T${lastAdmission.event_time || '00:00:00'}`);
+
+    // 如果服藥時間在入院時間之前，則不在入院期間
+    if (medicationDateTime < admissionDateTime) {
+      return false;
+    }
+
+    // 如果有出院事件，且服藥時間在出院時間之後，則不在入院期間
+    if (lastDischarge) {
+      const dischargeDateTime = new Date(`${lastDischarge.event_date}T${lastDischarge.event_time || '00:00:00'}`);
+      if (medicationDateTime >= dischargeDateTime) {
+        return false;
+      }
+    }
+
+    // 服藥時間在入院之後，且在出院之前（或沒有出院）
+    return true;
+  };
+
   // 處理完成工作流程步驟
   const handleCompleteWorkflowStep = async (recordId: string, step: string) => {
     const patientIdNum = parseInt(selectedPatientId);
@@ -659,10 +724,16 @@ const MedicationWorkflow: React.FC = () => {
       } else if (step === 'dispensing') {
         const prescription = prescriptions.find(p => p.id === record.prescription_id);
         const patient = patients.find(p => p.院友id === record.patient_id);
-        const isHospitalized = patient?.is_hospitalized || false;
 
-        // 如果院友入院中，直接寫入"入院"失敗，不彈出任何對話框
-        if (isHospitalized) {
+        // 檢查服藥時間點是否在入院期間
+        const inHospitalizationPeriod = isInHospitalizationPeriod(
+          patientIdNum,
+          record.scheduled_date,
+          record.scheduled_time
+        );
+
+        // 如果在入院期間，直接寫入"入院"失敗，不彈出任何對話框
+        if (inHospitalizationPeriod) {
           const inspectionResult = {
             canDispense: false,
             isHospitalized: true,
