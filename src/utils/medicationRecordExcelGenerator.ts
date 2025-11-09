@@ -1017,7 +1017,7 @@ const fillWorkflowRecordsForPage = (
           continue;
         }
 
-        // 處理自理處方：顯示 'S' 代號，移除斜線
+        // 處理自理處方：顯示 'S' 代號，移除斜線，置中對齊
         if (isSelfCare) {
           // 移除斜線格式
           if (cell.border) {
@@ -1032,6 +1032,8 @@ const fillWorkflowRecordsForPage = (
             };
           }
           cell.value = 'S';
+          // 置中對齊
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
           continue;
         }
 
@@ -1058,22 +1060,26 @@ const fillWorkflowRecordsForPage = (
         console.log(`[執核內容] 單元格 ${cellAddress}: "${content}"`);
 
         if (content) {
-          // 如果是特殊執行結果 (A, S, R, O, HL)，先清除斜線格式
+          // 如果是特殊執行結果 (A, S, R, O, HL)，先清除斜線格式並置中
           const isSpecialCode = ['A', 'S', 'R', 'O', 'HL'].includes(content);
-          if (isSpecialCode && cell.border) {
-            // 保留其他邊框，移除對角線邊框
-            cell.border = {
-              top: cell.border.top,
-              left: cell.border.left,
-              bottom: cell.border.bottom,
-              right: cell.border.right,
-              diagonal: undefined,
-              diagonalUp: false,
-              diagonalDown: false
-            };
+          if (isSpecialCode) {
+            if (cell.border) {
+              // 保留其他邊框，移除對角線邊框
+              cell.border = {
+                top: cell.border.top,
+                left: cell.border.left,
+                bottom: cell.border.bottom,
+                right: cell.border.right,
+                diagonal: undefined,
+                diagonalUp: false,
+                diagonalDown: false
+              };
+            }
+            // 置中對齊
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
           }
           cell.value = content;
-          console.log(`  [執核派] 寫入單元格 ${cellAddress}: "${content}"${isSpecialCode ? ' (已清除斜線)' : ''}`);
+          console.log(`  [執核派] 寫入單元格 ${cellAddress}: "${content}"${isSpecialCode ? ' (已清除斜線並置中)' : ''}`);
         } else {
           console.log(`  [警告] 單元格 ${cellAddress}: 執核內容為空`);
         }
@@ -1148,19 +1154,23 @@ const fillWorkflowRecordsForPage = (
       }
 
       if (hasDispensed) {
-        // 如果是特殊執行結果 (A, S, R, O, HL)，先清除斜線格式
+        // 如果是特殊執行結果 (A, S, R, O, HL)，先清除斜線格式並置中
         const isSpecialCode = ['A', 'S', 'R', 'O', 'HL'].includes(dispenseContent);
-        if (isSpecialCode && cell.border) {
-          // 保留其他邊框，移除對角線邊框
-          cell.border = {
-            top: cell.border.top,
-            left: cell.border.left,
-            bottom: cell.border.bottom,
-            right: cell.border.right,
-            diagonal: undefined,
-            diagonalUp: false,
-            diagonalDown: false
-          };
+        if (isSpecialCode) {
+          if (cell.border) {
+            // 保留其他邊框，移除對角線邊框
+            cell.border = {
+              top: cell.border.top,
+              left: cell.border.left,
+              bottom: cell.border.bottom,
+              right: cell.border.right,
+              diagonal: undefined,
+              diagonalUp: false,
+              diagonalDown: false
+            };
+          }
+          // 置中對齊
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
         }
         cell.value = dispenseContent;
       } else if (shouldBeGray) {
