@@ -1873,23 +1873,31 @@ const MedicationWorkflow: React.FC = () => {
         console.log('本地記錄數:', allWorkflowRecords.length);
         console.log('匹配狀態:', result.isMatched ? '✅ 完全匹配' : '❌ 不匹配');
 
-        // 如果本地記錄與數據庫不一致，提示刷新
         if (allWorkflowRecords.length !== result.actualTotal) {
           console.warn('⚠️ 本地記錄與數據庫不同步！');
           console.warn(`本地: ${allWorkflowRecords.length} 筆, 數據庫: ${result.actualTotal} 筆`);
-          alert(`診斷完成！\n\n發現數據不同步:\n本地記錄: ${allWorkflowRecords.length} 筆\n數據庫記錄: ${result.actualTotal} 筆\n\n建議點擊「刷新」按鈕重新載入數據。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          setTimeout(() => {
+            alert(`診斷完成！\n\n發現數據不同步:\n本地記錄: ${allWorkflowRecords.length} 筆\n數據庫記錄: ${result.actualTotal} 筆\n\n建議點擊「刷新」按鈕重新載入數據。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          }, 0);
         } else if (result.actualTotal > result.expectedTotal && result.inactivePrescCount > 0) {
-          // 記錄數多於預期，且有停用處方
-          alert(`診斷完成！\n\n處方統計:\n- 在服處方: ${result.activePrescCount} 個\n- 停用處方: ${result.inactivePrescCount} 個\n\n記錄統計:\n- 預期記錄: ${result.expectedTotal} 筆\n- 實際記錄: ${result.actualTotal} 筆\n\n⚠️ 記錄數多於預期，可能包含停用處方在停用前生成的記錄。\n這是正常情況，停用處方的歷史記錄會繼續顯示。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          setTimeout(() => {
+            alert(`診斷完成！\n\n處方統計:\n- 在服處方: ${result.activePrescCount} 個\n- 停用處方: ${result.inactivePrescCount} 個\n\n記錄統計:\n- 預期記錄: ${result.expectedTotal} 筆\n- 實際記錄: ${result.actualTotal} 筆\n\n⚠️ 記錄數多於預期，可能包含停用處方在停用前生成的記錄。\n這是正常情況，停用處方的歷史記錄會繼續顯示。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          }, 0);
         } else if (!result.isMatched) {
-          alert(`診斷完成！\n\n處方統計:\n- 在服處方: ${result.activePrescCount} 個\n- 停用處方: ${result.inactivePrescCount} 個\n\n記錄統計:\n- 預期記錄: ${result.expectedTotal} 筆\n- 實際記錄: ${result.actualTotal} 筆\n\n記錄數不匹配，可能需要重新生成工作流程。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          setTimeout(() => {
+            alert(`診斷完成！\n\n處方統計:\n- 在服處方: ${result.activePrescCount} 個\n- 停用處方: ${result.inactivePrescCount} 個\n\n記錄統計:\n- 預期記錄: ${result.expectedTotal} 筆\n- 實際記錄: ${result.actualTotal} 筆\n\n記錄數不匹配，可能需要重新生成工作流程。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          }, 0);
         } else {
-          alert(`診斷完成！\n\n✅ 數據正常\n\n處方統計:\n- 在服處方: ${result.activePrescCount} 個\n- 停用處方: ${result.inactivePrescCount} 個\n\n記錄數: ${result.actualTotal} 筆\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          setTimeout(() => {
+            alert(`診斷完成！\n\n✅ 數據正常\n\n處方統計:\n- 在服處方: ${result.activePrescCount} 個\n- 停用處方: ${result.inactivePrescCount} 個\n\n記錄數: ${result.actualTotal} 筆\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+          }, 0);
         }
       }
     } catch (error) {
       console.error('❌ 診斷失敗:', error);
-      alert('診斷失敗，請查看瀏覽器控制台獲取詳細錯誤信息。');
+      setTimeout(() => {
+        alert('診斷失敗，請查看瀏覽器控制台獲取詳細錯誤信息。');
+      }, 0);
     }
   };
 
@@ -2215,8 +2223,29 @@ const MedicationWorkflow: React.FC = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredPrescriptions.map((prescription, index) => {
-                    const timeSlots = prescription.medication_time_slots || [];
-                    
+                    // 獲取處方當前的時間點
+                    const currentTimeSlots = prescription.medication_time_slots || [];
+
+                    // 獲取當前週次內該處方的所有工作流程記錄的時間點
+                    const weekTimeSlotsFromRecords = allWorkflowRecords
+                      .filter(r => r.prescription_id === prescription.id)
+                      .map(r => r.scheduled_time?.trim().substring(0, 5))
+                      .filter((time, index, self) => time && self.indexOf(time) === index);
+
+                    // 合併時間點：當前時間點 + 當週有記錄的舊時間點
+                    const allTimeSlots = new Set([
+                      ...currentTimeSlots,
+                      ...weekTimeSlotsFromRecords
+                    ]);
+
+                    const timeSlots = Array.from(allTimeSlots).sort((a, b) => {
+                      const parseTime = (t: string) => {
+                        const [h, m] = t.split(':').map(Number);
+                        return h * 60 + m;
+                      };
+                      return parseTime(a) - parseTime(b);
+                    });
+
                     return (
                       <tr 
                         key={prescription.id}

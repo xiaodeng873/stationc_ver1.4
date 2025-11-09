@@ -627,7 +627,7 @@ const applyMedicationRecordTemplate = async (
     for (let i = 0; i < pagePrescriptions.length; i++) {
       const prescription = pagePrescriptions[i];
       const groupStartRow = startRow + (i * 5);
-      fillPrescriptionData(worksheet, prescription, groupStartRow, routeType);
+      fillPrescriptionData(worksheet, prescription, groupStartRow, routeType, selectedMonth, includeWorkflowRecords);
     }
 
     // 填入頁面時間點總結 (L32-L37)
@@ -852,7 +852,9 @@ const fillPrescriptionData = (
   worksheet: ExcelJS.Worksheet,
   prescription: any,
   startRow: number,
-  routeType?: 'oral' | 'topical' | 'injection'
+  routeType?: 'oral' | 'topical' | 'injection',
+  selectedMonth?: string,
+  includeWorkflowRecords?: boolean
 ): string[] => {
   // B列：藥物名稱 (第1行)
   worksheet.getCell('B' + startRow).value = prescription.medication_name || '';
@@ -933,6 +935,57 @@ const fillPrescriptionData = (
     const cell = worksheet.getCell('L' + (startRow + offset));
     cell.value = slots.join(', ');
   });
+
+  // 填充灰色背景：無論是否包含執核派記錄，都要對處方範圍外的日期填充灰色
+  if (selectedMonth) {
+    const [year, month] = selectedMonth.split('-');
+    const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
+
+    // 對每個時間點行填充灰色背景
+    Object.keys(timeSlotsMap).forEach(rowOffsetStr => {
+      const rowOffset = parseInt(rowOffsetStr);
+      if (routeType === 'injection' && rowOffset === 2) {
+        return; // 注射類跳過 startRow + 2
+      }
+
+      const timeSlotRow = startRow + rowOffset;
+      const timeSlot = timeSlotsMap[rowOffset][0]; // 取第一個時間點作為代表
+
+      // 遍歷當月每一天（N 列開始，第14列）
+      for (let day = 1; day <= daysInMonth; day++) {
+        const columnIndex = 14 + day - 1;
+        const columnLetter = getColumnLetter(columnIndex);
+        const cellAddress = columnLetter + timeSlotRow;
+        const cell = worksheet.getCell(cellAddress);
+
+        const dateStr = `${year}-${month.padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+
+        // 檢查該日期是否在處方有效範圍內
+        const isWithinRange = isDateInPrescriptionRange(dateStr, timeSlot, prescription);
+
+        if (!isWithinRange) {
+          // 填充灰色背景
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD3D3D3' }
+          };
+          // 移除斜線格式
+          if (cell.border) {
+            cell.border = {
+              top: cell.border.top,
+              left: cell.border.left,
+              bottom: cell.border.bottom,
+              right: cell.border.right,
+              diagonal: undefined,
+              diagonalUp: false,
+              diagonalDown: false
+            };
+          }
+        }
+      }
+    });
+  }
 
   // 返回所有時間點供頁面總結使用
   return timeSlots;

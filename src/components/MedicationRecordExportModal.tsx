@@ -63,8 +63,15 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
 
     const prescDate = new Date(prescriptionDate);
 
+    if (prescDate > monthEnd) {
+      return false;
+    }
+
     if (endDate) {
       const prescEndDate = new Date(endDate);
+      if (prescEndDate < monthStart) {
+        return false;
+      }
       return prescDate <= monthEnd && prescEndDate >= monthStart;
     } else {
       return prescDate <= monthEnd;
@@ -77,10 +84,10 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
     return allPrescriptions.filter(p => {
       if (p.patient_id !== currentPatient.patient.院友id) return false;
       if (p.status === 'pending_change') return false;
-      if (p.status === 'inactive' && !includeInactive) return false;
+      if (p.status === 'inactive' && !includeInactive && !includeWorkflowRecords) return false;
       return true;
     });
-  }, [exportMode, currentPatient, allPrescriptions, includeInactive]);
+  }, [exportMode, currentPatient, allPrescriptions, includeInactive, includeWorkflowRecords]);
 
   const batchRouteStats = useMemo(() => {
     const stats: RouteStats = { oral: 0, injection: 0, topical: 0, noRoute: 0 };
@@ -90,7 +97,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
 
       patientPrescriptions.forEach(prescription => {
         if (prescription.status === 'pending_change') return;
-        if (prescription.status === 'inactive' && !includeInactive) return;
+        if (prescription.status === 'inactive' && !includeInactive && !includeWorkflowRecords) return;
         if (!prescription.prescription_date) return;
         if (!isInDateRange(prescription.prescription_date, prescription.end_date || null, selectedMonth)) return;
 
@@ -271,7 +278,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                 return false;
               }
 
-              if (prescription.status === 'inactive' && !includeInactive) {
+              if (prescription.status === 'inactive' && !includeInactive && !includeWorkflowRecords) {
                 return false;
               }
 
@@ -793,7 +800,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
                       const patientPrescriptions = prescriptions.filter(p => p.patient_id === patient.院友id);
                       const validPrescriptions = patientPrescriptions.filter(prescription => {
                         if (prescription.status === 'pending_change') return false;
-                        if (prescription.status === 'inactive' && !includeInactive) return false;
+                        if (prescription.status === 'inactive' && !includeInactive && !includeWorkflowRecords) return false;
                         if (!prescription.prescription_date) return false;
                         return isInDateRange(
                           prescription.prescription_date,
