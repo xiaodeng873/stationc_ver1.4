@@ -1017,14 +1017,21 @@ const fillWorkflowRecordsForPage = (
           continue;
         }
 
-        // 處理自理處方
+        // 處理自理處方：顯示 'S' 代號，移除斜線
         if (isSelfCare) {
-          cell.value = '自理';
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFB0E0E6' }
-          };
+          // 移除斜線格式
+          if (cell.border) {
+            cell.border = {
+              top: cell.border.top,
+              left: cell.border.left,
+              bottom: cell.border.bottom,
+              right: cell.border.right,
+              diagonal: undefined,
+              diagonalUp: false,
+              diagonalDown: false
+            };
+          }
+          cell.value = 'S';
           continue;
         }
 
@@ -1106,12 +1113,7 @@ const fillWorkflowRecordsForPage = (
 
         const isSelfCare = prescription.preparation_method === 'custom';
         if (isSelfCare) {
-          dispenseContent = '自理';
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFB0E0E6' }
-          };
+          dispenseContent = 'S';
           hasDispensed = true;
           break;
         }
