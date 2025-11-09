@@ -1086,7 +1086,7 @@ const IntegratedPrescriptionCard: React.FC<IntegratedPrescriptionCardProps> = ({
                 <span className="font-medium">
                   {prescription.preparation_method === 'immediate' ? '即時備藥' :
                    prescription.preparation_method === 'advanced' ? '提前備藥' :
-                   prescription.preparation_method === 'custom' ? '自定義' : prescription.preparation_method}
+                   prescription.preparation_method === 'custom' ? '自理' : prescription.preparation_method}
                 </span>
               </div>
             )}
