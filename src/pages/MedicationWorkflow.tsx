@@ -666,16 +666,27 @@ const MedicationWorkflow: React.FC = () => {
       const patientIdNum = parseInt(selectedPatientId);
       if (!isNaN(patientIdNum)) {
         (async () => {
-          for (let i = 0; i < weekDates.length; i++) {
-            const date = weekDates[i];
-            console.log(`\n[${i + 1}/7] 載入 ${date} 的記錄...`);
-            await fetchPrescriptionWorkflowRecords(patientIdNum, date);
+          // 一次性載入整週的記錄（更高效）
+          const { data, error } = await supabase
+            .from('medication_workflow_records')
+            .select('*')
+            .eq('patient_id', patientIdNum)
+            .gte('scheduled_date', weekDates[0])
+            .lte('scheduled_date', weekDates[6])
+            .order('scheduled_date')
+            .order('scheduled_time');
+
+          if (error) {
+            console.error('載入當周記錄失敗:', error);
+          } else {
+            console.log(`✅ 成功載入當周記錄: ${data?.length || 0} 筆`);
+            // 直接設置到 allWorkflowRecords，跳過 context
+            setAllWorkflowRecords(data || []);
           }
-          console.log('\n✅ 當周所有記錄載入完成\n');
         })();
       }
     }
-  }, [selectedPatientId, JSON.stringify(weekDates), fetchPrescriptionWorkflowRecords]);
+  }, [selectedPatientId, JSON.stringify(weekDates)]);
 
   // 監聽 context 的 prescriptionWorkflowRecords 改變，合併/替換到本地 allWorkflowRecords
   useEffect(() => {
@@ -684,20 +695,15 @@ const MedicationWorkflow: React.FC = () => {
         const newRecords = prescriptionWorkflowRecords.filter(r => r.patient_id.toString() === selectedPatientId);
 
         if (newRecords.length === 0) {
-          console.log('📭 收到空的工作流程記錄更新');
           return prev;
         }
 
         // 獲取這次更新涉及的所有日期
         const updatedDates = [...new Set(newRecords.map(r => r.scheduled_date))];
-        console.log(`📥 收到 ${newRecords.length} 筆工作流程記錄，涉及日期:`, updatedDates);
 
         // 移除這些日期的舊記錄
         const filteredPrev = prev.filter(r => !updatedDates.includes(r.scheduled_date));
-
         const merged = [...filteredPrev, ...newRecords];
-        console.log(`📊 合併後總記錄數: ${merged.length} (舊: ${filteredPrev.length}, 新: ${newRecords.length})`);
-
         return merged;
       });
     }
@@ -2038,35 +2044,6 @@ const MedicationWorkflow: React.FC = () => {
                                   r.scheduled_date === date &&
                                   normalizeTime(r.scheduled_time) === normalizeTime(timeSlot)
                                 );
-
-                                // 診斷：如果是 Ciprofloxacin 且找不到記錄
-                                if (!workflowRecord && prescription.medication_name.includes('Ciprofloxacin') && date === selectedDate) {
-                                  console.log('🔍 Ciprofloxacin 找不到記錄:');
-                                  console.log('  處方ID:', prescription.id);
-                                  console.log('  日期:', date);
-                                  console.log('  時間段 (timeSlot):', timeSlot, '類型:', typeof timeSlot);
-                                  console.log('  標準化後:', normalizeTime(timeSlot));
-
-                                  // 檢查該處方的所有記錄
-                                  const allCiproRecords = allWorkflowRecords.filter(r => r.prescription_id === prescription.id);
-                                  console.log('  該處方的所有記錄數:', allCiproRecords.length);
-                                  if (allCiproRecords.length > 0) {
-                                    console.log('  所有記錄:', allCiproRecords.map(r => ({
-                                      scheduled_date: r.scheduled_date,
-                                      scheduled_time: r.scheduled_time,
-                                      scheduled_time_normalized: normalizeTime(r.scheduled_time),
-                                      matches_date: r.scheduled_date === date,
-                                      matches_time: normalizeTime(r.scheduled_time) === normalizeTime(timeSlot)
-                                    })));
-                                  }
-
-                                  // 檢查該日期的所有記錄
-                                  const sameDateRecords = allWorkflowRecords.filter(r => r.scheduled_date === date);
-                                  console.log('  該日期的所有記錄數:', sameDateRecords.length);
-                                  if (sameDateRecords.length > 0 && sameDateRecords.length <= 10) {
-                                    console.log('  該日期的處方ID列表:', [...new Set(sameDateRecords.map(r => r.prescription_id))]);
-                                  }
-                                }
 
                                 return (
                                   <div key={timeSlot} className="border border-gray-200 rounded-lg p-1 bg-white">

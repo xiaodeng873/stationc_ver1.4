@@ -999,16 +999,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   // 新增的處方工作流程相關函數
   const fetchPrescriptionWorkflowRecords = async (patientId?: number, scheduledDate?: string): Promise<PrescriptionWorkflowRecord[]> => {
     try {
-      console.log('=== fetchPrescriptionWorkflowRecords 調用 ===');
-      console.log('原始參數:', { patientId, scheduledDate });
-      console.log('patientId 類型:', typeof patientId, '值:', patientId);
-      console.log('scheduledDate 類型:', typeof scheduledDate, '值:', scheduledDate);
-      
       // 嚴格的參數驗證和轉換
       const validPatientId = (patientId !== undefined && patientId !== null && !isNaN(patientId) && patientId > 0) ? patientId : null;
       const validScheduledDate = (scheduledDate && typeof scheduledDate === 'string' && scheduledDate.trim() !== '' && scheduledDate !== 'undefined') ? scheduledDate.trim() : null;
-      
-      console.log('驗證後參數:', { validPatientId, validScheduledDate });
       
       // 如果參數無效，直接返回空數組而不執行查詢
       if (validPatientId === null && validScheduledDate === null) {
@@ -1020,26 +1013,22 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       let query = supabase
         .from('medication_workflow_records')
         .select('*');
-      
+
       if (validPatientId !== null) {
-        console.log('添加 patient_id 篩選:', validPatientId);
         query = query.eq('patient_id', validPatientId);
       }
-      
+
       if (validScheduledDate !== null) {
-        console.log('添加 scheduled_date 篩選:', validScheduledDate);
         query = query.eq('scheduled_date', validScheduledDate);
       }
-      
-      console.log('執行 Supabase 查詢...');
-      
+
       const { data: queryData, error: queryError } = await query.order('scheduled_time');
-      
+
       if (queryError) {
         console.error('Supabase 查詢錯誤:', queryError);
         throw new Error(`查詢工作流程記錄失敗: ${queryError.message}`);
       }
-      
+
       console.log('查詢成功，返回記錄數量:', queryData?.length || 0);
       setPrescriptionWorkflowRecords(queryData || []);
       return queryData || [];
