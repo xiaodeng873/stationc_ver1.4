@@ -684,8 +684,12 @@ const MedicationWorkflow: React.FC = () => {
 
       // 檢查每個入院事件
       for (const admission of admissionEvents) {
+        console.log('  🔍 入院事件原始資料:', admission);
+        console.log('  📅 event_date:', admission.event_date, '類型:', typeof admission.event_date);
+        console.log('  ⏰ event_time:', admission.event_time, '類型:', typeof admission.event_time);
+
         const admissionDateTime = new Date(`${admission.event_date}T${admission.event_time || '00:00:00'}`);
-        console.log('  🏥 入院時間:', admissionDateTime.toISOString());
+        console.log('  🏥 入院時間:', admissionDateTime.toISOString(), 'isValid:', !isNaN(admissionDateTime.getTime()));
 
         // 如果服藥時間早於入院時間，跳過此入院事件
         if (medicationDateTime < admissionDateTime) {
@@ -700,8 +704,12 @@ const MedicationWorkflow: React.FC = () => {
         });
 
         if (nextDischarge) {
+          console.log('  🔍 出院事件原始資料:', nextDischarge);
+          console.log('  📅 event_date:', nextDischarge.event_date, '類型:', typeof nextDischarge.event_date);
+          console.log('  ⏰ event_time:', nextDischarge.event_time, '類型:', typeof nextDischarge.event_time);
+
           const dischargeDateTime = new Date(`${nextDischarge.event_date}T${nextDischarge.event_time || '00:00:00'}`);
-          console.log('  🚪 對應出院時間:', dischargeDateTime.toISOString());
+          console.log('  🚪 對應出院時間:', dischargeDateTime.toISOString(), 'isValid:', !isNaN(dischargeDateTime.getTime()));
 
           // 檢查服藥時間是否在入院和出院之間
           if (medicationDateTime >= admissionDateTime && medicationDateTime < dischargeDateTime) {
