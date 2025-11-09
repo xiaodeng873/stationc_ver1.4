@@ -73,11 +73,11 @@ Deno.serve(async (req: Request) => {
       console.log(`已將 ${expiredPrescriptions.length} 個到期處方轉為停用`);
     }
 
-    // 修改查詢邏輯：查詢所有處方（包括在服和停用），不限制 status
-    // 只要處方已經開始（start_date <= targetDate）就可以生成工作流程
+    // 查詢所有在服處方
     let prescriptionQuery = supabase
       .from('new_medication_prescriptions')
       .select('*')
+      .eq('status', 'active')
       .lte('start_date', targetDate);
 
     // 如果指定了院友ID，只查詢該院友的處方
@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
       throw new Error(`查詢處方失敗: ${prescriptionError.message}`);
     }
 
-    console.log(`找到 ${prescriptions?.length || 0} 個處方（包括在服和停用）`);
+    console.log(`找到 ${prescriptions?.length || 0} 個在服處方`);
 
     const workflowRecords: WorkflowRecord[] = [];
     // 修正：使用本地日期避免時區問題

@@ -793,37 +793,46 @@ const MedicationWorkflow: React.FC = () => {
     return ids;
   }, [allWorkflowRecords]);
 
-  // 過濾處方：顯示所有處方（不限於在服），只要處方的有效期與當周有交集
-  // 修改邏輯：不再僅依賴 status === 'active'，而是檢查日期範圍
+  // 過濾處方：顯示在服處方 + 停用但在當周有工作流程記錄的處方
   const activePrescriptions = useMemo(() => {
     const filtered = prescriptions.filter(p => {
       if (p.patient_id.toString() !== selectedPatientId) {
         return false;
       }
 
-      // 使用週範圍的開始和結束日期進行檢查
-      const weekStart = new Date(weekDates[0]);
-      const weekEnd = new Date(weekDates[6]);
-      const startDate = new Date(p.start_date);
+      // 如果是在服處方，檢查日期有效性（使用週範圍而非單一日期）
+      if (p.status === 'active') {
+        // 使用週範圍的開始和結束日期進行檢查
+        const weekStart = new Date(weekDates[0]);
+        const weekEnd = new Date(weekDates[6]);
+        const startDate = new Date(p.start_date);
 
-      // 檢查處方的有效期是否與當前週有任何交集
-      // 條件1：處方開始日期 <= 週結束日期（處方不能在週之後才開始）
-      if (startDate > weekEnd) {
-        return false;
-      }
+        // 檢查處方的開始日期是否在當前週範圍內或之前
+        // 只要處方已經開始，就顯示（不檢查是否已經結束）
+        // 這樣可以容許用戶查看和補充已過期處方的歷史記錄
 
-      // 條件2：如果處方有結束日期，檢查結束日期 >= 週開始日期（處方不能在週之前就結束）
-      // 但如果沒有結束日期（長期處方），則總是顯示
-      if (p.end_date) {
-        const endDate = new Date(p.end_date);
-        if (endDate < weekStart) {
-          // 處方完全在週之前結束，只有在有工作流程記錄時才顯示
-          return weekPrescriptionIds.has(p.id);
+        // 如果處方開始日期在週結束日期之後，不顯示
+        if (startDate > weekEnd) {
+          return false;
         }
+
+        // 移除結束日期檢查，容許顯示已過期的處方
+        // if (p.end_date) {
+        //   const endDate = new Date(p.end_date);
+        //   if (endDate < weekStart) {
+        //     return false;
+        //   }
+        // }
+
+        return true;
+    }
+
+      // 如果是停用處方，檢查當周是否有相關工作流程記錄
+      if (p.status === 'inactive') {
+        return weekPrescriptionIds.has(p.id);
       }
 
-      // 到這裡表示處方與當周有交集，或者是長期處方，顯示它
-      return true;
+      return false;
     });
 
     return filtered;
