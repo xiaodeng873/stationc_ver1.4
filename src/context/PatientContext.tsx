@@ -1041,6 +1041,19 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
       
       console.log('查詢成功，返回記錄數量:', queryData?.length || 0);
+
+      // 診斷：輸出查詢結果的前3筆記錄
+      if (queryData && queryData.length > 0) {
+        console.log('查詢結果範例（前3筆）:', queryData.slice(0, 3).map(r => ({
+          id: r.id,
+          patient_id: r.patient_id,
+          prescription_id: r.prescription_id,
+          scheduled_date: r.scheduled_date,
+          scheduled_time: r.scheduled_time,
+          scheduled_time_type: typeof r.scheduled_time
+        })));
+      }
+
       setPrescriptionWorkflowRecords(queryData || []);
       return queryData || [];
     } catch (error) {

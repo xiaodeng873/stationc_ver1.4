@@ -685,12 +685,34 @@ const MedicationWorkflow: React.FC = () => {
 
         if (newRecords.length === 0) {
           console.log('📭 收到空的工作流程記錄更新');
+          console.log('  Context 中的總記錄數:', prescriptionWorkflowRecords.length);
+          console.log('  當前選中院友ID:', selectedPatientId);
+          if (prescriptionWorkflowRecords.length > 0) {
+            console.log('  Context 記錄範例:', prescriptionWorkflowRecords.slice(0, 3).map(r => ({
+              id: r.id,
+              patient_id: r.patient_id,
+              prescription_id: r.prescription_id,
+              scheduled_date: r.scheduled_date,
+              scheduled_time: r.scheduled_time
+            })));
+          }
           return prev;
         }
 
         // 獲取這次更新涉及的所有日期
         const updatedDates = [...new Set(newRecords.map(r => r.scheduled_date))];
         console.log(`📥 收到 ${newRecords.length} 筆工作流程記錄，涉及日期:`, updatedDates);
+
+        // 診斷：輸出前3筆新記錄的詳細資訊
+        if (newRecords.length > 0) {
+          console.log('  新記錄範例:', newRecords.slice(0, 3).map(r => ({
+            id: r.id,
+            prescription_id: r.prescription_id,
+            scheduled_date: r.scheduled_date,
+            scheduled_time: r.scheduled_time,
+            scheduled_time_type: typeof r.scheduled_time
+          })));
+        }
 
         // 移除這些日期的舊記錄
         const filteredPrev = prev.filter(r => !updatedDates.includes(r.scheduled_date));
@@ -741,39 +763,55 @@ const MedicationWorkflow: React.FC = () => {
   }, [allWorkflowRecords]);
 
   // 過濾處方：顯示在服處方 + 停用但在當周有工作流程記錄的處方
-  const activePrescriptions = prescriptions.filter(p => {
-    if (p.patient_id.toString() !== selectedPatientId) {
-      return false;
-    }
-
-    // 如果是在服處方，檢查日期有效性
-    if (p.status === 'active') {
-      const selectedDateObj = new Date(selectedDate);
-      const startDate = new Date(p.start_date);
-
-      // 檢查是否在開始日期之前
-      if (selectedDateObj < startDate) {
+  const activePrescriptions = useMemo(() => {
+    const filtered = prescriptions.filter(p => {
+      if (p.patient_id.toString() !== selectedPatientId) {
         return false;
       }
 
-      // 檢查是否在結束日期之後
-      if (p.end_date) {
-        const endDate = new Date(p.end_date);
-        if (selectedDateObj > endDate) {
+      // 如果是在服處方，檢查日期有效性
+      if (p.status === 'active') {
+        const selectedDateObj = new Date(selectedDate);
+        const startDate = new Date(p.start_date);
+
+        // 檢查是否在開始日期之前
+        if (selectedDateObj < startDate) {
           return false;
         }
+
+        // 檢查是否在結束日期之後
+        if (p.end_date) {
+          const endDate = new Date(p.end_date);
+          if (selectedDateObj > endDate) {
+            return false;
+          }
+        }
+
+        return true;
+    }
+
+      // 如果是停用處方，檢查當周是否有相關工作流程記錄
+      if (p.status === 'inactive') {
+        return weekPrescriptionIds.has(p.id);
       }
 
-      return true;
+      return false;
+    });
+
+    // 診斷日誌：輸出過濾後的處方列表
+    if (selectedPatientId && filtered.length > 0) {
+      console.log('📋 過濾後的處方列表:', filtered.map(p => ({
+        id: p.id,
+        name: p.medication_name,
+        status: p.status,
+        start_date: p.start_date,
+        end_date: p.end_date,
+        medication_time_slots: p.medication_time_slots
+      })));
     }
 
-    // 如果是停用處方，檢查當周是否有相關工作流程記錄
-    if (p.status === 'inactive') {
-      return weekPrescriptionIds.has(p.id);
-    }
-
-    return false;
-  });
+    return filtered;
+  }, [prescriptions, selectedPatientId, selectedDate, weekPrescriptionIds]);
 
   // 根據備藥方式過濾處方
   const filteredPrescriptions = activePrescriptions.filter(p => {
@@ -2022,11 +2060,61 @@ const MedicationWorkflow: React.FC = () => {
                             <div className="space-y-1">
                               {timeSlots.map((timeSlot: string) => {
                                 // 查找對應的工作流程記錄
-                                const workflowRecord = allWorkflowRecords.find(r => 
+                                const workflowRecord = allWorkflowRecords.find(r =>
                                   r.prescription_id === prescription.id &&
                                   r.scheduled_date === date &&
                                   r.scheduled_time.substring(0, 5) === timeSlot
                                 );
+
+                                // 診斷日誌：如果是當前選中日期且找不到記錄，輸出詳細信息
+                                if (date === selectedDate && !workflowRecord && index === 0) {
+                                  console.log('🔍 找不到工作流程記錄 - 診斷信息:');
+                                  console.log('  處方ID:', prescription.id);
+                                  console.log('  處方名稱:', prescription.medication_name);
+                                  console.log('  日期:', date);
+                                  console.log('  時間段:', timeSlot);
+                                  console.log('  所有記錄總數:', allWorkflowRecords.length);
+
+                                  // 檢查相同日期的記錄
+                                  const sameDateRecords = allWorkflowRecords.filter(r => r.scheduled_date === date);
+                                  console.log('  相同日期的記錄數:', sameDateRecords.length);
+                                  if (sameDateRecords.length > 0) {
+                                    console.log('  相同日期記錄範例:', sameDateRecords.slice(0, 3).map(r => ({
+                                      id: r.id,
+                                      prescription_id: r.prescription_id,
+                                      scheduled_time: r.scheduled_time,
+                                      scheduled_time_substring: r.scheduled_time.substring(0, 5)
+                                    })));
+                                  }
+
+                                  // 檢查相同處方的記錄
+                                  const samePrescriptionRecords = allWorkflowRecords.filter(r => r.prescription_id === prescription.id);
+                                  console.log('  相同處方的記錄數:', samePrescriptionRecords.length);
+                                  if (samePrescriptionRecords.length > 0) {
+                                    console.log('  相同處方記錄範例:', samePrescriptionRecords.slice(0, 3).map(r => ({
+                                      id: r.id,
+                                      scheduled_date: r.scheduled_date,
+                                      scheduled_time: r.scheduled_time,
+                                      scheduled_time_substring: r.scheduled_time.substring(0, 5)
+                                    })));
+                                  }
+
+                                  // 檢查時間格式匹配
+                                  const timeMatchRecords = allWorkflowRecords.filter(r =>
+                                    r.prescription_id === prescription.id &&
+                                    r.scheduled_date === date
+                                  );
+                                  if (timeMatchRecords.length > 0) {
+                                    console.log('  相同處方+日期的記錄:', timeMatchRecords.map(r => ({
+                                      scheduled_time: r.scheduled_time,
+                                      scheduled_time_type: typeof r.scheduled_time,
+                                      scheduled_time_substring: r.scheduled_time.substring(0, 5),
+                                      timeSlot: timeSlot,
+                                      timeSlot_type: typeof timeSlot,
+                                      matches: r.scheduled_time.substring(0, 5) === timeSlot
+                                    })));
+                                  }
+                                }
 
                                 return (
                                   <div key={timeSlot} className="border border-gray-200 rounded-lg p-1 bg-white">
