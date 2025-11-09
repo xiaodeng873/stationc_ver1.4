@@ -29,6 +29,7 @@ import InspectionCheckModal from '../components/InspectionCheckModal';
 import InjectionSiteModal from '../components/InjectionSiteModal';
 import RevertConfirmModal from '../components/RevertConfirmModal';
 import { generateDailyWorkflowRecords, generateBatchWorkflowRecords } from '../utils/workflowGenerator';
+import { diagnoseWorkflowDisplayIssue } from '../utils/diagnoseTool';
 import { supabase } from '../lib/supabase';
 
 interface WorkflowCellProps {
@@ -416,7 +417,7 @@ const MedicationWorkflow: React.FC = () => {
   // 計算一週日期（周日開始）
   const computeWeekDates = (dateStr: string): string[] => {
     const date = new Date(dateStr);
-    const day = date.getDay();
+    const day = date.getDay(); // 0=週日, 1=週一, ..., 6=週六
     const diff = date.getDate() - day;
     const sunday = new Date(date);
     sunday.setDate(diff);
@@ -426,6 +427,12 @@ const MedicationWorkflow: React.FC = () => {
       d.setDate(d.getDate() + i);
       week.push(d.toISOString().split('T')[0]);
     }
+
+    // 調試日誌：顯示週期計算詳情
+    console.log(`📅 週期計算: 輸入日期 ${dateStr} (星期${['日','一','二','三','四','五','六'][day]})`);
+    console.log(`   週日起始: ${week[0]}`);
+    console.log(`   週期範圍: ${week[0]} ~ ${week[6]}`);
+
     return week;
   };
 
@@ -704,9 +711,22 @@ const MedicationWorkflow: React.FC = () => {
             .order('scheduled_time');
 
           if (error) {
-            console.error('載入當周記錄失敗:', error);
+            console.error('❌ 載入當周記錄失敗:', error);
           } else {
             console.log(`✅ 成功載入當周記錄: ${data?.length || 0} 筆`);
+
+            // 按日期統計記錄
+            const byDate: Record<string, number> = {};
+            data?.forEach(record => {
+              byDate[record.scheduled_date] = (byDate[record.scheduled_date] || 0) + 1;
+            });
+
+            console.log('📊 按日期分布:');
+            weekDates.forEach(date => {
+              const count = byDate[date] || 0;
+              console.log(`  ${date}: ${count} 筆${count === 0 ? ' ⚠️' : ''}`);
+            });
+
             // 直接設置到 allWorkflowRecords，跳過 context
             setAllWorkflowRecords(data || []);
           }
@@ -1756,6 +1776,51 @@ const MedicationWorkflow: React.FC = () => {
     setSelectedDate(getTodayLocalDate());
   };
 
+  // 診斷工作流程顯示問題
+  const handleDiagnose = async () => {
+    const patientIdNum = parseInt(selectedPatientId);
+    if (!selectedPatientId || isNaN(patientIdNum)) {
+      alert('請先選擇院友');
+      return;
+    }
+
+    console.log('\n🔍 開始診斷工作流程顯示問題...');
+    console.log('當前選擇院友ID:', patientIdNum);
+    console.log('當前週期:', weekDates[0], '至', weekDates[6]);
+    console.log('本地記錄數量:', allWorkflowRecords.length);
+
+    try {
+      const result = await diagnoseWorkflowDisplayIssue(
+        patientIdNum,
+        weekDates[0],
+        weekDates[6]
+      );
+
+      if (result) {
+        console.log('\n📊 診斷結果摘要:');
+        console.log('處方數量:', result.prescriptions.length);
+        console.log('數據庫記錄數:', result.actualTotal);
+        console.log('預期記錄數:', result.expectedTotal);
+        console.log('本地記錄數:', allWorkflowRecords.length);
+        console.log('匹配狀態:', result.isMatched ? '✅ 完全匹配' : '❌ 不匹配');
+
+        // 如果本地記錄與數據庫不一致，提示刷新
+        if (allWorkflowRecords.length !== result.actualTotal) {
+          console.warn('⚠️ 本地記錄與數據庫不同步！');
+          console.warn(`本地: ${allWorkflowRecords.length} 筆, 數據庫: ${result.actualTotal} 筆`);
+          alert(`診斷完成！\n\n發現數據不同步:\n本地記錄: ${allWorkflowRecords.length} 筆\n數據庫記錄: ${result.actualTotal} 筆\n\n建議點擊「刷新」按鈕重新載入數據。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+        } else if (!result.isMatched) {
+          alert(`診斷完成！\n\n預期記錄數: ${result.expectedTotal} 筆\n實際記錄數: ${result.actualTotal} 筆\n\n記錄數不匹配，可能需要重新生成工作流程。\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+        } else {
+          alert(`診斷完成！\n\n✅ 數據正常\n記錄數: ${result.actualTotal} 筆\n\n詳細診斷結果請查看瀏覽器控制台（F12）。`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ 診斷失敗:', error);
+      alert('診斷失敗，請查看瀏覽器控制台獲取詳細錯誤信息。');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -1777,6 +1842,15 @@ const MedicationWorkflow: React.FC = () => {
             <p className="text-sm text-gray-600 mt-1">管理院友的執藥、核藥、派藥流程</p>
           </div>
           <div className="flex items-center space-x-2">
+            <button
+              onClick={handleDiagnose}
+              disabled={!selectedPatientId}
+              className="btn-secondary flex items-center space-x-2"
+              title="診斷工作流程記錄顯示問題"
+            >
+              <Settings className="h-4 w-4" />
+              <span>診斷</span>
+            </button>
             <button
               onClick={handleRefresh}
               disabled={refreshing || !selectedPatientId}
