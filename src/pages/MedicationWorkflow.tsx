@@ -700,6 +700,7 @@ const MedicationWorkflow: React.FC = () => {
       const patientIdNum = parseInt(selectedPatientId);
       if (!isNaN(patientIdNum)) {
         (async () => {
+          console.log('🔍 開始查詢 Supabase...');
           // 一次性載入整週的記錄（更高效）
           const { data, error } = await supabase
             .from('medication_workflow_records')
@@ -717,8 +718,10 @@ const MedicationWorkflow: React.FC = () => {
 
             // 按日期統計記錄
             const byDate: Record<string, number> = {};
+            const byPrescription: Record<string, number> = {};
             data?.forEach(record => {
               byDate[record.scheduled_date] = (byDate[record.scheduled_date] || 0) + 1;
+              byPrescription[record.prescription_id] = (byPrescription[record.prescription_id] || 0) + 1;
             });
 
             console.log('📊 按日期分布:');
@@ -727,7 +730,13 @@ const MedicationWorkflow: React.FC = () => {
               console.log(`  ${date}: ${count} 筆${count === 0 ? ' ⚠️' : ''}`);
             });
 
+            console.log('📊 按處方分布:');
+            Object.entries(byPrescription).forEach(([prescId, count]) => {
+              console.log(`  ${prescId.substring(0, 8)}...: ${count} 筆`);
+            });
+
             // 直接設置到 allWorkflowRecords，跳過 context
+            console.log(`📝 設置 allWorkflowRecords: ${data?.length || 0} 筆`);
             setAllWorkflowRecords(data || []);
           }
         })();
@@ -742,15 +751,21 @@ const MedicationWorkflow: React.FC = () => {
         const newRecords = prescriptionWorkflowRecords.filter(r => r.patient_id.toString() === selectedPatientId);
 
         if (newRecords.length === 0) {
+          console.log('⚠️ Context 中沒有新記錄，保持現有記錄');
           return prev;
         }
 
+        console.log(`🔄 Context 更新: 收到 ${newRecords.length} 筆新記錄`);
+
         // 獲取這次更新涉及的所有日期
         const updatedDates = [...new Set(newRecords.map(r => r.scheduled_date))];
+        console.log(`📅 更新涉及日期:`, updatedDates);
 
         // 移除這些日期的舊記錄
         const filteredPrev = prev.filter(r => !updatedDates.includes(r.scheduled_date));
         const merged = [...filteredPrev, ...newRecords];
+
+        console.log(`📝 合併後記錄數: ${prev.length} -> ${merged.length}`);
         return merged;
       });
     }
