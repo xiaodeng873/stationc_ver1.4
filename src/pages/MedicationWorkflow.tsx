@@ -637,9 +637,14 @@ const MedicationWorkflow: React.FC = () => {
 
   // 檢查服藥時間點是否在入院期間
   const isInHospitalizationPeriod = (patientId: number, scheduledDate: string, scheduledTime: string): boolean => {
+    console.log('🔍 檢查入院期間:', { patientId, scheduledDate, scheduledTime });
+    console.log('📋 所有住院事件:', hospitalEpisodes);
+
     const patientEpisodes = hospitalEpisodes.filter(ep => ep.patient_id === patientId && ep.status === 'active');
+    console.log('👤 病人的活躍住院事件:', patientEpisodes);
 
     if (patientEpisodes.length === 0) {
+      console.log('❌ 沒有活躍的住院事件');
       return false;
     }
 
@@ -647,8 +652,10 @@ const MedicationWorkflow: React.FC = () => {
     const activeEpisode = patientEpisodes.sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )[0];
+    console.log('📌 最新的住院事件:', activeEpisode);
 
     if (!activeEpisode.episode_events || activeEpisode.episode_events.length === 0) {
+      console.log('❌ 沒有事件記錄');
       return false;
     }
 
@@ -672,7 +679,11 @@ const MedicationWorkflow: React.FC = () => {
     const lastAdmission = admissionEvents[0];
     const lastDischarge = dischargeEvents[0];
 
+    console.log('🏥 最後入院事件:', lastAdmission);
+    console.log('🚪 最後出院事件:', lastDischarge);
+
     if (!lastAdmission) {
+      console.log('❌ 沒有入院事件');
       return false;
     }
 
@@ -682,20 +693,28 @@ const MedicationWorkflow: React.FC = () => {
     // 入院時間
     const admissionDateTime = new Date(`${lastAdmission.event_date}T${lastAdmission.event_time || '00:00:00'}`);
 
+    console.log('⏰ 服藥時間:', medicationDateTime.toISOString());
+    console.log('🏥 入院時間:', admissionDateTime.toISOString());
+
     // 如果服藥時間在入院時間之前，則不在入院期間
     if (medicationDateTime < admissionDateTime) {
+      console.log('❌ 服藥時間在入院之前');
       return false;
     }
 
     // 如果有出院事件，且服藥時間在出院時間之後，則不在入院期間
     if (lastDischarge) {
       const dischargeDateTime = new Date(`${lastDischarge.event_date}T${lastDischarge.event_time || '00:00:00'}`);
+      console.log('🚪 出院時間:', dischargeDateTime.toISOString());
+
       if (medicationDateTime >= dischargeDateTime) {
+        console.log('❌ 服藥時間在出院之後');
         return false;
       }
     }
 
     // 服藥時間在入院之後，且在出院之前（或沒有出院）
+    console.log('✅ 在入院期間，應標記為「入院」');
     return true;
   };
 
