@@ -112,6 +112,20 @@ Deno.serve(async (req: Request) => {
 
       if (endDateStr && targetDateStr > endDateStr) {
         console.log(`❌ 跳過：目標日期超出處方有效期 (${targetDateStr} > ${endDateStr})`);
+
+        // 刪除該處方在此日期及之後的所有工作流程記錄
+        const { error: deleteError } = await supabase
+          .from('medication_workflow_records')
+          .delete()
+          .eq('prescription_id', prescription.id)
+          .gte('scheduled_date', targetDateStr);
+
+        if (deleteError) {
+          console.error(`刪除過期工作流程記錄失敗: ${deleteError.message}`);
+        } else {
+          console.log(`✓ 已刪除處方 ${prescription.id} 在 ${targetDateStr} 及之後的工作流程記錄`);
+        }
+
         continue;
       }
 
@@ -135,6 +149,23 @@ Deno.serve(async (req: Request) => {
 
       for (const timeSlot of timeSlots) {
         console.log(`  處理時間槽: ${timeSlot}`);
+
+        // 檢查時間點是否在處方有效時間範圍內
+        const startTime = prescription.start_time || '00:00';
+        const endTime = prescription.end_time || '23:59';
+
+        // 如果是開始日期當天，檢查時間點是否 >= 開始時間
+        if (targetDateStr === startDateStr && timeSlot < startTime) {
+          console.log(`  ❌ 跳過：時間點早於開始時間 (${timeSlot} < ${startTime})`);
+          continue;
+        }
+
+        // 如果是結束日期當天，檢查時間點是否 <= 結束時間
+        if (endDateStr && targetDateStr === endDateStr && timeSlot > endTime) {
+          console.log(`  ❌ 跳過：時間點晚於結束時間 (${timeSlot} > ${endTime})`);
+          continue;
+        }
+
         console.log(`  ✓ 準備生成新記錄（若重複則跳過）`);
         workflowRecords.push({
           patient_id: prescription.patient_id,

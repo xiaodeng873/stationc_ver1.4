@@ -1294,7 +1294,7 @@ const isDateInPrescriptionRange = (
 
     // 如果是開始日期當天，需要檢查時間點
     if (dateStr === prescription.start_date) {
-      // 比較時間點：如果服藥時間點早於開始時間，則不在範圍內
+      // 比較時間點：服藥時間點必須 >= 開始時間（包含開始時間）
       if (timeSlot < startTime) {
         return false;
       }
@@ -1310,7 +1310,7 @@ const isDateInPrescriptionRange = (
 
     // 如果是結束日期當天，需要檢查時間點
     if (dateStr === prescription.end_date) {
-      // 比較時間點：如果服藥時間點晚於結束時間，則不在範圍內
+      // 比較時間點：服藥時間點必須 <= 結束時間（包含結束時間）
       if (timeSlot > endTime) {
         return false;
       }

@@ -242,9 +242,15 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type));
   const documentTasks = patientHealthTasks.filter(task => isDocumentTask(task.health_record_type));
 
-  // 監測任務：僅顯示逾期和未完成
-  const overdueMonitoringTasks = monitoringTasks.filter(task => isTaskOverdue(task));
-  const pendingMonitoringTasks = monitoringTasks.filter(task => isTaskPendingToday(task));
+  // 監測任務：僅顯示逾期和未完成，且院友必須在住
+  const overdueMonitoringTasks = monitoringTasks.filter(task => {
+    const patient = patients.find(p => p.院友id === task.patient_id);
+    return patient && patient.在住狀態 === '在住' && isTaskOverdue(task);
+  });
+  const pendingMonitoringTasks = monitoringTasks.filter(task => {
+    const patient = patients.find(p => p.院友id === task.patient_id);
+    return patient && patient.在住狀態 === '在住' && isTaskPendingToday(task);
+  });
   const urgentMonitoringTasks = [...overdueMonitoringTasks, ...pendingMonitoringTasks].sort((a, b) => {
     const timeA = new Date(a.next_due_at).getTime();
     const timeB = new Date(b.next_due_at).getTime();
@@ -272,14 +278,26 @@ const Dashboard: React.FC = () => {
   const dinnerTasks = urgentMonitoringTasks.filter(task => categorizeTaskByTime(task) === '晚餐');
   const snackTasks = urgentMonitoringTasks.filter(task => categorizeTaskByTime(task) === '夜宵');
 
-  // 文件任務：包含逾期、未完成和即將到期
-  const overdueDocumentTasks = documentTasks.filter(task => isTaskOverdue(task));
-  const pendingDocumentTasks = documentTasks.filter(task => isTaskPendingToday(task));
-  const dueSoonDocumentTasks = documentTasks.filter(task => isTaskDueSoon(task));
+  // 文件任務：包含逾期、未完成和即將到期，且院友必須在住
+  const overdueDocumentTasks = documentTasks.filter(task => {
+    const patient = patients.find(p => p.院友id === task.patient_id);
+    return patient && patient.在住狀態 === '在住' && isTaskOverdue(task);
+  });
+  const pendingDocumentTasks = documentTasks.filter(task => {
+    const patient = patients.find(p => p.院友id === task.patient_id);
+    return patient && patient.在住狀態 === '在住' && isTaskPendingToday(task);
+  });
+  const dueSoonDocumentTasks = documentTasks.filter(task => {
+    const patient = patients.find(p => p.院友id === task.patient_id);
+    return patient && patient.在住狀態 === '在住' && isTaskDueSoon(task);
+  });
   const urgentDocumentTasks = [...overdueDocumentTasks, ...pendingDocumentTasks, ...dueSoonDocumentTasks].slice(0, 10);
 
-  // 護理任務：包含逾期、未完成和即將到期（1天前）
-  const nursingTasks = patientHealthTasks.filter(task => isNursingTask(task.health_record_type));
+  // 護理任務：包含逾期、未完成和即將到期（1天前），且院友必須在住
+  const nursingTasks = patientHealthTasks.filter(task => {
+    const patient = patients.find(p => p.院友id === task.patient_id);
+    return patient && patient.在住狀態 === '在住' && isNursingTask(task.health_record_type);
+  });
   const overdueNursingTasks = nursingTasks.filter(task => isTaskOverdue(task));
   const pendingNursingTasks = nursingTasks.filter(task => isTaskPendingToday(task));
   
@@ -302,14 +320,26 @@ const Dashboard: React.FC = () => {
   
   const urgentNursingTasks = [...overdueNursingTasks, ...pendingNursingTasks, ...dueSoonNursingTasks].slice(0, 10);
 
-  // 約束物品評估：包含逾期和即將到期（2週內）
-  const overdueRestraintAssessments = patientRestraintAssessments.filter(assessment => isRestraintAssessmentOverdue(assessment));
-  const dueSoonRestraintAssessments = patientRestraintAssessments.filter(assessment => isRestraintAssessmentDueSoon(assessment));
+  // 約束物品評估：包含逾期和即將到期（2週內），且院友必須在住
+  const overdueRestraintAssessments = patientRestraintAssessments.filter(assessment => {
+    const patient = patients.find(p => p.院友id === assessment.patient_id);
+    return patient && patient.在住狀態 === '在住' && isRestraintAssessmentOverdue(assessment);
+  });
+  const dueSoonRestraintAssessments = patientRestraintAssessments.filter(assessment => {
+    const patient = patients.find(p => p.院友id === assessment.patient_id);
+    return patient && patient.在住狀態 === '在住' && isRestraintAssessmentDueSoon(assessment);
+  });
   const urgentRestraintAssessments = [...overdueRestraintAssessments, ...dueSoonRestraintAssessments];
 
-  // 健康評估：包含逾期和即將到期（1個月內）
-  const overdueHealthAssessments = healthAssessments.filter(assessment => isHealthAssessmentOverdue(assessment));
-  const dueSoonHealthAssessments = healthAssessments.filter(assessment => isHealthAssessmentDueSoon(assessment));
+  // 健康評估：包含逾期和即將到期（1個月內），且院友必須在住
+  const overdueHealthAssessments = healthAssessments.filter(assessment => {
+    const patient = patients.find(p => p.院友id === assessment.patient_id);
+    return patient && patient.在住狀態 === '在住' && isHealthAssessmentOverdue(assessment);
+  });
+  const dueSoonHealthAssessments = healthAssessments.filter(assessment => {
+    const patient = patients.find(p => p.院友id === assessment.patient_id);
+    return patient && patient.在住狀態 === '在住' && isHealthAssessmentDueSoon(assessment);
+  });
   const urgentHealthAssessments = [...overdueHealthAssessments, ...dueSoonHealthAssessments];
 
   // 合併文件任務、約束物品評估和健康評估
