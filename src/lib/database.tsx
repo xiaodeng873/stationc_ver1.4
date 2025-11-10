@@ -1019,16 +1019,32 @@ export async function updatePrescription(prescription: any) {
 export async function deletePrescription(id: string) {
   try {
     console.log('🔍 Deleting prescription with id:', id);
+
+    // 先刪除該處方的所有工作流程記錄
+    console.log('🔍 Deleting related workflow records for prescription:', id);
+    const { error: workflowError } = await supabase
+      .from('medication_workflow_records')
+      .delete()
+      .eq('prescription_id', id);
+
+    if (workflowError) {
+      console.error('❌ Error deleting workflow records:', workflowError);
+      throw workflowError;
+    }
+
+    console.log('✅ Successfully deleted workflow records');
+
+    // 再刪除處方
     const { error } = await supabase
       .from('new_medication_prescriptions')
       .delete()
       .eq('id', id);
-    
+
     if (error) {
       console.error('❌ Error deleting prescription:', error);
       throw error;
     }
-    
+
     console.log('✅ Successfully deleted prescription');
   } catch (error) {
     console.error('❌ deletePrescription failed:', error);
