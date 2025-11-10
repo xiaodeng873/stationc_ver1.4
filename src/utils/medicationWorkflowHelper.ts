@@ -278,12 +278,12 @@ export const formatWorkflowCellContent = (
     if (reason === '入院') return 'A';
     if (reason === '自理') return 'S';
     if (reason === '拒服') return 'R';
-    if (reason === '略去') return 'O';
+    if (reason === '暫停') return 'O';
     if (reason === '回家渡假') return 'HL';
 
     // 處理「其他」類別中的特殊情況
     if (reason === '其他') {
-      if (customReason === '略去') return 'O';
+      if (customReason === '暫停') return 'O';
       if (customReason === '回家渡假') return 'HL';
       if (customReason === '自理') return 'S';
     }
@@ -347,12 +347,12 @@ export const formatDispenseCellContent = (
     if (reason === '入院') return 'A';
     if (reason === '自理') return 'S';
     if (reason === '拒服') return 'R';
-    if (reason === '略去') return 'O';
+    if (reason === '暫停') return 'O';
     if (reason === '回家渡假') return 'HL';
 
     // 處理「其他」類別中的特殊情況
     if (reason === '其他') {
-      if (customReason === '略去') return 'O';
+      if (customReason === '暫停') return 'O';
       if (customReason === '回家渡假') return 'HL';
       if (customReason === '自理') return 'S';
     }

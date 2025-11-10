@@ -59,7 +59,7 @@ const DispenseConfirmModal: React.FC<DispenseConfirmModalProps> = ({
       isSuccess: false
     },
     {
-      value: '略去',
+      value: '暫停',
       label: '暫停該次派藥',
       icon: <Pause className="h-5 w-5" />,
       color: 'gray',
