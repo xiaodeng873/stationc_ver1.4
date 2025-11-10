@@ -1082,25 +1082,8 @@ const fillWorkflowRecordsForPage = (
         // 檢查是否在處方有效期內
         const isWithinRange = isDateInPrescriptionRange(dateStr, timeSlot, prescription);
 
+        // 如果不在範圍內，跳過（灰色背景已由 fillPrescriptionData 設定）
         if (!isWithinRange) {
-          // 填充灰色背景
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFD3D3D3' }
-          };
-          // 移除斜線格式
-          if (cell.border) {
-            cell.border = {
-              top: cell.border.top,
-              left: cell.border.left,
-              bottom: cell.border.bottom,
-              right: cell.border.right,
-              diagonal: undefined,
-              diagonalUp: false,
-              diagonalDown: false
-            };
-          }
           continue;
         }
 

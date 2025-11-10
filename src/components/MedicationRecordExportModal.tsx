@@ -71,7 +71,7 @@ const MedicationRecordExportModal: React.FC<MedicationRecordExportModalProps> = 
       const monthEnd = new Date(year, month, 0).toISOString().split('T')[0];
 
       const { data, error } = await supabase
-        .from('medication_workflow')
+        .from('medication_workflow_records')
         .select('prescription_id')
         .gte('scheduled_date', monthStart)
         .lte('scheduled_date', monthEnd);
