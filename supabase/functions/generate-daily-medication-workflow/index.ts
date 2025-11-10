@@ -150,19 +150,28 @@ Deno.serve(async (req: Request) => {
       for (const timeSlot of timeSlots) {
         console.log(`  處理時間槽: ${timeSlot}`);
 
+        // 標準化時間格式為 HH:MM（移除秒數）
+        const normalizeTime = (time: string | null | undefined): string => {
+          if (!time) return '00:00';
+          return time.substring(0, 5); // 取前5個字元 "HH:MM"
+        };
+
         // 檢查時間點是否在處方有效時間範圍內
-        const startTime = prescription.start_time || '00:00';
-        const endTime = prescription.end_time || '23:59';
+        const startTime = normalizeTime(prescription.start_time) || '00:00';
+        const endTime = normalizeTime(prescription.end_time) || '23:59';
+        const normalizedTimeSlot = normalizeTime(timeSlot);
+
+        console.log(`  時間檢查: 時間槽=${normalizedTimeSlot}, 開始=${startTime}, 結束=${endTime}`);
 
         // 如果是開始日期當天，檢查時間點是否 >= 開始時間
-        if (targetDateStr === startDateStr && timeSlot < startTime) {
-          console.log(`  ❌ 跳過：時間點早於開始時間 (${timeSlot} < ${startTime})`);
+        if (targetDateStr === startDateStr && normalizedTimeSlot < startTime) {
+          console.log(`  ❌ 跳過：時間點早於開始時間 (${normalizedTimeSlot} < ${startTime})`);
           continue;
         }
 
         // 如果是結束日期當天，檢查時間點是否 <= 結束時間
-        if (endDateStr && targetDateStr === endDateStr && timeSlot > endTime) {
-          console.log(`  ❌ 跳過：時間點晚於結束時間 (${timeSlot} > ${endTime})`);
+        if (endDateStr && targetDateStr === endDateStr && normalizedTimeSlot > endTime) {
+          console.log(`  ❌ 跳過：時間點晚於結束時間 (${normalizedTimeSlot} > ${endTime})`);
           continue;
         }
 
@@ -177,6 +186,72 @@ Deno.serve(async (req: Request) => {
           dispensing_status: 'pending'
         });
       }
+
+      // 清理該處方所有超出時間範圍的工作流程記錄
+      console.log(`檢查並清理處方 ${prescription.id} 的超出範圍記錄...`);
+
+      // 標準化時間格式
+      const normalizeTime = (time: string | null | undefined): string => {
+        if (!time) return '00:00';
+        return time.substring(0, 5);
+      };
+
+      const startTime = normalizeTime(prescription.start_time) || '00:00';
+      const endTime = normalizeTime(prescription.end_time) || '23:59';
+
+      // 查詢該處方的所有工作流程記錄
+      const { data: existingRecords, error: fetchError } = await supabase
+        .from('medication_workflow_records')
+        .select('id, scheduled_date, scheduled_time')
+        .eq('prescription_id', prescription.id);
+
+      if (!fetchError && existingRecords) {
+        const recordsToDelete: string[] = [];
+
+        for (const record of existingRecords) {
+          const recordDate = record.scheduled_date;
+          const recordTime = normalizeTime(record.scheduled_time);
+
+          let shouldDelete = false;
+
+          // 檢查是否在開始日期之前
+          if (recordDate < startDateStr) {
+            shouldDelete = true;
+          }
+          // 檢查開始日期當天的時間
+          else if (recordDate === startDateStr && recordTime < startTime) {
+            shouldDelete = true;
+          }
+          // 檢查是否在結束日期之後
+          else if (endDateStr && recordDate > endDateStr) {
+            shouldDelete = true;
+          }
+          // 檢查結束日期當天的時間
+          else if (endDateStr && recordDate === endDateStr && recordTime > endTime) {
+            shouldDelete = true;
+          }
+
+          if (shouldDelete) {
+            recordsToDelete.push(record.id);
+          }
+        }
+
+        if (recordsToDelete.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('medication_workflow_records')
+            .delete()
+            .in('id', recordsToDelete);
+
+          if (deleteError) {
+            console.error(`刪除超出範圍記錄失敗: ${deleteError.message}`);
+          } else {
+            console.log(`✓ 已刪除 ${recordsToDelete.length} 筆超出時間範圍的工作流程記錄`);
+          }
+        } else {
+          console.log(`✓ 無需清理，所有記錄都在有效範圍內`);
+        }
+      }
+
       console.log(`========== 完成處理: ${prescription.medication_name} ==========\n`);
     }
 

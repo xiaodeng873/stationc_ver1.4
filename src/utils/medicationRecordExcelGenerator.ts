@@ -1281,9 +1281,17 @@ const isDateInPrescriptionRange = (
   const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
 
   // 處理開始時間（如果沒有設定，預設為 00:00）
-  const startTime = prescription.start_time || '00:00';
-  // 處理結束時間（如果沒有設定，預設為 23:59）
-  const endTime = prescription.end_time || '23:59';
+  // 標準化時間格式為 HH:MM，移除秒數
+  const normalizeTime = (time: string | null | undefined): string => {
+    if (!time) return '00:00';
+    return time.substring(0, 5); // 取前5個字元 "HH:MM"
+  };
+
+  const startTime = normalizeTime(prescription.start_time) || '00:00';
+  const endTime = normalizeTime(prescription.end_time) || '23:59';
+
+  // 標準化服藥時間點格式
+  const normalizedTimeSlot = normalizeTime(timeSlot);
 
   // 檢查是否在開始日期之前
   if (startDate) {
@@ -1295,7 +1303,7 @@ const isDateInPrescriptionRange = (
     // 如果是開始日期當天，需要檢查時間點
     if (dateStr === prescription.start_date) {
       // 比較時間點：服藥時間點必須 >= 開始時間（包含開始時間）
-      if (timeSlot < startTime) {
+      if (normalizedTimeSlot < startTime) {
         return false;
       }
     }
@@ -1311,7 +1319,7 @@ const isDateInPrescriptionRange = (
     // 如果是結束日期當天，需要檢查時間點
     if (dateStr === prescription.end_date) {
       // 比較時間點：服藥時間點必須 <= 結束時間（包含結束時間）
-      if (timeSlot > endTime) {
+      if (normalizedTimeSlot > endTime) {
         return false;
       }
     }
