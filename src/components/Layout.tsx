@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Users, FileText, BarChart3, Menu, X, Home, LogOut, User, Clock, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Settings, Ambulance, Activity, Hospital, Bed, Stethoscope, Database, Bandage, UserSearch, Pill } from 'lucide-react';
+import { Users, FileText, BarChart3, Menu, X, Home, LogOut, User, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Settings, Ambulance, Activity, Hospital, Bed, Stethoscope, Database, Bandage, UserSearch, Pill } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { useAuth } from '../context/AuthContext';
 
@@ -27,7 +27,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
       document.body.style.overflow = '';
     }
 
-    return () => { 
+    return () => {
       document.body.style.overflow = '';
     };
   }, [sidebarOpen]);
@@ -60,7 +60,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
     { name: '醫院外展', href: '/hospital-outreach', icon: Hospital },
     { name: '範本管理', href: '/templates', icon: FileText },
     { name: '列印表格', href: '/print-forms', icon: Printer },
-    { name: '任務管理', href: '/tasks', icon: Clock },
+    { name: '任務管理', href: '/tasks', icon: CheckSquare },
     { name: '報表查詢', href: '/reports', icon: BarChart3 },
   ];
 
