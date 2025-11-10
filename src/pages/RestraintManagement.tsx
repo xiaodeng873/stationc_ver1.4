@@ -413,14 +413,6 @@ const RestraintManagement: React.FC = () => {
     const exportData = selectedAssessments.map(assessment => {
       const patient = patients.find(p => p.院友id === assessment.patient_id);
       
-      // 處理風險因素
-      const riskFactorsList = assessment.risk_factors && typeof assessment.risk_factors === 'object'
-        ? Object.entries(assessment.risk_factors)
-            .filter(([key, value]) => !key.includes('說明') && value)
-            .map(([key]) => key)
-            .join(', ')
-        : '';
-      
       // 處理折衷辦法
       const alternativesList = assessment.alternatives && typeof assessment.alternatives === 'object'
         ? Object.entries(assessment.alternatives)
@@ -450,7 +442,6 @@ const RestraintManagement: React.FC = () => {
         身份證號碼: patient?.身份證號碼 || '',
         醫生簽署日期: assessment.doctor_signature_date ? new Date(assessment.doctor_signature_date).toLocaleDateString('zh-TW') : '未簽署',
         下次到期日期: assessment.next_due_date ? new Date(assessment.next_due_date).toLocaleDateString('zh-TW') : '-',
-        風險因素: riskFactorsList || '無',
         折衷辦法: alternativesList || '無',
         約束物品建議: restraintsList || '無',
         其他備註: assessment.other_restraint_notes || '',
@@ -458,7 +449,7 @@ const RestraintManagement: React.FC = () => {
       };
     });
 
-    const headers = ['床號', '中文姓名', '性別', '年齡', '身份證號碼', '醫生簽署日期', '下次到期日期', '風險因素', '折衷辦法', '約束物品建議', '其他備註', '建立日期'];
+    const headers = ['床號', '中文姓名', '性別', '年齡', '身份證號碼', '醫生簽署日期', '下次到期日期', '折衷辦法', '約束物品建議', '其他備註', '建立日期'];
     const csvContent = [
       `"約束物品評估記錄"`,
       `"生成日期: ${new Date().toLocaleDateString('zh-TW')}"`,
@@ -795,9 +786,6 @@ const RestraintManagement: React.FC = () => {
                     狀態
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    風險因素
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     約束物品建議
                   </th>
                   <SortableHeader field="created_at">建立日期</SortableHeader>
@@ -877,16 +865,6 @@ const RestraintManagement: React.FC = () => {
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         {getStatusBadge(assessment)}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
-                        <div className="truncate">
-                          {assessment.risk_factors && typeof assessment.risk_factors === 'object' ? (
-                            Object.entries(assessment.risk_factors)
-                              .filter(([key, value]) => value === true)
-                              .map(([key]) => key)
-                              .join(', ') || '-'
-                          ) : '-'}
-                        </div>
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
                         <div className="truncate">
