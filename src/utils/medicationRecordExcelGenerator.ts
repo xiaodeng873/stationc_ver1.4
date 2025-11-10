@@ -985,6 +985,33 @@ const fillPrescriptionData = (
           }
         }
       }
+
+      // 填充超出該月天數的日期格子（例如11月31日）
+      for (let day = daysInMonth + 1; day <= 31; day++) {
+        const columnIndex = 14 + day - 1;
+        const columnLetter = getColumnLetter(columnIndex);
+        const cellAddress = columnLetter + timeSlotRow;
+        const cell = worksheet.getCell(cellAddress);
+
+        // 填充灰色背景
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFD3D3D3' }
+        };
+        // 移除斜線格式
+        if (cell.border) {
+          cell.border = {
+            top: cell.border.top,
+            left: cell.border.left,
+            bottom: cell.border.bottom,
+            right: cell.border.right,
+            diagonal: undefined,
+            diagonalUp: false,
+            diagonalDown: false
+          };
+        }
+      }
     });
   }
 
@@ -1155,6 +1182,34 @@ const fillWorkflowRecordsForPage = (
           console.log(`  [警告] 單元格 ${cellAddress}: 執核內容為空`);
         }
       }
+
+      // 填充超出該月天數的日期格子（例如11月31日）
+      for (let day = daysInMonth + 1; day <= 31; day++) {
+        const columnIndex = 14 + day - 1;
+        const columnLetter = getColumnLetter(columnIndex);
+        const cellAddress = columnLetter + recordRow;
+        const cell = worksheet.getCell(cellAddress);
+
+        // 填充灰色背景
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFD3D3D3' }
+        };
+        // 移除斜線格式
+        if (cell.border) {
+          cell.border = {
+            top: cell.border.top,
+            left: cell.border.left,
+            bottom: cell.border.bottom,
+            right: cell.border.right,
+            diagonal: undefined,
+            diagonalUp: false,
+            diagonalDown: false
+          };
+        }
+      }
+
       });
     });
   });
@@ -1264,6 +1319,33 @@ const fillWorkflowRecordsForPage = (
             diagonalDown: false
           };
         }
+      }
+    }
+
+    // 填充超出該月天數的日期格子（例如11月31日）
+    for (let day = daysInMonth + 1; day <= 31; day++) {
+      const columnIndex = 14 + day - 1;
+      const columnLetter = getColumnLetter(columnIndex);
+      const cellAddress = columnLetter + summaryRow;
+      const cell = worksheet.getCell(cellAddress);
+
+      // 填充灰色背景
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFD3D3D3' }
+      };
+      // 移除斜線格式
+      if (cell.border) {
+        cell.border = {
+          top: cell.border.top,
+          left: cell.border.left,
+          bottom: cell.border.bottom,
+          right: cell.border.right,
+          diagonal: undefined,
+          diagonalUp: false,
+          diagonalDown: false
+        };
       }
     }
   });
