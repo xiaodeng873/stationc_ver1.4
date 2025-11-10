@@ -1,5 +1,6 @@
 import ExcelJS from '@zurmokeeper/exceljs';
 import { saveAs } from 'file-saver';
+import { supabase } from '../lib/supabase';
 import {
   fetchWorkflowRecordsForMonth,
   generateStaffCodeMapping,
@@ -1465,6 +1466,7 @@ export const exportSelectedMedicationRecordToExcel = async (
     console.log('開始匯出選中的處方到個人備藥及給藥記錄...');
     console.log('選中的處方數量:', selectedPrescriptionIds.length);
     console.log('當前院友:', currentPatient.中文姓氏 + currentPatient.中文名字);
+    console.log('includeWorkflowRecords:', includeWorkflowRecords);
 
     if (!medicationTemplate.extracted_format) {
       throw new Error('範本格式無效');
@@ -1480,6 +1482,25 @@ export const exportSelectedMedicationRecordToExcel = async (
       throw new Error('範本格式不完整：缺少 ' + missingSheets.join('、') + ' 工作表格式');
     }
 
+    // 如果需要包含執核派記錄，查詢該月份有執核派記錄的處方
+    let prescriptionsWithWorkflowRecords = new Set<string>();
+    if (includeWorkflowRecords) {
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const monthStart = new Date(year, month - 1, 1).toISOString().split('T')[0];
+      const monthEnd = new Date(year, month, 0).toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('medication_workflow_records')
+        .select('prescription_id')
+        .gte('scheduled_date', monthStart)
+        .lte('scheduled_date', monthEnd);
+
+      if (!error && data) {
+        prescriptionsWithWorkflowRecords = new Set(data.map(r => r.prescription_id));
+        console.log('查詢到有執核派記錄的處方數量:', prescriptionsWithWorkflowRecords.size);
+      }
+    }
+
     // 判斷匯出模式
     const isExportAll = selectedPrescriptionIds.length === 0;
     console.log('匯出模式:', isExportAll ? '全部匯出' : '選中匯出');
@@ -1492,16 +1513,23 @@ export const exportSelectedMedicationRecordToExcel = async (
       prescriptionsToExport = allPrescriptions.filter(p => {
         if (p.patient_id !== currentPatient.院友id) return false;
         if (p.status === 'pending_change') return false;
-        if (p.status === 'inactive' && !includeInactive) return false;
+        if (p.status === 'inactive') {
+          // 停用處方：需要明確包含或有執核派記錄
+          if (!includeInactive && !(includeWorkflowRecords && prescriptionsWithWorkflowRecords.has(p.id))) {
+            return false;
+          }
+        }
         return true;
       });
       console.log('全部匯出模式：共過濾出', prescriptionsToExport.length, '個處方');
     } else {
       // 選中匯出模式：只保留選中的處方並驗證
-      prescriptionsToExport = allPrescriptions.filter(p =>
-        selectedPrescriptionIds.includes(p.id) &&
-        p.patient_id === currentPatient.院友id
-      );
+      prescriptionsToExport = allPrescriptions.filter(p => {
+        if (!selectedPrescriptionIds.includes(p.id)) return false;
+        if (p.patient_id !== currentPatient.院友id) return false;
+        // 選中匯出模式不需要額外檢查停用狀態，因為已經被明確選中
+        return true;
+      });
       console.log('選中匯出模式：共過濾出', prescriptionsToExport.length, '個處方');
 
       if (prescriptionsToExport.length !== selectedPrescriptionIds.length) {
