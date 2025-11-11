@@ -19,14 +19,29 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     manifest: true,
+    sourcemap: false,
+    minify: 'esbuild',
     rollupOptions: {
       input: {
         main: './index.html'
+      },
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+          'excel-vendor': ['@zurmokeeper/exceljs', 'file-saver']
+        },
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
       }
-    }
+    },
+    chunkSizeWarningLimit: 1000,
+    reportCompressedSize: false
   },
   optimizeDeps: {
-    exclude: ['lucide-react'],
+    include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js'],
+    exclude: []
   },
   worker: {
     format: 'es'
