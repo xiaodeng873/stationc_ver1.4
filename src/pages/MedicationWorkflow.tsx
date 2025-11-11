@@ -2618,6 +2618,8 @@ const MedicationWorkflow: React.FC = () => {
                    !(prescription?.inspection_rules && prescription.inspection_rules.length > 0 && !inHospitalizationPeriod);
           })}
           prescriptions={prescriptions}
+          patients={patients}
+          selectedPatientId={selectedPatientId}
           selectedDate={selectedDate}
           onConfirm={handleBatchDispenseConfirm}
           onClose={() => setShowBatchDispenseModal(false)}

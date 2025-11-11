@@ -1,18 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { X, Clock, CheckCircle, Pill } from 'lucide-react';
+import { X, Clock, CheckCircle, Pill, AlertTriangle, User } from 'lucide-react';
 
 interface TimeSlotSummary {
   time: string;
   records: any[];
+  uniquePrescriptions: Set<string>;
   medicationSummary: {
     [unit: string]: number;
   };
-  totalRecords: number;
 }
 
 interface BatchDispenseConfirmModalProps {
   workflowRecords: any[];
   prescriptions: any[];
+  patients: any[];
+  selectedPatientId: string;
   selectedDate: string;
   onConfirm: (selectedTimeSlots: string[]) => Promise<void>;
   onClose: () => void;
@@ -21,12 +23,18 @@ interface BatchDispenseConfirmModalProps {
 const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   workflowRecords,
   prescriptions,
+  patients,
+  selectedPatientId,
   selectedDate,
   onConfirm,
   onClose,
 }) => {
   const [selectedTimeSlots, setSelectedTimeSlots] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const currentPatient = useMemo(() => {
+    return patients.find(p => p.院友id === parseInt(selectedPatientId));
+  }, [patients, selectedPatientId]);
 
   const timeSlotSummaries = useMemo(() => {
     const summaryMap = new Map<string, TimeSlotSummary>();
@@ -41,14 +49,14 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
         summaryMap.set(time, {
           time,
           records: [],
+          uniquePrescriptions: new Set(),
           medicationSummary: {},
-          totalRecords: 0,
         });
       }
 
       const summary = summaryMap.get(time)!;
       summary.records.push(record);
-      summary.totalRecords++;
+      summary.uniquePrescriptions.add(record.prescription_id);
 
       const unit = prescription.dosage_unit || '單位';
       const amount = parseFloat(prescription.dosage_amount) || 1;
@@ -59,9 +67,12 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       summary.medicationSummary[unit] += amount;
     });
 
-    return Array.from(summaryMap.values()).sort((a, b) =>
-      a.time.localeCompare(b.time)
-    );
+    return Array.from(summaryMap.values())
+      .sort((a, b) => a.time.localeCompare(b.time))
+      .map(s => ({
+        ...s,
+        uniquePrescriptionCount: s.uniquePrescriptions.size
+      }));
   }, [workflowRecords, prescriptions]);
 
   const handleTimeSlotToggle = (time: string) => {
@@ -99,23 +110,74 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const selectedRecordsCount = useMemo(() => {
     return timeSlotSummaries
       .filter(s => selectedTimeSlots.has(s.time))
-      .reduce((sum, s) => sum + s.totalRecords, 0);
+      .reduce((sum, s) => sum + s.records.length, 0);
   }, [timeSlotSummaries, selectedTimeSlots]);
+
+  const hasAllergyWarning = currentPatient?.藥物敏感?.length > 0;
+  const hasAdverseReaction = currentPatient?.不良藥物反應?.length > 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-blue-500 to-blue-600">
-          <div>
-            <h2 className="text-xl font-bold text-white">批量派藥確認</h2>
-            <p className="text-sm text-blue-100 mt-1">選擇要派藥的時間點</p>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start space-x-4 flex-1">
+              {currentPatient?.院友相片 ? (
+                <img
+                  src={currentPatient.院友相片}
+                  alt={currentPatient.中文姓氏 + currentPatient.中文名字}
+                  className="w-20 h-20 rounded-lg object-cover border-2 border-white shadow-md"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-lg bg-blue-400 flex items-center justify-center border-2 border-white shadow-md">
+                  <User className="h-10 w-10 text-white" />
+                </div>
+              )}
+
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white">
+                  {currentPatient?.中文姓氏}{currentPatient?.中文名字}
+                </h2>
+                <p className="text-sm text-blue-100 mt-1">
+                  性別: {currentPatient?.性別} | 出生日期: {currentPatient?.出生日期 || '未設定'}
+                </p>
+
+                {(hasAllergyWarning || hasAdverseReaction) && (
+                  <div className="mt-2 space-y-1">
+                    {hasAllergyWarning && (
+                      <div className="flex items-start space-x-2 bg-orange-500 bg-opacity-90 rounded px-3 py-1.5">
+                        <AlertTriangle className="h-4 w-4 text-white mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-white">
+                          <span className="font-semibold">藥物敏感: </span>
+                          <span>{currentPatient.藥物敏感.join('、')}</span>
+                        </div>
+                      </div>
+                    )}
+                    {hasAdverseReaction && (
+                      <div className="flex items-start space-x-2 bg-red-500 bg-opacity-90 rounded px-3 py-1.5">
+                        <AlertTriangle className="h-4 w-4 text-white mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-white">
+                          <span className="font-semibold">不良藥物反應: </span>
+                          <span>{currentPatient.不良藥物反應.join('、')}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="text-white hover:text-gray-200 transition-colors ml-4"
+            >
+              <X className="h-6 w-6" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-white hover:text-gray-200 transition-colors"
-          >
-            <X className="h-6 w-6" />
-          </button>
+
+          <div className="mt-3 pt-3 border-t border-blue-400">
+            <p className="text-sm text-blue-100">選擇要派藥的時間點 - {selectedDate}</p>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
@@ -126,17 +188,17 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 bg-gray-50 p-4 rounded-lg">
                 <button
                   onClick={handleSelectAll}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium px-4 py-2 bg-white rounded-lg border border-blue-200 hover:border-blue-300 transition-colors"
                 >
-                  {selectedTimeSlots.size === timeSlotSummaries.length ? '取消全選' : '全選'}
+                  {selectedTimeSlots.size === timeSlotSummaries.length ? '取消全選' : '全選時間點'}
                 </button>
                 {selectedTimeSlots.size > 0 && (
-                  <div className="text-sm text-gray-600">
-                    已選擇 <span className="font-bold text-blue-600">{selectedTimeSlots.size}</span> 個時間點，
-                    共 <span className="font-bold text-blue-600">{selectedRecordsCount}</span> 筆記錄
+                  <div className="text-sm font-medium">
+                    已選擇 <span className="text-lg text-blue-600">{selectedTimeSlots.size}</span> 個時間點，
+                    共 <span className="text-lg text-blue-600">{selectedRecordsCount}</span> 筆派藥記錄
                   </div>
                 )}
               </div>
@@ -149,42 +211,47 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
                       key={summary.time}
                       onClick={() => handleTimeSlotToggle(summary.time)}
                       className={`
-                        relative p-4 rounded-lg border-2 transition-all text-left
+                        relative p-5 rounded-xl border-2 transition-all text-left
                         ${isSelected
-                          ? 'border-blue-500 bg-blue-50 shadow-md'
-                          : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm'
+                          ? 'border-blue-500 bg-blue-50 shadow-lg transform scale-105'
+                          : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'
                         }
                       `}
                     >
                       {isSelected && (
-                        <div className="absolute top-2 right-2">
-                          <CheckCircle className="h-5 w-5 text-blue-600" />
+                        <div className="absolute -top-2 -right-2 bg-blue-600 rounded-full p-1 shadow-lg">
+                          <CheckCircle className="h-6 w-6 text-white" />
                         </div>
                       )}
 
-                      <div className="flex items-center space-x-2 mb-3">
-                        <Clock className={`h-5 w-5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
-                        <span className={`text-lg font-bold ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
+                      <div className="flex items-center space-x-3 mb-4 pb-3 border-b border-gray-200">
+                        <Clock className={`h-6 w-6 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                        <span className={`text-2xl font-bold ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
                           {summary.time}
                         </span>
                       </div>
 
-                      <div className="space-y-2">
-                        <div className="text-sm text-gray-600">
-                          共 <span className="font-semibold text-gray-900">{summary.totalRecords}</span> 筆處方
+                      <div className="space-y-3">
+                        <div className={`text-base ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
+                          <span className="font-semibold">處方數量: </span>
+                          <span className="text-xl font-bold">{summary.uniquePrescriptionCount}</span>
+                          <span className="text-sm ml-1">筆</span>
                         </div>
 
-                        <div className="border-t border-gray-200 pt-2 space-y-1">
+                        <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                          <div className="text-sm font-medium text-gray-600 mb-2">藥物總量</div>
                           {Object.entries(summary.medicationSummary).map(([unit, amount]) => (
                             <div
                               key={unit}
-                              className={`flex items-center justify-between text-sm ${
+                              className={`flex items-center justify-between ${
                                 isSelected ? 'text-blue-700' : 'text-gray-700'
                               }`}
                             >
-                              <span className="font-medium">藥物總量:</span>
-                              <span className="font-bold">
-                                {amount} {unit}
+                              <span className="text-2xl font-bold">
+                                {amount}
+                              </span>
+                              <span className="text-lg font-medium">
+                                {unit}
                               </span>
                             </div>
                           ))}
@@ -202,7 +269,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="btn-secondary"
+            className="btn-secondary px-6"
             disabled={isProcessing}
           >
             取消
@@ -210,7 +277,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
           <button
             onClick={handleConfirm}
             disabled={selectedTimeSlots.size === 0 || isProcessing}
-            className="btn-primary flex items-center space-x-2"
+            className="btn-primary flex items-center space-x-2 px-6"
           >
             {isProcessing ? (
               <>
@@ -219,7 +286,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
               </>
             ) : (
               <>
-                <CheckCircle className="h-4 w-4" />
+                <CheckCircle className="h-5 w-5" />
                 <span>確認派藥 ({selectedTimeSlots.size} 個時間點)</span>
               </>
             )}
