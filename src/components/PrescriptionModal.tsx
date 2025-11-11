@@ -273,10 +273,32 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
     }
     try {
       const prescriptionData = {
-        ...formData,
+        patient_id: formData.patient_id,
+        medication_name: formData.medication_name,
+        medication_source: formData.medication_source,
+        medication_quantity: formData.medication_quantity,
+        prescription_date: formData.prescription_date,
+        start_date: formData.start_date,
+        start_time: formData.start_time,
         end_date: formData.end_date || null,
         end_time: formData.end_time || null,
         duration_days: formData.duration_days === '' ? null : (typeof formData.duration_days === 'string' ? parseInt(formData.duration_days) : formData.duration_days),
+        dosage_form: formData.dosage_form,
+        administration_route: formData.administration_route,
+        dosage_amount: formData.dosage_amount,
+        dosage_unit: formData.dosage_unit,
+        special_dosage_instruction: formData.special_dosage_instruction,
+        daily_frequency: formData.daily_frequency,
+        frequency_type: formData.frequency_type,
+        frequency_value: formData.frequency_value,
+        specific_weekdays: formData.specific_weekdays,
+        is_odd_even_day: formData.is_odd_even_day,
+        medication_time_slots: formData.medication_time_slots,
+        meal_timing: formData.meal_timing,
+        is_prn: formData.is_prn,
+        preparation_method: formData.preparation_method,
+        status: formData.status,
+        notes: formData.notes,
         inspection_rules: inspectionRules.filter(rule =>
           rule.vital_sign_type && rule.condition_operator && rule.condition_value
         )
