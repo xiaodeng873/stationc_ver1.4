@@ -988,8 +988,28 @@ export async function updatePrescription(prescription: any) {
 
     // Get current user info and update last_modified_by
     const currentUser = await getCurrentUserInfo();
+
+    // Define allowed fields for new_medication_prescriptions table
+    const allowedFields = [
+      'id', 'patient_id', 'medication_name', 'medication_source', 'medication_quantity',
+      'prescription_date', 'start_date', 'start_time', 'end_date', 'end_time',
+      'duration_days', 'dosage_form', 'administration_route', 'dosage_amount',
+      'dosage_unit', 'special_dosage_instruction', 'daily_frequency', 'frequency_type',
+      'frequency_value', 'specific_weekdays', 'is_odd_even_day', 'medication_time_slots',
+      'meal_timing', 'is_prn', 'preparation_method', 'status', 'notes',
+      'inspection_rules', 'created_at', 'updated_at', 'created_by', 'last_modified_by'
+    ];
+
+    // Filter prescription to only include allowed fields
+    const filteredPrescription = {};
+    allowedFields.forEach(field => {
+      if (prescription.hasOwnProperty(field) && prescription[field] !== undefined) {
+        filteredPrescription[field] = prescription[field];
+      }
+    });
+
     const prescriptionWithUser = {
-      ...prescription,
+      ...filteredPrescription,
       last_modified_by: currentUser,
       updated_at: new Date().toISOString()
     };
