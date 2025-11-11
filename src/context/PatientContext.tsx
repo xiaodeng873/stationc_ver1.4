@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ReactNode } from 'react';
 import * as db from '../lib/database';
 import { supabase } from '../lib/supabase';
@@ -448,8 +448,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const [prescriptionTimeSlotDefinitions, setPrescriptionTimeSlotDefinitions] = useState<PrescriptionTimeSlotDefinition[]>([]);
   const [dailySystemTasks, setDailySystemTasks] = useState<db.DailySystemTask[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastRefreshTime = useRef<number>(0);
 
   useEffect(() => {
     if (!authReady) {
@@ -519,14 +517,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  const refreshData = async (force: boolean = false) => {
-    const now = Date.now();
-    if (!force && now - lastRefreshTime.current < 1000) {
-      return;
-    }
-    lastRefreshTime.current = now;
-
+  const refreshData = async () => {
     try {
+      console.log('Refreshing all data...');
       const [
         patientsData,
         stationsData,
@@ -2111,7 +2104,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   // Patient restraint assessment functions
   const addPatientRestraintAssessment = async (assessment: Omit<db.PatientRestraintAssessment, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      await db.createRestraintAssessment(assessment);
+      await db.createPatientRestraintAssessment(assessment);
       await refreshData();
     } catch (error) {
       console.error('Error adding patient restraint assessment:', error);
@@ -2121,7 +2114,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
   const updatePatientRestraintAssessment = async (assessment: db.PatientRestraintAssessment) => {
     try {
-      await db.updateRestraintAssessment(assessment);
+      await db.updatePatientRestraintAssessment(assessment);
       await refreshData();
     } catch (error) {
       console.error('Error updating patient restraint assessment:', error);
@@ -2131,7 +2124,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
   const deletePatientRestraintAssessment = async (id: string) => {
     try {
-      await db.deleteRestraintAssessment(id);
+      await db.deletePatientRestraintAssessment(id);
       await refreshData();
     } catch (error) {
       console.error('Error deleting patient restraint assessment:', error);
