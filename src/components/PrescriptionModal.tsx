@@ -291,7 +291,7 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
 
       if (prescription && prescription.id) {
         await updatePrescription({
-          ...prescription,
+          id: prescription.id,
           ...prescriptionData
         });
       } else {

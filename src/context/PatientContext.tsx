@@ -824,7 +824,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  const updatePrescription = async (prescription: db.Prescription) => {
+  const updatePrescription = async (prescription: any) => {
     try {
       console.log('Updating prescription:', prescription);
       await db.updatePrescription(prescription);
