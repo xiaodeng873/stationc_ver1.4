@@ -984,7 +984,15 @@ export async function createPrescription(prescription: any) {
 
 export async function updatePrescription(prescription: any) {
   try {
-    console.log('🔍 Updating prescription:', prescription);
+    console.log('🔍 Updating prescription - ALL FIELDS:', prescription);
+    console.log('🔍 Prescription keys:', Object.keys(prescription));
+
+    // Check for Chinese field names
+    const chineseFields = Object.keys(prescription).filter(key => /[\u4e00-\u9fa5]/.test(key));
+    if (chineseFields.length > 0) {
+      console.error('❌ FOUND CHINESE FIELD NAMES:', chineseFields);
+      console.error('❌ This will cause update to fail!');
+    }
 
     // Get current user info and update last_modified_by
     const currentUser = await getCurrentUserInfo();
@@ -1008,6 +1016,9 @@ export async function updatePrescription(prescription: any) {
       }
     });
 
+    console.log('✅ Filtered prescription (English fields only):', filteredPrescription);
+    console.log('✅ Filtered prescription keys:', Object.keys(filteredPrescription));
+
     const prescriptionWithUser = {
       ...filteredPrescription,
       last_modified_by: currentUser,
@@ -1015,6 +1026,7 @@ export async function updatePrescription(prescription: any) {
     };
 
     console.log('👤 Updating last_modified_by:', currentUser);
+    console.log('📤 Final data being sent to Supabase:', prescriptionWithUser);
 
     const { data, error } = await supabase
       .from('new_medication_prescriptions')
