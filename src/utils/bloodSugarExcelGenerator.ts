@@ -221,7 +221,8 @@ const applyBloodSugarTemplateFormat = (
     性別: string;
     出生日期: string;
   },
-  records: BloodSugarExportData[]
+  records: BloodSugarExportData[],
+  pageNumber?: number
 ): void => {
   console.log('=== 開始應用血糖測試記錄表範本格式 ===');
 
@@ -329,6 +330,11 @@ const applyBloodSugarTemplateFormat = (
       const age = calculateAge(patient.出生日期);
       worksheet.getCell('J3').value = `${age}歲`;
     }
+    // 填充頁數到 L3
+    if (pageNumber !== undefined) {
+      worksheet.getCell('L3').value = String(pageNumber);
+      console.log(`填充頁數到 L3: ${pageNumber}`);
+    }
     console.log(`填充院友資料: 姓名=${patient.中文姓氏}${patient.中文名字}, 床號=${patient.床號}, 性別=${patient.性別}`);
   }
 
@@ -417,11 +423,12 @@ const createBloodSugarWorkbook = async (
 ): Promise<ExcelJS.Workbook> => {
   const workbook = new ExcelJS.Workbook();
 
-  for (const config of sheetsConfig) {
+  for (let i = 0; i < sheetsConfig.length; i++) {
+    const config = sheetsConfig[i];
     console.log(`創建血糖測試記錄表工作表: ${config.name}`);
     const worksheet = workbook.addWorksheet(config.name);
 
-    applyBloodSugarTemplateFormat(worksheet, config.template, config.patient, config.records);
+    applyBloodSugarTemplateFormat(worksheet, config.template, config.patient, config.records, i + 1);
   }
 
   return workbook;

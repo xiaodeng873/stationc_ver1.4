@@ -227,7 +227,8 @@ const applyVitalSignTemplateFormat = (
     性別: string;
     出生日期: string;
   },
-  records: VitalSignExportData[]
+  records: VitalSignExportData[],
+  pageNumber?: number
 ): void => {
   console.log('=== 開始應用生命表徵範本格式 ===');
 
@@ -336,6 +337,11 @@ const applyVitalSignTemplateFormat = (
     if (patient.出生日期) {
       const age = calculateAge(patient.出生日期);
       worksheet.getCell('J3').value = `${age}歲`;
+    }
+    // 填充頁數到 M3
+    if (pageNumber !== undefined) {
+      worksheet.getCell('M3').value = String(pageNumber);
+      console.log(`填充頁數到 M3: ${pageNumber}`);
     }
     console.log(`填充院友資料: 姓名=${patient.中文姓氏}${patient.中文名字}, 床號=${patient.床號}, 性別=${patient.性別}`);
   }
@@ -450,11 +456,12 @@ const createVitalSignWorkbook = async (
 ): Promise<ExcelJS.Workbook> => {
   const workbook = new ExcelJS.Workbook();
 
-  for (const config of sheetsConfig) {
+  for (let i = 0; i < sheetsConfig.length; i++) {
+    const config = sheetsConfig[i];
     console.log(`創建生命表徵工作表: ${config.name}`);
     const worksheet = workbook.addWorksheet(config.name);
 
-    applyVitalSignTemplateFormat(worksheet, config.template, config.patient, config.records);
+    applyVitalSignTemplateFormat(worksheet, config.template, config.patient, config.records, i + 1);
   }
 
   return workbook;

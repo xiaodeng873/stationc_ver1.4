@@ -267,7 +267,8 @@ const applyBodyweightTemplateFormat = (
     性別: string;
     出生日期: string;
   },
-  records: BodyweightExportData[]
+  records: BodyweightExportData[],
+  pageNumber?: number
 ): void => {
   console.log('=== 開始應用體重記錄表範本格式 ===');
 
@@ -393,6 +394,11 @@ const applyBodyweightTemplateFormat = (
       const age = calculateAge(patient.出生日期);
       worksheet.getCell('J3').value = `${age}歲`;
     }
+    // 填充頁數到 L3
+    if (pageNumber !== undefined) {
+      worksheet.getCell('L3').value = String(pageNumber);
+      console.log(`填充頁數到 L3: ${pageNumber}`);
+    }
     console.log(`填充院友資料: 姓名=${patient.中文姓氏}${patient.中文名字}, 床號=${patient.床號}, 性別=${patient.性別}`);
   }
 
@@ -499,11 +505,12 @@ const createBodyweightWorkbook = async (
 ): Promise<ExcelJS.Workbook> => {
   const workbook = new ExcelJS.Workbook();
 
-  for (const config of sheetsConfig) {
+  for (let i = 0; i < sheetsConfig.length; i++) {
+    const config = sheetsConfig[i];
     console.log(`創建體重記錄表工作表: ${config.name}`);
     const worksheet = workbook.addWorksheet(config.name);
 
-    applyBodyweightTemplateFormat(worksheet, config.template, config.patient, config.records);
+    applyBodyweightTemplateFormat(worksheet, config.template, config.patient, config.records, i + 1);
   }
 
   return workbook;
