@@ -368,11 +368,10 @@ export interface MedicationWorkflowRecord {
 export const getPatients = async (): Promise<Patient[]> => {
   const { data, error } = await supabase
     .from('院友主表')
-    .select('*')
+    .select('院友id,床號,中文姓名,中文姓氏,中文名字,英文姓名,英文姓氏,英文名字,性別,身份證號碼,出生日期,院友相片,藥物敏感,不良藥物反應,感染控制,入住日期,退住日期,護理等級,入住類型,社會福利,在住狀態,station_id,bed_id,is_hospitalized')
     .order('床號', { ascending: true });
 
   if (error) {
-    console.error('Error fetching patients:', error);
     throw error;
   }
 
@@ -425,11 +424,10 @@ export const deletePatient = async (patientId: number): Promise<void> => {
 export const getStations = async (): Promise<Station[]> => {
   const { data, error } = await supabase
     .from('stations')
-    .select('*')
+    .select('id,name,description,created_at,updated_at')
     .order('name', { ascending: true });
 
   if (error) {
-    console.error('Error fetching stations:', error);
     throw error;
   }
 
@@ -482,11 +480,10 @@ export const deleteStation = async (stationId: string): Promise<void> => {
 export const getBeds = async (): Promise<Bed[]> => {
   const { data, error } = await supabase
     .from('beds')
-    .select('*')
+    .select('id,station_id,bed_number,bed_name,is_occupied,created_at,updated_at')
     .order('bed_number', { ascending: true });
 
   if (error) {
-    console.error('Error fetching beds:', error);
     throw error;
   }
 
@@ -604,11 +601,10 @@ export const moveBedToStation = async (bedId: string, newStationId: string): Pro
 export const getSchedules = async (): Promise<Schedule[]> => {
   const { data, error } = await supabase
     .from('到診排程主表')
-    .select('*')
+    .select('排程id,到診日期')
     .order('到診日期', { ascending: false });
 
   if (error) {
-    console.error('Error fetching schedules:', error);
     throw error;
   }
 
@@ -793,11 +789,10 @@ export const deleteScheduleDetail = async (detailId: number): Promise<void> => {
 export const getReasons = async (): Promise<ServiceReason[]> => {
   const { data, error } = await supabase
     .from('看診原因選項')
-    .select('*')
+    .select('原因id,原因名稱')
     .order('原因名稱', { ascending: true });
 
   if (error) {
-    console.error('Error fetching reasons:', error);
     throw error;
   }
 
@@ -807,25 +802,17 @@ export const getReasons = async (): Promise<ServiceReason[]> => {
 // Drug Database functions
 export async function getDrugDatabase() {
   try {
-    console.log('🔍 Fetching drug database from medication_drug_database...');
     const { data, error } = await supabase
       .from('medication_drug_database')
-      .select('*')
+      .select('id,drug_name,generic_name,drug_category,dosage_form,route,strength,unit,manufacturer,notes,created_at,updated_at')
       .order('drug_name');
-    
+
     if (error) {
-      console.error('❌ Error fetching drug database:', error);
       throw error;
     }
-    
-    console.log('✅ Successfully fetched drug database:', {
-      count: data?.length || 0,
-      firstItem: data?.[0] || null
-    });
-    
+
     return data || [];
   } catch (error) {
-    console.error('❌ getDrugDatabase failed:', error);
     return [];
   }
 }
@@ -924,24 +911,17 @@ async function getCurrentUserInfo(): Promise<string> {
 // Prescription functions
 export async function getPrescriptions() {
   try {
-    console.log('🔍 Fetching prescriptions from new_medication_prescriptions...');
     const { data, error } = await supabase
       .from('new_medication_prescriptions')
-      .select('*')
+      .select('id,patient_id,drug_name,generic_name,dosage_form,route,strength,dosage,frequency,duration,as_needed,special_instructions,start_date,end_date,prescription_date,prescribing_doctor,diagnosis,indication,preparation_method,time_slots,inspection_rules,is_active,created_by,last_modified_by,created_at,updated_at')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error fetching prescriptions:', error);
       throw error;
     }
 
-    console.log('✅ Successfully fetched prescriptions:', {
-      count: data?.length || 0
-    });
-
     return data || [];
   } catch (error) {
-    console.error('❌ getPrescriptions failed:', error);
     return [];
   }
 }
@@ -1059,12 +1039,11 @@ function handleSupabaseError(error: any, operation: string): void {
 export const getHealthRecords = async (): Promise<HealthRecord[]> => {
   const { data, error } = await supabase
     .from('健康記錄主表')
-    .select('*')
+    .select('記錄id,院友id,記錄日期,記錄時間,記錄類型,血壓收縮壓,血壓舒張壓,脈搏,體溫,血含氧量,呼吸頻率,血糖值,體重,備註,記錄人員,created_at')
     .order('記錄日期', { ascending: false })
     .order('記錄時間', { ascending: false });
 
   if (error) {
-    console.error('Error fetching health records:', error);
     throw error;
   }
 
@@ -1402,11 +1381,10 @@ export const createBatchHealthRecords = async (records: Omit<HealthRecord, '記�
 export const getFollowUps = async (): Promise<FollowUpAppointment[]> => {
   const { data, error } = await supabase
     .from('覆診安排主表')
-    .select('*')
+    .select('覆診id,院友id,覆診日期,出發時間,覆診時間,覆診地點,覆診專科,交通安排,陪診人員,備註,狀態,創建時間,更新時間')
     .order('覆診日期', { ascending: true });
 
   if (error) {
-    console.error('Error fetching follow-ups:', error);
     throw error;
   }
 
@@ -1459,11 +1437,10 @@ export const deleteFollowUp = async (appointmentId: string): Promise<void> => {
 export const getHealthTasks = async (): Promise<PatientHealthTask[]> => {
   const { data, error } = await supabase
     .from('patient_health_tasks')
-    .select('*')
+    .select('id,patient_id,health_record_type,notes,next_due_at,last_completed_at,is_recurring,frequency_unit,frequency_value,end_date,end_time,created_at,updated_at')
     .order('next_due_at', { ascending: true });
 
   if (error) {
-    console.error('Error fetching health tasks:', error);
     throw error;
   }
 
@@ -1516,11 +1493,10 @@ export const deletePatientHealthTask = async (taskId: string): Promise<void> => 
 export const getMealGuidances = async (): Promise<MealGuidance[]> => {
   const { data, error } = await supabase
     .from('meal_guidance')
-    .select('*')
+    .select('id,patient_id,meal_combination,special_diets,texture_notes,feeding_method,portion_size,meal_frequency,dietary_restrictions,allergies,nutritional_supplements,hydration_notes,notes,created_at,updated_at')
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching meal guidances:', error);
     throw error;
   }
 
@@ -1573,12 +1549,11 @@ export const deleteMealGuidance = async (guidanceId: string): Promise<void> => {
 export const getPatientLogs = async (): Promise<PatientLog[]> => {
   const { data, error } = await supabase
     .from('patient_logs')
-    .select('*')
+    .select('id,patient_id,log_date,log_time,log_type,blood_pressure_systolic,blood_pressure_diastolic,pulse,temperature,blood_oxygen,respiratory_rate,blood_sugar,weight,diaper_change,personal_hygiene,notes,staff_name,created_at,updated_at')
     .order('log_date', { ascending: false })
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching patient logs:', error);
     throw error;
   }
 
@@ -1631,11 +1606,10 @@ export const deletePatientLog = async (logId: string): Promise<void> => {
 export const getRestraintAssessments = async (): Promise<PatientRestraintAssessment[]> => {
   const { data, error } = await supabase
     .from('patient_restraint_assessments')
-    .select('*')
+    .select('id,patient_id,assessment_date,assessment_type,restraint_type,reason_for_use,alternatives_considered,consent_obtained,consent_person,start_datetime,end_datetime,removal_reason,skin_condition,circulation_check,comfort_measures,behavioral_observations,effectiveness,side_effects,follow_up_required,next_assessment_date,assessor_name,assessor_signature,created_at,updated_at')
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching restraint assessments:', error);
     throw error;
   }
 
@@ -1688,7 +1662,7 @@ export const deleteRestraintAssessment = async (assessmentId: string): Promise<v
 export const getHealthAssessments = async (): Promise<HealthAssessment[]> => {
   const { data, error } = await supabase
     .from('health_assessments')
-    .select('*')
+    .select('id,patient_id,assessment_date,assessment_type,general_health,cognitive_status,mobility,adl_independence,nutrition_status,skin_condition,pain_level,medications,allergies,medical_history,social_support,mental_health,special_needs,risk_factors,care_plan,assessor_name,next_review_date,notes,created_at,updated_at')
     .order('assessment_date', { ascending: false });
 
   if (error) {
@@ -1746,13 +1720,12 @@ export const getWoundAssessments = async (): Promise<WoundAssessment[]> => {
   const { data, error } = await supabase
     .from('wound_assessments')
     .select(`
-      *,
-      wound_details(*)
+      id,patient_id,assessment_date,assessor_name,notes,created_at,updated_at,
+      wound_details(id,wound_assessment_id,wound_location,wound_type,wound_size_length,wound_size_width,wound_size_depth,wound_stage,wound_appearance,drainage_type,drainage_amount,surrounding_skin,pain_level,odor,infection_signs,treatment_provided,dressing_type,photo_url,notes)
     `)
     .order('assessment_date', { ascending: false });
 
   if (error) {
-    console.error('Error fetching wound assessments:', error);
     throw error;
   }
 
@@ -1805,11 +1778,10 @@ export const deleteWoundAssessment = async (assessmentId: string): Promise<void>
 export const getPatientAdmissionRecords = async (): Promise<PatientAdmissionRecord[]> => {
   const { data, error } = await supabase
     .from('patient_admission_records')
-    .select('*')
+    .select('id,patient_id,event_type,event_date,event_time,admission_source,discharge_destination,reason,diagnosis,medications_on_admission,belongings_inventory,family_contact_name,family_contact_phone,emergency_contact_name,emergency_contact_phone,notes,staff_name,created_at,updated_at')
     .order('event_date', { ascending: false });
 
   if (error) {
-    console.error('Error fetching patient admission records:', error);
     throw error;
   }
 
@@ -1882,13 +1854,12 @@ export const getHospitalEpisodes = async (): Promise<any[]> => {
   const { data, error } = await supabase
     .from('hospital_episodes')
     .select(`
-      *,
-      episode_events(*)
+      id,patient_id,episode_start_date,episode_end_date,hospital_name,department,admission_reason,diagnosis,treating_doctor,discharge_summary,medications,follow_up_required,status,notes,created_at,updated_at,
+      episode_events(id,episode_id,event_date,event_time,event_type,description,staff_name)
     `)
     .order('episode_start_date', { ascending: false });
 
   if (error) {
-    console.error('Error fetching hospital episodes:', error);
     throw error;
   }
 

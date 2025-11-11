@@ -214,54 +214,63 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  // 最近排程：今天及未來最多5個排程
-  const recentSchedules = schedules
-    .filter(s => new Date(s.到診日期) >= new Date(new Date().toDateString()))
-    .sort((a, b) => new Date(a.到診日期).getTime() - new Date(b.到診日期).getTime())
-    .slice(0, 5);
+  const activePatientIds = useMemo(() => {
+    return new Set(patients.filter(p => p.在住狀態 === '在住').map(p => p.院友id));
+  }, [patients]);
 
-  // 近期監測：最近30個健康記錄
-  const recentHealthRecords = healthRecords
-    .sort((a, b) => new Date(`${b.記錄日期} ${b.記錄時間}`).getTime() - new Date(`${a.記錄日期} ${a.記錄時間}`).getTime())
-    .slice(0, 30);
+  const recentSchedules = useMemo(() => {
+    const today = new Date(new Date().toDateString());
+    return schedules
+      .filter(s => new Date(s.到診日期) >= today)
+      .sort((a, b) => new Date(a.到診日期).getTime() - new Date(b.到診日期).getTime())
+      .slice(0, 5);
+  }, [schedules]);
 
-  const recentPrescriptions = prescriptions
-    .sort((a, b) => new Date(b.處方日期).getTime() - new Date(a.處方日期).getTime())
-    .slice(0, 5);
+  const recentHealthRecords = useMemo(() => {
+    return healthRecords
+      .sort((a, b) => new Date(`${b.記錄日期} ${b.記錄時間}`).getTime() - new Date(`${a.記錄日期} ${a.記錄時間}`).getTime())
+      .slice(0, 30);
+  }, [healthRecords]);
 
-  const upcomingFollowUps = followUpAppointments
-    .filter(a => {
-      if (new Date(a.覆診日期) < new Date()) return false;
-      const patient = patients.find(p => p.院友id === a.院友id);
-      return patient && patient.在住狀態 === '在住';
-    })
-    .sort((a, b) => new Date(a.覆診日期).getTime() - new Date(b.覆診日期).getTime())
-    .slice(0, 10);
+  const recentPrescriptions = useMemo(() => {
+    return prescriptions
+      .sort((a, b) => new Date(b.處方日期).getTime() - new Date(a.處方日期).getTime())
+      .slice(0, 5);
+  }, [prescriptions]);
 
-  // 任務統計
-  const monitoringTasks = patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type));
-  const documentTasks = patientHealthTasks.filter(task => isDocumentTask(task.health_record_type));
+  const upcomingFollowUps = useMemo(() => {
+    const now = new Date();
+    return followUpAppointments
+      .filter(a => new Date(a.覆診日期) >= now && activePatientIds.has(a.院友id))
+      .sort((a, b) => new Date(a.覆診日期).getTime() - new Date(b.覆診日期).getTime())
+      .slice(0, 10);
+  }, [followUpAppointments, activePatientIds]);
 
-  // 監測任務：僅顯示逾期和未完成，且院友必須在住
-  const overdueMonitoringTasks = monitoringTasks.filter(task => {
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    return patient && patient.在住狀態 === '在住' && isTaskOverdue(task);
-  });
-  const pendingMonitoringTasks = monitoringTasks.filter(task => {
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    return patient && patient.在住狀態 === '在住' && isTaskPendingToday(task);
-  });
-  const urgentMonitoringTasks = [...overdueMonitoringTasks, ...pendingMonitoringTasks].sort((a, b) => {
-    const timeA = new Date(a.next_due_at).getTime();
-    const timeB = new Date(b.next_due_at).getTime();
-    if (timeA === timeB) {
-      const priority = { '注射前': 1, '服藥前': 2, '社康': 3, '特別關顧': 4, '定期': 5 };
-      const priorityA = a.notes ? priority[a.notes] || 5 : 5;
-      const priorityB = b.notes ? priority[b.notes] || 5 : 5;
-      return priorityA - priorityB;
-    }
-    return timeA - timeB;
-  }).slice(0, 100);
+  const { monitoringTasks, documentTasks, urgentMonitoringTasks } = useMemo(() => {
+    const monitoring = uniquePatientHealthTasks.filter(task => isMonitoringTask(task.health_record_type));
+    const document = uniquePatientHealthTasks.filter(task => isDocumentTask(task.health_record_type));
+
+    const overdueMonitoring = monitoring.filter(task =>
+      activePatientIds.has(task.patient_id) && isTaskOverdue(task)
+    );
+    const pendingMonitoring = monitoring.filter(task =>
+      activePatientIds.has(task.patient_id) && isTaskPendingToday(task)
+    );
+
+    const priority = { '注射前': 1, '服藥前': 2, '社康': 3, '特別關顧': 4, '定期': 5 };
+    const urgent = [...overdueMonitoring, ...pendingMonitoring].sort((a, b) => {
+      const timeA = new Date(a.next_due_at).getTime();
+      const timeB = new Date(b.next_due_at).getTime();
+      if (timeA === timeB) {
+        const priorityA = a.notes ? priority[a.notes] || 5 : 5;
+        const priorityB = b.notes ? priority[b.notes] || 5 : 5;
+        return priorityA - priorityB;
+      }
+      return timeA - timeB;
+    }).slice(0, 100);
+
+    return { monitoringTasks: monitoring, documentTasks: document, urgentMonitoringTasks: urgent };
+  }, [uniquePatientHealthTasks, activePatientIds]);
 
   // 按任務時間分類監測任務
   const categorizeTaskByTime = (task: HealthTask) => {
