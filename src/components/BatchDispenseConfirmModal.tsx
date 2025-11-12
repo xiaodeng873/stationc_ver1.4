@@ -186,7 +186,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
     console.log('failureReason:', failureReason);
     console.log('inspectionCheckResult:', inspectionCheckResult);
 
-    // 保存檢測結果
+    // 保存檢測結果並獲取更新後的 Map
     setInspectionResults(prev => {
       const newResults = new Map(prev);
       newResults.set(currentRecord.id, {
@@ -196,31 +196,35 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       });
       console.log('保存後的檢測結果 Map 大小:', newResults.size);
       console.log('保存的內容:', Array.from(newResults.entries()));
+
+      // 檢查是否還有更多記錄需要檢測
+      if (currentInspectionIndex < currentInspectionRecords.length - 1) {
+        // 繼續下一個檢測
+        console.log('繼續下一個檢測');
+        setCurrentInspectionIndex(prev => prev + 1);
+      } else {
+        // 所有檢測完成，關閉檢測模態框並執行派藥
+        console.log('所有檢測完成，準備執行派藥');
+        setShowInspectionModal(false);
+        // 使用 setTimeout 確保狀態更新後再執行
+        setTimeout(() => {
+          proceedWithDispensing(newResults);
+        }, 0);
+      }
+
       return newResults;
     });
-
-    // 檢查是否還有更多記錄需要檢測
-    if (currentInspectionIndex < currentInspectionRecords.length - 1) {
-      // 繼續下一個檢測
-      console.log('繼續下一個檢測');
-      setCurrentInspectionIndex(prev => prev + 1);
-    } else {
-      // 所有檢測完成，關閉檢測模態框並執行派藥
-      console.log('所有檢測完成，準備執行派藥');
-      setShowInspectionModal(false);
-      proceedWithDispensing();
-    }
   };
 
-  const proceedWithDispensing = async () => {
+  const proceedWithDispensing = async (finalResults: Map<string, any>) => {
     setIsProcessing(true);
     try {
       console.log('=== 批量派藥：傳遞檢測結果 ===');
-      console.log('檢測結果數量:', inspectionResults.size);
-      inspectionResults.forEach((result, recordId) => {
+      console.log('檢測結果數量:', finalResults.size);
+      finalResults.forEach((result, recordId) => {
         console.log(`  記錄 ${recordId}:`, result);
       });
-      await onConfirm(Array.from(selectedTimeSlots), recordsToProcess, inspectionResults);
+      await onConfirm(Array.from(selectedTimeSlots), recordsToProcess, finalResults);
       onClose();
     } catch (error) {
       console.error('批量派藥失敗:', error);
