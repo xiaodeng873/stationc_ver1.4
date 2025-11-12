@@ -1444,7 +1444,7 @@ const MedicationWorkflow: React.FC = () => {
   };
 
   // 處理批量派藥確認
-  const handleBatchDispenseConfirm = async (selectedTimeSlots: string[]) => {
+  const handleBatchDispenseConfirm = async (selectedTimeSlots: string[], recordsToProcess: any[]) => {
     if (!selectedPatientId || !selectedDate) {
       return;
     }
@@ -1455,38 +1455,11 @@ const MedicationWorkflow: React.FC = () => {
     }
 
     try {
-      console.log('=== 批量派藥開始 ===', selectedTimeSlots);
+      console.log('=== 批量派藥開始 ===', selectedTimeSlots, `共 ${recordsToProcess.length} 筆記錄`);
 
-      // 找到所有選定時間點的記錄（包含在服處方）
-      const eligibleRecords = currentDayWorkflowRecords.filter(r => {
-        const prescription = prescriptions.find(p => p.id === r.prescription_id);
-
-        // 只包含在服處方
-        if (!prescription || prescription.status !== 'active') {
-          return false;
-        }
-
-        // 排除注射類藥物
-        if (prescription.administration_route === '注射') {
-          return false;
-        }
-
-        // 只處理選定時間點的記錄
-        return r.dispensing_status === 'pending' &&
-               r.verification_status === 'completed' &&
-               selectedTimeSlots.includes(r.scheduled_time);
-      });
-
-      if (eligibleRecords.length === 0) {
-        console.log('沒有需要派藥的記錄');
-        return;
-      }
-
-      console.log(`找到 ${eligibleRecords.length} 筆待派藥記錄`);
-
-      // 並行處理所有派藥操作（包含檢測項處理）
+      // 並行處理所有派藥操作
       const results = await Promise.allSettled(
-        eligibleRecords.map(async (record) => {
+        recordsToProcess.map(async (record) => {
           const prescription = prescriptions.find(p => p.id === record.prescription_id);
           const hasInspectionRules = prescription?.inspection_rules && prescription.inspection_rules.length > 0;
 
@@ -1569,9 +1542,12 @@ const MedicationWorkflow: React.FC = () => {
 
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
-          console.error(`派藥失敗 (記錄ID: ${eligibleRecords[index].id}):`, result.reason);
+          console.error(`派藥失敗 (記錄ID: ${recordsToProcess[index].id}):`, result.reason);
         }
       });
+
+      // 刷新數據
+      await fetchPrescriptionWorkflowRecords();
     } catch (error) {
       console.error('批量派藥失敗:', error);
       throw error;

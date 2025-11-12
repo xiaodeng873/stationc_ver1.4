@@ -18,7 +18,7 @@ interface BatchDispenseConfirmModalProps {
   patients: any[];
   selectedPatientId: string;
   selectedDate: string;
-  onConfirm: (selectedTimeSlots: string[]) => Promise<void>;
+  onConfirm: (selectedTimeSlots: string[], recordsToProcess: any[]) => Promise<void>;
   onClose: () => void;
 }
 
@@ -34,8 +34,10 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const [selectedTimeSlots, setSelectedTimeSlots] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInspectionModal, setShowInspectionModal] = useState(false);
-  const [currentInspectionRecord, setCurrentInspectionRecord] = useState<any>(null);
+  const [currentInspectionRecords, setCurrentInspectionRecords] = useState<any[]>([]);
+  const [currentInspectionIndex, setCurrentInspectionIndex] = useState(0);
   const [inspectionResults, setInspectionResults] = useState<Map<string, any>>(new Map());
+  const [recordsToProcess, setRecordsToProcess] = useState<any[]>([]);
 
   const currentPatient = useMemo(() => {
     return patients.find(p => p.院友id === parseInt(selectedPatientId));
@@ -48,6 +50,16 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       return prescription && prescription.status === 'active';
     });
   }, [workflowRecords, prescriptions]);
+
+  // 格式化時間為 HH:MM
+  const formatTime = (time: string) => {
+    if (!time) return '';
+    const parts = time.split(':');
+    if (parts.length >= 2) {
+      return `${parts[0]}:${parts[1]}`;
+    }
+    return time;
+  };
 
   const timeSlotSummaries = useMemo(() => {
     const summaryMap = new Map<string, TimeSlotSummary>();
@@ -115,9 +127,66 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const handleConfirm = async () => {
     if (selectedTimeSlots.size === 0) return;
 
+    // 找出所有選定時間點的記錄
+    const selectedRecords = activeWorkflowRecords.filter(r =>
+      selectedTimeSlots.has(r.scheduled_time)
+    );
+
+    // 找出需要檢測的記錄
+    const recordsNeedingInspection = selectedRecords.filter(record => {
+      const prescription = prescriptions.find(p => p.id === record.prescription_id);
+      return prescription?.inspection_rules && prescription.inspection_rules.length > 0;
+    });
+
+    if (recordsNeedingInspection.length > 0) {
+      // 有檢測項要求，逐個打開檢測模態框
+      setRecordsToProcess(selectedRecords);
+      setCurrentInspectionRecords(recordsNeedingInspection);
+      setCurrentInspectionIndex(0);
+      setShowInspectionModal(true);
+    } else {
+      // 沒有檢測項要求，直接派藥
+      setIsProcessing(true);
+      try {
+        await onConfirm(Array.from(selectedTimeSlots), selectedRecords);
+        onClose();
+      } catch (error) {
+        console.error('批量派藥失敗:', error);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+
+  const handleInspectionResult = (canDispense: boolean, failureReason?: string, inspectionCheckResult?: any) => {
+    const currentRecord = currentInspectionRecords[currentInspectionIndex];
+
+    // 保存檢測結果
+    setInspectionResults(prev => {
+      const newResults = new Map(prev);
+      newResults.set(currentRecord.id, {
+        canDispense,
+        failureReason,
+        inspectionCheckResult
+      });
+      return newResults;
+    });
+
+    // 檢查是否還有更多記錄需要檢測
+    if (currentInspectionIndex < currentInspectionRecords.length - 1) {
+      // 繼續下一個檢測
+      setCurrentInspectionIndex(prev => prev + 1);
+    } else {
+      // 所有檢測完成，關閉檢測模態框並執行派藥
+      setShowInspectionModal(false);
+      proceedWithDispensing();
+    }
+  };
+
+  const proceedWithDispensing = async () => {
     setIsProcessing(true);
     try {
-      await onConfirm(Array.from(selectedTimeSlots));
+      await onConfirm(Array.from(selectedTimeSlots), recordsToProcess);
       onClose();
     } catch (error) {
       console.error('批量派藥失敗:', error);
@@ -134,6 +203,12 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
 
   const hasAllergyWarning = currentPatient?.藥物敏感?.length > 0;
   const hasAdverseReaction = currentPatient?.不良藥物反應?.length > 0;
+
+  // 格式化藥物總量顯示
+  const formatMedicationSummary = (medicationSummary: { [unit: string]: number }) => {
+    const parts = Object.entries(medicationSummary).map(([unit, amount]) => `${amount}${unit}`);
+    return parts.join('、');
+  };
 
   return (
     <>
@@ -256,10 +331,10 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
                             <Clock className={`h-6 w-6 flex-shrink-0 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
                             <div className="flex-1">
                               <div className={`text-2xl font-bold mb-2 ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
-                                {summary.time}
+                                {formatTime(summary.time)}
                               </div>
 
-                              <div className="flex items-center space-x-6 text-sm">
+                              <div className="space-y-1 text-sm">
                                 <div>
                                   <span className="text-gray-600">處方數量: </span>
                                   <span className={`font-bold text-lg ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
@@ -268,15 +343,12 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
                                   <span className="text-gray-600 ml-1">筆</span>
                                 </div>
 
-                                {Object.entries(summary.medicationSummary).map(([unit, amount]) => (
-                                  <div key={unit}>
-                                    <span className="text-gray-600">藥物總量: </span>
-                                    <span className={`font-bold text-lg ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
-                                      {amount}
-                                    </span>
-                                    <span className="text-gray-600 ml-1">{unit}</span>
-                                  </div>
-                                ))}
+                                <div>
+                                  <span className="text-gray-600">藥物總量: </span>
+                                  <span className={`font-bold text-lg ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
+                                    {formatMedicationSummary(summary.medicationSummary)}
+                                  </span>
+                                </div>
                               </div>
 
                               {summary.hasInspectionRequired && (
@@ -332,27 +404,15 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       </div>
 
       {/* 檢測模態框 */}
-      {showInspectionModal && currentInspectionRecord && (
+      {showInspectionModal && currentInspectionRecords[currentInspectionIndex] && (
         <InspectionCheckModal
-          workflowRecord={currentInspectionRecord}
+          workflowRecord={currentInspectionRecords[currentInspectionIndex]}
           onClose={() => {
             setShowInspectionModal(false);
-            setCurrentInspectionRecord(null);
+            setCurrentInspectionRecords([]);
+            setCurrentInspectionIndex(0);
           }}
-          onResult={(canDispense, failureReason, inspectionCheckResult) => {
-            // 保存檢測結果
-            setInspectionResults(prev => {
-              const newResults = new Map(prev);
-              newResults.set(currentInspectionRecord.id, {
-                canDispense,
-                failureReason,
-                inspectionCheckResult
-              });
-              return newResults;
-            });
-            setShowInspectionModal(false);
-            setCurrentInspectionRecord(null);
-          }}
+          onResult={handleInspectionResult}
         />
       )}
     </>
