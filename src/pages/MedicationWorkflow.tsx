@@ -1608,10 +1608,17 @@ const MedicationWorkflow: React.FC = () => {
             return { type: 'hospitalized' };
           } else if (hasInspectionRules) {
             // 有檢測項要求：先檢查是否有用戶提供的檢測結果
+            console.log(`\n🔍 記錄 ${record.id} 有檢測項要求`);
+            console.log('  處方:', prescription.medication_name);
+            console.log('  檢測規則:', prescription.inspection_rules);
+            console.log('  inspectionResults 是否存在:', !!inspectionResults);
+            console.log('  inspectionResults 大小:', inspectionResults?.size);
+
             const userInspectionResult = inspectionResults?.get(record.id);
+            console.log('  找到用戶檢測結果:', !!userInspectionResult);
 
             if (userInspectionResult) {
-              console.log(`使用用戶提供的檢測結果 (記錄 ${record.id}):`, userInspectionResult);
+              console.log(`✅ 使用用戶提供的檢測結果 (記錄 ${record.id}):`, userInspectionResult);
 
               if (userInspectionResult.canDispense) {
                 // 檢測合格：正常派藥
@@ -1642,6 +1649,7 @@ const MedicationWorkflow: React.FC = () => {
               }
             } else {
               // 沒有用戶提供的檢測結果，使用自動檢測
+              console.log(`⚠️ 沒有找到用戶檢測結果，使用自動檢測`);
               const checkResult = await checkPrescriptionInspectionRules(
                 patientIdNum,
                 prescription.id,
