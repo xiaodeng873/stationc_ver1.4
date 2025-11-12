@@ -814,12 +814,45 @@ const MedicationWorkflow: React.FC = () => {
   }, [prescriptionWorkflowRecords, selectedPatientId]);
 
   // 獲取當前日期的工作流程記錄（用於一鍵操作等）
-  const currentDayWorkflowRecords = useMemo(() => 
-    allWorkflowRecords.filter(r => 
-      r.scheduled_date === selectedDate && r.patient_id.toString() === selectedPatientId
-    ),
-    [allWorkflowRecords, selectedDate, selectedPatientId]
-  );
+  // 重要：只包含在服處方(status='active')的記錄
+  const currentDayWorkflowRecords = useMemo(() => {
+    console.log(`\n📋 開始篩選當天工作流程記錄 (日期: ${selectedDate}, 院友ID: ${selectedPatientId})`);
+    console.log(`📋 總工作流程記錄數: ${allWorkflowRecords.length}`);
+
+    const filtered = allWorkflowRecords.filter(r => {
+      // 1. 必須是當天的記錄
+      if (r.scheduled_date !== selectedDate) return false;
+
+      // 2. 必須是選中院友的記錄
+      if (r.patient_id.toString() !== selectedPatientId) return false;
+
+      // 3. 必須是在服處方的記錄（排除 pending_change、inactive 等狀態）
+      const prescription = prescriptions.find(p => p.id === r.prescription_id);
+      if (!prescription) {
+        console.log(`  ❌ 記錄 ${r.id} (時間: ${r.scheduled_time}): 找不到對應處方`);
+        return false;
+      }
+
+      if (prescription.status !== 'active') {
+        console.log(`  ❌ ${prescription.medication_name} (時間: ${r.scheduled_time}): 處方狀態為 ${prescription.status}，非 active`);
+        return false;
+      }
+
+      console.log(`  ✅ ${prescription.medication_name} (時間: ${r.scheduled_time}): 通過檢查 - 在服處方 + 備藥方式: ${prescription.preparation_method}`);
+      return true;
+    });
+
+    console.log(`📋 當天工作流程記錄: ${filtered.length} 筆 (過濾後只包含在服處方)`);
+
+    // 特別標記提前備藥的記錄
+    const advancedRecords = filtered.filter(r => {
+      const prescription = prescriptions.find(p => p.id === r.prescription_id);
+      return prescription?.preparation_method === 'advanced';
+    });
+    console.log(`📋 其中提前備藥記錄: ${advancedRecords.length} 筆`);
+
+    return filtered;
+  }, [allWorkflowRecords, selectedDate, selectedPatientId, prescriptions]);
 
   // 獲取選中院友的在服處方（基於選取日期）
   const selectedPatient = sortedActivePatients.find(p => p.院友id.toString() === selectedPatientId);
@@ -855,51 +888,51 @@ const MedicationWorkflow: React.FC = () => {
     return ids;
   }, [allWorkflowRecords]);
 
-  // 過濾處方：顯示在服處方 + 停用但在當周有工作流程記錄的處方
+  // 過濾處方：只顯示在服處方(active)且在當周有工作流程記錄的處方
   const activePrescriptions = useMemo(() => {
     console.log(`\n🔍 開始過濾處方 (院友ID: ${selectedPatientId}, 週期: ${weekDates[0]} ~ ${weekDates[6]})`);
 
     const filtered = prescriptions.filter(p => {
+      // 1. 必須是當前選中的院友
       if (p.patient_id.toString() !== selectedPatientId) {
         return false;
       }
 
-      // 如果是在服處方，檢查日期有效性（使用週範圍而非單一日期）
-      if (p.status === 'active') {
-        // 使用週範圍的開始和結束日期進行檢查
-        const weekStart = new Date(weekDates[0]);
-        const weekEnd = new Date(weekDates[6]);
-        const startDate = new Date(p.start_date);
-
-        // 處方必須在週結束日期之前或當天開始
-        if (startDate > weekEnd) {
-          console.log(`  ❌ ${p.medication_name}: start_date(${p.start_date}) > weekEnd(${weekDates[6]})`);
-          return false;
-        }
-
-        // 如果有結束日期，處方必須在週開始日期之後或當天結束
-        if (p.end_date) {
-          const endDate = new Date(p.end_date);
-          if (endDate < weekStart) {
-            console.log(`  ❌ ${p.medication_name}: end_date(${p.end_date}) < weekStart(${weekDates[0]})`);
-            return false;
-          }
-        }
-
-        console.log(`  ✅ ${p.medication_name} (active): 通過日期檢查`);
-        return true;
-    }
-
-      // 如果是停用處方，檢查當周是否有相關工作流程記錄
-      if (p.status === 'inactive') {
-        const hasRecords = weekPrescriptionIds.has(p.id);
-        console.log(`  ${hasRecords ? '✅' : '❌'} ${p.medication_name} (inactive): ${hasRecords ? '有' : '無'}工作流程記錄`);
-        return hasRecords;
+      // 2. 必須是在服處方 (排除 pending_change、inactive 等其他狀態)
+      if (p.status !== 'active') {
+        console.log(`  ❌ ${p.medication_name} (${p.status}): 狀態不是 active，跳過`);
+        return false;
       }
 
-      // 其他狀態（如 pending_change）不顯示
-      console.log(`  ⏭️  ${p.medication_name} (${p.status}): 跳過`);
-      return false;
+      // 3. 檢查處方日期有效性（使用週範圍）
+      const weekStart = new Date(weekDates[0]);
+      const weekEnd = new Date(weekDates[6]);
+      const startDate = new Date(p.start_date);
+
+      // 處方必須在週結束日期之前或當天開始
+      if (startDate > weekEnd) {
+        console.log(`  ❌ ${p.medication_name}: start_date(${p.start_date}) > weekEnd(${weekDates[6]})`);
+        return false;
+      }
+
+      // 如果有結束日期，處方必須在週開始日期之後或當天結束
+      if (p.end_date) {
+        const endDate = new Date(p.end_date);
+        if (endDate < weekStart) {
+          console.log(`  ❌ ${p.medication_name}: end_date(${p.end_date}) < weekStart(${weekDates[0]})`);
+          return false;
+        }
+      }
+
+      // 4. 必須在當周有工作流程記錄
+      const hasRecords = weekPrescriptionIds.has(p.id);
+      if (!hasRecords) {
+        console.log(`  ❌ ${p.medication_name}: 當周無工作流程記錄，跳過`);
+        return false;
+      }
+
+      console.log(`  ✅ ${p.medication_name} (active): 通過所有檢查 - 日期有效 + 有工作流程記錄`);
+      return true;
     });
 
     console.log(`🔍 過濾結果: ${filtered.length} 個處方通過`);
