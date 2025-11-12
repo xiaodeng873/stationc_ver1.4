@@ -2594,7 +2594,12 @@ const MedicationWorkflow: React.FC = () => {
       {/* 批量派藥確認對話框 */}
       {showBatchDispenseModal && selectedPatientId && (
         <BatchDispenseConfirmModal
-          workflowRecords={currentDayWorkflowRecords.filter(r => {
+          workflowRecords={allWorkflowRecords.filter(r => {
+            // 只包含該院友的記錄
+            if (r.patient_id.toString() !== selectedPatientId) {
+              return false;
+            }
+
             const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
             // 只包含在服處方 (status = 'active')
@@ -2608,7 +2613,11 @@ const MedicationWorkflow: React.FC = () => {
             }
 
             // 包含所有待派藥的記錄（包括有檢測項要求的）
-            return r.dispensing_status === 'pending' && r.verification_status === 'completed';
+            // 重點: 只要服藥日期(actual_date)是選定日期,就包含進來(即使scheduled_date更早)
+            const actualDate = r.actual_date || r.scheduled_date;
+            return actualDate === selectedDate &&
+                   r.dispensing_status === 'pending' &&
+                   r.verification_status === 'completed';
           })}
           prescriptions={prescriptions}
           patients={patients}
