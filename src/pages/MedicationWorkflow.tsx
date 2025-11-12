@@ -377,8 +377,9 @@ const MedicationWorkflow: React.FC = () => {
     revertPrescriptionWorkflowStep,
     verifyMedication,
     dispenseMedication,
+    checkPrescriptionInspectionRules,
     hospitalEpisodes,
-    loading 
+    loading
   } = usePatients();
   const { displayName } = useAuth();
 
@@ -1651,9 +1652,8 @@ const MedicationWorkflow: React.FC = () => {
               // 沒有用戶提供的檢測結果，使用自動檢測
               console.log(`⚠️ 沒有找到用戶檢測結果，使用自動檢測`);
               const checkResult = await checkPrescriptionInspectionRules(
-                patientIdNum,
                 prescription.id,
-                selectedDate
+                patientIdNum
               );
 
               if (checkResult.canDispense) {
