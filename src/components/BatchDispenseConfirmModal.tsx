@@ -43,11 +43,30 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
     return patients.find(p => p.院友id === parseInt(selectedPatientId));
   }, [patients, selectedPatientId]);
 
-  // 過濾只包含在服處方 (status = 'active')
+  // 過濾只包含在服處方或有效期內的停用處方
   const activeWorkflowRecords = useMemo(() => {
     return workflowRecords.filter(record => {
       const prescription = prescriptions.find(p => p.id === record.prescription_id);
-      return prescription && prescription.status === 'active';
+
+      if (!prescription) return false;
+
+      // 在服處方：正常包含
+      if (prescription.status === 'active') {
+        return true;
+      }
+
+      // 停用處方：需要檢查記錄日期是否在處方有效期內
+      if (prescription.status === 'inactive') {
+        const recordDate = new Date(record.scheduled_date);
+        const startDate = new Date(prescription.start_date);
+        const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
+
+        // 如果記錄日期在處方有效期內，包含該記錄
+        return recordDate >= startDate && (!endDate || recordDate <= endDate);
+      }
+
+      // 其他狀態（如 pending_change）：跳過
+      return false;
     });
   }, [workflowRecords, prescriptions]);
 
@@ -68,7 +87,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       const time = record.scheduled_time;
       const prescription = prescriptions.find(p => p.id === record.prescription_id);
 
-      if (!prescription || prescription.status !== 'active') return;
+      if (!prescription) return;
 
       if (!summaryMap.has(time)) {
         summaryMap.set(time, {

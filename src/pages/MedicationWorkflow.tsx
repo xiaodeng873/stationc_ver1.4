@@ -814,7 +814,7 @@ const MedicationWorkflow: React.FC = () => {
   }, [prescriptionWorkflowRecords, selectedPatientId]);
 
   // 獲取當前日期的工作流程記錄（用於一鍵操作等）
-  // 重要：只包含在服處方(status='active')的記錄
+  // 重要：包含在服處方(status='active')和有效期內的停用處方(status='inactive')的記錄
   const currentDayWorkflowRecords = useMemo(() => {
     console.log(`\n📋 開始篩選當天工作流程記錄 (日期: ${selectedDate}, 院友ID: ${selectedPatientId})`);
     console.log(`📋 總工作流程記錄數: ${allWorkflowRecords.length}`);
@@ -826,23 +826,40 @@ const MedicationWorkflow: React.FC = () => {
       // 2. 必須是選中院友的記錄
       if (r.patient_id.toString() !== selectedPatientId) return false;
 
-      // 3. 必須是在服處方的記錄（排除 pending_change、inactive 等狀態）
+      // 3. 檢查處方狀態
       const prescription = prescriptions.find(p => p.id === r.prescription_id);
       if (!prescription) {
         console.log(`  ❌ 記錄 ${r.id} (時間: ${r.scheduled_time}): 找不到對應處方`);
         return false;
       }
 
-      if (prescription.status !== 'active') {
-        console.log(`  ❌ ${prescription.medication_name} (時間: ${r.scheduled_time}): 處方狀態為 ${prescription.status}，非 active`);
-        return false;
+      // 在服處方：正常包含
+      if (prescription.status === 'active') {
+        console.log(`  ✅ ${prescription.medication_name} (時間: ${r.scheduled_time}): 通過檢查 - 在服處方 + 備藥方式: ${prescription.preparation_method}`);
+        return true;
       }
 
-      console.log(`  ✅ ${prescription.medication_name} (時間: ${r.scheduled_time}): 通過檢查 - 在服處方 + 備藥方式: ${prescription.preparation_method}`);
-      return true;
+      // 停用處方：檢查記錄日期是否在處方有效期內
+      if (prescription.status === 'inactive') {
+        const recordDate = new Date(r.scheduled_date);
+        const startDate = new Date(prescription.start_date);
+        const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
+
+        if (recordDate >= startDate && (!endDate || recordDate <= endDate)) {
+          console.log(`  ✅ ${prescription.medication_name} (時間: ${r.scheduled_time}): 通過檢查 - 停用處方但在有效期內 (${prescription.start_date} ~ ${prescription.end_date || '無結束日期'})`);
+          return true;
+        } else {
+          console.log(`  ❌ ${prescription.medication_name} (時間: ${r.scheduled_time}): 停用處方且不在有效期內`);
+          return false;
+        }
+      }
+
+      // 其他狀態（如 pending_change）：排除
+      console.log(`  ❌ ${prescription.medication_name} (時間: ${r.scheduled_time}): 處方狀態為 ${prescription.status}，非 active 或 inactive`);
+      return false;
     });
 
-    console.log(`📋 當天工作流程記錄: ${filtered.length} 筆 (過濾後只包含在服處方)`);
+    console.log(`📋 當天工作流程記錄: ${filtered.length} 筆 (包含在服處方和有效期內的停用處方)`);
 
     // 特別標記提前備藥的記錄
     const advancedRecords = filtered.filter(r => {
@@ -1465,8 +1482,25 @@ const MedicationWorkflow: React.FC = () => {
     const eligibleRecords = currentDayWorkflowRecords.filter(r => {
       const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
-      // 只包含在服處方 (status = 'active')
-      if (!prescription || prescription.status !== 'active') {
+      if (!prescription) {
+        return false;
+      }
+
+      // 檢查處方狀態：在服處方或有效期內的停用處方
+      if (prescription.status === 'active') {
+        // 在服處方：正常包含
+      } else if (prescription.status === 'inactive') {
+        // 停用處方：需要檢查記錄日期是否在處方有效期內
+        const recordDate = new Date(r.scheduled_date);
+        const startDate = new Date(prescription.start_date);
+        const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
+
+        // 如果記錄日期不在處方有效期內，跳過
+        if (recordDate < startDate || (endDate && recordDate > endDate)) {
+          return false;
+        }
+      } else {
+        // 其他狀態（如 pending_change）：跳過
         return false;
       }
 
