@@ -8,13 +8,15 @@ interface InspectionCheckModalProps {
   onClose: () => void;
   onResult: (canDispense: boolean, failureReason?: string, inspectionCheckResult?: any) => void;
   isBatchMode?: boolean; // 是否為批量派藥模式
+  batchProgress?: { current: number; total: number }; // 批量檢測進度
 }
 
 const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   workflowRecord,
   onClose,
   onResult,
-  isBatchMode = false
+  isBatchMode = false,
+  batchProgress
 }) => {
   const {
     patients,
@@ -299,9 +301,21 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
                 <AlertTriangle className="h-6 w-6 text-orange-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">派藥前檢測</h2>
+                <div className="flex items-center space-x-3">
+                  <h2 className="text-xl font-semibold text-gray-900">派藥前檢測</h2>
+                  {batchProgress && (
+                    <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">
+                      第 {batchProgress.current} / {batchProgress.total} 筆
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600">
                   {patient?.中文姓氏}{patient?.中文名字} - {prescription?.medication_name}
+                  {workflowRecord?.scheduled_time && (
+                    <span className="ml-2 text-blue-600 font-medium">
+                      ({workflowRecord.scheduled_time.substring(0, 5)})
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

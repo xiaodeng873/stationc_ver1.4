@@ -199,14 +199,18 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
 
   const handleInspectionResult = (canDispense: boolean, failureReason?: string, inspectionCheckResult?: any) => {
     const currentRecord = currentInspectionRecords[currentInspectionIndex];
+    const prescription = prescriptions.find(p => p.id === currentRecord.prescription_id);
 
-    console.log('=== 檢測結果處理 ===');
-    console.log('當前索引:', currentInspectionIndex);
-    console.log('總記錄數:', currentInspectionRecords.length);
-    console.log('記錄ID:', currentRecord.id);
-    console.log('canDispense:', canDispense);
-    console.log('failureReason:', failureReason);
-    console.log('inspectionCheckResult:', inspectionCheckResult);
+    console.log('\n=== 📋 檢測結果處理 ===');
+    console.log(`  🔢 進度: 第 ${currentInspectionIndex + 1} / ${currentInspectionRecords.length} 筆`);
+    console.log(`  ⏰ 時間: ${currentRecord.scheduled_time}`);
+    console.log(`  💊 藥物: ${prescription?.medication_name || '未知'}`);
+    console.log(`  📝 記錄ID: ${currentRecord.id.substring(0, 8)}...`);
+    console.log(`  ✅ 可派藥: ${canDispense}`);
+    console.log(`  ❌ 失敗原因: ${failureReason || '無'}`);
+    if (inspectionCheckResult?.usedVitalSignData) {
+      console.log(`  🩺 使用的監測數據:`, inspectionCheckResult.usedVitalSignData);
+    }
 
     // 保存檢測結果
     const newResults = new Map(inspectionResults);
@@ -225,11 +229,21 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
     // 檢查是否還有更多記錄需要檢測
     if (currentInspectionIndex < currentInspectionRecords.length - 1) {
       // 繼續下一個檢測
-      console.log('繼續下一個檢測，索引從', currentInspectionIndex, '到', currentInspectionIndex + 1);
-      setCurrentInspectionIndex(currentInspectionIndex + 1);
+      const nextIndex = currentInspectionIndex + 1;
+      const nextRecord = currentInspectionRecords[nextIndex];
+      const nextPrescription = prescriptions.find(p => p.id === nextRecord.prescription_id);
+      console.log(`\n➡️ 繼續下一個檢測 (${nextIndex + 1} / ${currentInspectionRecords.length})`);
+      console.log(`  ⏰ 時間: ${nextRecord.scheduled_time}`);
+      console.log(`  💊 藥物: ${nextPrescription?.medication_name || '未知'}`);
+      setCurrentInspectionIndex(nextIndex);
     } else {
       // 所有檢測完成，關閉檢測模態框並執行派藥
-      console.log('✅ 所有檢測完成，準備執行派藥');
+      console.log('\n✅ ===  所有檢測完成，準備執行派藥 ===');
+      console.log(`  總檢測數: ${newResults.size} 筆`);
+      newResults.forEach((result, recordId) => {
+        const record = currentInspectionRecords.find(r => r.id === recordId);
+        console.log(`    - ${record?.scheduled_time}: ${result.canDispense ? '✅ 通過' : '❌ 不通過'}`);
+      });
       setShowInspectionModal(false);
       // 使用 setTimeout 確保狀態更新和模態框關閉後再執行
       setTimeout(() => {
@@ -474,6 +488,10 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
           }}
           onResult={handleInspectionResult}
           isBatchMode={true}
+          batchProgress={{
+            current: currentInspectionIndex + 1,
+            total: currentInspectionRecords.length
+          }}
         />
       )}
     </>
