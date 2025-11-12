@@ -69,9 +69,9 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     };
   }, []);
 
-  // 載入最新監測記錄
+  // 初始化檢查（不自動執行檢測，只檢查特殊情況）
   useEffect(() => {
-    const loadLatestVitalSigns = async () => {
+    const initializeCheck = async () => {
       // 如果沒有檢測規則，在批量模式下直接回傳結果，在單個模式下直接允許派藥
       if (!prescription?.inspection_rules || prescription.inspection_rules.length === 0) {
         if (!hasNoRulesAndHandled) {
@@ -134,6 +134,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
         return;
       }
 
+      // 載入最新監測記錄供參考（不自動執行檢測）
       try {
         const vitalSignTypes = prescription.inspection_rules.map((rule: any) => rule.vital_sign_type);
         const latestData: any = {};
@@ -146,6 +147,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
         }
 
         setLatestVitalSigns(latestData);
+        console.log('[InspectionCheckModal] 已載入最新監測記錄，等待用戶手動執行檢測');
       } catch (error) {
         console.error('載入最新監測記錄失敗:', error);
       } finally {
@@ -153,7 +155,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
       }
     };
 
-    loadLatestVitalSigns();
+    initializeCheck();
   }, [prescription, workflowRecord.patient_id, fetchLatestVitalSigns, hasNoRulesAndHandled, onResult, isHospitalized, dispenseMedication, displayName, workflowRecord, onClose, isBatchMode]);
 
   // 處理沒有檢測規則的情況
