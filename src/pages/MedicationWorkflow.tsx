@@ -1478,16 +1478,28 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
+    console.log('=== 一鍵派藥過濾邏輯 ===');
+    console.log('當天工作流程記錄總數:', currentDayWorkflowRecords.length);
+
     // 找到所有可派藥的記錄（包含有檢測項要求的處方）
     const eligibleRecords = currentDayWorkflowRecords.filter(r => {
       const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
       if (!prescription) {
+        console.log(`❌ 記錄 ${r.id}: 找不到處方`);
         return false;
       }
 
+      console.log(`\n🔍 檢查記錄: ${prescription.medication_name} (${r.scheduled_time})`);
+      console.log(`  - 處方狀態: ${prescription.status}`);
+      console.log(`  - 派藥狀態: ${r.dispensing_status}`);
+      console.log(`  - 核藥狀態: ${r.verification_status}`);
+      console.log(`  - 給藥途徑: ${prescription.administration_route}`);
+      console.log(`  - 有效期: ${prescription.start_date} ~ ${prescription.end_date || '無結束日期'}`);
+
       // 檢查處方狀態：在服處方或有效期內的停用處方
       if (prescription.status === 'active') {
+        console.log(`  ✅ 在服處方`);
         // 在服處方：正常包含
       } else if (prescription.status === 'inactive') {
         // 停用處方：需要檢查記錄日期是否在處方有效期內
@@ -1495,23 +1507,47 @@ const MedicationWorkflow: React.FC = () => {
         const startDate = new Date(prescription.start_date);
         const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
 
+        console.log(`  📅 停用處方日期檢查:`);
+        console.log(`     記錄日期: ${r.scheduled_date}`);
+        console.log(`     開始日期: ${prescription.start_date}`);
+        console.log(`     結束日期: ${prescription.end_date || '無'}`);
+
         // 如果記錄日期不在處方有效期內，跳過
         if (recordDate < startDate || (endDate && recordDate > endDate)) {
+          console.log(`  ❌ 停用處方且記錄日期不在有效期內`);
           return false;
         }
+        console.log(`  ✅ 停用處方但記錄日期在有效期內`);
       } else {
         // 其他狀態（如 pending_change）：跳過
+        console.log(`  ❌ 處方狀態為 ${prescription.status}，跳過`);
         return false;
       }
 
       // 排除注射類藥物
       if (prescription.administration_route === '注射') {
+        console.log(`  ❌ 注射類藥物，跳過`);
         return false;
       }
 
       // 包含所有待派藥的記錄（包括有檢測項要求的）
-      return r.dispensing_status === 'pending' && r.verification_status === 'completed';
+      const isEligible = r.dispensing_status === 'pending' && r.verification_status === 'completed';
+      if (isEligible) {
+        console.log(`  ✅ 符合派藥條件`);
+      } else {
+        console.log(`  ❌ 不符合派藥條件（派藥狀態: ${r.dispensing_status}, 核藥狀態: ${r.verification_status}）`);
+      }
+      return isEligible;
     });
+
+    console.log(`\n✅ 符合條件的記錄數: ${eligibleRecords.length}`);
+    if (eligibleRecords.length > 0) {
+      console.log('符合條件的處方:');
+      eligibleRecords.forEach(r => {
+        const prescription = prescriptions.find(p => p.id === r.prescription_id);
+        console.log(`  - ${prescription?.medication_name} (${r.scheduled_time})`);
+      });
+    }
 
     if (eligibleRecords.length === 0) {
       console.log('沒有可派藥的記錄');
