@@ -18,7 +18,7 @@ interface BatchDispenseConfirmModalProps {
   patients: any[];
   selectedPatientId: string;
   selectedDate: string;
-  onConfirm: (selectedTimeSlots: string[], recordsToProcess: any[]) => Promise<void>;
+  onConfirm: (selectedTimeSlots: string[], recordsToProcess: any[], inspectionResults?: Map<string, any>) => Promise<void>;
   onClose: () => void;
 }
 
@@ -167,7 +167,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       // 沒有檢測項要求，直接派藥
       setIsProcessing(true);
       try {
-        await onConfirm(Array.from(selectedTimeSlots), selectedRecords);
+        await onConfirm(Array.from(selectedTimeSlots), selectedRecords, new Map());
         onClose();
       } catch (error) {
         console.error('批量派藥失敗:', error);
@@ -205,7 +205,12 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const proceedWithDispensing = async () => {
     setIsProcessing(true);
     try {
-      await onConfirm(Array.from(selectedTimeSlots), recordsToProcess);
+      console.log('=== 批量派藥：傳遞檢測結果 ===');
+      console.log('檢測結果數量:', inspectionResults.size);
+      inspectionResults.forEach((result, recordId) => {
+        console.log(`  記錄 ${recordId}:`, result);
+      });
+      await onConfirm(Array.from(selectedTimeSlots), recordsToProcess, inspectionResults);
       onClose();
     } catch (error) {
       console.error('批量派藥失敗:', error);

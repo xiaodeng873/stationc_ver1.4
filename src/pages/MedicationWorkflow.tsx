@@ -1559,7 +1559,7 @@ const MedicationWorkflow: React.FC = () => {
   };
 
   // 處理批量派藥確認
-  const handleBatchDispenseConfirm = async (selectedTimeSlots: string[], recordsToProcess: any[]) => {
+  const handleBatchDispenseConfirm = async (selectedTimeSlots: string[], recordsToProcess: any[], inspectionResults?: Map<string, any>) => {
     if (!selectedPatientId || !selectedDate) {
       return;
     }
@@ -1571,6 +1571,7 @@ const MedicationWorkflow: React.FC = () => {
 
     try {
       console.log('=== 批量派藥開始 ===', selectedTimeSlots, `共 ${recordsToProcess.length} 筆記錄`);
+      console.log('接收到的檢測結果:', inspectionResults?.size || 0);
 
       // 並行處理所有派藥操作
       const results = await Promise.allSettled(
@@ -1606,39 +1607,74 @@ const MedicationWorkflow: React.FC = () => {
             );
             return { type: 'hospitalized' };
           } else if (hasInspectionRules) {
-            // 有檢測項要求：執行檢測邏輯
-            const checkResult = await checkPrescriptionInspectionRules(
-              patientIdNum,
-              prescription.id,
-              selectedDate
-            );
+            // 有檢測項要求：先檢查是否有用戶提供的檢測結果
+            const userInspectionResult = inspectionResults?.get(record.id);
 
-            if (checkResult.canDispense) {
-              // 檢測合格：正常派藥
-              await dispenseMedication(
-                record.id,
-                displayName || '未知',
-                undefined,
-                undefined,
-                patientIdNum,
-                selectedDate,
-                undefined,
-                checkResult
-              );
-              return { type: 'success' };
+            if (userInspectionResult) {
+              console.log(`使用用戶提供的檢測結果 (記錄 ${record.id}):`, userInspectionResult);
+
+              if (userInspectionResult.canDispense) {
+                // 檢測合格：正常派藥
+                await dispenseMedication(
+                  record.id,
+                  displayName || '未知',
+                  undefined,
+                  undefined,
+                  patientIdNum,
+                  selectedDate,
+                  undefined,
+                  userInspectionResult.inspectionCheckResult
+                );
+                return { type: 'success' };
+              } else {
+                // 檢測不合格：標記為暫停
+                await dispenseMedication(
+                  record.id,
+                  displayName || '未知',
+                  userInspectionResult.failureReason || '暫停',
+                  '檢測項條件不符',
+                  patientIdNum,
+                  selectedDate,
+                  undefined,
+                  userInspectionResult.inspectionCheckResult
+                );
+                return { type: 'paused' };
+              }
             } else {
-              // 檢測不合格：標記為暫停
-              await dispenseMedication(
-                record.id,
-                displayName || '未知',
-                '暫停',
-                '檢測項條件不符',
+              // 沒有用戶提供的檢測結果，使用自動檢測
+              const checkResult = await checkPrescriptionInspectionRules(
                 patientIdNum,
-                selectedDate,
-                undefined,
-                checkResult
+                prescription.id,
+                selectedDate
               );
-              return { type: 'paused' };
+
+              if (checkResult.canDispense) {
+                // 檢測合格：正常派藥
+                await dispenseMedication(
+                  record.id,
+                  displayName || '未知',
+                  undefined,
+                  undefined,
+                  patientIdNum,
+                  selectedDate,
+                  undefined,
+                  checkResult
+                );
+                return { type: 'success' };
+              } else {
+                // 檢測不合格：標記為暫停
+                await dispenseMedication(
+                  record.id,
+                  displayName || '未知',
+                  '暫停',
+                  '檢測項條件不符',
+                  patientIdNum,
+                  selectedDate,
+                  undefined,
+                  checkResult
+                );
+                return { type: 'paused' };
+              }
             }
           } else {
             // 正常派藥（無檢測項要求）
