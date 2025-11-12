@@ -793,22 +793,28 @@ const MedicationWorkflow: React.FC = () => {
       setAllWorkflowRecords(prev => {
         const newRecords = prescriptionWorkflowRecords.filter(r => r.patient_id.toString() === selectedPatientId);
 
+        console.log(`\n🔄 ===  allWorkflowRecords 更新觸發 ===`);
+        console.log(`  Context 中的記錄總數: ${prescriptionWorkflowRecords.length}`);
+        console.log(`  篩選後的新記錄數: ${newRecords.length}`);
+        console.log(`  當前本地記錄數: ${prev.length}`);
+
         if (newRecords.length === 0) {
           console.log('⚠️ Context 中沒有新記錄，保持現有記錄');
           return prev;
         }
 
-        console.log(`🔄 Context 更新: 收到 ${newRecords.length} 筆新記錄`);
-
         // 獲取這次更新涉及的所有日期
         const updatedDates = [...new Set(newRecords.map(r => r.scheduled_date))];
-        console.log(`📅 更新涉及日期:`, updatedDates);
+        console.log(`📅 更新涉及的日期 (${updatedDates.length} 個):`, updatedDates);
 
         // 移除這些日期的舊記錄
         const filteredPrev = prev.filter(r => !updatedDates.includes(r.scheduled_date));
-        const merged = [...filteredPrev, ...newRecords];
+        console.log(`  移除舊記錄後: ${prev.length} -> ${filteredPrev.length}`);
 
-        console.log(`📝 合併後記錄數: ${prev.length} -> ${merged.length}`);
+        const merged = [...filteredPrev, ...newRecords];
+        console.log(`📝 合併後記錄數: ${merged.length}`);
+        console.log(`  合併記錄的日期分布:`, [...new Set(merged.map(r => r.scheduled_date))]);
+
         return merged;
       });
     }
@@ -1705,8 +1711,11 @@ const MedicationWorkflow: React.FC = () => {
         }
       });
 
-      // 刷新數據
-      await fetchPrescriptionWorkflowRecords();
+      // 數據刷新已經在 dispenseMedication 內部完成
+      // 這裡只需要給一點時間讓 React 狀態更新傳播到頁面
+      console.log('🔄 等待數據刷新傳播...');
+      await new Promise(resolve => setTimeout(resolve, 200));
+      console.log('✅ 數據刷新完成');
     } catch (error) {
       console.error('批量派藥失敗:', error);
       throw error;
