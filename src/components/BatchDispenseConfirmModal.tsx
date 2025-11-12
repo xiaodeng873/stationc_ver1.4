@@ -193,39 +193,41 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
     const currentRecord = currentInspectionRecords[currentInspectionIndex];
 
     console.log('=== 檢測結果處理 ===');
+    console.log('當前索引:', currentInspectionIndex);
+    console.log('總記錄數:', currentInspectionRecords.length);
     console.log('記錄ID:', currentRecord.id);
     console.log('canDispense:', canDispense);
     console.log('failureReason:', failureReason);
     console.log('inspectionCheckResult:', inspectionCheckResult);
 
-    // 保存檢測結果並獲取更新後的 Map
-    setInspectionResults(prev => {
-      const newResults = new Map(prev);
-      newResults.set(currentRecord.id, {
-        canDispense,
-        failureReason,
-        inspectionCheckResult
-      });
-      console.log('保存後的檢測結果 Map 大小:', newResults.size);
-      console.log('保存的內容:', Array.from(newResults.entries()));
-
-      // 檢查是否還有更多記錄需要檢測
-      if (currentInspectionIndex < currentInspectionRecords.length - 1) {
-        // 繼續下一個檢測
-        console.log('繼續下一個檢測');
-        setCurrentInspectionIndex(prev => prev + 1);
-      } else {
-        // 所有檢測完成，關閉檢測模態框並執行派藥
-        console.log('所有檢測完成，準備執行派藥');
-        setShowInspectionModal(false);
-        // 使用 setTimeout 確保狀態更新後再執行
-        setTimeout(() => {
-          proceedWithDispensing(newResults);
-        }, 0);
-      }
-
-      return newResults;
+    // 保存檢測結果
+    const newResults = new Map(inspectionResults);
+    newResults.set(currentRecord.id, {
+      canDispense,
+      failureReason,
+      inspectionCheckResult
     });
+
+    console.log('保存後的檢測結果 Map 大小:', newResults.size);
+    console.log('保存的內容:', Array.from(newResults.entries()));
+
+    // 更新檢測結果狀態
+    setInspectionResults(newResults);
+
+    // 檢查是否還有更多記錄需要檢測
+    if (currentInspectionIndex < currentInspectionRecords.length - 1) {
+      // 繼續下一個檢測
+      console.log('繼續下一個檢測，索引從', currentInspectionIndex, '到', currentInspectionIndex + 1);
+      setCurrentInspectionIndex(currentInspectionIndex + 1);
+    } else {
+      // 所有檢測完成，關閉檢測模態框並執行派藥
+      console.log('✅ 所有檢測完成，準備執行派藥');
+      setShowInspectionModal(false);
+      // 使用 setTimeout 確保狀態更新和模態框關閉後再執行
+      setTimeout(() => {
+        proceedWithDispensing(newResults);
+      }, 150);
+    }
   };
 
   const proceedWithDispensing = async (finalResults: Map<string, any>) => {

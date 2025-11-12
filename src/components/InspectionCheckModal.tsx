@@ -68,12 +68,10 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
           setHasNoRulesAndHandled(true);
           console.log('[InspectionCheckModal] 無檢測規則，批量模式:', isBatchMode);
           // 在批量模式下，仍然通過 onResult 回傳，但不自動關閉
-          onResult(true, undefined, { canDispense: true, blockedRules: [], usedVitalSignData: {} });
-          // 在批量模式下不自動關閉，讓 BatchDispenseConfirmModal 控制流程
-          if (!isBatchMode) {
-            // 單個派藥模式才自動關閉
-            // 這裡不需要關閉，因為父組件會處理
-          }
+          // 使用 setTimeout 確保狀態穩定後再回調
+          setTimeout(() => {
+            onResult(true, undefined, { canDispense: true, blockedRules: [], usedVitalSignData: {} });
+          }, 100);
         }
         setLoading(false);
         return;
@@ -94,7 +92,10 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
           if (isBatchMode) {
             // 批量模式：通過 onResult 回傳，不直接寫入數據庫
             setHasNoRulesAndHandled(true);
-            onResult(false, '入院', inspectionResult);
+            // 使用 setTimeout 確保狀態穩定後再回調
+            setTimeout(() => {
+              onResult(false, '入院', inspectionResult);
+            }, 100);
           } else {
             // 單個派藥模式：直接寫入數據庫並關閉
             await dispenseMedication(
