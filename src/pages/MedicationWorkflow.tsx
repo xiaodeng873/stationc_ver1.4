@@ -2717,8 +2717,25 @@ const MedicationWorkflow: React.FC = () => {
 
             const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
-            // 只包含在服處方 (status = 'active')
-            if (!prescription || prescription.status !== 'active') {
+            if (!prescription) {
+              return false;
+            }
+
+            // 檢查處方狀態：在服處方或有效期內的停用處方
+            if (prescription.status === 'active') {
+              // 在服處方：正常包含
+            } else if (prescription.status === 'inactive') {
+              // 停用處方：需要檢查記錄日期是否在處方有效期內
+              const recordDate = new Date(r.scheduled_date);
+              const startDate = new Date(prescription.start_date);
+              const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
+
+              // 如果記錄日期不在處方有效期內，跳過
+              if (recordDate < startDate || (endDate && recordDate > endDate)) {
+                return false;
+              }
+            } else {
+              // 其他狀態（如 pending_change）：跳過
               return false;
             }
 
