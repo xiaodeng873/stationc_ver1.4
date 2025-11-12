@@ -69,6 +69,17 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     };
   }, []);
 
+  // 當 workflowRecord 變化時，重置檢測狀態
+  useEffect(() => {
+    console.log('[InspectionCheckModal] workflowRecord 變化，重置檢測狀態');
+    setCheckResult(null);
+    setNewVitalSignData({});
+    setUseNewData(false);
+    setIsChecking(false);
+    setLoading(true);
+    setHasNoRulesAndHandled(false);
+  }, [workflowRecord.id]);
+
   // 初始化檢查（不自動執行檢測，只檢查特殊情況）
   useEffect(() => {
     const initializeCheck = async () => {
