@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { X, Clock, CheckCircle, Pill, AlertTriangle, User } from 'lucide-react';
+import { X, Clock, CheckCircle, Pill, AlertTriangle, User, Activity } from 'lucide-react';
+import InspectionCheckModal from './InspectionCheckModal';
 
 interface TimeSlotSummary {
   time: string;
@@ -8,6 +9,7 @@ interface TimeSlotSummary {
   medicationSummary: {
     [unit: string]: number;
   };
+  hasInspectionRequired: boolean;
 }
 
 interface BatchDispenseConfirmModalProps {
@@ -31,19 +33,30 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
 }) => {
   const [selectedTimeSlots, setSelectedTimeSlots] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showInspectionModal, setShowInspectionModal] = useState(false);
+  const [currentInspectionRecord, setCurrentInspectionRecord] = useState<any>(null);
+  const [inspectionResults, setInspectionResults] = useState<Map<string, any>>(new Map());
 
   const currentPatient = useMemo(() => {
     return patients.find(p => p.院友id === parseInt(selectedPatientId));
   }, [patients, selectedPatientId]);
 
+  // 過濾只包含在服處方 (status = 'active')
+  const activeWorkflowRecords = useMemo(() => {
+    return workflowRecords.filter(record => {
+      const prescription = prescriptions.find(p => p.id === record.prescription_id);
+      return prescription && prescription.status === 'active';
+    });
+  }, [workflowRecords, prescriptions]);
+
   const timeSlotSummaries = useMemo(() => {
     const summaryMap = new Map<string, TimeSlotSummary>();
 
-    workflowRecords.forEach(record => {
+    activeWorkflowRecords.forEach(record => {
       const time = record.scheduled_time;
       const prescription = prescriptions.find(p => p.id === record.prescription_id);
 
-      if (!prescription) return;
+      if (!prescription || prescription.status !== 'active') return;
 
       if (!summaryMap.has(time)) {
         summaryMap.set(time, {
@@ -51,12 +64,18 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
           records: [],
           uniquePrescriptions: new Set(),
           medicationSummary: {},
+          hasInspectionRequired: false,
         });
       }
 
       const summary = summaryMap.get(time)!;
       summary.records.push(record);
       summary.uniquePrescriptions.add(record.prescription_id);
+
+      // 檢查是否有檢測項要求
+      if (prescription.inspection_rules && prescription.inspection_rules.length > 0) {
+        summary.hasInspectionRequired = true;
+      }
 
       const unit = prescription.dosage_unit || '單位';
       const amount = parseFloat(prescription.dosage_amount) || 1;
@@ -73,7 +92,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
         ...s,
         uniquePrescriptionCount: s.uniquePrescriptions.size
       }));
-  }, [workflowRecords, prescriptions]);
+  }, [activeWorkflowRecords, prescriptions]);
 
   const handleTimeSlotToggle = (time: string) => {
     const newSelected = new Set(selectedTimeSlots);
@@ -117,48 +136,73 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const hasAdverseReaction = currentPatient?.不良藥物反應?.length > 0;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start space-x-4 flex-1">
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+          {/* 標題欄 */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-lg bg-blue-100">
+                  <Pill className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">一鍵派藥確認</h2>
+                  <p className="text-sm text-gray-600">
+                    選擇要派藥的時間點 - {selectedDate}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+
+          {/* 院友資訊區 */}
+          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-start space-x-4">
               {currentPatient?.院友相片 ? (
                 <img
                   src={currentPatient.院友相片}
                   alt={currentPatient.中文姓氏 + currentPatient.中文名字}
-                  className="w-20 h-20 rounded-lg object-cover border-2 border-white shadow-md"
+                  className="w-16 h-16 rounded-lg object-cover border-2 border-gray-300"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-lg bg-blue-400 flex items-center justify-center border-2 border-white shadow-md">
-                  <User className="h-10 w-10 text-white" />
+                <div className="w-16 h-16 rounded-lg bg-gray-300 flex items-center justify-center border-2 border-gray-400">
+                  <User className="h-8 w-8 text-gray-600" />
                 </div>
               )}
 
               <div className="flex-1">
-                <h2 className="text-xl font-bold text-white">
+                <h3 className="text-lg font-semibold text-gray-900">
                   {currentPatient?.中文姓氏}{currentPatient?.中文名字}
-                </h2>
-                <p className="text-sm text-blue-100 mt-1">
+                </h3>
+                <p className="text-sm text-gray-600">
                   性別: {currentPatient?.性別} | 出生日期: {currentPatient?.出生日期 || '未設定'}
                 </p>
 
+                {/* 用藥安全警示 */}
                 {(hasAllergyWarning || hasAdverseReaction) && (
-                  <div className="mt-2 space-y-1">
+                  <div className="mt-3 space-y-2">
                     {hasAllergyWarning && (
-                      <div className="flex items-start space-x-2 bg-orange-500 bg-opacity-90 rounded px-3 py-1.5">
-                        <AlertTriangle className="h-4 w-4 text-white mt-0.5 flex-shrink-0" />
-                        <div className="text-sm text-white">
-                          <span className="font-semibold">藥物敏感: </span>
-                          <span>{currentPatient.藥物敏感.join('、')}</span>
+                      <div className="flex items-start space-x-2 bg-orange-100 border border-orange-300 rounded-lg px-3 py-2">
+                        <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <span className="font-semibold text-orange-900">藥物敏感: </span>
+                          <span className="text-orange-800">{currentPatient.藥物敏感.join('、')}</span>
                         </div>
                       </div>
                     )}
                     {hasAdverseReaction && (
-                      <div className="flex items-start space-x-2 bg-red-500 bg-opacity-90 rounded px-3 py-1.5">
-                        <AlertTriangle className="h-4 w-4 text-white mt-0.5 flex-shrink-0" />
-                        <div className="text-sm text-white">
-                          <span className="font-semibold">不良藥物反應: </span>
-                          <span>{currentPatient.不良藥物反應.join('、')}</span>
+                      <div className="flex items-start space-x-2 bg-red-100 border border-red-300 rounded-lg px-3 py-2">
+                        <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <span className="font-semibold text-red-900">不良藥物反應: </span>
+                          <span className="text-red-800">{currentPatient.不良藥物反應.join('、')}</span>
                         </div>
                       </div>
                     )}
@@ -166,134 +210,152 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
                 )}
               </div>
             </div>
+          </div>
 
+          {/* 時間點列表 */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {timeSlotSummaries.length === 0 ? (
+              <div className="text-center py-12">
+                <Pill className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">沒有可派藥的記錄</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                  <button
+                    onClick={handleSelectAll}
+                    className="text-sm text-blue-700 hover:text-blue-800 font-medium"
+                  >
+                    {selectedTimeSlots.size === timeSlotSummaries.length ? '取消全選時間點' : '全選時間點'}
+                  </button>
+                  {selectedTimeSlots.size > 0 && (
+                    <div className="text-sm font-medium text-gray-700">
+                      已選擇 <span className="text-blue-700 font-bold">{selectedTimeSlots.size}</span> 個時間點，
+                      共 <span className="text-blue-700 font-bold">{selectedRecordsCount}</span> 筆派藥記錄
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {timeSlotSummaries.map((summary) => {
+                    const isSelected = selectedTimeSlots.has(summary.time);
+                    return (
+                      <button
+                        key={summary.time}
+                        onClick={() => handleTimeSlotToggle(summary.time)}
+                        className={`
+                          w-full text-left border-2 rounded-lg p-4 transition-all
+                          ${isSelected
+                            ? 'border-blue-500 bg-blue-50 shadow-md'
+                            : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm'
+                          }
+                        `}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-3 flex-1">
+                            <Clock className={`h-6 w-6 flex-shrink-0 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                            <div className="flex-1">
+                              <div className={`text-2xl font-bold mb-2 ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
+                                {summary.time}
+                              </div>
+
+                              <div className="flex items-center space-x-6 text-sm">
+                                <div>
+                                  <span className="text-gray-600">處方數量: </span>
+                                  <span className={`font-bold text-lg ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
+                                    {summary.uniquePrescriptionCount}
+                                  </span>
+                                  <span className="text-gray-600 ml-1">筆</span>
+                                </div>
+
+                                {Object.entries(summary.medicationSummary).map(([unit, amount]) => (
+                                  <div key={unit}>
+                                    <span className="text-gray-600">藥物總量: </span>
+                                    <span className={`font-bold text-lg ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
+                                      {amount}
+                                    </span>
+                                    <span className="text-gray-600 ml-1">{unit}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {summary.hasInspectionRequired && (
+                                <div className="mt-2 flex items-center space-x-2 text-orange-700">
+                                  <Activity className="h-4 w-4" />
+                                  <span className="text-sm font-medium">含檢測項要求</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {isSelected && (
+                            <CheckCircle className="h-6 w-6 text-blue-600 flex-shrink-0 ml-3" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 底部按鈕 */}
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
             <button
+              type="button"
               onClick={onClose}
-              className="text-white hover:text-gray-200 transition-colors ml-4"
+              className="btn-secondary px-6"
+              disabled={isProcessing}
             >
-              <X className="h-6 w-6" />
+              取消
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={selectedTimeSlots.size === 0 || isProcessing}
+              className="btn-primary flex items-center space-x-2 px-6"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>派藥中...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-5 w-5" />
+                  <span>確認派藥 ({selectedTimeSlots.size} 個時間點)</span>
+                </>
+              )}
             </button>
           </div>
-
-          <div className="mt-3 pt-3 border-t border-blue-400">
-            <p className="text-sm text-blue-100">選擇要派藥的時間點 - {selectedDate}</p>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {timeSlotSummaries.length === 0 ? (
-            <div className="text-center py-12">
-              <Pill className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">沒有可派藥的記錄</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4 bg-gray-50 p-4 rounded-lg">
-                <button
-                  onClick={handleSelectAll}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium px-4 py-2 bg-white rounded-lg border border-blue-200 hover:border-blue-300 transition-colors"
-                >
-                  {selectedTimeSlots.size === timeSlotSummaries.length ? '取消全選' : '全選時間點'}
-                </button>
-                {selectedTimeSlots.size > 0 && (
-                  <div className="text-sm font-medium">
-                    已選擇 <span className="text-lg text-blue-600">{selectedTimeSlots.size}</span> 個時間點，
-                    共 <span className="text-lg text-blue-600">{selectedRecordsCount}</span> 筆派藥記錄
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {timeSlotSummaries.map((summary) => {
-                  const isSelected = selectedTimeSlots.has(summary.time);
-                  return (
-                    <button
-                      key={summary.time}
-                      onClick={() => handleTimeSlotToggle(summary.time)}
-                      className={`
-                        relative p-5 rounded-xl border-2 transition-all text-left
-                        ${isSelected
-                          ? 'border-blue-500 bg-blue-50 shadow-lg transform scale-105'
-                          : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'
-                        }
-                      `}
-                    >
-                      {isSelected && (
-                        <div className="absolute -top-2 -right-2 bg-blue-600 rounded-full p-1 shadow-lg">
-                          <CheckCircle className="h-6 w-6 text-white" />
-                        </div>
-                      )}
-
-                      <div className="flex items-center space-x-3 mb-4 pb-3 border-b border-gray-200">
-                        <Clock className={`h-6 w-6 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
-                        <span className={`text-2xl font-bold ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
-                          {summary.time}
-                        </span>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className={`text-base ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
-                          <span className="font-semibold">處方數量: </span>
-                          <span className="text-xl font-bold">{summary.uniquePrescriptionCount}</span>
-                          <span className="text-sm ml-1">筆</span>
-                        </div>
-
-                        <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                          <div className="text-sm font-medium text-gray-600 mb-2">藥物總量</div>
-                          {Object.entries(summary.medicationSummary).map(([unit, amount]) => (
-                            <div
-                              key={unit}
-                              className={`flex items-center justify-between ${
-                                isSelected ? 'text-blue-700' : 'text-gray-700'
-                              }`}
-                            >
-                              <span className="text-2xl font-bold">
-                                {amount}
-                              </span>
-                              <span className="text-lg font-medium">
-                                {unit}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3 bg-gray-50">
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-secondary px-6"
-            disabled={isProcessing}
-          >
-            取消
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={selectedTimeSlots.size === 0 || isProcessing}
-            className="btn-primary flex items-center space-x-2 px-6"
-          >
-            {isProcessing ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>派藥中...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle className="h-5 w-5" />
-                <span>確認派藥 ({selectedTimeSlots.size} 個時間點)</span>
-              </>
-            )}
-          </button>
         </div>
       </div>
-    </div>
+
+      {/* 檢測模態框 */}
+      {showInspectionModal && currentInspectionRecord && (
+        <InspectionCheckModal
+          workflowRecord={currentInspectionRecord}
+          onClose={() => {
+            setShowInspectionModal(false);
+            setCurrentInspectionRecord(null);
+          }}
+          onResult={(canDispense, failureReason, inspectionCheckResult) => {
+            // 保存檢測結果
+            setInspectionResults(prev => {
+              const newResults = new Map(prev);
+              newResults.set(currentInspectionRecord.id, {
+                canDispense,
+                failureReason,
+                inspectionCheckResult
+              });
+              return newResults;
+            });
+            setShowInspectionModal(false);
+            setCurrentInspectionRecord(null);
+          }}
+        />
+      )}
+    </>
   );
 };
 

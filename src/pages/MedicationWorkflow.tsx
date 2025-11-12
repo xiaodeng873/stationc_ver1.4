@@ -1416,28 +1416,21 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
-    // 找到所有可派藥的記錄
+    // 找到所有可派藥的記錄（包含有檢測項要求的處方）
     const eligibleRecords = currentDayWorkflowRecords.filter(r => {
       const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
+      // 只包含在服處方 (status = 'active')
+      if (!prescription || prescription.status !== 'active') {
+        return false;
+      }
+
       // 排除注射類藥物
-      if (prescription?.administration_route === '注射') {
+      if (prescription.administration_route === '注射') {
         return false;
       }
 
-      // 檢查此筆記錄的服藥時間是否在入院期間
-      const inHospitalizationPeriod = isInHospitalizationPeriod(
-        patientIdNum,
-        r.scheduled_date,
-        r.scheduled_time
-      );
-
-      // 如果有檢測項要求且院友未入院，排除（需要手動檢測）
-      if (prescription?.inspection_rules && prescription.inspection_rules.length > 0 && !inHospitalizationPeriod) {
-        return false;
-      }
-
-      // 包含：無檢測項的藥物，以及有檢測項但入院中的藥物
+      // 包含所有待派藥的記錄（包括有檢測項要求的）
       return r.dispensing_status === 'pending' && r.verification_status === 'completed';
     });
 
@@ -1464,24 +1457,17 @@ const MedicationWorkflow: React.FC = () => {
     try {
       console.log('=== 批量派藥開始 ===', selectedTimeSlots);
 
-      // 找到所有可派藥的記錄
+      // 找到所有選定時間點的記錄（包含在服處方）
       const eligibleRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
-        // 排除注射類藥物
-        if (prescription?.administration_route === '注射') {
+        // 只包含在服處方
+        if (!prescription || prescription.status !== 'active') {
           return false;
         }
 
-        // 檢查此筆記錄的服藥時間是否在入院期間
-        const inHospitalizationPeriod = isInHospitalizationPeriod(
-          patientIdNum,
-          r.scheduled_date,
-          r.scheduled_time
-        );
-
-        // 如果有檢測項要求且院友未入院，排除
-        if (prescription?.inspection_rules && prescription.inspection_rules.length > 0 && !inHospitalizationPeriod) {
+        // 排除注射類藥物
+        if (prescription.administration_route === '注射') {
           return false;
         }
 
@@ -1498,65 +1484,94 @@ const MedicationWorkflow: React.FC = () => {
 
       console.log(`找到 ${eligibleRecords.length} 筆待派藥記錄`);
 
-      // 批量處理：使用單個數據庫事務
-      const recordIds = eligibleRecords.map(r => r.id);
-      const timestamp = new Date().toISOString();
+      // 並行處理所有派藥操作（包含檢測項處理）
+      const results = await Promise.allSettled(
+        eligibleRecords.map(async (record) => {
+          const prescription = prescriptions.find(p => p.id === record.prescription_id);
+          const hasInspectionRules = prescription?.inspection_rules && prescription.inspection_rules.length > 0;
 
-      // 準備批量更新數據
-      const updates = eligibleRecords.map(record => {
-        const prescription = prescriptions.find(p => p.id === record.prescription_id);
-        const hasInspectionRules = prescription?.inspection_rules && prescription.inspection_rules.length > 0;
-        const inHospitalizationPeriod = isInHospitalizationPeriod(
-          patientIdNum,
-          record.scheduled_date,
-          record.scheduled_time
-        );
+          // 檢查此筆記錄的服藥時間是否在入院期間
+          const inHospitalizationPeriod = isInHospitalizationPeriod(
+            patientIdNum,
+            record.scheduled_date,
+            record.scheduled_time
+          );
 
-        if (inHospitalizationPeriod) {
-          // 入院狀態
-          return {
-            id: record.id,
-            dispensing_status: 'failed',
-            dispensing_staff: displayName || '未知',
-            dispensing_time: timestamp,
-            dispensing_failure_reason: '入院',
-            inspection_check_result: hasInspectionRules ? {
+          if (inHospitalizationPeriod) {
+            // 如果服藥時間在入院期間，自動標記為「入院」失敗原因
+            const inspectionResult = hasInspectionRules ? {
               canDispense: false,
               isHospitalized: true,
               blockedRules: [],
               usedVitalSignData: {}
-            } : null
-          };
-        } else {
-          // 正常派藥
-          return {
-            id: record.id,
-            dispensing_status: 'completed',
-            dispensing_staff: displayName || '未知',
-            dispensing_time: timestamp,
-            dispensing_failure_reason: null,
-            inspection_check_result: null
-          };
+            } : undefined;
+
+            await dispenseMedication(
+              record.id,
+              displayName || '未知',
+              '入院',
+              undefined,
+              patientIdNum,
+              selectedDate,
+              undefined,
+              inspectionResult
+            );
+            return { type: 'hospitalized' };
+          } else if (hasInspectionRules) {
+            // 有檢測項要求：執行檢測邏輯
+            const checkResult = await checkPrescriptionInspectionRules(
+              patientIdNum,
+              prescription.id,
+              selectedDate
+            );
+
+            if (checkResult.canDispense) {
+              // 檢測合格：正常派藥
+              await dispenseMedication(
+                record.id,
+                displayName || '未知',
+                undefined,
+                undefined,
+                patientIdNum,
+                selectedDate,
+                undefined,
+                checkResult
+              );
+              return { type: 'success' };
+            } else {
+              // 檢測不合格：標記為暫停
+              await dispenseMedication(
+                record.id,
+                displayName || '未知',
+                '暫停',
+                '檢測項條件不符',
+                patientIdNum,
+                selectedDate,
+                undefined,
+                checkResult
+              );
+              return { type: 'paused' };
+            }
+          } else {
+            // 正常派藥（無檢測項要求）
+            await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
+            return { type: 'success' };
+          }
+        })
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'success').length;
+      const hospitalizedCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'hospitalized').length;
+      const pausedCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'paused').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`批量派藥完成: 成功 ${successCount} 筆, 入院 ${hospitalizedCount} 筆, 暫停 ${pausedCount} 筆, 失敗 ${failCount} 筆`);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`派藥失敗 (記錄ID: ${eligibleRecords[index].id}):`, result.reason);
         }
       });
-
-      // 使用批量更新提高性能
-      const { error } = await supabase
-        .from('medication_workflow')
-        .upsert(updates, { onConflict: 'id' });
-
-      if (error) {
-        console.error('批量派藥失敗:', error);
-        throw error;
-      }
-
-      const successCount = updates.filter(u => u.dispensing_status === 'completed').length;
-      const hospitalizedCount = updates.filter(u => u.dispensing_status === 'failed').length;
-
-      console.log(`批量派藥完成: 成功 ${successCount} 筆, 入院 ${hospitalizedCount} 筆`);
-
-      // 刷新數據
-      await fetchPrescriptionWorkflowRecords();
     } catch (error) {
       console.error('批量派藥失敗:', error);
       throw error;
@@ -2605,17 +2620,19 @@ const MedicationWorkflow: React.FC = () => {
         <BatchDispenseConfirmModal
           workflowRecords={currentDayWorkflowRecords.filter(r => {
             const prescription = prescriptions.find(p => p.id === r.prescription_id);
-            const patientIdNum = parseInt(selectedPatientId);
-            const inHospitalizationPeriod = isInHospitalizationPeriod(
-              patientIdNum,
-              r.scheduled_date,
-              r.scheduled_time
-            );
 
-            return r.dispensing_status === 'pending' &&
-                   r.verification_status === 'completed' &&
-                   prescription?.administration_route !== '注射' &&
-                   !(prescription?.inspection_rules && prescription.inspection_rules.length > 0 && !inHospitalizationPeriod);
+            // 只包含在服處方 (status = 'active')
+            if (!prescription || prescription.status !== 'active') {
+              return false;
+            }
+
+            // 排除注射類藥物
+            if (prescription.administration_route === '注射') {
+              return false;
+            }
+
+            // 包含所有待派藥的記錄（包括有檢測項要求的）
+            return r.dispensing_status === 'pending' && r.verification_status === 'completed';
           })}
           prescriptions={prescriptions}
           patients={patients}
