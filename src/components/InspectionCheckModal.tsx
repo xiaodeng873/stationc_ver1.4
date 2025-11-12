@@ -33,6 +33,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   const [isChecking, setIsChecking] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasNoRulesAndHandled, setHasNoRulesAndHandled] = useState(false);
+  const isMountedRef = React.useRef(true);
 
   const patient = patients.find(p => p.院友id === workflowRecord.patient_id);
   const prescription = prescriptions.find(p => p.id === workflowRecord.prescription_id);
@@ -59,6 +60,13 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     }
   };
 
+  // 組件卸載時清理
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // 載入最新監測記錄
   useEffect(() => {
     const loadLatestVitalSigns = async () => {
@@ -70,7 +78,9 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
           // 在批量模式下，仍然通過 onResult 回傳，但不自動關閉
           // 使用 setTimeout 確保狀態穩定後再回調
           setTimeout(() => {
-            onResult(true, undefined, { canDispense: true, blockedRules: [], usedVitalSignData: {} });
+            if (isMountedRef.current) {
+              onResult(true, undefined, { canDispense: true, blockedRules: [], usedVitalSignData: {} });
+            }
           }, 100);
         }
         setLoading(false);
@@ -94,7 +104,9 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             setHasNoRulesAndHandled(true);
             // 使用 setTimeout 確保狀態穩定後再回調
             setTimeout(() => {
-              onResult(false, '入院', inspectionResult);
+              if (isMountedRef.current) {
+                onResult(false, '入院', inspectionResult);
+              }
             }, 100);
           } else {
             // 單個派藥模式：直接寫入數據庫並關閉

@@ -177,12 +177,20 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
     } else {
       // 沒有檢測項要求，直接派藥
       console.log('無需檢測，直接派藥');
+      console.log('  選定時間點:', Array.from(selectedTimeSlots));
+      console.log('  記錄詳情:', selectedRecords.map(r => ({
+        id: r.id.substring(0, 8),
+        prescription_id: r.prescription_id,
+        scheduled_time: r.scheduled_time
+      })));
       setIsProcessing(true);
       try {
         await onConfirm(Array.from(selectedTimeSlots), selectedRecords, new Map());
+        console.log('✅ 派藥成功，關閉對話框');
         onClose();
       } catch (error) {
-        console.error('批量派藥失敗:', error);
+        console.error('❌ 批量派藥失敗:', error);
+        alert(`派藥失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
       } finally {
         setIsProcessing(false);
       }
