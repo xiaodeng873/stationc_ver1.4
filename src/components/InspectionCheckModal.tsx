@@ -7,12 +7,14 @@ interface InspectionCheckModalProps {
   workflowRecord: any;
   onClose: () => void;
   onResult: (canDispense: boolean, failureReason?: string, inspectionCheckResult?: any) => void;
+  isBatchMode?: boolean; // 是否為批量派藥模式
 }
 
 const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   workflowRecord,
   onClose,
-  onResult
+  onResult,
+  isBatchMode = false
 }) => {
   const {
     patients,
@@ -60,11 +62,18 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   // 載入最新監測記錄
   useEffect(() => {
     const loadLatestVitalSigns = async () => {
-      // 如果沒有檢測規則，直接允許派藥
+      // 如果沒有檢測規則，在批量模式下直接回傳結果，在單個模式下直接允許派藥
       if (!prescription?.inspection_rules || prescription.inspection_rules.length === 0) {
         if (!hasNoRulesAndHandled) {
           setHasNoRulesAndHandled(true);
-          onResult(true);
+          console.log('[InspectionCheckModal] 無檢測規則，批量模式:', isBatchMode);
+          // 在批量模式下，仍然通過 onResult 回傳，但不自動關閉
+          onResult(true, undefined, { canDispense: true, blockedRules: [], usedVitalSignData: {} });
+          // 在批量模式下不自動關閉，讓 BatchDispenseConfirmModal 控制流程
+          if (!isBatchMode) {
+            // 單個派藥模式才自動關閉
+            // 這裡不需要關閉，因為父組件會處理
+          }
         }
         setLoading(false);
         return;
@@ -80,19 +89,28 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             usedVitalSignData: {}
           };
 
-          await dispenseMedication(
-            workflowRecord.id,
-            displayName || '未知',
-            '入院',
-            undefined,
-            workflowRecord.patient_id,
-            workflowRecord.scheduled_date,
-            undefined,
-            inspectionResult
-          );
+          console.log('[InspectionCheckModal] 院友入院中，批量模式:', isBatchMode);
 
-          setHasNoRulesAndHandled(true);
-          onClose();
+          if (isBatchMode) {
+            // 批量模式：通過 onResult 回傳，不直接寫入數據庫
+            setHasNoRulesAndHandled(true);
+            onResult(false, '入院', inspectionResult);
+          } else {
+            // 單個派藥模式：直接寫入數據庫並關閉
+            await dispenseMedication(
+              workflowRecord.id,
+              displayName || '未知',
+              '入院',
+              undefined,
+              workflowRecord.patient_id,
+              workflowRecord.scheduled_date,
+              undefined,
+              inspectionResult
+            );
+
+            setHasNoRulesAndHandled(true);
+            onClose();
+          }
         } catch (error) {
           console.error('處理入院中院友派藥失敗:', error);
           alert(`處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
@@ -121,7 +139,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     };
 
     loadLatestVitalSigns();
-  }, [prescription, workflowRecord.patient_id, fetchLatestVitalSigns, hasNoRulesAndHandled, onResult, isHospitalized, dispenseMedication, displayName, workflowRecord, onClose]);
+  }, [prescription, workflowRecord.patient_id, fetchLatestVitalSigns, hasNoRulesAndHandled, onResult, isHospitalized, dispenseMedication, displayName, workflowRecord, onClose, isBatchMode]);
 
   // 處理沒有檢測規則的情況
   useEffect(() => {

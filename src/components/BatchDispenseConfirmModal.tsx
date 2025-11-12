@@ -146,10 +146,14 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const handleConfirm = async () => {
     if (selectedTimeSlots.size === 0) return;
 
+    console.log('=== 批量派藥確認開始 ===');
+
     // 找出所有選定時間點的記錄
     const selectedRecords = activeWorkflowRecords.filter(r =>
       selectedTimeSlots.has(r.scheduled_time)
     );
+
+    console.log('選定記錄總數:', selectedRecords.length);
 
     // 找出需要檢測的記錄
     const recordsNeedingInspection = selectedRecords.filter(record => {
@@ -157,14 +161,22 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       return prescription?.inspection_rules && prescription.inspection_rules.length > 0;
     });
 
+    console.log('需要檢測的記錄數:', recordsNeedingInspection.length);
+    console.log('無需檢測的記錄數:', selectedRecords.length - recordsNeedingInspection.length);
+
+    // 保存要處理的所有記錄
+    setRecordsToProcess(selectedRecords);
+
     if (recordsNeedingInspection.length > 0) {
       // 有檢測項要求，逐個打開檢測模態框
-      setRecordsToProcess(selectedRecords);
+      console.log('開始逐個檢測流程...');
       setCurrentInspectionRecords(recordsNeedingInspection);
       setCurrentInspectionIndex(0);
+      setInspectionResults(new Map()); // 重置檢測結果
       setShowInspectionModal(true);
     } else {
       // 沒有檢測項要求，直接派藥
+      console.log('無需檢測，直接派藥');
       setIsProcessing(true);
       try {
         await onConfirm(Array.from(selectedTimeSlots), selectedRecords, new Map());
@@ -451,6 +463,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
             setCurrentInspectionIndex(0);
           }}
           onResult={handleInspectionResult}
+          isBatchMode={true}
         />
       )}
     </>
