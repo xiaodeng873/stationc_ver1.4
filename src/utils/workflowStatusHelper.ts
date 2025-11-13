@@ -32,12 +32,15 @@ export const isWorkflowOverdue = (record: WorkflowRecord): boolean => {
     return false;
   }
 
-  // 組合日期和時間
+  // 組合日期和時間，確保格式正確
   const scheduledDateTime = new Date(`${record.scheduled_date}T${record.scheduled_time}`);
+
+  // 使用香港時區的當前時間進行比較
   const now = new Date();
+  const hkTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Hong_Kong"}));
 
   // 如果排程時間已經過去，則視為逾期
-  return scheduledDateTime < now;
+  return scheduledDateTime < hkTime;
 };
 
 /**
@@ -155,12 +158,18 @@ export const calculateOverdueCountByPreparationMethod = (
  * 獲取所有有逾期未完成流程的院友列表（用於主面板提醒）
  * @param records 所有工作流程記錄
  * @param patients 所有院友
- * @returns 有逾期流程的院友及其逾期數量
+ * @returns 有逾期流程的院友及其逾期數量和日期信息
  */
 export const getPatientsWithOverdueWorkflow = (
   records: WorkflowRecord[],
   patients: any[]
-): Array<{ patient: any; overdueCount: number; overdueRecords: WorkflowRecord[] }> => {
+): Array<{
+  patient: any;
+  overdueCount: number;
+  overdueRecords: WorkflowRecord[];
+  overdueDates: string[]; // 逾期的日期列表
+  earliestOverdueDate: string; // 最早逾期的日期
+}> => {
   const patientOverdueMap = new Map<number, WorkflowRecord[]>();
 
   // 收集每個院友的逾期記錄
@@ -175,21 +184,43 @@ export const getPatientsWithOverdueWorkflow = (
   });
 
   // 轉換為結果數組，並關聯院友資料
-  const result: Array<{ patient: any; overdueCount: number; overdueRecords: WorkflowRecord[] }> = [];
+  const result: Array<{
+    patient: any;
+    overdueCount: number;
+    overdueRecords: WorkflowRecord[];
+    overdueDates: string[];
+    earliestOverdueDate: string;
+  }> = [];
 
   patientOverdueMap.forEach((overdueRecords, patientId) => {
     const patient = patients.find(p => parseInt(p.院友id) === patientId);
     if (patient && patient.在住狀態 === '在住') {
+      // 收集所有逾期的日期（去重）
+      const overdueDatesSet = new Set<string>();
+      overdueRecords.forEach(record => {
+        overdueDatesSet.add(record.scheduled_date);
+      });
+      const overdueDates = Array.from(overdueDatesSet).sort();
+
+      // 找出最早逾期的日期
+      const earliestOverdueDate = overdueDates[0];
+
       result.push({
         patient,
         overdueCount: overdueRecords.length,
-        overdueRecords
+        overdueRecords,
+        overdueDates,
+        earliestOverdueDate
       });
     }
   });
 
-  // 按逾期數量降序排序
-  result.sort((a, b) => b.overdueCount - a.overdueCount);
+  // 按最早逾期日期排序，然後按逾期數量降序排序
+  result.sort((a, b) => {
+    const dateCompare = a.earliestOverdueDate.localeCompare(b.earliestOverdueDate);
+    if (dateCompare !== 0) return dateCompare;
+    return b.overdueCount - a.overdueCount;
+  });
 
   return result;
 };

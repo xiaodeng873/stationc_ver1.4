@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import PatientAutocomplete from '../components/PatientAutocomplete';
 import PrescriptionModal from '../components/PrescriptionModal';
 import DispenseConfirmModal from '../components/DispenseConfirmModal';
@@ -387,6 +388,7 @@ const MedicationWorkflow: React.FC = () => {
     loading
   } = usePatients();
   const { displayName } = useAuth();
+  const [searchParams] = useSearchParams();
 
   // 獲取本地今天日期（避免 UTC 時區問題）
   const getTodayLocalDate = () => {
@@ -397,9 +399,13 @@ const MedicationWorkflow: React.FC = () => {
     return `${year}-${month}-${day}`;
   };
 
+  // 從 URL 查詢參數獲取初始值
+  const urlPatientId = searchParams.get('patientId');
+  const urlDate = searchParams.get('date');
+
   // 狀態管理
-  const [selectedDate, setSelectedDate] = useState(getTodayLocalDate());
-  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState(urlDate || getTodayLocalDate());
+  const [selectedPatientId, setSelectedPatientId] = useState<string>(urlPatientId || '');
   const [searchTerm, setSearchTerm] = useState('');
   const [showDispenseConfirmModal, setShowDispenseConfirmModal] = useState(false);
   const [showBatchDispenseModal, setShowBatchDispenseModal] = useState(false);

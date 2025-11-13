@@ -846,52 +846,61 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="space-y-3">
-                {patientsWithOverdueWorkflow.slice(0, 5).map(({ patient, overdueCount, overdueRecords }) => {
-                  // 計算最早逾期的時間
-                  const earliestOverdue = overdueRecords.reduce((earliest, record) => {
-                    const recordTime = new Date(`${record.scheduled_date}T${record.scheduled_time}`);
-                    return recordTime < earliest ? recordTime : earliest;
-                  }, new Date(`${overdueRecords[0].scheduled_date}T${overdueRecords[0].scheduled_time}`));
-
+                {patientsWithOverdueWorkflow.slice(0, 5).map(({ patient, overdueCount, overdueRecords, overdueDates, earliestOverdueDate }) => {
                   return (
-                    <div key={patient.院友id} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
-                          {patient.院友相片 ? (
-                            <img
-                              src={patient.院友相片}
-                              alt={patient.中文姓名}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <User className="h-5 w-5 text-blue-600" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {patient.床號} - {patient.中文姓氏}{patient.中文名字}
-                          </div>
-                          <div className="text-sm text-red-700">
-                            {overdueCount} 個逾期流程
-                            {overdueRecords.length > 0 && (
-                              <span className="text-red-600 ml-2">
-                                • 最早逾期: {earliestOverdue.toLocaleDateString('zh-TW')} {earliestOverdue.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
-                              </span>
+                    <div key={patient.院友id} className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
+                            {patient.院友相片 ? (
+                              <img
+                                src={patient.院友相片}
+                                alt={patient.中文姓名}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <User className="h-5 w-5 text-blue-600" />
                             )}
                           </div>
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {patient.床號} - {patient.中文姓氏}{patient.中文名字}
+                            </div>
+                            <div className="text-sm text-red-700">
+                              {overdueCount} 個逾期流程 • {overdueDates.length} 個日期有遺漏
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                           {overdueCount} 個逾期
                         </span>
-                        <Link
-                          to="/medication-workflow"
-                          className="text-red-600 hover:text-red-700 p-1 rounded"
-                          title="前往處理"
-                        >
-                          <ArrowRight className="h-4 w-4" />
-                        </Link>
+                      </div>
+
+                      {/* 顯示逾期的日期列表 */}
+                      <div className="ml-13 space-y-1">
+                        <div className="text-xs text-red-600 font-medium mb-1">逾期日期：</div>
+                        <div className="flex flex-wrap gap-2">
+                          {overdueDates.slice(0, 5).map(date => {
+                            const dateRecords = overdueRecords.filter(r => r.scheduled_date === date);
+                            return (
+                              <Link
+                                key={date}
+                                to={`/medication-workflow?patientId=${patient.院友id}&date=${date}`}
+                                className="inline-flex items-center px-2 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-xs transition-colors"
+                                title={`前往查看 ${date} 的 ${dateRecords.length} 個逾期流程`}
+                              >
+                                <Calendar className="h-3 w-3 mr-1" />
+                                {new Date(date).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })}
+                                <span className="ml-1 text-red-600">({dateRecords.length})</span>
+                              </Link>
+                            );
+                          })}
+                          {overdueDates.length > 5 && (
+                            <span className="inline-flex items-center px-2 py-1 text-red-600 text-xs">
+                              還有 {overdueDates.length - 5} 個日期...
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
