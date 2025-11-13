@@ -2586,7 +2586,7 @@ const MedicationWorkflow: React.FC = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-2 py-4 text-sm text-gray-900 w-auto landscape:w-18">
+                        <td className="px-2 py-4 text-sm text-gray-900 w-auto landscape:w-20">
                           <div>每次 {prescription.dosage_amount || '1'}{prescription.dosage_unit || ''}</div>
                           {prescription.dosage_form && <div className="text-xs text-gray-600 mt-0.5">{prescription.dosage_form}</div>}
                         </td>
