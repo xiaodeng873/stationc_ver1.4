@@ -17,7 +17,8 @@ const InjectionSiteModal: React.FC<InjectionSiteModalProps> = ({
   onSiteSelected
 }) => {
   const { patients, prescriptions } = usePatients();
-  const [selectedSite, setSelectedSite] = useState<string>('');
+  const [selectedArea, setSelectedArea] = useState<string>('');
+  const [selectedPosition, setSelectedPosition] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
   if (!isOpen) return null;
@@ -27,42 +28,44 @@ const InjectionSiteModal: React.FC<InjectionSiteModalProps> = ({
 
   // 注射區域定義 - 使用內聯樣式避免 Tailwind 動態類名問題
   const injectionAreas = [
-    { label: '左上臂區', prefix: 'A', bgColor: '#3b82f6' },
-    { label: '右上臂區', prefix: 'B', bgColor: '#10b981' },
-    { label: '腹部左區', prefix: 'C', bgColor: '#eab308' },
-    { label: '腹部右區', prefix: 'D', bgColor: '#f97316' },
-    { label: '左大腿區', prefix: 'E', bgColor: '#a855f7' },
-    { label: '右大腿區', prefix: 'F', bgColor: '#ec4899' }
+    { value: 'left_arm', label: '左上臂區', prefix: 'A', bgColor: '#3b82f6' },
+    { value: 'right_arm', label: '右上臂區', prefix: 'B', bgColor: '#10b981' },
+    { value: 'abdomen_left', label: '腹部左區', prefix: 'C', bgColor: '#eab308' },
+    { value: 'abdomen_right', label: '腹部右區', prefix: 'D', bgColor: '#f97316' },
+    { value: 'left_thigh', label: '左大腿區', prefix: 'E', bgColor: '#a855f7' },
+    { value: 'right_thigh', label: '右大腿區', prefix: 'F', bgColor: '#ec4899' }
   ];
 
-  // 生成所有8個位置（1-8）
+  // 生成位置編號（1-8）
   const positions = Array.from({ length: 8 }, (_, i) => i + 1);
 
-  // 生成所有6區域的48個位置
-  const allSites = injectionAreas.flatMap(area =>
-    positions.map(pos => ({
-      code: `${area.prefix}${pos}`,
-      label: `${area.label} ${area.prefix}${pos}`,
-      area: area.label,
-      prefix: area.prefix,
-      position: pos,
-      bgColor: area.bgColor
-    }))
-  );
+  // 取得當前選擇區域的資訊
+  const selectedAreaInfo = injectionAreas.find(area => area.value === selectedArea);
+
+  // 組合完整的注射部位名稱
+  const getFullSiteName = () => {
+    if (!selectedArea || !selectedPosition) return '';
+    return `${selectedAreaInfo?.label} ${selectedAreaInfo?.prefix}${selectedPosition}`;
+  };
 
   const handleConfirm = () => {
-    if (!selectedSite) {
-      alert('請選擇注射部位');
+    if (!selectedArea) {
+      alert('請選擇注射區域');
+      return;
+    }
+    if (!selectedPosition) {
+      alert('請選擇注射位置');
       return;
     }
 
-    const siteInfo = allSites.find(s => s.code === selectedSite);
-    if (onSiteSelected && siteInfo) {
-      onSiteSelected(siteInfo.label, notes);
+    const fullSiteName = getFullSiteName();
+    if (onSiteSelected) {
+      onSiteSelected(fullSiteName, notes);
     }
 
     // 重置狀態
-    setSelectedSite('');
+    setSelectedArea('');
+    setSelectedPosition('');
     setNotes('');
     onClose();
   };
@@ -105,58 +108,76 @@ const InjectionSiteModal: React.FC<InjectionSiteModalProps> = ({
           </div>
         )}
 
-        {/* 選擇注射部位（所有48個位置） */}
-        <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
-          <label className="form-label">請選擇注射部位：</label>
-
-          {injectionAreas.map(area => (
-            <div key={area.prefix} className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <div
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                  style={{ backgroundColor: area.bgColor }}
-                >
-                  {area.prefix}
+        {/* 步驟1：選擇注射區域 */}
+        <div className="space-y-3 mb-6">
+          <label className="form-label">步驟 1：選擇注射區域</label>
+          <div className="grid grid-cols-2 gap-3">
+            {injectionAreas.map(area => (
+              <button
+                key={area.value}
+                onClick={() => {
+                  setSelectedArea(area.value);
+                  setSelectedPosition('');
+                }}
+                className={`p-4 border-2 rounded-lg transition-all text-left ${
+                  selectedArea === area.value
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-gray-900">{area.label}</div>
+                    <div className="text-sm text-gray-500">{area.prefix}1 ~ {area.prefix}8</div>
+                  </div>
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white"
+                    style={{ backgroundColor: area.bgColor }}
+                  >
+                    {area.prefix}
+                  </div>
                 </div>
-                <h4 className="text-sm font-medium text-gray-700">{area.label}</h4>
-              </div>
-              <div className="grid grid-cols-8 gap-2">
-                {positions.map(pos => {
-                  const siteCode = `${area.prefix}${pos}`;
-                  const isSelected = selectedSite === siteCode;
-                  return (
-                    <button
-                      key={siteCode}
-                      onClick={() => setSelectedSite(siteCode)}
-                      className={`p-2 border-2 rounded-lg transition-all ${
-                        isSelected
-                          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-300'
-                          : 'border-gray-200 hover:border-gray-400'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className={`font-bold text-sm ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
-                          {siteCode}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* 步驟2：選擇具體位置 */}
+        {selectedArea && (
+          <div className="space-y-3 mb-6">
+            <label className="form-label">
+              步驟 2：選擇具體位置（{selectedAreaInfo?.label}）
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {positions.map(pos => (
+                <button
+                  key={pos}
+                  onClick={() => setSelectedPosition(String(pos))}
+                  className={`p-3 border-2 rounded-lg transition-all ${
+                    selectedPosition === String(pos)
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="font-bold text-lg text-gray-900">
+                      {selectedAreaInfo?.prefix}{pos}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 已選擇的注射部位顯示 */}
-        {selectedSite && (
+        {selectedArea && selectedPosition && (
           <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-lg">
             <div className="flex items-center space-x-2">
               <MapPin className="h-5 w-5 text-green-600" />
               <div>
                 <div className="text-sm text-gray-600">已選擇注射部位：</div>
-                <div className="text-lg font-bold text-green-900">
-                  {allSites.find(s => s.code === selectedSite)?.label}
-                </div>
+                <div className="text-lg font-bold text-green-900">{getFullSiteName()}</div>
               </div>
             </div>
           </div>
@@ -178,7 +199,7 @@ const InjectionSiteModal: React.FC<InjectionSiteModalProps> = ({
         <div className="flex space-x-3">
           <button
             onClick={handleConfirm}
-            disabled={!selectedSite}
+            disabled={!selectedArea || !selectedPosition}
             className="btn-primary flex-1 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Syringe className="h-4 w-4" />
