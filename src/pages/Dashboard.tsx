@@ -185,11 +185,15 @@ const Dashboard: React.FC = () => {
       總院友數: patients.length,
       有逾期的院友數: result.length,
       逾期院友列表: result.map(r => ({
-        院友: `${r.patient.床號} - ${r.patient.中文姓氏}${r.patient.中文名字}`,
+        院友ID: r.patient?.院友id,
+        院友: r.patient ? `${r.patient.床號} - ${r.patient.中文姓氏}${r.patient.中文名字}` : '未知',
         逾期數量: r.overdueCount,
-        逾期日期: r.overdueDates
-      }))
+        逾期日期: r.overdueDates,
+        最早逾期日期: r.earliestOverdueDate
+      })),
+      完整結果對象: result
     });
+    console.log('📊 是否顯示逾期提醒區塊:', result.length > 0);
     return result;
   }, [prescriptionWorkflowRecords, patients]);
 

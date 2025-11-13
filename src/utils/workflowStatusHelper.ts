@@ -183,6 +183,11 @@ export const getPatientsWithOverdueWorkflow = (
   overdueDates: string[]; // 逾期的日期列表
   earliestOverdueDate: string; // 最早逾期的日期
 }> => {
+  console.log('🔍 getPatientsWithOverdueWorkflow 開始:', {
+    記錄總數: records.length,
+    院友總數: patients.length
+  });
+
   const patientOverdueMap = new Map<number, WorkflowRecord[]>();
 
   // 收集每個院友的逾期記錄
@@ -196,6 +201,14 @@ export const getPatientsWithOverdueWorkflow = (
     }
   });
 
+  console.log('📊 逾期記錄 Map:', {
+    有逾期記錄的院友ID: Array.from(patientOverdueMap.keys()),
+    各院友逾期數量: Array.from(patientOverdueMap.entries()).map(([id, records]) => ({
+      院友ID: id,
+      逾期數: records.length
+    }))
+  });
+
   // 轉換為結果數組，並關聯院友資料
   const result: Array<{
     patient: any;
@@ -206,7 +219,28 @@ export const getPatientsWithOverdueWorkflow = (
   }> = [];
 
   patientOverdueMap.forEach((overdueRecords, patientId) => {
-    const patient = patients.find(p => parseInt(p.院友id) === patientId);
+    console.log(`🔍 查找院友 ID: ${patientId} (類型: ${typeof patientId})`);
+
+    // 嘗試多種匹配方式
+    const patient = patients.find(p => {
+      const pId = p.院友id;
+      const match = parseInt(String(pId)) === parseInt(String(patientId));
+      if (match) {
+        console.log(`✅ 找到匹配院友: ${p.床號} - ${p.中文姓氏}${p.中文名字} (ID: ${pId}, 類型: ${typeof pId})`);
+      }
+      return match;
+    });
+
+    if (!patient) {
+      console.warn(`❌ 找不到院友 ID: ${patientId}`);
+      return;
+    }
+
+    if (patient.在住狀態 !== '在住') {
+      console.log(`⚠️ 院友 ${patient.床號} 不是在住狀態: ${patient.在住狀態}`);
+      return;
+    }
+
     if (patient && patient.在住狀態 === '在住') {
       // 收集所有逾期的日期（去重）
       const overdueDatesSet = new Set<string>();
