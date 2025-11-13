@@ -218,10 +218,10 @@ export const getPatientsWithOverdueWorkflow = (
         return; // 跳過這條孤兒記錄
       }
 
-      // 處方存在但不是active狀態（inactive或pending_change）
-      if (prescription.status !== 'active') {
+      // 處方存在但狀態是 pending_change（處方變更中，不應計入逾期）
+      if (prescription.status === 'pending_change') {
         inactiveRecordCount++;
-        console.warn('⚠️ 發現非active處方的工作流程記錄:', {
+        console.warn('⚠️ 發現pending_change處方的工作流程記錄（已排除）:', {
           記錄ID: record.id,
           處方ID: record.prescription_id,
           處方狀態: prescription.status,
@@ -229,7 +229,7 @@ export const getPatientsWithOverdueWorkflow = (
           院友ID: record.patient_id,
           日期: record.scheduled_date
         });
-        return; // 跳過非active狀態的處方記錄
+        return; // 跳過 pending_change 狀態的處方記錄
       }
     }
 
@@ -246,7 +246,7 @@ export const getPatientsWithOverdueWorkflow = (
     console.warn(`⚠️ 總共跳過 ${orphanRecordCount} 條孤兒工作流程記錄`);
   }
   if (inactiveRecordCount > 0) {
-    console.warn(`⚠️ 總共跳過 ${inactiveRecordCount} 條非active處方的工作流程記錄`);
+    console.warn(`⚠️ 總共跳過 ${inactiveRecordCount} 條pending_change處方的工作流程記錄`);
   }
 
   console.log('📊 逾期記錄 Map:', {
