@@ -40,7 +40,20 @@ export const isWorkflowOverdue = (record: WorkflowRecord): boolean => {
   const hkTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Hong_Kong"}));
 
   // 如果排程時間已經過去，則視為逾期
-  return scheduledDateTime < hkTime;
+  const isOverdue = scheduledDateTime < hkTime;
+
+  // 調試日誌（僅在逾期時輸出）
+  if (isOverdue) {
+    console.log('⏰ 發現逾期流程:', {
+      日期: record.scheduled_date,
+      時間: record.scheduled_time,
+      排程時間: scheduledDateTime.toLocaleString('zh-TW'),
+      當前香港時間: hkTime.toLocaleString('zh-TW'),
+      派藥狀態: record.dispensing_status
+    });
+  }
+
+  return isOverdue;
 };
 
 /**
