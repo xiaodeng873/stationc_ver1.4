@@ -537,7 +537,8 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         patientAdmissionRecordsData,
         hospitalEpisodesData,
         prescriptionsData,
-        drugDatabaseData
+        drugDatabaseData,
+        workflowRecordsData
       ] = await Promise.all([
         db.getPatients(),
         db.getStations(),
@@ -555,8 +556,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getPatientAdmissionRecords(),
         db.getHospitalEpisodes(),
         db.getPrescriptions(),
-        db.getDrugDatabase()
+        db.getDrugDatabase(),
+        fetchPrescriptionWorkflowRecords()
       ]);
+
+      console.log('🔍 載入的工作流程記錄數:', workflowRecordsData?.length || 0);
 
       // Debug drug database data
       console.log('🔍 Drug database debug info:', {
@@ -629,6 +633,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       setHospitalEpisodes(hospitalEpisodesData);
       setPrescriptions(prescriptionsData);
       setDrugDatabase(drugDatabaseData);
+      setPrescriptionWorkflowRecords(workflowRecordsData || []);
       
       // 載入每日系統任務
       try {
@@ -1002,14 +1007,15 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       // 嚴格的參數驗證和轉換
       const validPatientId = (patientId !== undefined && patientId !== null && !isNaN(patientId) && patientId > 0) ? patientId : null;
       const validScheduledDate = (scheduledDate && typeof scheduledDate === 'string' && scheduledDate.trim() !== '' && scheduledDate !== 'undefined') ? scheduledDate.trim() : null;
-      
-      // 如果參數無效，直接返回空數組而不執行查詢
-      if (validPatientId === null && validScheduledDate === null) {
-        console.warn('所有參數都無效，跳過查詢');
-        setPrescriptionWorkflowRecords([]);
-        return [];
-      }
-      
+
+      console.log('🔍 fetchPrescriptionWorkflowRecords 被調用:', {
+        原始patientId: patientId,
+        原始scheduledDate: scheduledDate,
+        有效patientId: validPatientId,
+        有效scheduledDate: validScheduledDate,
+        將查詢所有記錄: validPatientId === null && validScheduledDate === null
+      });
+
       let query = supabase
         .from('medication_workflow_records')
         .select('*');
