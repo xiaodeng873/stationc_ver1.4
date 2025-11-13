@@ -171,11 +171,13 @@ export const calculateOverdueCountByPreparationMethod = (
  * 獲取所有有逾期未完成流程的院友列表（用於主面板提醒）
  * @param records 所有工作流程記錄
  * @param patients 所有院友
+ * @param prescriptions 所有處方（用於驗證工作流程記錄的有效性）
  * @returns 有逾期流程的院友及其逾期數量和日期信息
  */
 export const getPatientsWithOverdueWorkflow = (
   records: WorkflowRecord[],
-  patients: any[]
+  patients: any[],
+  prescriptions?: any[]
 ): Array<{
   patient: any;
   overdueCount: number;
@@ -185,13 +187,52 @@ export const getPatientsWithOverdueWorkflow = (
 }> => {
   console.log('🔍 getPatientsWithOverdueWorkflow 開始:', {
     記錄總數: records.length,
-    院友總數: patients.length
+    院友總數: patients.length,
+    處方總數: prescriptions?.length || 0
   });
 
+  // 如果提供了處方列表，建立處方ID到處方對象的Map用於快速查找
+  const prescriptionMap = prescriptions
+    ? new Map(prescriptions.map(p => [p.id, p]))
+    : null;
+
   const patientOverdueMap = new Map<number, WorkflowRecord[]>();
+  let orphanRecordCount = 0;
+  let inactiveRecordCount = 0;
 
   // 收集每個院友的逾期記錄
   records.forEach(record => {
+    // 如果提供了處方列表，檢查記錄是否指向有效的處方
+    if (prescriptionMap) {
+      const prescription = prescriptionMap.get(record.prescription_id);
+
+      // 處方不存在（孤兒記錄）
+      if (!prescription) {
+        orphanRecordCount++;
+        console.warn('⚠️ 發現孤兒工作流程記錄（處方已刪除）:', {
+          記錄ID: record.id,
+          處方ID: record.prescription_id,
+          院友ID: record.patient_id,
+          日期: record.scheduled_date
+        });
+        return; // 跳過這條孤兒記錄
+      }
+
+      // 處方存在但不是active狀態（inactive或pending_change）
+      if (prescription.status !== 'active') {
+        inactiveRecordCount++;
+        console.warn('⚠️ 發現非active處方的工作流程記錄:', {
+          記錄ID: record.id,
+          處方ID: record.prescription_id,
+          處方狀態: prescription.status,
+          藥物名稱: prescription.medication_name,
+          院友ID: record.patient_id,
+          日期: record.scheduled_date
+        });
+        return; // 跳過非active狀態的處方記錄
+      }
+    }
+
     if (isWorkflowOverdue(record)) {
       const patientId = record.patient_id;
       if (!patientOverdueMap.has(patientId)) {
@@ -200,6 +241,13 @@ export const getPatientsWithOverdueWorkflow = (
       patientOverdueMap.get(patientId)!.push(record);
     }
   });
+
+  if (orphanRecordCount > 0) {
+    console.warn(`⚠️ 總共跳過 ${orphanRecordCount} 條孤兒工作流程記錄`);
+  }
+  if (inactiveRecordCount > 0) {
+    console.warn(`⚠️ 總共跳過 ${inactiveRecordCount} 條非active處方的工作流程記錄`);
+  }
 
   console.log('📊 逾期記錄 Map:', {
     有逾期記錄的院友ID: Array.from(patientOverdueMap.keys()),
