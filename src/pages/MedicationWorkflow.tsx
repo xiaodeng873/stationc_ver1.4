@@ -314,7 +314,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
       </div>
 
       {status === 'completed' && staff && (
-        <div className="text-xs text-gray-500 mt-1 truncate hidden landscape:hidden">
+        <div className="text-xs text-gray-500 mt-1 truncate portrait:block landscape:hidden">
           {staff}
         </div>
       )}
@@ -328,7 +328,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
       )}
 
       {isImmediatePreparation && (step === 'preparation' || step === 'verification') && (
-        <div className="text-xs text-gray-500 mt-1 hidden landscape:hidden">
+        <div className="text-xs text-gray-500 mt-1 portrait:block landscape:hidden">
           即時備藥
         </div>
       )}
@@ -2435,10 +2435,10 @@ const MedicationWorkflow: React.FC = () => {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         藥物詳情
                       </th>
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider landscape:w-16">
+                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider landscape:w-10">
                         使用次數
                       </th>
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider landscape:w-20">
+                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider landscape:w-14">
                         劑量
                     </th>
                     {weekDates.map((date) => {
@@ -2538,7 +2538,7 @@ const MedicationWorkflow: React.FC = () => {
                             )}
                           </div>
                         </td>
-                        <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-900 landscape:w-16">
+                        <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-900 landscape:w-10">
                           <div className="space-y-1">
                             {prescription.is_prn && (
                               <div className="text-red-600 font-bold">PRN (需要時)</div>
@@ -2580,8 +2580,9 @@ const MedicationWorkflow: React.FC = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-900 landscape:w-20">
-                          每次 {prescription.dosage_amount || '1'}{prescription.dosage_unit || ''} {prescription.dosage_form || ''}
+                        <td className="px-2 py-4 text-sm text-gray-900 landscape:w-14">
+                          <div>每次 {prescription.dosage_amount || '1'}{prescription.dosage_unit || ''}</div>
+                          {prescription.dosage_form && <div className="text-xs text-gray-600 mt-0.5">{prescription.dosage_form}</div>}
                         </td>
                         {weekDates.map((date) => {
                           const isSelectedDate = date === selectedDate;
