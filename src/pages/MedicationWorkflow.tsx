@@ -314,7 +314,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
       </div>
 
       {status === 'completed' && staff && (
-        <div className="text-xs text-gray-500 mt-1 truncate md:landscape:hidden">
+        <div className="text-xs text-gray-500 mt-1 truncate">
           {staff}
         </div>
       )}
@@ -328,7 +328,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
       )}
 
       {isImmediatePreparation && (step === 'preparation' || step === 'verification') && (
-        <div className="text-xs text-gray-500 mt-1 md:landscape:hidden">
+        <div className="text-xs text-gray-500 mt-1">
           即時備藥
         </div>
       )}
