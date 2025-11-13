@@ -177,6 +177,11 @@ const Dashboard: React.FC = () => {
     return activePatients.filter(patient => !mealGuidances.some(guidance => guidance.patient_id === patient.院友id));
   }, [patients, mealGuidances]);
 
+  // 計算有逾期執核派藥流程的院友
+  const patientsWithOverdueWorkflow = useMemo(() => {
+    return getPatientsWithOverdueWorkflow(prescriptionWorkflowRecords, patients);
+  }, [prescriptionWorkflowRecords, patients]);
+
   // 處理文件或護理任務點擊
   const handleDocumentTaskClick = (task: HealthTask) => {
     const patient = patients.find(p => p.院友id === task.patient_id);
@@ -238,11 +243,6 @@ const Dashboard: React.FC = () => {
     })
     .sort((a, b) => new Date(a.覆診日期).getTime() - new Date(b.覆診日期).getTime())
     .slice(0, 10);
-
-  // 計算有逾期執核派藥流程的院友
-  const patientsWithOverdueWorkflow = useMemo(() => {
-    return getPatientsWithOverdueWorkflow(prescriptionWorkflowRecords, patients);
-  }, [prescriptionWorkflowRecords, patients]);
 
   // 任務統計
   const monitoringTasks = patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type));
