@@ -42,10 +42,10 @@ const InjectionSiteModal: React.FC<InjectionSiteModalProps> = ({
   // 取得當前選擇區域的資訊
   const selectedAreaInfo = injectionAreas.find(area => area.value === selectedArea);
 
-  // 組合完整的注射部位名稱
+  // 組合完整的注射部位名稱（只顯示字母和數字）
   const getFullSiteName = () => {
     if (!selectedArea || !selectedPosition) return '';
-    return `${selectedAreaInfo?.label} ${selectedAreaInfo?.prefix}${selectedPosition}`;
+    return `${selectedAreaInfo?.prefix}${selectedPosition}`;
   };
 
   const handleConfirm = () => {
