@@ -2547,7 +2547,7 @@ const MedicationWorkflow: React.FC = () => {
                         <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-900 w-auto landscape:w-10">
                           <div className="space-y-1">
                             {prescription.is_prn && (
-                              <div className="text-red-600 font-bold">PRN (需要時)</div>
+                              <div className="text-red-600 font-bold">需要時</div>
                             )}
                             <div>
                               {(() => {
