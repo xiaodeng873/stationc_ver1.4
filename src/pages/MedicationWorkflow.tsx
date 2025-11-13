@@ -34,6 +34,11 @@ import WorkflowDeduplicateModal from '../components/WorkflowDeduplicateModal';
 import { generateDailyWorkflowRecords, generateBatchWorkflowRecords } from '../utils/workflowGenerator';
 import { diagnoseWorkflowDisplayIssue } from '../utils/diagnoseTool';
 import { supabase } from '../lib/supabase';
+import {
+  hasOverdueWorkflowOnDate,
+  calculateOverdueCountByDate,
+  calculateOverdueCountByPreparationMethod
+} from '../utils/workflowStatusHelper';
 
 interface WorkflowCellProps {
   record: any;
@@ -986,6 +991,16 @@ const MedicationWorkflow: React.FC = () => {
     }
     return true;
   });
+
+  // 計算每個日期的逾期未完成流程狀態（用於紅點提示）
+  const dateOverdueStatus = useMemo(() => {
+    return calculateOverdueCountByDate(allWorkflowRecords, weekDates);
+  }, [allWorkflowRecords, weekDates]);
+
+  // 計算每個備藥方式的逾期未完成流程數量（用於分頁標籤紅點提示）
+  const preparationMethodOverdueCounts = useMemo(() => {
+    return calculateOverdueCountByPreparationMethod(allWorkflowRecords, prescriptions);
+  }, [allWorkflowRecords, prescriptions]);
 
   // 計算藥物數量統計
   const medicationStats = useMemo(() => {
@@ -2363,33 +2378,42 @@ const MedicationWorkflow: React.FC = () => {
                 <div className="flex space-x-1 p-2">
                   <button
                     onClick={() => setPreparationFilter('all')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       preparationFilter === 'all'
                         ? 'bg-blue-100 text-blue-700'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
                     全部 ({activePrescriptions.length})
+                    {preparationMethodOverdueCounts.all > 0 && (
+                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                    )}
                   </button>
                   <button
                     onClick={() => setPreparationFilter('advanced')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       preparationFilter === 'advanced'
                         ? 'bg-green-100 text-green-700'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
                     提前備藥 ({activePrescriptions.filter(p => p.preparation_method === 'advanced').length})
+                    {preparationMethodOverdueCounts.advanced > 0 && (
+                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                    )}
                   </button>
                   <button
                     onClick={() => setPreparationFilter('immediate')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       preparationFilter === 'immediate'
                         ? 'bg-orange-100 text-orange-700'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
                     即時備藥 ({activePrescriptions.filter(p => p.preparation_method === 'immediate').length})
+                    {preparationMethodOverdueCounts.immediate > 0 && (
+                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -2419,16 +2443,20 @@ const MedicationWorkflow: React.FC = () => {
                       const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
                       const weekday = weekdays[weekdayIndex];
                       const isSelectedDate = date === selectedDate;
+                      const hasOverdue = (dateOverdueStatus.get(date) || 0) > 0;
                       return (
                         <th
                           key={date}
-                          className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer transition-colors ${
+                          className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer transition-colors relative ${
                             isSelectedDate ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-blue-50'
                           }`}
                           onClick={() => setSelectedDate(date)}
-                          title={`點擊跳轉到 ${month}/${dayOfMonth}`}
+                          title={`點擊跳轉到 ${month}/${dayOfMonth}${hasOverdue ? ' (有逾期未完成流程)' : ''}`}
                         >
                           {month}/{dayOfMonth}<br/>({weekday})
+                          {hasOverdue && (
+                            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                          )}
                         </th>
                       );
                     })}

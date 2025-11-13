@@ -4,6 +4,7 @@ import TaskModal from '../components/TaskModal';
 import { Home, Users, Calendar, Heart, CheckSquare, AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { isTaskOverdue, isTaskPendingToday, isTaskDueSoon, getTaskStatus, isDocumentTask, isMonitoringTask, isNursingTask, isRestraintAssessmentOverdue, isRestraintAssessmentDueSoon, isHealthAssessmentOverdue, isHealthAssessmentDueSoon, calculateNextDueDate } from '../utils/taskScheduler';
+import { getPatientsWithOverdueWorkflow } from '../utils/workflowStatusHelper';
 import HealthRecordModal from '../components/HealthRecordModal';
 import MealGuidanceModal from '../components/MealGuidanceModal';
 import FollowUpModal from '../components/FollowUpModal';
@@ -61,7 +62,7 @@ interface HealthRecord {
 }
 
 const Dashboard: React.FC = () => {
-  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, loading, updatePatientHealthTask, refreshData } = usePatients();
+  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, prescriptionWorkflowRecords, loading, updatePatientHealthTask, refreshData } = usePatients();
   const [showHealthRecordModal, setShowHealthRecordModal] = useState(false);
   const [selectedHealthRecordInitialData, setSelectedHealthRecordInitialData] = useState<any>({});
   const [showDocumentTaskModal, setShowDocumentTaskModal] = useState(false);
@@ -237,6 +238,11 @@ const Dashboard: React.FC = () => {
     })
     .sort((a, b) => new Date(a.覆診日期).getTime() - new Date(b.覆診日期).getTime())
     .slice(0, 10);
+
+  // 計算有逾期執核派藥流程的院友
+  const patientsWithOverdueWorkflow = useMemo(() => {
+    return getPatientsWithOverdueWorkflow(prescriptionWorkflowRecords, patients);
+  }, [prescriptionWorkflowRecords, patients]);
 
   // 任務統計
   const monitoringTasks = patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type));
@@ -820,6 +826,91 @@ const Dashboard: React.FC = () => {
             </div>
           );
         })()}
+
+        {/* 執核派藥逾期提醒 */}
+        {patientsWithOverdueWorkflow.length > 0 && (
+          <div className="lg:col-span-5 mb-6">
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 rounded-lg bg-red-100">
+                    <AlertTriangle className="h-6 w-6 text-red-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">執核派藥逾期提醒</h2>
+                    <p className="text-sm text-gray-600">
+                      {patientsWithOverdueWorkflow.length} 位院友有逾期未完成的執核派藥流程
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {patientsWithOverdueWorkflow.slice(0, 5).map(({ patient, overdueCount, overdueRecords }) => {
+                  // 計算最早逾期的時間
+                  const earliestOverdue = overdueRecords.reduce((earliest, record) => {
+                    const recordTime = new Date(`${record.scheduled_date}T${record.scheduled_time}`);
+                    return recordTime < earliest ? recordTime : earliest;
+                  }, new Date(`${overdueRecords[0].scheduled_date}T${overdueRecords[0].scheduled_time}`));
+
+                  return (
+                    <div key={patient.院友id} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
+                          {patient.院友相片 ? (
+                            <img
+                              src={patient.院友相片}
+                              alt={patient.中文姓名}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="h-5 w-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {patient.床號} - {patient.中文姓氏}{patient.中文名字}
+                          </div>
+                          <div className="text-sm text-red-700">
+                            {overdueCount} 個逾期流程
+                            {overdueRecords.length > 0 && (
+                              <span className="text-red-600 ml-2">
+                                • 最早逾期: {earliestOverdue.toLocaleDateString('zh-TW')} {earliestOverdue.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          {overdueCount} 個逾期
+                        </span>
+                        <Link
+                          to="/medication-workflow"
+                          className="text-red-600 hover:text-red-700 p-1 rounded"
+                          title="前往處理"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {patientsWithOverdueWorkflow.length > 5 && (
+                  <div className="text-center pt-2">
+                    <Link
+                      to="/medication-workflow"
+                      className="text-sm text-red-600 hover:text-red-700 font-medium"
+                    >
+                      查看全部 {patientsWithOverdueWorkflow.length} 位院友的逾期流程
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 每日任務補填模態框 */}
         {showDailyTaskModal && (
