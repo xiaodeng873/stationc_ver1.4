@@ -2438,7 +2438,7 @@ const MedicationWorkflow: React.FC = () => {
                       <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-auto landscape:w-10">
                         使用次數
                       </th>
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-auto landscape:w-14">
+                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-auto landscape:w-20">
                         劑量
                     </th>
                     {weekDates.map((date) => {
