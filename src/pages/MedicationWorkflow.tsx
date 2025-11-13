@@ -2435,10 +2435,10 @@ const MedicationWorkflow: React.FC = () => {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         藥物詳情
                       </th>
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider landscape:w-10">
+                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-auto landscape:w-10">
                         使用次數
                       </th>
-                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider landscape:w-14">
+                      <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-auto landscape:w-14">
                         劑量
                     </th>
                     {weekDates.map((date) => {
@@ -2536,9 +2536,15 @@ const MedicationWorkflow: React.FC = () => {
                                 有檢測項要求
                               </div>
                             )}
+                            {prescription.preparation_method === 'immediate' && (
+                              <div className="text-xs text-blue-600">
+                                <Zap className="h-3 w-3 inline mr-1" />
+                                即時備藥
+                              </div>
+                            )}
                           </div>
                         </td>
-                        <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-900 landscape:w-10">
+                        <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-900 w-auto landscape:w-10">
                           <div className="space-y-1">
                             {prescription.is_prn && (
                               <div className="text-red-600 font-bold">PRN (需要時)</div>
@@ -2580,7 +2586,7 @@ const MedicationWorkflow: React.FC = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-2 py-4 text-sm text-gray-900 landscape:w-14">
+                        <td className="px-2 py-4 text-sm text-gray-900 w-auto landscape:w-14">
                           <div>每次 {prescription.dosage_amount || '1'}{prescription.dosage_unit || ''}</div>
                           {prescription.dosage_form && <div className="text-xs text-gray-600 mt-0.5">{prescription.dosage_form}</div>}
                         </td>
