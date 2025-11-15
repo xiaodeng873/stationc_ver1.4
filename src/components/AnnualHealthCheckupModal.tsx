@@ -51,6 +51,20 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
     blood_pressure_diastolic: checkup?.blood_pressure_diastolic || null,
     pulse: checkup?.pulse || null,
     body_weight: checkup?.body_weight || null,
+    physical_exam_specify: checkup?.physical_exam_specify || '',
+
+    cardiovascular_notes: checkup?.cardiovascular_notes || '',
+    respiratory_notes: checkup?.respiratory_notes || '',
+    central_nervous_notes: checkup?.central_nervous_notes || '',
+    musculo_skeletal_notes: checkup?.musculo_skeletal_notes || '',
+    abdomen_urogenital_notes: checkup?.abdomen_urogenital_notes || '',
+    lymphatic_notes: checkup?.lymphatic_notes || '',
+    thyroid_notes: checkup?.thyroid_notes || '',
+    skin_condition_notes: checkup?.skin_condition_notes || '',
+    foot_notes: checkup?.foot_notes || '',
+    eye_ear_nose_throat_notes: checkup?.eye_ear_nose_throat_notes || '',
+    oral_dental_notes: checkup?.oral_dental_notes || '',
+    physical_exam_others: checkup?.physical_exam_others || '',
 
     vision_assessment: checkup?.vision_assessment || '',
     hearing_assessment: checkup?.hearing_assessment || '',
@@ -210,66 +224,254 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Part I - 病歷</h3>
-            <div className="space-y-4">
-              {[
-                { key: 'serious_illness', label: '曾否患嚴重疾病/接受大型手術？' },
-                { key: 'allergy', label: '有否食物或藥物過敏？' },
-                { key: 'infectious_disease', label: '有否傳染病徵狀？' },
-                { key: 'followup_treatment', label: '是否需要接受跟進檢查或治療？' },
-                { key: 'swallowing_difficulty', label: '有否吞嚥困難/容易哽塞？' },
-                { key: 'special_diet', label: '有否特別膳食需要？' },
-              ].map(({ key, label }) => (
-                <div key={key} className="flex items-start space-x-4">
-                  <div className="flex items-center space-x-2 min-w-[300px] pt-2">
-                    <label className="text-sm font-medium text-gray-700">{label}</label>
-                    <div className="flex space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input
-                          type="radio"
-                          checked={formData[`has_${key}` as keyof typeof formData] as boolean}
-                          onChange={() => setFormData(prev => ({ ...prev, [`has_${key}`]: true }))}
-                          className="form-radio"
-                        />
-                        <span className="text-sm">是</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input
-                          type="radio"
-                          checked={!formData[`has_${key}` as keyof typeof formData]}
-                          onChange={() => setFormData(prev => ({ ...prev, [`has_${key}`]: false }))}
-                          className="form-radio"
-                        />
-                        <span className="text-sm">否</span>
-                      </label>
-                    </div>
-                  </div>
-                  <input
-                    type="text"
-                    value={formData[`${key}_details` as keyof typeof formData] as string || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, [`${key}_details`]: e.target.value }))}
-                    placeholder="說明"
-                    className="form-input flex-1"
-                  />
-                </div>
-              ))}
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Part II 第二部分 - 病歷</h3>
 
-              <div>
-                <label className="form-label">精神病紀錄詳述</label>
-                <input
-                  type="text"
-                  value={formData.mental_illness_record}
-                  onChange={(e) => setFormData(prev => ({ ...prev, mental_illness_record: e.target.value }))}
-                  className="form-input"
-                  placeholder="輸入精神病紀錄詳述"
-                />
-              </div>
+            <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <tbody>
+                  <tr className="border-b border-gray-300">
+                    <td className="p-3 align-top w-12 text-center">(1)</td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="font-medium mb-1">曾否患嚴重疾病／接受大型手術？</div>
+                      <div className="text-sm text-gray-600 mb-2">如有，請註明診斷結果：</div>
+                      <input
+                        type="text"
+                        value={formData.serious_illness_details}
+                        onChange={(e) => setFormData(prev => ({ ...prev, serious_illness_details: e.target.value }))}
+                        placeholder="請輸入診斷結果"
+                        className="form-input w-full"
+                      />
+                    </td>
+                    <td className="p-3 border-l border-gray-300 w-32">
+                      <div className="flex items-center space-x-4 justify-end">
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">有</span>
+                          <input
+                            type="checkbox"
+                            checked={formData.has_serious_illness}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_serious_illness: e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">無</span>
+                          <input
+                            type="checkbox"
+                            checked={!formData.has_serious_illness}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_serious_illness: !e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr className="border-b border-gray-300">
+                    <td className="p-3 align-top text-center">(2)</td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="font-medium mb-1">有否食物或藥物過敏？</div>
+                      <div className="text-sm text-gray-600 mb-2">如有，請註明：</div>
+                      <input
+                        type="text"
+                        value={formData.allergy_details}
+                        onChange={(e) => setFormData(prev => ({ ...prev, allergy_details: e.target.value }))}
+                        placeholder="請輸入過敏詳情"
+                        className="form-input w-full"
+                      />
+                    </td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="flex items-center space-x-4 justify-end">
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">有</span>
+                          <input
+                            type="checkbox"
+                            checked={formData.has_allergy}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_allergy: e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">無</span>
+                          <input
+                            type="checkbox"
+                            checked={!formData.has_allergy}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_allergy: !e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr className="border-b border-gray-300">
+                    <td className="p-3 align-top text-center">(3)(a)</td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="font-medium mb-1">有否傳染病徵狀？</div>
+                      <div className="text-sm text-gray-600 mb-2">如有，請註明：</div>
+                      <input
+                        type="text"
+                        value={formData.infectious_disease_details}
+                        onChange={(e) => setFormData(prev => ({ ...prev, infectious_disease_details: e.target.value }))}
+                        placeholder="請輸入傳染病詳情"
+                        className="form-input w-full"
+                      />
+                    </td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="flex items-center space-x-4 justify-end">
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">有</span>
+                          <input
+                            type="checkbox"
+                            checked={formData.has_infectious_disease}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_infectious_disease: e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">無</span>
+                          <input
+                            type="checkbox"
+                            checked={!formData.has_infectious_disease}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_infectious_disease: !e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr className="border-b border-gray-300">
+                    <td className="p-3 align-top text-center">(3)(b)</td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="font-medium mb-1">是否需要接受跟進檢查或治療？</div>
+                      <div className="text-sm text-gray-600 mb-2">如有，請註明並填寫覆診的醫院／診所和檔號。</div>
+                      <input
+                        type="text"
+                        value={formData.followup_treatment_details}
+                        onChange={(e) => setFormData(prev => ({ ...prev, followup_treatment_details: e.target.value }))}
+                        placeholder="請輸入詳情"
+                        className="form-input w-full"
+                      />
+                    </td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="flex items-center space-x-4 justify-end">
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">有</span>
+                          <input
+                            type="checkbox"
+                            checked={formData.needs_followup_treatment}
+                            onChange={(e) => setFormData(prev => ({ ...prev, needs_followup_treatment: e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">無</span>
+                          <input
+                            type="checkbox"
+                            checked={!formData.needs_followup_treatment}
+                            onChange={(e) => setFormData(prev => ({ ...prev, needs_followup_treatment: !e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr className="border-b border-gray-300">
+                    <td className="p-3 align-top text-center">(4)</td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="font-medium mb-1">有否吞嚥困難／容易哽塞？</div>
+                      <div className="text-sm text-gray-600 mb-2">如有，請註明：</div>
+                      <input
+                        type="text"
+                        value={formData.swallowing_difficulty_details}
+                        onChange={(e) => setFormData(prev => ({ ...prev, swallowing_difficulty_details: e.target.value }))}
+                        placeholder="請輸入詳情"
+                        className="form-input w-full"
+                      />
+                    </td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="flex items-center space-x-4 justify-end">
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">有</span>
+                          <input
+                            type="checkbox"
+                            checked={formData.has_swallowing_difficulty}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_swallowing_difficulty: e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">無</span>
+                          <input
+                            type="checkbox"
+                            checked={!formData.has_swallowing_difficulty}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_swallowing_difficulty: !e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr className="border-b border-gray-300">
+                    <td className="p-3 align-top text-center">(5)</td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="font-medium mb-1">有否特別膳食需要？</div>
+                      <div className="text-sm text-gray-600 mb-2">如有，請註明：</div>
+                      <input
+                        type="text"
+                        value={formData.special_diet_details}
+                        onChange={(e) => setFormData(prev => ({ ...prev, special_diet_details: e.target.value }))}
+                        placeholder="請輸入詳情"
+                        className="form-input w-full"
+                      />
+                    </td>
+                    <td className="p-3 border-l border-gray-300">
+                      <div className="flex items-center space-x-4 justify-end">
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">有</span>
+                          <input
+                            type="checkbox"
+                            checked={formData.has_special_diet}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_special_diet: e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                        <label className="flex items-center space-x-1">
+                          <span className="text-sm">無</span>
+                          <input
+                            type="checkbox"
+                            checked={!formData.has_special_diet}
+                            onChange={(e) => setFormData(prev => ({ ...prev, has_special_diet: !e.target.checked }))}
+                            className="form-checkbox"
+                          />
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="p-3 align-top text-center">(6)</td>
+                    <td colSpan={2} className="p-3 border-l border-gray-300">
+                      <div className="font-medium mb-2">如過往有精神病紀錄，請詳述病歷及是否需要定期跟進治療。</div>
+                      <input
+                        type="text"
+                        value={formData.mental_illness_record}
+                        onChange={(e) => setFormData(prev => ({ ...prev, mental_illness_record: e.target.value }))}
+                        placeholder="請輸入精神病紀錄詳述"
+                        className="form-input w-full"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
           <div className="border-t pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Part II - 身體檢查</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Part III 第三部分 - 身體檢查</h3>
               <button
                 type="button"
                 onClick={handleFetchLatestReadings}
@@ -280,50 +482,103 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
                 <span>{fetchingReadings ? '載入中...' : '取得最近讀數'}</span>
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="form-label">血壓 (收縮壓/舒張壓)</label>
-                <div className="flex space-x-2">
-                  <input
-                    type="number"
-                    value={formData.blood_pressure_systolic || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, blood_pressure_systolic: e.target.value ? Number(e.target.value) : null }))}
-                    placeholder="收縮壓"
-                    className="form-input"
-                  />
-                  <span className="text-2xl text-gray-400">/</span>
-                  <input
-                    type="number"
-                    value={formData.blood_pressure_diastolic || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, blood_pressure_diastolic: e.target.value ? Number(e.target.value) : null }))}
-                    placeholder="舒張壓"
-                    className="form-input"
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label className="form-label">脈搏</label>
-                <input
-                  type="number"
-                  value={formData.pulse || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, pulse: e.target.value ? Number(e.target.value) : null }))}
-                  placeholder="次/分鐘"
-                  className="form-input"
-                />
-              </div>
+            <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <tbody>
+                  <tr className="bg-gray-50 border-b border-gray-300">
+                    <td className="p-3 border-r border-gray-300 font-semibold w-48">血壓</td>
+                    <td className="p-3 border-r border-gray-300">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="number"
+                          value={formData.blood_pressure_systolic || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, blood_pressure_systolic: e.target.value ? Number(e.target.value) : null }))}
+                          placeholder="收縮壓"
+                          className="form-input w-24"
+                        />
+                        <span>/</span>
+                        <input
+                          type="number"
+                          value={formData.blood_pressure_diastolic || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, blood_pressure_diastolic: e.target.value ? Number(e.target.value) : null }))}
+                          placeholder="舒張壓"
+                          className="form-input w-24"
+                        />
+                        <span className="text-sm text-gray-600">mmHg</span>
+                      </div>
+                    </td>
+                    <td className="p-3 border-r border-gray-300 font-semibold w-32">脈搏</td>
+                    <td className="p-3 border-r border-gray-300">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="number"
+                          value={formData.pulse || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, pulse: e.target.value ? Number(e.target.value) : null }))}
+                          placeholder="脈搏"
+                          className="form-input w-24"
+                        />
+                        <span className="text-sm text-gray-600">/min</span>
+                      </div>
+                    </td>
+                    <td className="p-3 border-r border-gray-300 font-semibold w-32">體重</td>
+                    <td className="p-3">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={formData.body_weight || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, body_weight: e.target.value ? Number(e.target.value) : null }))}
+                          placeholder="體重"
+                          className="form-input w-24"
+                        />
+                        <span className="text-sm text-gray-600">kg</span>
+                      </div>
+                    </td>
+                  </tr>
 
-              <div>
-                <label className="form-label">體重</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={formData.body_weight || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, body_weight: e.target.value ? Number(e.target.value) : null }))}
-                  placeholder="公斤"
-                  className="form-input"
-                />
-              </div>
+                  <tr className="border-b border-gray-300">
+                    <td colSpan={6} className="p-3">
+                      <div className="font-medium mb-2">請註明：</div>
+                      <input
+                        type="text"
+                        value={formData.physical_exam_specify}
+                        onChange={(e) => setFormData(prev => ({ ...prev, physical_exam_specify: e.target.value }))}
+                        placeholder="輸入特殊說明"
+                        className="form-input w-full"
+                      />
+                    </td>
+                  </tr>
+
+                  {[
+                    { label: '循環系統', key: 'cardiovascular_notes' },
+                    { label: '呼吸系統', key: 'respiratory_notes' },
+                    { label: '中樞神經系統', key: 'central_nervous_notes' },
+                    { label: '肌骨', key: 'musculo_skeletal_notes' },
+                    { label: '腹部／泌尿及生殖系統', key: 'abdomen_urogenital_notes' },
+                    { label: '淋巴系統', key: 'lymphatic_notes' },
+                    { label: '甲狀腺', key: 'thyroid_notes' },
+                    { label: '皮膚狀況，如：壓力性損傷（壓瘡）', key: 'skin_condition_notes' },
+                    { label: '足部', key: 'foot_notes' },
+                    { label: '眼／耳鼻喉', key: 'eye_ear_nose_throat_notes' },
+                    { label: '口腔／牙齒狀況', key: 'oral_dental_notes' },
+                    { label: '其他', key: 'physical_exam_others' },
+                  ].map(({ label, key }) => (
+                    <tr key={key} className="border-b border-gray-300">
+                      <td className="p-3 bg-gray-50 border-r border-gray-300 font-medium">{label}</td>
+                      <td colSpan={5} className="p-3">
+                        <input
+                          type="text"
+                          value={formData[key as keyof typeof formData] as string || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, [key]: e.target.value }))}
+                          placeholder={`輸入${label}備註`}
+                          className="form-input w-full"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 
