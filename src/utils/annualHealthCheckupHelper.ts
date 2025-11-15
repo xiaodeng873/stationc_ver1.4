@@ -24,6 +24,20 @@ export interface AnnualHealthCheckup {
   blood_pressure_diastolic: number | null;
   pulse: number | null;
   body_weight: number | null;
+  physical_exam_specify: string | null;
+
+  cardiovascular_notes: string | null;
+  respiratory_notes: string | null;
+  central_nervous_notes: string | null;
+  musculo_skeletal_notes: string | null;
+  abdomen_urogenital_notes: string | null;
+  lymphatic_notes: string | null;
+  thyroid_notes: string | null;
+  skin_condition_notes: string | null;
+  foot_notes: string | null;
+  eye_ear_nose_throat_notes: string | null;
+  oral_dental_notes: string | null;
+  physical_exam_others: string | null;
 
   vision_assessment: string | null;
   hearing_assessment: string | null;
