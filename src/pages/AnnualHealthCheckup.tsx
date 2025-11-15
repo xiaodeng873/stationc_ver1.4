@@ -454,6 +454,7 @@ export default function AnnualHealthCheckup() {
               ) : (
                 paginatedCheckups.map((checkup) => {
                   const status = getCheckupStatus(checkup);
+                  const patient = patients.find(p => p.院友id === checkup.patient_id);
                   return (
                     <tr
                       key={checkup.id}
@@ -469,12 +470,19 @@ export default function AnnualHealthCheckup() {
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <PatientTooltip patientId={checkup.patient_id}>
+                        {patient ? (
+                          <PatientTooltip patient={patient}>
+                            <div className="flex items-center space-x-2 cursor-help hover:text-blue-600 transition-colors">
+                              <span className="font-medium text-blue-600">{checkup.床號}</span>
+                              <span className="text-gray-900">{checkup.院友姓名}</span>
+                            </div>
+                          </PatientTooltip>
+                        ) : (
                           <div className="flex items-center space-x-2">
                             <span className="font-medium text-blue-600">{checkup.床號}</span>
                             <span className="text-gray-900">{checkup.院友姓名}</span>
                           </div>
-                        </PatientTooltip>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {checkup.last_doctor_signature_date || '-'}
