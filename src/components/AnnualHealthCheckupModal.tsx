@@ -29,7 +29,7 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
   const [fetchingReadings, setFetchingReadings] = useState(false);
 
   const [formData, setFormData] = useState({
-    patient_id: checkup?.patient_id || 0,
+    patient_id: checkup?.patient_id || null,
     last_doctor_signature_date: checkup?.last_doctor_signature_date || '',
     next_due_date: checkup?.next_due_date || '',
 
@@ -70,8 +70,8 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
     }
   }, [formData.last_doctor_signature_date]);
 
-  const handlePatientSelect = (patientId: number) => {
-    setFormData(prev => ({ ...prev, patient_id: patientId }));
+  const handlePatientSelect = (patientId: string) => {
+    setFormData(prev => ({ ...prev, patient_id: parseInt(patientId, 10) || null }));
   };
 
   const handleFetchLatestReadings = async () => {
@@ -169,13 +169,18 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="form-label">院友 *</label>
-                <PatientAutocomplete
-                  selectedPatientId={formData.patient_id}
-                  onPatientSelect={handlePatientSelect}
-                  placeholder="選擇院友"
-                  disabled={!!checkup}
-                />
-                {selectedPatient && (
+                {checkup ? (
+                  <div className="form-input bg-gray-100 cursor-not-allowed">
+                    {selectedPatient ? `${selectedPatient.床號} - ${selectedPatient.中文姓名}` : '未知院友'}
+                  </div>
+                ) : (
+                  <PatientAutocomplete
+                    value={formData.patient_id?.toString() || ''}
+                    onChange={handlePatientSelect}
+                    placeholder="選擇院友"
+                  />
+                )}
+                {selectedPatient && !checkup && (
                   <p className="text-sm text-gray-600 mt-1">
                     床號: {selectedPatient.床號}
                   </p>
@@ -251,11 +256,11 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
 
               <div>
                 <label className="form-label">精神病紀錄詳述</label>
-                <textarea
+                <input
+                  type="text"
                   value={formData.mental_illness_record}
                   onChange={(e) => setFormData(prev => ({ ...prev, mental_illness_record: e.target.value }))}
                   className="form-input"
-                  rows={3}
                   placeholder="輸入精神病紀錄詳述"
                 />
               </div>
@@ -327,100 +332,121 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
             <div className="space-y-4">
               <div>
                 <label className="form-label">視力</label>
-                <select
-                  value={formData.vision_assessment}
-                  onChange={(e) => setFormData(prev => ({ ...prev, vision_assessment: e.target.value }))}
-                  className="form-input"
-                >
-                  <option value="">請選擇</option>
+                <div className="space-y-2">
                   {VISION_OPTIONS.map(option => (
-                    <option key={option} value={option}>{option}</option>
+                    <label key={option} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.vision_assessment === option}
+                        onChange={(e) => setFormData(prev => ({ ...prev, vision_assessment: e.target.checked ? option : '' }))}
+                        className="form-checkbox"
+                      />
+                      <span className="text-sm">{option}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div>
                 <label className="form-label">聽力</label>
-                <select
-                  value={formData.hearing_assessment}
-                  onChange={(e) => setFormData(prev => ({ ...prev, hearing_assessment: e.target.value }))}
-                  className="form-input"
-                >
-                  <option value="">請選擇</option>
+                <div className="space-y-2">
                   {HEARING_OPTIONS.map(option => (
-                    <option key={option} value={option}>{option}</option>
+                    <label key={option} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.hearing_assessment === option}
+                        onChange={(e) => setFormData(prev => ({ ...prev, hearing_assessment: e.target.checked ? option : '' }))}
+                        className="form-checkbox"
+                      />
+                      <span className="text-sm">{option}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div>
                 <label className="form-label">語言能力</label>
-                <select
-                  value={formData.speech_assessment}
-                  onChange={(e) => setFormData(prev => ({ ...prev, speech_assessment: e.target.value }))}
-                  className="form-input"
-                >
-                  <option value="">請選擇</option>
+                <div className="space-y-2">
                   {SPEECH_OPTIONS.map(option => (
-                    <option key={option} value={option}>{option}</option>
+                    <label key={option} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.speech_assessment === option}
+                        onChange={(e) => setFormData(prev => ({ ...prev, speech_assessment: e.target.checked ? option : '' }))}
+                        className="form-checkbox"
+                      />
+                      <span className="text-sm">{option}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div>
                 <label className="form-label">精神狀況</label>
-                <select
-                  value={formData.mental_state_assessment}
-                  onChange={(e) => setFormData(prev => ({ ...prev, mental_state_assessment: e.target.value }))}
-                  className="form-input"
-                >
-                  <option value="">請選擇</option>
+                <div className="space-y-2">
                   {MENTAL_STATE_OPTIONS.map(option => (
-                    <option key={option} value={option}>{option}</option>
+                    <label key={option} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.mental_state_assessment === option}
+                        onChange={(e) => setFormData(prev => ({ ...prev, mental_state_assessment: e.target.checked ? option : '' }))}
+                        className="form-checkbox"
+                      />
+                      <span className="text-sm">{option}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div>
                 <label className="form-label">活動能力</label>
-                <select
-                  value={formData.mobility_assessment}
-                  onChange={(e) => setFormData(prev => ({ ...prev, mobility_assessment: e.target.value }))}
-                  className="form-input"
-                >
-                  <option value="">請選擇</option>
+                <div className="space-y-2">
                   {MOBILITY_OPTIONS.map(option => (
-                    <option key={option} value={option}>{option}</option>
+                    <label key={option} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.mobility_assessment === option}
+                        onChange={(e) => setFormData(prev => ({ ...prev, mobility_assessment: e.target.checked ? option : '' }))}
+                        className="form-checkbox"
+                      />
+                      <span className="text-sm">{option}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div>
                 <label className="form-label">禁制能力</label>
-                <select
-                  value={formData.continence_assessment}
-                  onChange={(e) => setFormData(prev => ({ ...prev, continence_assessment: e.target.value }))}
-                  className="form-input"
-                >
-                  <option value="">請選擇</option>
+                <div className="space-y-2">
                   {CONTINENCE_OPTIONS.map(option => (
-                    <option key={option} value={option}>{option}</option>
+                    <label key={option} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.continence_assessment === option}
+                        onChange={(e) => setFormData(prev => ({ ...prev, continence_assessment: e.target.checked ? option : '' }))}
+                        className="form-checkbox"
+                      />
+                      <span className="text-sm">{option}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div>
                 <label className="form-label">自我照顧能力</label>
-                <select
-                  value={formData.adl_assessment}
-                  onChange={(e) => setFormData(prev => ({ ...prev, adl_assessment: e.target.value }))}
-                  className="form-input"
-                >
-                  <option value="">請選擇</option>
+                <div className="space-y-2">
                   {ADL_OPTIONS.map(option => (
-                    <option key={option} value={option}>{option}</option>
+                    <label key={option} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.adl_assessment === option}
+                        onChange={(e) => setFormData(prev => ({ ...prev, adl_assessment: e.target.checked ? option : '' }))}
+                        className="form-checkbox"
+                      />
+                      <span className="text-sm">{option}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
             </div>
           </div>
@@ -429,16 +455,19 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Part V - 建議</h3>
             <div>
               <label className="form-label">建議的安老院類型</label>
-              <select
-                value={formData.recommendation}
-                onChange={(e) => setFormData(prev => ({ ...prev, recommendation: e.target.value }))}
-                className="form-input"
-              >
-                <option value="">請選擇</option>
+              <div className="space-y-2">
                 {RECOMMENDATION_OPTIONS.map(option => (
-                  <option key={option} value={option}>{option}</option>
+                  <label key={option} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.recommendation === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, recommendation: e.target.checked ? option : '' }))}
+                      className="form-checkbox"
+                    />
+                    <span className="text-sm">{option}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
           </div>
 
