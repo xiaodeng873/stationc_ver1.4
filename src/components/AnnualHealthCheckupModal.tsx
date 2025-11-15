@@ -328,143 +328,175 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Part IV - 身體機能評估</h3>
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="form-label">視力</label>
-                <div className="space-y-2">
-                  {VISION_OPTIONS.map(option => (
-                    <label key={option} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.vision_assessment === option}
-                        onChange={(e) => setFormData(prev => ({ ...prev, vision_assessment: e.target.checked ? option : '' }))}
-                        className="form-checkbox"
-                      />
-                      <span className="text-sm">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Part IV 第四部分 - 身體機能評估</h3>
 
-              <div>
-                <label className="form-label">聽力</label>
-                <div className="space-y-2">
-                  {HEARING_OPTIONS.map(option => (
-                    <label key={option} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.hearing_assessment === option}
-                        onChange={(e) => setFormData(prev => ({ ...prev, hearing_assessment: e.target.checked ? option : '' }))}
-                        className="form-checkbox"
-                      />
-                      <span className="text-sm">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+            <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <tbody>
+                  <tr className="border-b border-gray-300">
+                    <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300 w-32">視力</td>
+                    <td className="p-3">
+                      <div className="grid grid-cols-4 gap-4">
+                        {VISION_OPTIONS.map(option => (
+                          <label key={option} className="flex items-start space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.vision_assessment === option}
+                              onChange={(e) => setFormData(prev => ({ ...prev, vision_assessment: e.target.checked ? option : '' }))}
+                              className="form-checkbox mt-1"
+                            />
+                            <span className="text-sm">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
 
-              <div>
-                <label className="form-label">語言能力</label>
-                <div className="space-y-2">
-                  {SPEECH_OPTIONS.map(option => (
-                    <label key={option} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.speech_assessment === option}
-                        onChange={(e) => setFormData(prev => ({ ...prev, speech_assessment: e.target.checked ? option : '' }))}
-                        className="form-checkbox"
-                      />
-                      <span className="text-sm">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                  <tr className="border-b border-gray-300">
+                    <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300">聽力</td>
+                    <td className="p-3">
+                      <div className="grid grid-cols-4 gap-4">
+                        {HEARING_OPTIONS.map(option => (
+                          <label key={option} className="flex items-start space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.hearing_assessment === option}
+                              onChange={(e) => setFormData(prev => ({ ...prev, hearing_assessment: e.target.checked ? option : '' }))}
+                              className="form-checkbox mt-1"
+                            />
+                            <span className="text-sm">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
 
-              <div>
-                <label className="form-label">精神狀況</label>
-                <div className="space-y-2">
-                  {MENTAL_STATE_OPTIONS.map(option => (
-                    <label key={option} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.mental_state_assessment === option}
-                        onChange={(e) => setFormData(prev => ({ ...prev, mental_state_assessment: e.target.checked ? option : '' }))}
-                        className="form-checkbox"
-                      />
-                      <span className="text-sm">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                  <tr className="border-b border-gray-300">
+                    <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300">語言能力</td>
+                    <td className="p-3">
+                      <div className="grid grid-cols-4 gap-4">
+                        {SPEECH_OPTIONS.map(option => (
+                          <label key={option} className="flex items-start space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.speech_assessment === option}
+                              onChange={(e) => setFormData(prev => ({ ...prev, speech_assessment: e.target.checked ? option : '' }))}
+                              className="form-checkbox mt-1"
+                            />
+                            <span className="text-sm">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
 
-              <div>
-                <label className="form-label">活動能力</label>
-                <div className="space-y-2">
-                  {MOBILITY_OPTIONS.map(option => (
-                    <label key={option} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.mobility_assessment === option}
-                        onChange={(e) => setFormData(prev => ({ ...prev, mobility_assessment: e.target.checked ? option : '' }))}
-                        className="form-checkbox"
-                      />
-                      <span className="text-sm">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                  <tr className="border-b border-gray-300">
+                    <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300">精神狀況</td>
+                    <td className="p-3">
+                      <div className="grid grid-cols-4 gap-4">
+                        {MENTAL_STATE_OPTIONS.map(option => (
+                          <label key={option} className="flex items-start space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.mental_state_assessment === option}
+                              onChange={(e) => setFormData(prev => ({ ...prev, mental_state_assessment: e.target.checked ? option : '' }))}
+                              className="form-checkbox mt-1"
+                            />
+                            <span className="text-sm">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
 
-              <div>
-                <label className="form-label">禁制能力</label>
-                <div className="space-y-2">
-                  {CONTINENCE_OPTIONS.map(option => (
-                    <label key={option} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.continence_assessment === option}
-                        onChange={(e) => setFormData(prev => ({ ...prev, continence_assessment: e.target.checked ? option : '' }))}
-                        className="form-checkbox"
-                      />
-                      <span className="text-sm">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                  <tr className="border-b border-gray-300">
+                    <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300">活動能力</td>
+                    <td className="p-3">
+                      <div className="grid grid-cols-4 gap-4">
+                        {MOBILITY_OPTIONS.map(option => (
+                          <label key={option} className="flex items-start space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.mobility_assessment === option}
+                              onChange={(e) => setFormData(prev => ({ ...prev, mobility_assessment: e.target.checked ? option : '' }))}
+                              className="form-checkbox mt-1"
+                            />
+                            <span className="text-sm">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
 
-              <div className="col-span-2">
-                <label className="form-label">自我照顧能力</label>
-                <div className="space-y-2">
-                  {ADL_OPTIONS.map(option => (
-                    <label key={option} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.adl_assessment === option}
-                        onChange={(e) => setFormData(prev => ({ ...prev, adl_assessment: e.target.checked ? option : '' }))}
-                        className="form-checkbox"
-                      />
-                      <span className="text-sm">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                  <tr className="border-b border-gray-300">
+                    <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300">禁制能力</td>
+                    <td className="p-3">
+                      <div className="grid grid-cols-4 gap-4">
+                        {CONTINENCE_OPTIONS.map(option => (
+                          <label key={option} className="flex items-start space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.continence_assessment === option}
+                              onChange={(e) => setFormData(prev => ({ ...prev, continence_assessment: e.target.checked ? option : '' }))}
+                              className="form-checkbox mt-1"
+                            />
+                            <span className="text-sm">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300">自我照顧能力</td>
+                    <td className="p-3">
+                      <div className="space-y-3">
+                        {ADL_OPTIONS.map(option => (
+                          <label key={option.value} className="flex items-start space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.adl_assessment === option.value}
+                              onChange={(e) => setFormData(prev => ({ ...prev, adl_assessment: e.target.checked ? option.value : '' }))}
+                              className="form-checkbox mt-1"
+                            />
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{option.value}</div>
+                              <div className="text-xs text-gray-600 mt-1">{option.description}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Part V - 建議</h3>
-            <div>
-              <label className="form-label">建議的安老院類型</label>
-              <div className="space-y-2">
-                {RECOMMENDATION_OPTIONS.map(option => (
-                  <label key={option} className="flex items-center space-x-2">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Part V 第五部分 - 建議</h3>
+
+            <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <div className="bg-gray-100 p-3 border-b border-gray-300">
+                <p className="text-sm font-medium">申請人適合入住以下類別的安老院：</p>
+              </div>
+
+              <div className="p-4 space-y-4">
+                {RECOMMENDATION_OPTIONS.map((option, index) => (
+                  <label key={option.value} className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={formData.recommendation === option}
-                      onChange={(e) => setFormData(prev => ({ ...prev, recommendation: e.target.checked ? option : '' }))}
-                      className="form-checkbox"
+                      checked={formData.recommendation === option.value}
+                      onChange={(e) => setFormData(prev => ({ ...prev, recommendation: e.target.checked ? option.value : '' }))}
+                      className="form-checkbox mt-1"
                     />
-                    <span className="text-sm">{option}</span>
+                    <div className="flex-1">
+                      <div className="flex items-baseline space-x-2">
+                        <span className="font-semibold text-sm">{index + 1}.</span>
+                        <span className="font-semibold text-sm">{option.value}</span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-2 ml-5">{option.description}</p>
+                    </div>
                   </label>
                 ))}
               </div>
