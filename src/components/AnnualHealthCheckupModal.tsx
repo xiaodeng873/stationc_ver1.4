@@ -224,7 +224,7 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Part II 第二部分 - 病歷</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">病歷</h3>
 
             <div className="border border-gray-300 rounded-lg overflow-hidden">
               <table className="w-full">
@@ -471,7 +471,7 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
 
           <div className="border-t pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Part III 第三部分 - 身體檢查</h3>
+              <h3 className="text-lg font-semibold text-gray-900">身體檢查</h3>
               <button
                 type="button"
                 onClick={handleFetchLatestReadings}
@@ -570,7 +570,7 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Part IV 第四部分 - 身體機能評估</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">身體機能評估</h3>
 
             <div className="border border-gray-300 rounded-lg overflow-hidden">
               <table className="w-full">
@@ -716,7 +716,7 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Part V 第五部分 - 建議</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">建議</h3>
 
             <div className="border border-gray-300 rounded-lg overflow-hidden">
               <div className="bg-gray-100 p-3 border-b border-gray-300">
