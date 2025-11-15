@@ -329,7 +329,7 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
 
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Part IV - 身體機能評估</h3>
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-6">
               <div>
                 <label className="form-label">視力</label>
                 <div className="space-y-2">
@@ -432,7 +432,7 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
                 </div>
               </div>
 
-              <div>
+              <div className="col-span-2">
                 <label className="form-label">自我照顧能力</label>
                 <div className="space-y-2">
                   {ADL_OPTIONS.map(option => (

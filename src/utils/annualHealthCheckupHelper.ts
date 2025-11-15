@@ -168,42 +168,41 @@ export async function getLatestHealthReadings(patientId: number): Promise<Latest
 
   try {
     const { data: vitalSignRecords } = await supabase
-      .from('health_records')
-      .select('blood_pressure, pulse')
-      .eq('patient_id', patientId)
-      .eq('record_type', '生命表徵')
-      .not('blood_pressure', 'is', null)
-      .order('record_date', { ascending: false })
-      .order('record_time', { ascending: false })
+      .from('健康記錄主表')
+      .select('血壓收縮壓, 血壓舒張壓, 脈搏')
+      .eq('院友id', patientId)
+      .eq('記錄類型', '生命表徵')
+      .not('血壓收縮壓', 'is', null)
+      .order('記錄日期', { ascending: false })
+      .order('記錄時間', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (vitalSignRecords) {
-      if (vitalSignRecords.blood_pressure) {
-        const bpParts = vitalSignRecords.blood_pressure.split('/');
-        if (bpParts.length === 2) {
-          result.blood_pressure_systolic = parseInt(bpParts[0], 10);
-          result.blood_pressure_diastolic = parseInt(bpParts[1], 10);
-        }
+      if (vitalSignRecords.血壓收縮壓) {
+        result.blood_pressure_systolic = vitalSignRecords.血壓收縮壓;
       }
-      if (vitalSignRecords.pulse) {
-        result.pulse = vitalSignRecords.pulse;
+      if (vitalSignRecords.血壓舒張壓) {
+        result.blood_pressure_diastolic = vitalSignRecords.血壓舒張壓;
+      }
+      if (vitalSignRecords.脈搏) {
+        result.pulse = vitalSignRecords.脈搏;
       }
     }
 
     const { data: bodyWeightRecord } = await supabase
-      .from('health_records')
-      .select('body_weight')
-      .eq('patient_id', patientId)
-      .eq('record_type', '體重控制')
-      .not('body_weight', 'is', null)
-      .order('record_date', { ascending: false })
-      .order('record_time', { ascending: false })
+      .from('健康記錄主表')
+      .select('體重')
+      .eq('院友id', patientId)
+      .eq('記錄類型', '體重控制')
+      .not('體重', 'is', null)
+      .order('記錄日期', { ascending: false })
+      .order('記錄時間', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (bodyWeightRecord && bodyWeightRecord.body_weight) {
-      result.body_weight = bodyWeightRecord.body_weight;
+    if (bodyWeightRecord && bodyWeightRecord.體重) {
+      result.body_weight = bodyWeightRecord.體重;
     }
   } catch (error) {
     console.error('Error fetching latest health readings:', error);
