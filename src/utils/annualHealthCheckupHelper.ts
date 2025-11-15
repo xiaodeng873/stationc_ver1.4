@@ -60,6 +60,11 @@ export interface LatestHealthReadings {
   body_weight: number | null;
 }
 
+export interface MentalStateData {
+  mental_state: string;
+  dementia_stage: string;
+}
+
 export type CheckupStatus = '有效' | '即將到期' | '已逾期' | '未簽署';
 
 export const VISION_OPTIONS = [
@@ -83,14 +88,22 @@ export const SPEECH_OPTIONS = [
   '不能以語言表達'
 ];
 
-export const MENTAL_STATE_OPTIONS = [
+export const MENTAL_STATE_GROUP_A = [
   '正常警覺穩定',
   '輕度受困擾',
   '中度受困擾',
-  '嚴重受困擾',
+  '嚴重受困擾'
+];
+
+export const MENTAL_STATE_GROUP_B = [
   '早期認知障礙症',
   '中期認知障礙症',
   '後期認知障礙症'
+];
+
+export const MENTAL_STATE_OPTIONS = [
+  ...MENTAL_STATE_GROUP_A,
+  ...MENTAL_STATE_GROUP_B
 ];
 
 export const MOBILITY_OPTIONS = [
@@ -247,4 +260,56 @@ export async function getLatestHealthReadings(patientId: number): Promise<Latest
   }
 
   return result;
+}
+
+export function parseMentalStateAssessment(value: string | null): MentalStateData {
+  if (!value) {
+    return { mental_state: '', dementia_stage: '' };
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return {
+        mental_state: parsed.mental_state || '',
+        dementia_stage: parsed.dementia_stage || ''
+      };
+    }
+  } catch {
+    if (MENTAL_STATE_GROUP_A.includes(value)) {
+      return { mental_state: value, dementia_stage: '' };
+    }
+    if (MENTAL_STATE_GROUP_B.includes(value)) {
+      return { mental_state: '', dementia_stage: value };
+    }
+  }
+
+  return { mental_state: '', dementia_stage: '' };
+}
+
+export function combineMentalStateAssessment(mental_state: string, dementia_stage: string): string {
+  if (!mental_state && !dementia_stage) {
+    return '';
+  }
+
+  return JSON.stringify({
+    mental_state: mental_state || '',
+    dementia_stage: dementia_stage || ''
+  });
+}
+
+export function formatMentalStateForDisplay(value: string | null): string {
+  if (!value) return '';
+
+  const parsed = parseMentalStateAssessment(value);
+  const parts = [];
+
+  if (parsed.mental_state) {
+    parts.push(parsed.mental_state);
+  }
+  if (parsed.dementia_stage) {
+    parts.push(parsed.dementia_stage);
+  }
+
+  return parts.join(' | ');
 }

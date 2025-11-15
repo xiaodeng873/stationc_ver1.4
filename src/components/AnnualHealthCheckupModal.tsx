@@ -9,11 +9,14 @@ import {
   VISION_OPTIONS,
   HEARING_OPTIONS,
   SPEECH_OPTIONS,
-  MENTAL_STATE_OPTIONS,
+  MENTAL_STATE_GROUP_A,
+  MENTAL_STATE_GROUP_B,
   MOBILITY_OPTIONS,
   CONTINENCE_OPTIONS,
   ADL_OPTIONS,
   RECOMMENDATION_OPTIONS,
+  parseMentalStateAssessment,
+  combineMentalStateAssessment,
 } from '../utils/annualHealthCheckupHelper';
 import * as db from '../lib/database';
 
@@ -28,6 +31,8 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
   const { patients, annualHealthCheckups } = usePatients();
   const [loading, setLoading] = useState(false);
   const [fetchingReadings, setFetchingReadings] = useState(false);
+
+  const parsedMentalState = parseMentalStateAssessment(checkup?.mental_state_assessment || null);
 
   const [formData, setFormData] = useState({
     patient_id: checkup?.patient_id || prefilledPatientId || null,
@@ -69,7 +74,8 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
     vision_assessment: checkup?.vision_assessment || '',
     hearing_assessment: checkup?.hearing_assessment || '',
     speech_assessment: checkup?.speech_assessment || '',
-    mental_state_assessment: checkup?.mental_state_assessment || '',
+    mental_state: parsedMentalState.mental_state,
+    dementia_stage: parsedMentalState.dementia_stage,
     mobility_assessment: checkup?.mobility_assessment || '',
     continence_assessment: checkup?.continence_assessment || '',
     adl_assessment: checkup?.adl_assessment || '',
@@ -133,8 +139,11 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
         return;
       }
 
+      const { mental_state, dementia_stage, ...restFormData } = formData;
+
       const checkupData = {
-        ...formData,
+        ...restFormData,
+        mental_state_assessment: combineMentalStateAssessment(mental_state, dementia_stage),
         blood_pressure_systolic: formData.blood_pressure_systolic ? Number(formData.blood_pressure_systolic) : null,
         blood_pressure_diastolic: formData.blood_pressure_diastolic ? Number(formData.blood_pressure_diastolic) : null,
         pulse: formData.pulse ? Number(formData.pulse) : null,
@@ -635,18 +644,47 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
                   <tr className="border-b border-gray-300">
                     <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300">精神狀況</td>
                     <td className="p-3">
-                      <div className="grid grid-cols-4 gap-4">
-                        {MENTAL_STATE_OPTIONS.map(option => (
-                          <label key={option} className="flex items-start space-x-2">
-                            <input
-                              type="checkbox"
-                              checked={formData.mental_state_assessment === option}
-                              onChange={(e) => setFormData(prev => ({ ...prev, mental_state_assessment: e.target.checked ? option : '' }))}
-                              className="form-checkbox mt-1"
-                            />
-                            <span className="text-sm">{option}</span>
-                          </label>
-                        ))}
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-700 mb-2">精神狀態（單選）</div>
+                          <div className="grid grid-cols-4 gap-4">
+                            {MENTAL_STATE_GROUP_A.map(option => (
+                              <label key={option} className="flex items-start space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.mental_state === option}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, mental_state: e.target.checked ? option : '' }))}
+                                  className="form-checkbox mt-1"
+                                />
+                                <span className="text-sm">{option}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="border-t border-gray-200 pt-3">
+                          <div className="text-sm font-medium text-gray-700 mb-2">認知障礙症階段（單選，可選可不選）</div>
+                          <div className="grid grid-cols-3 gap-4">
+                            {MENTAL_STATE_GROUP_B.map(option => (
+                              <label key={option} className="flex items-start space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.dementia_stage === option}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, dementia_stage: e.target.checked ? option : '' }))}
+                                  className="form-checkbox mt-1"
+                                />
+                                <span className="text-sm">{option}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        {(formData.mental_state || formData.dementia_stage) && (
+                          <div className="bg-blue-50 border border-blue-200 rounded p-2 text-sm">
+                            <span className="font-medium text-blue-800">已選擇：</span>
+                            <span className="text-blue-700">
+                              {[formData.mental_state, formData.dementia_stage].filter(Boolean).join(' | ')}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>

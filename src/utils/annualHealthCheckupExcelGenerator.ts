@@ -1,5 +1,6 @@
 import ExcelJS from '@zurmokeeper/exceljs';
 import { saveAs } from 'file-saver';
+import { formatMentalStateForDisplay } from './annualHealthCheckupHelper';
 
 interface AnnualHealthCheckupExportData {
   id: string;
@@ -164,7 +165,7 @@ export const exportAnnualHealthCheckupsToExcel = async (
           '視力評估': checkup.vision_assessment || '',
           '聽力評估': checkup.hearing_assessment || '',
           '語言能力': checkup.speech_assessment || '',
-          '精神狀況': checkup.mental_state_assessment || '',
+          '精神狀況': formatMentalStateForDisplay(checkup.mental_state_assessment || null),
           '活動能力': checkup.mobility_assessment || '',
           '禁制能力': checkup.continence_assessment || '',
           '自我照顧能力': checkup.adl_assessment || '',
