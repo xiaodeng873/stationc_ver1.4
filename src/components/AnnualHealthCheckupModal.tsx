@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { X, Stethoscope, Download } from 'lucide-react';
-import { usePatients } from '../context/PatientContext';
-import PatientAutocomplete from './PatientAutocomplete';
 import {
   AnnualHealthCheckup,
   calculateNextDueDate,
@@ -24,7 +22,6 @@ interface AnnualHealthCheckupModalProps {
 }
 
 export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: AnnualHealthCheckupModalProps) {
-  const { patients, annualHealthCheckups } = usePatients();
   const [loading, setLoading] = useState(false);
   const [fetchingReadings, setFetchingReadings] = useState(false);
 
@@ -83,10 +80,6 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
       setFormData(prev => ({ ...prev, next_due_date: calculatedDate }));
     }
   }, [formData.last_doctor_signature_date]);
-
-  const handlePatientSelect = (patientId: string) => {
-    setFormData(prev => ({ ...prev, patient_id: parseInt(patientId, 10) || null }));
-  };
 
   const handleFetchLatestReadings = async () => {
     if (!formData.patient_id) {
@@ -157,8 +150,6 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
     }
   };
 
-  const selectedPatient = patients.find(p => p.院友id === formData.patient_id);
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -179,50 +170,6 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="form-label">院友 *</label>
-                {checkup ? (
-                  <div className="form-input bg-gray-100 cursor-not-allowed">
-                    {selectedPatient ? `${selectedPatient.床號} - ${selectedPatient.中文姓名}` : '未知院友'}
-                  </div>
-                ) : (
-                  <PatientAutocomplete
-                    value={formData.patient_id?.toString() || ''}
-                    onChange={handlePatientSelect}
-                    placeholder="選擇院友"
-                  />
-                )}
-                {selectedPatient && !checkup && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    床號: {selectedPatient.床號}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="form-label">上次醫生簽署日期</label>
-                <input
-                  type="date"
-                  value={formData.last_doctor_signature_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, last_doctor_signature_date: e.target.value }))}
-                  className="form-input"
-                />
-              </div>
-
-              <div>
-                <label className="form-label">下次到期日</label>
-                <input
-                  type="date"
-                  value={formData.next_due_date}
-                  readOnly
-                  className="form-input bg-gray-100 cursor-not-allowed"
-                />
-              </div>
-            </div>
-          </div>
-
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Part II 第二部分 - 病歷</h3>
 
