@@ -16,7 +16,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
     床號: patient?.床號 || '',
     station_id: patient?.station_id || '',
     bed_id: patient?.bed_id || '',
-    在住狀態: patient?.在住狀態 || '在住',
+    在住狀態: patient?.在住狀態 || '待入住',
     中文姓氏: patient?.中文姓氏 || '',
     中文名字: patient?.中文名字 || '',
     英文姓氏: patient?.英文姓氏 || '',
@@ -261,7 +261,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
         在住狀態: '待入住',
         station_id: '',
         bed_id: '',
-        床號: ''
+        床號: '待分配'
       };
     }
 

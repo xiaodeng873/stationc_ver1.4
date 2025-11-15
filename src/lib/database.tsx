@@ -380,6 +380,19 @@ export const getPatients = async (): Promise<Patient[]> => {
 };
 
 export const createPatient = async (patient: Omit<Patient, '院友id'>): Promise<Patient> => {
+  console.log('[createPatient] 準備新增院友，資料內容:', JSON.stringify(patient, null, 2));
+
+  if (!patient.床號) {
+    console.warn('[createPatient] 床號欄位為空，設定為「待分配」');
+    patient.床號 = '待分配';
+  }
+
+  if (!patient.中文姓名) {
+    const error = new Error('中文姓名為必填欄位');
+    console.error('[createPatient] 資料驗證失敗:', error);
+    throw error;
+  }
+
   const { data, error } = await supabase
     .from('院友主表')
     .insert([patient])
@@ -387,10 +400,16 @@ export const createPatient = async (patient: Omit<Patient, '院友id'>): Promise
     .single();
 
   if (error) {
-    console.error('Error creating patient:', error);
+    console.error('[createPatient] Supabase 錯誤詳情:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    });
     throw error;
   }
 
+  console.log('[createPatient] 成功新增院友:', data.院友id);
   return data;
 };
 
