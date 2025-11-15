@@ -51,7 +51,6 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
     blood_pressure_diastolic: checkup?.blood_pressure_diastolic || null,
     pulse: checkup?.pulse || null,
     body_weight: checkup?.body_weight || null,
-    physical_exam_specify: checkup?.physical_exam_specify || '',
 
     cardiovascular_notes: checkup?.cardiovascular_notes || '',
     respiratory_notes: checkup?.respiratory_notes || '',
@@ -534,19 +533,6 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: A
                         />
                         <span className="text-sm text-gray-600">kg</span>
                       </div>
-                    </td>
-                  </tr>
-
-                  <tr className="border-b border-gray-300">
-                    <td colSpan={6} className="p-3">
-                      <div className="font-medium mb-2">請註明：</div>
-                      <input
-                        type="text"
-                        value={formData.physical_exam_specify}
-                        onChange={(e) => setFormData(prev => ({ ...prev, physical_exam_specify: e.target.value }))}
-                        placeholder="輸入特殊說明"
-                        className="form-input w-full"
-                      />
                     </td>
                   </tr>
 
