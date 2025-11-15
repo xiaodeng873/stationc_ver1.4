@@ -395,8 +395,8 @@ export const createPatient = async (patient: Omit<Patient, '院友id'>): Promise
 
   const { data, error } = await supabase
     .from('院友主表')
-    .insert([patient])
-    .select()
+    .insert(patient)
+    .select('*')
     .single();
 
   if (error) {
@@ -404,8 +404,10 @@ export const createPatient = async (patient: Omit<Patient, '院友id'>): Promise
       message: error.message,
       details: error.details,
       hint: error.hint,
-      code: error.code
+      code: error.code,
+      fullError: error
     });
+    console.error('[createPatient] 完整錯誤物件:', error);
     throw error;
   }
 
