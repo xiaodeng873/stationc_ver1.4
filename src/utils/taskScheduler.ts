@@ -2,7 +2,7 @@ import type { PatientHealthTask, FrequencyUnit } from '../lib/database';
 
 // 判斷是否為文件任務
 export function isDocumentTask(taskType: string): boolean {
-  return taskType === '年度體檢' || taskType === '藥物自存同意書';
+  return taskType === '藥物自存同意書';
 }
 
 // 判斷是否為監測任務

@@ -166,7 +166,7 @@ export function getCheckupStatus(checkup: AnnualHealthCheckup): CheckupStatus {
 
   if (diffDays < 0) {
     return '已逾期';
-  } else if (diffDays <= 30) {
+  } else if (diffDays <= 14) {
     return '即將到期';
   } else {
     return '有效';

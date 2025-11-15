@@ -21,15 +21,16 @@ interface AnnualHealthCheckupModalProps {
   checkup: AnnualHealthCheckup | null;
   onClose: () => void;
   onSave: () => void;
+  prefilledPatientId?: number | null;
 }
 
-export default function AnnualHealthCheckupModal({ checkup, onClose, onSave }: AnnualHealthCheckupModalProps) {
+export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, prefilledPatientId }: AnnualHealthCheckupModalProps) {
   const { patients, annualHealthCheckups } = usePatients();
   const [loading, setLoading] = useState(false);
   const [fetchingReadings, setFetchingReadings] = useState(false);
 
   const [formData, setFormData] = useState({
-    patient_id: checkup?.patient_id || null,
+    patient_id: checkup?.patient_id || prefilledPatientId || null,
     last_doctor_signature_date: checkup?.last_doctor_signature_date || '',
     next_due_date: checkup?.next_due_date || '',
 

@@ -77,7 +77,8 @@ const Dashboard: React.FC = () => {
   const [showAnnualCheckupModal, setShowAnnualCheckupModal] = useState(false);
   const [selectedAnnualCheckup, setSelectedAnnualCheckup] = useState<any | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
-  const [selectedTaskType, setSelectedTaskType] = useState<'年度體檢' | '生命表徵' | null>(null);
+  const [selectedTaskType, setSelectedTaskType] = useState<'生命表徵' | null>(null);
+  const [prefilledAnnualCheckupPatientId, setPrefilledAnnualCheckupPatientId] = useState<number | null>(null);
   const [selectedPatientForTask, setSelectedPatientForTask] = useState<any>(null);
   const [showMealGuidanceModal, setShowMealGuidanceModal] = useState(false);
   const [selectedPatientForMeal, setSelectedPatientForMeal] = useState<any>(null);
@@ -156,21 +157,23 @@ const Dashboard: React.FC = () => {
   const missingTasks = useMemo(() => {
     const activePatients = patients.filter(p => p.在住狀態 === '在住');
     const result: { patient: any; missingTaskTypes: string[] }[] = [];
-    
+
     activePatients.forEach(patient => {
       const patientTasks = patientHealthTasks.filter(task => task.patient_id === patient.院友id);
-      const annualCheckupTasks = patientTasks.filter(task => task.health_record_type === '年度體檢');
       const vitalSignTasks = patientTasks.filter(task => task.health_record_type === '生命表徵');
       const missing: string[] = [];
-      
-      if (annualCheckupTasks.length === 0) missing.push('年度體檢');
+
+      // 檢查是否欠缺年度體檢記錄（從 annual_health_checkups 表）
+      const hasAnnualCheckup = annualHealthCheckups.some(checkup => checkup.patient_id === patient.院友id);
+      if (!hasAnnualCheckup) missing.push('年度體檢');
+
       if (vitalSignTasks.length === 0) missing.push('生命表徵');
-      
+
       if (missing.length > 0) {
         result.push({ patient, missingTaskTypes: missing });
       }
     });
-    
+
     return result;
   }, [patients, patientHealthTasks]);
 
@@ -372,7 +375,7 @@ const Dashboard: React.FC = () => {
   });
   const urgentHealthAssessments = [...overdueHealthAssessments, ...dueSoonHealthAssessments];
 
-  // 年度體檢：包含逾期和即將到期（30天內），且院友必須在住
+  // 年度體檢：包含逾期和即將到期（14天內），且院友必須在住
   const isAnnualCheckupOverdue = (checkup: any): boolean => {
     if (!checkup.next_due_date) return false;
     const today = new Date();
@@ -385,7 +388,7 @@ const Dashboard: React.FC = () => {
     const today = new Date();
     const dueDate = new Date(checkup.next_due_date);
     const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return daysDiff <= 30 && daysDiff > 0;
+    return daysDiff <= 14 && daysDiff > 0;
   };
 
   const overdueAnnualCheckups = annualHealthCheckups.filter(checkup => {
@@ -398,9 +401,11 @@ const Dashboard: React.FC = () => {
   });
   const urgentAnnualCheckups = [...overdueAnnualCheckups, ...dueSoonAnnualCheckups];
 
-  // 合併文件任務、約束物品評估、健康評估和年度體檢
+  // 合併文件任務、約束物品評估、健康評估和年度體檢（排除任務管理中的年度體檢任務）
+  const filteredUrgentDocumentTasks = urgentDocumentTasks.filter(task => task.health_record_type !== '年度體檢');
+
   const combinedUrgentTasks = [
-    ...urgentDocumentTasks.map(task => ({ type: 'document', data: task })),
+    ...filteredUrgentDocumentTasks.map(task => ({ type: 'document', data: task })),
     ...urgentNursingTasks.map(task => ({ type: 'nursing', data: task })),
     ...urgentRestraintAssessments.map(assessment => ({ type: 'restraint', data: assessment })),
     ...urgentHealthAssessments.map(assessment => ({ type: 'health-assessment', data: assessment })),
@@ -418,13 +423,15 @@ const Dashboard: React.FC = () => {
     
     activePatients.forEach(patient => {
       const patientTasks = patientHealthTasks.filter(task => task.patient_id === patient.院友id);
-      const annualCheckupTasks = patientTasks.filter(task => task.health_record_type === '年度體檢');
       const vitalSignTasks = patientTasks.filter(task => task.health_record_type === '生命表徵');
       const missing: string[] = [];
-      
-      if (annualCheckupTasks.length === 0) missing.push('年度體檢');
+
+      // 檢查是否欠缺年度體檢記錄（從 annual_health_checkups 表）
+      const hasAnnualCheckup = annualHealthCheckups.some(checkup => checkup.patient_id === patient.院友id);
+      if (!hasAnnualCheckup) missing.push('年度體檢');
+
       if (vitalSignTasks.length === 0) missing.push('生命表徵');
-      
+
       if (missing.length > 0) {
         missingTasksLocal.push({ patient, missingTaskTypes: missing });
       }
@@ -456,22 +463,28 @@ const Dashboard: React.FC = () => {
   };
 
   const handleCreateMissingTask = (patient: any, taskType: '年度體檢' | '生命表徵') => {
-    const defaultFrequency = taskType === '年度體檢' 
-      ? { unit: 'yearly', value: 1 }
-      : { unit: 'daily', value: 1 };
-    
-    const prefilledData = {
-      patient_id: patient.院友id,
-      health_record_type: taskType,
-      frequency_unit: defaultFrequency.unit,
-      frequency_value: defaultFrequency.value,
-      specific_times: taskType === '生命表徵' ? '08:00' : '',
-      notes: taskType === '生命表徵' ? '定期' : '',
-      is_recurring: taskType === '生命表徵' // 假設生命表徵任務為循環任務
-    };
-    
-    setPrefilledTaskData(prefilledData);
-    setShowTaskModal(true);
+    if (taskType === '年度體檢') {
+      // 開啟年度體檢模態框並預填院友
+      setPrefilledAnnualCheckupPatientId(patient.院友id);
+      setSelectedAnnualCheckup(null);
+      setShowAnnualCheckupModal(true);
+    } else {
+      // 生命表徵任務，開啟任務模態框
+      const defaultFrequency = { unit: 'daily', value: 1 };
+
+      const prefilledData = {
+        patient_id: patient.院友id,
+        health_record_type: taskType,
+        frequency_unit: defaultFrequency.unit,
+        frequency_value: defaultFrequency.value,
+        specific_times: '08:00',
+        notes: '定期',
+        is_recurring: true
+      };
+
+      setPrefilledTaskData(prefilledData);
+      setShowTaskModal(true);
+    }
   };
 
   const handleAddMealGuidance = (patient: any) => {
@@ -1710,8 +1723,10 @@ const Dashboard: React.FC = () => {
           onClose={() => {
             setShowAnnualCheckupModal(false);
             setSelectedAnnualCheckup(null);
+            setPrefilledAnnualCheckupPatientId(null);
           }}
           onSave={refreshData}
+          prefilledPatientId={prefilledAnnualCheckupPatientId}
         />
       )}
     </div>

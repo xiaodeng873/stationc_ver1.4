@@ -32,8 +32,6 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
       case '血糖控制':
       case '體重控制':
         return { unit: 'daily', value: 1 };
-      case '年度體檢':
-        return { unit: 'yearly', value: 1 };
       case '約束物品同意書':
       case '藥物自存同意書':
         return { unit: 'monthly', value: 6 };
@@ -200,7 +198,6 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
       case '血糖控制': return <Droplets className="h-5 w-5" />;
       case '體重控制': return <Scale className="h-5 w-5" />;
       case '藥物自存同意書': return <FileText className="h-5 w-5" />;
-      case '年度體檢': return <Stethoscope className="h-5 w-5" />;
       default: return <CheckSquare className="h-5 w-5" />;
     }
   };
@@ -211,7 +208,6 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
       case '血糖控制': return 'text-red-600';
       case '體重控制': return 'text-green-600';
       case '藥物自存同意書': return 'text-gray-600';
-      case '年度體檢': return 'text-yellow-600';
       default: return 'text-purple-600';
     }
   };
@@ -283,14 +279,13 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
                 </optgroup>
                 <optgroup label="文件任務">
                   <option value="藥物自存同意書">藥物自存同意書</option>
-                  <option value="年度體檢">年度體檢</option>
                 </optgroup>
               </select>
             </div>
           </div>
 
           {/* 文件任務的上次醫生簽署日期 */}
-          {(formData.health_record_type === '年度體檢' || formData.health_record_type === '藥物自存同意書') && (
+          {formData.health_record_type === '藥物自存同意書' && (
             <div>
               <label className="form-label">
                 <Calendar className="h-4 w-4 inline mr-1" />
