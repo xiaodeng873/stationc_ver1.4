@@ -14,7 +14,7 @@ import { extractDiaperChangeTemplateFormat } from '../utils/diaperChangeExcelGen
 import { extractMedicationRecordTemplateFormat } from '../utils/medicationRecordExcelGenerator';
 import { extractPersonalMedicationListTemplateFormat } from '../utils/personalMedicationListExcelGenerator';
 
-type TemplateType = 'waiting-list' | 'prescription' | 'medication-record' | 'personal-medication-list' | 'consent-form' | 'vital-signs' | 'blood-sugar' | 'weight-control' | 'follow-up-list' | 'restraint-observation' | 'diaper-change-record' | 'personal-hygiene-record' | 'admission-layout';
+type TemplateType = 'waiting-list' | 'prescription' | 'medication-record' | 'personal-medication-list' | 'consent-form' | 'vital-signs' | 'blood-sugar' | 'weight-control' | 'follow-up-list' | 'restraint-observation' | 'diaper-change-record' | 'personal-hygiene-record' | 'admission-layout' | 'annual-health-checkup';
 
 interface TemplateMetadata {
   id: number;
@@ -51,7 +51,8 @@ const TemplateManagement: React.FC = () => {
     { value: 'diaper-change-record', label: '換片記錄', description: '院友換片護理記錄表' },
     { value: 'personal-hygiene-record', label: '個人衛生記錄', description: '院友個人衛生護理記錄表' },
     { value: 'admission-layout', label: '入住排版', description: '院友入住相關文件排版' },
-    { value: 'bed-layout', label: '床位表', description: '站點床位配置和院友分佈表' }
+    { value: 'bed-layout', label: '床位表', description: '站點床位配置和院友分佈表' },
+    { value: 'annual-health-checkup', label: '安老院住客體格檢驗報告書', description: '年度體格檢驗報告書範本' }
   ];
 
   React.useEffect(() => {
@@ -128,6 +129,7 @@ const TemplateManagement: React.FC = () => {
         case 'personal-hygiene-record':
         case 'admission-layout':
         case 'bed-layout':
+        case 'annual-health-checkup':
           return await extractPrintFormTemplateFormat(file);
         default:
           throw new Error(`不支援的範本類型: ${type}`);

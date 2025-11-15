@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  FileWarning
+  FileWarning,
+  Download
 } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import AnnualHealthCheckupModal from '../components/AnnualHealthCheckupModal';
@@ -25,6 +26,7 @@ import {
   type AnnualHealthCheckup,
   type CheckupStatus
 } from '../utils/annualHealthCheckupHelper';
+import { exportAnnualHealthCheckupsToExcel } from '../utils/annualHealthCheckupExcelGenerator';
 
 type SortField = '院友姓名' | 'last_doctor_signature_date' | 'next_due_date' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -203,6 +205,36 @@ export default function AnnualHealthCheckup() {
     setSearchTerm('');
   };
 
+  const handleExportSelected = async () => {
+    const selectedCheckups = paginatedCheckups.filter(c => selectedRows.has(c.id));
+
+    if (selectedCheckups.length === 0) {
+      alert('請先選擇要匯出的記錄');
+      return;
+    }
+
+    try {
+      const exportData = selectedCheckups.map(checkup => {
+        const patient = patients.find(p => p.院友id === checkup.patient_id);
+        return {
+          ...checkup,
+          院友: {
+            床號: patient?.床號 || '',
+            中文姓氏: patient?.中文姓氏 || '',
+            中文名字: patient?.中文名字 || '',
+            性別: patient?.性別 || '',
+            出生日期: patient?.出生日期 || ''
+          }
+        };
+      });
+
+      await exportAnnualHealthCheckupsToExcel(exportData);
+    } catch (error) {
+      console.error('匯出年度體檢記錄失敗:', error);
+      alert('匯出失敗，請重試');
+    }
+  };
+
   const getStatusBadge = (status: CheckupStatus) => {
     const colorClass = getStatusColor(status);
     let icon = null;
@@ -254,10 +286,20 @@ export default function AnnualHealthCheckup() {
               <p className="text-sm text-gray-600">管理院友年度體格檢驗報告書</p>
             </div>
           </div>
-          <button onClick={handleAdd} className="btn-primary flex items-center space-x-2">
-            <Plus className="h-5 w-5" />
-            <span>新增年度體檢</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleExportSelected}
+              disabled={selectedRows.size === 0}
+              className="btn-secondary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="h-5 w-5" />
+              <span>匯出 ({selectedRows.size})</span>
+            </button>
+            <button onClick={handleAdd} className="btn-primary flex items-center space-x-2">
+              <Plus className="h-5 w-5" />
+              <span>新增年度體檢</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center space-x-4">

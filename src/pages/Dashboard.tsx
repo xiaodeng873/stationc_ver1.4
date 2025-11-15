@@ -11,6 +11,7 @@ import FollowUpModal from '../components/FollowUpModal';
 import DocumentTaskModal from '../components/DocumentTaskModal';
 import RestraintAssessmentModal from '../components/RestraintAssessmentModal';
 import HealthAssessmentModal from '../components/HealthAssessmentModal';
+import AnnualHealthCheckupModal from '../components/AnnualHealthCheckupModal';
 
 // 定義任務和病人的接口
 interface Patient {
@@ -62,7 +63,7 @@ interface HealthRecord {
 }
 
 const Dashboard: React.FC = () => {
-  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, prescriptionWorkflowRecords, loading, updatePatientHealthTask, refreshData } = usePatients();
+  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, prescriptionWorkflowRecords, annualHealthCheckups, loading, updatePatientHealthTask, refreshData } = usePatients();
   const [showHealthRecordModal, setShowHealthRecordModal] = useState(false);
   const [selectedHealthRecordInitialData, setSelectedHealthRecordInitialData] = useState<any>({});
   const [showDocumentTaskModal, setShowDocumentTaskModal] = useState(false);
@@ -73,6 +74,8 @@ const Dashboard: React.FC = () => {
   const [selectedRestraintAssessment, setSelectedRestraintAssessment] = useState<any | null>(null);
   const [showHealthAssessmentModal, setShowHealthAssessmentModal] = useState(false);
   const [selectedHealthAssessment, setSelectedHealthAssessment] = useState<any | null>(null);
+  const [showAnnualCheckupModal, setShowAnnualCheckupModal] = useState(false);
+  const [selectedAnnualCheckup, setSelectedAnnualCheckup] = useState<any | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTaskType, setSelectedTaskType] = useState<'年度體檢' | '生命表徵' | null>(null);
   const [selectedPatientForTask, setSelectedPatientForTask] = useState<any>(null);
@@ -216,6 +219,12 @@ const Dashboard: React.FC = () => {
   const handleHealthAssessmentClick = (assessment: any) => {
     setSelectedHealthAssessment(assessment);
     setShowHealthAssessmentModal(true);
+  };
+
+  // 處理年度體檢點擊
+  const handleAnnualCheckupClick = (checkup: any) => {
+    setSelectedAnnualCheckup(checkup);
+    setShowAnnualCheckupModal(true);
   };
 
   // 處理覆診點擊
@@ -363,12 +372,39 @@ const Dashboard: React.FC = () => {
   });
   const urgentHealthAssessments = [...overdueHealthAssessments, ...dueSoonHealthAssessments];
 
-  // 合併文件任務、約束物品評估和健康評估
+  // 年度體檢：包含逾期和即將到期（30天內），且院友必須在住
+  const isAnnualCheckupOverdue = (checkup: any): boolean => {
+    if (!checkup.next_due_date) return false;
+    const today = new Date();
+    const dueDate = new Date(checkup.next_due_date);
+    return dueDate < today;
+  };
+
+  const isAnnualCheckupDueSoon = (checkup: any): boolean => {
+    if (!checkup.next_due_date) return false;
+    const today = new Date();
+    const dueDate = new Date(checkup.next_due_date);
+    const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return daysDiff <= 30 && daysDiff > 0;
+  };
+
+  const overdueAnnualCheckups = annualHealthCheckups.filter(checkup => {
+    const patient = patients.find(p => p.院友id === checkup.patient_id);
+    return patient && patient.在住狀態 === '在住' && isAnnualCheckupOverdue(checkup);
+  });
+  const dueSoonAnnualCheckups = annualHealthCheckups.filter(checkup => {
+    const patient = patients.find(p => p.院友id === checkup.patient_id);
+    return patient && patient.在住狀態 === '在住' && isAnnualCheckupDueSoon(checkup);
+  });
+  const urgentAnnualCheckups = [...overdueAnnualCheckups, ...dueSoonAnnualCheckups];
+
+  // 合併文件任務、約束物品評估、健康評估和年度體檢
   const combinedUrgentTasks = [
     ...urgentDocumentTasks.map(task => ({ type: 'document', data: task })),
     ...urgentNursingTasks.map(task => ({ type: 'nursing', data: task })),
     ...urgentRestraintAssessments.map(assessment => ({ type: 'restraint', data: assessment })),
-    ...urgentHealthAssessments.map(assessment => ({ type: 'health-assessment', data: assessment }))
+    ...urgentHealthAssessments.map(assessment => ({ type: 'health-assessment', data: assessment })),
+    ...urgentAnnualCheckups.map(checkup => ({ type: 'annual-checkup', data: checkup }))
   ].sort((a, b) => {
     const dateA = (a.type === 'document' || a.type === 'nursing') ? new Date(a.data.next_due_at) : new Date(a.data.next_due_date || '');
     const dateB = (b.type === 'document' || b.type === 'nursing') ? new Date(b.data.next_due_at) : new Date(b.data.next_due_date || '');
@@ -1393,12 +1429,13 @@ const Dashboard: React.FC = () => {
                         </span>
                       </div>
                     );
-                  } else {
+                  } else if (item.type === 'health-assessment') {
+                    const assessment = item.data;
                     const isOverdue = isHealthAssessmentOverdue(assessment);
                     const isDueSoon = isHealthAssessmentDueSoon(assessment);
                     return (
-                      <div 
-                        key={`health-assessment-${assessment.id}`} 
+                      <div
+                        key={`health-assessment-${assessment.id}`}
                         className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors border border-red-200"
                         onClick={() => handleHealthAssessmentClick(assessment)}
                       >
@@ -1423,11 +1460,52 @@ const Dashboard: React.FC = () => {
                           </p>
                         </div>
                         <span className={`status-badge ${
-                          isOverdue ? 'bg-red-100 text-red-800' : 
+                          isOverdue ? 'bg-red-100 text-red-800' :
                           isDueSoon ? 'bg-orange-100 text-orange-800' :
                           'bg-red-100 text-red-800'
                         }`}>
-                          {isOverdue ? '逾期' : 
+                          {isOverdue ? '逾期' :
+                           isDueSoon ? '即將到期' :
+                           '排程中'}
+                        </span>
+                      </div>
+                    );
+                  } else {
+                    const checkup = item.data;
+                    const isOverdue = isAnnualCheckupOverdue(checkup);
+                    const isDueSoon = isAnnualCheckupDueSoon(checkup);
+                    return (
+                      <div
+                        key={`annual-checkup-${checkup.id}`}
+                        className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors border border-blue-200"
+                        onClick={() => handleAnnualCheckupClick(checkup)}
+                      >
+                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                          {patient?.院友相片 ? (
+                            <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="h-5 w-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
+                            <span className="text-xs text-gray-500">({patient?.床號})</span>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <CalendarCheck className="h-4 w-4 text-blue-600" />
+                            <p className="text-sm text-gray-600">年度體檢</p>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            到期: {checkup.next_due_date ? new Date(checkup.next_due_date).toLocaleDateString('zh-TW') : '未設定'}
+                          </p>
+                        </div>
+                        <span className={`status-badge ${
+                          isOverdue ? 'bg-red-100 text-red-800' :
+                          isDueSoon ? 'bg-orange-100 text-orange-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {isOverdue ? '逾期' :
                            isDueSoon ? '即將到期' :
                            '排程中'}
                         </span>
@@ -1623,6 +1701,17 @@ const Dashboard: React.FC = () => {
             guidance_source: ''
           }}
           onUpdate={refreshData}
+        />
+      )}
+
+      {showAnnualCheckupModal && (
+        <AnnualHealthCheckupModal
+          checkup={selectedAnnualCheckup}
+          onClose={() => {
+            setShowAnnualCheckupModal(false);
+            setSelectedAnnualCheckup(null);
+          }}
+          onSave={refreshData}
         />
       )}
     </div>
