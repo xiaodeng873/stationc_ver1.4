@@ -3285,4 +3285,81 @@ const DrugModal: React.FC<DrugModalProps> = ({ drug, onClose, onSave }) => {
   );
 };
 
+export const getAnnualHealthCheckups = async (): Promise<any[]> => {
+  const { data, error } = await supabase
+    .from('annual_health_checkups')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching annual health checkups:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createAnnualHealthCheckup = async (checkup: any): Promise<any> => {
+  const { data, error } = await supabase
+    .from('annual_health_checkups')
+    .insert([checkup])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating annual health checkup:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const updateAnnualHealthCheckup = async (checkup: any): Promise<any> => {
+  const { id, ...updateData } = checkup;
+
+  const { data, error } = await supabase
+    .from('annual_health_checkups')
+    .update({
+      ...updateData,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating annual health checkup:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deleteAnnualHealthCheckup = async (checkupId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('annual_health_checkups')
+    .delete()
+    .eq('id', checkupId);
+
+  if (error) {
+    console.error('Error deleting annual health checkup:', error);
+    throw error;
+  }
+};
+
+export const getAnnualHealthCheckupByPatientId = async (patientId: number): Promise<any | null> => {
+  const { data, error } = await supabase
+    .from('annual_health_checkups')
+    .select('*')
+    .eq('patient_id', patientId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching annual health checkup by patient ID:', error);
+    throw error;
+  }
+
+  return data;
+};
+
 export default DrugModal;

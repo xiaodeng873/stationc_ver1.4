@@ -94,6 +94,7 @@ interface PatientContextType {
   woundAssessments: db.WoundAssessment[];
   patientAdmissionRecords: db.PatientAdmissionRecord[];
   hospitalEpisodes: any[];
+  annualHealthCheckups: any[];
   loading: boolean;
   
   // 新增的處方工作流程相關屬性
@@ -168,6 +169,9 @@ interface PatientContextType {
   addWoundAssessment: (assessment: Omit<db.WoundAssessment, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   updateWoundAssessment: (assessment: db.WoundAssessment) => Promise<void>;
   deleteWoundAssessment: (id: string) => Promise<void>;
+  addAnnualHealthCheckup: (checkup: any) => Promise<void>;
+  updateAnnualHealthCheckup: (checkup: any) => Promise<void>;
+  deleteAnnualHealthCheckup: (id: string) => Promise<void>;
   addPatientAdmissionRecord: (record: Omit<db.PatientAdmissionRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   updatePatientAdmissionRecord: (record: db.PatientAdmissionRecord) => Promise<void>;
   deletePatientAdmissionRecord: (id: string) => Promise<void>;
@@ -241,6 +245,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const [patientRestraintAssessments, setPatientRestraintAssessments] = useState<db.PatientRestraintAssessment[]>([]);
   const [healthAssessments, setHealthAssessments] = useState<db.HealthAssessment[]>([]);
   const [woundAssessments, setWoundAssessments] = useState<db.WoundAssessment[]>([]);
+  const [annualHealthCheckups, setAnnualHealthCheckups] = useState<any[]>([]);
   const [patientAdmissionRecords, setPatientAdmissionRecords] = useState<db.PatientAdmissionRecord[]>([]);
   const [hospitalEpisodes, setHospitalEpisodes] = useState<any[]>([]);
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -538,7 +543,8 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         hospitalEpisodesData,
         prescriptionsData,
         drugDatabaseData,
-        workflowRecordsData
+        workflowRecordsData,
+        annualHealthCheckupsData
       ] = await Promise.all([
         db.getPatients(),
         db.getStations(),
@@ -557,7 +563,8 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getHospitalEpisodes(),
         db.getPrescriptions(),
         db.getDrugDatabase(),
-        fetchPrescriptionWorkflowRecords()
+        fetchPrescriptionWorkflowRecords(),
+        db.getAnnualHealthCheckups()
       ]);
 
       console.log('🔍 載入的工作流程記錄數:', workflowRecordsData?.length || 0);
@@ -634,6 +641,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       setPrescriptions(prescriptionsData);
       setDrugDatabase(drugDatabaseData);
       setPrescriptionWorkflowRecords(workflowRecordsData || []);
+      setAnnualHealthCheckups(annualHealthCheckupsData || []);
       
       // 載入每日系統任務
       try {
@@ -2202,6 +2210,36 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
+  const addAnnualHealthCheckup = async (checkup: any) => {
+    try {
+      await db.createAnnualHealthCheckup(checkup);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding annual health checkup:', error);
+      throw error;
+    }
+  };
+
+  const updateAnnualHealthCheckup = async (checkup: any) => {
+    try {
+      await db.updateAnnualHealthCheckup(checkup);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating annual health checkup:', error);
+      throw error;
+    }
+  };
+
+  const deleteAnnualHealthCheckup = async (id: string) => {
+    try {
+      await db.deleteAnnualHealthCheckup(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting annual health checkup:', error);
+      throw error;
+    }
+  };
+
   // Patient admission record functions
   const addPatientAdmissionRecord = async (record: Omit<db.PatientAdmissionRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -2435,6 +2473,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       woundAssessments,
       patientAdmissionRecords,
       hospitalEpisodes,
+      annualHealthCheckups,
       dailySystemTasks,
       loading,
       prescriptionWorkflowRecords,
@@ -2482,6 +2521,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       addWoundAssessment,
       updateWoundAssessment,
       deleteWoundAssessment,
+      addAnnualHealthCheckup,
+      updateAnnualHealthCheckup,
+      deleteAnnualHealthCheckup,
       addPatientAdmissionRecord,
       updatePatientAdmissionRecord,
       deletePatientAdmissionRecord,
