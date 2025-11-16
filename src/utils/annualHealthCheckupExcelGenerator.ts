@@ -41,7 +41,9 @@ interface AnnualHealthCheckupExportData {
   physical_exam_others?: string;
 
   vision_assessment?: string;
+  with_visual_corrective_devices?: boolean | null;
   hearing_assessment?: string;
+  with_hearing_aids?: boolean | null;
   speech_assessment?: string;
   mental_state_assessment?: string;
   mobility_assessment?: string;
@@ -102,7 +104,9 @@ export const exportAnnualHealthCheckupsToExcel = async (
       { header: '其他', key: '其他', width: 20 },
 
       { header: '視力評估', key: '視力評估', width: 15 },
+      { header: '配戴視力矯正器', key: '配戴視力矯正器', width: 12 },
       { header: '聽力評估', key: '聽力評估', width: 15 },
+      { header: '配戴助聽器', key: '配戴助聽器', width: 12 },
       { header: '語言能力', key: '語言能力', width: 15 },
       { header: '精神狀況', key: '精神狀況', width: 15 },
       { header: '活動能力', key: '活動能力', width: 15 },
@@ -163,7 +167,9 @@ export const exportAnnualHealthCheckupsToExcel = async (
           '其他': checkup.physical_exam_others || '',
 
           '視力評估': checkup.vision_assessment || '',
+          '配戴視力矯正器': checkup.with_visual_corrective_devices === true ? '有' : checkup.with_visual_corrective_devices === false ? '没有' : '',
           '聽力評估': checkup.hearing_assessment || '',
+          '配戴助聽器': checkup.with_hearing_aids === true ? '有' : checkup.with_hearing_aids === false ? '没有' : '',
           '語言能力': checkup.speech_assessment || '',
           '精神狀況': formatMentalStateForDisplay(checkup.mental_state_assessment || null),
           '活動能力': checkup.mobility_assessment || '',

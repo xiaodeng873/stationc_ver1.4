@@ -72,7 +72,9 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
     physical_exam_others: checkup?.physical_exam_others || '',
 
     vision_assessment: checkup?.vision_assessment || '',
+    with_visual_corrective_devices: checkup?.with_visual_corrective_devices ?? null,
     hearing_assessment: checkup?.hearing_assessment || '',
+    with_hearing_aids: checkup?.with_hearing_aids ?? null,
     speech_assessment: checkup?.speech_assessment || '',
     mental_state: parsedMentalState.mental_state,
     dementia_stage: parsedMentalState.dementia_stage,
@@ -585,7 +587,36 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
               <table className="w-full">
                 <tbody>
                   <tr className="border-b border-gray-300">
-                    <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300 w-32">視力</td>
+                    <td className="bg-gray-50 p-3 border-r border-gray-300 w-32">
+                      <div className="font-semibold mb-2">視力</div>
+                      <div className="text-xs text-gray-600 mb-2">(有/没有配戴视力矯正器)</div>
+                      <div className="flex items-center space-x-3">
+                        <label className="flex items-center space-x-1">
+                          <input
+                            type="checkbox"
+                            checked={formData.with_visual_corrective_devices === true}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              with_visual_corrective_devices: e.target.checked ? true : null
+                            }))}
+                            className="form-checkbox"
+                          />
+                          <span className="text-sm">有</span>
+                        </label>
+                        <label className="flex items-center space-x-1">
+                          <input
+                            type="checkbox"
+                            checked={formData.with_visual_corrective_devices === false}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              with_visual_corrective_devices: e.target.checked ? false : null
+                            }))}
+                            className="form-checkbox"
+                          />
+                          <span className="text-sm">没有</span>
+                        </label>
+                      </div>
+                    </td>
                     <td className="p-3">
                       <div className="grid grid-cols-4 gap-4">
                         {VISION_OPTIONS.map(option => (
@@ -604,7 +635,36 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
                   </tr>
 
                   <tr className="border-b border-gray-300">
-                    <td className="bg-gray-50 p-3 font-semibold border-r border-gray-300">聽力</td>
+                    <td className="bg-gray-50 p-3 border-r border-gray-300">
+                      <div className="font-semibold mb-2">聽力</div>
+                      <div className="text-xs text-gray-600 mb-2">(有/没有配戴助聽器)</div>
+                      <div className="flex items-center space-x-3">
+                        <label className="flex items-center space-x-1">
+                          <input
+                            type="checkbox"
+                            checked={formData.with_hearing_aids === true}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              with_hearing_aids: e.target.checked ? true : null
+                            }))}
+                            className="form-checkbox"
+                          />
+                          <span className="text-sm">有</span>
+                        </label>
+                        <label className="flex items-center space-x-1">
+                          <input
+                            type="checkbox"
+                            checked={formData.with_hearing_aids === false}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              with_hearing_aids: e.target.checked ? false : null
+                            }))}
+                            className="form-checkbox"
+                          />
+                          <span className="text-sm">没有</span>
+                        </label>
+                      </div>
+                    </td>
                     <td className="p-3">
                       <div className="grid grid-cols-4 gap-4">
                         {HEARING_OPTIONS.map(option => (

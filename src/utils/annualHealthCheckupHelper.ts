@@ -40,7 +40,9 @@ export interface AnnualHealthCheckup {
   physical_exam_others: string | null;
 
   vision_assessment: string | null;
+  with_visual_corrective_devices: boolean | null;
   hearing_assessment: string | null;
+  with_hearing_aids: boolean | null;
   speech_assessment: string | null;
   mental_state_assessment: string | null;
   mobility_assessment: string | null;
