@@ -34,7 +34,7 @@ const HumanBodyDiagram: React.FC<HumanBodyDiagramProps> = ({
         >
           {/* Background image - 放大1倍 */}
           <img
-            src="/female-body-diagram-backup.jpg"
+            src="/human-body-diagram.png"
             alt="人體圖"
             className="w-full h-full object-contain rounded-lg"
             style={{
