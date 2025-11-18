@@ -351,15 +351,15 @@ const AnnualHealthCheckup: React.FC = () => {
       const templates = await getTemplatesMetadata();
       console.log('載入的範本數量:', templates.length);
 
-      const annualHealthCheckupTemplate = templates.find((t: any) => t.template_type === 'annual_health_checkup');
+      const annualHealthCheckupTemplate = templates.find((t: any) => t.type === 'annual-health-checkup');
       if (!annualHealthCheckupTemplate) {
-        alert('請先在範本管理中上傳「年度體檢報告書」範本');
+        alert('請先在範本管理中上傳「安老院住客體格檢驗報告書」範本');
         return;
       }
 
       console.log('找到年度體檢範本:', annualHealthCheckupTemplate.name);
 
-      const personalMedicationListTemplate = templates.find((t: any) => t.template_type === 'personal_medication_list');
+      const personalMedicationListTemplate = templates.find((t: any) => t.type === 'personal-medication-list');
       const includePersonalMedicationList = !!personalMedicationListTemplate;
 
       if (!personalMedicationListTemplate) {
