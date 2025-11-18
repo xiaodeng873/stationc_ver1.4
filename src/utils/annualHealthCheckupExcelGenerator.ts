@@ -584,6 +584,12 @@ export const exportAnnualHealthCheckupsToExcel = async (
       const p1Sheet = workbook.addWorksheet('P1');
       applyP1Template(p1Sheet, templateFormat.p1, checkup, patient);
 
+      if (includePersonalMedicationList && personalMedFormat && prescriptions && prescriptions.length > 0) {
+        console.log('  建立個人藥物記錄工作表');
+        const medListSheet = workbook.addWorksheet('個人藥物記錄');
+        await applyPersonalMedicationListTemplate(medListSheet, personalMedFormat, patient, prescriptions, 'medication_name');
+      }
+
       const p2Sheet = workbook.addWorksheet('P2');
       applyP2Template(p2Sheet, templateFormat.p2, checkup);
 
@@ -595,12 +601,6 @@ export const exportAnnualHealthCheckupsToExcel = async (
 
       const p5Sheet = workbook.addWorksheet('P5');
       applyP5Template(p5Sheet, templateFormat.p5);
-
-      if (includePersonalMedicationList && personalMedFormat && prescriptions && prescriptions.length > 0) {
-        console.log('  建立個人藥物記錄工作表');
-        const medListSheet = workbook.addWorksheet('個人藥物記錄');
-        await applyPersonalMedicationListTemplate(medListSheet, personalMedFormat, patient, prescriptions, 'medication_name');
-      }
 
       const filename = `${patient.床號}_${patient.中文姓氏}${patient.中文名字}_年度體檢報告書_${today}.xlsx`;
 

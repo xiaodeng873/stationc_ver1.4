@@ -370,7 +370,7 @@ const AnnualHealthCheckup: React.FC = () => {
 
       const exportData = selectedCheckups.map(checkup => {
         const patient = patients.find(p => p.院友id === checkup.patient_id);
-        const prescriptions = patient ? patient.prescriptions?.filter((p: any) => p.status === 'active') || [] : [];
+        const prescriptions = patient ? patient.prescriptions || [] : [];
 
         return {
           checkup,
