@@ -16,7 +16,7 @@ A comprehensive medical service management system for healthcare facilities.
 2. Install dependencies:
    ```bash
    npm install
-   ```
+   ``` 
 
 3. Set up environment variables:
    - Copy `.env.example` to `.env`
