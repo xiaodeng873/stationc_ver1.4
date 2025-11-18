@@ -28,6 +28,7 @@ import {
   type CheckupStatus
 } from '../utils/annualHealthCheckupHelper';
 import { exportAnnualHealthCheckupsToExcel } from '../utils/annualHealthCheckupExcelGenerator';
+import { getTemplatesMetadata } from '../lib/database';
 
 type SortField = '院友姓名' | 'last_doctor_signature_date' | 'next_due_date' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -43,7 +44,7 @@ interface AdvancedFilters {
 }
 
 const AnnualHealthCheckup: React.FC = () => {
-  const { annualHealthCheckups, patients, deleteAnnualHealthCheckup, loading, templates } = usePatients();
+  const { annualHealthCheckups, patients, deleteAnnualHealthCheckup, loading } = usePatients();
   const [showModal, setShowModal] = useState(false);
   const [selectedCheckup, setSelectedCheckup] = useState<AnnualHealthCheckup | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -346,17 +347,25 @@ const AnnualHealthCheckup: React.FC = () => {
     }
 
     try {
-      const annualHealthCheckupTemplate = templates.find(t => t.template_type === 'annual_health_checkup');
+      console.log('開始載入範本資料...');
+      const templates = await getTemplatesMetadata();
+      console.log('載入的範本數量:', templates.length);
+
+      const annualHealthCheckupTemplate = templates.find((t: any) => t.template_type === 'annual_health_checkup');
       if (!annualHealthCheckupTemplate) {
         alert('請先在範本管理中上傳「年度體檢報告書」範本');
         return;
       }
 
-      const personalMedicationListTemplate = templates.find(t => t.template_type === 'personal_medication_list');
+      console.log('找到年度體檢範本:', annualHealthCheckupTemplate.name);
+
+      const personalMedicationListTemplate = templates.find((t: any) => t.template_type === 'personal_medication_list');
       const includePersonalMedicationList = !!personalMedicationListTemplate;
 
-      if (includePersonalMedicationList && !personalMedicationListTemplate) {
+      if (!personalMedicationListTemplate) {
         console.warn('未找到個人藥物記錄範本，將不包含個人藥物記錄工作表');
+      } else {
+        console.log('找到個人藥物記錄範本:', personalMedicationListTemplate.name);
       }
 
       const exportData = selectedCheckups.map(checkup => {
@@ -380,6 +389,8 @@ const AnnualHealthCheckup: React.FC = () => {
           prescriptions
         };
       });
+
+      console.log('準備匯出資料:', exportData.length, '筆記錄');
 
       await exportAnnualHealthCheckupsToExcel(
         exportData,
