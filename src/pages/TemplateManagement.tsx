@@ -13,6 +13,7 @@ import { extractPrintFormTemplateFormat } from '../utils/printFormExcelGenerator
 import { extractDiaperChangeTemplateFormat } from '../utils/diaperChangeExcelGenerator';
 import { extractMedicationRecordTemplateFormat } from '../utils/medicationRecordExcelGenerator';
 import { extractPersonalMedicationListTemplateFormat } from '../utils/personalMedicationListExcelGenerator';
+import { extractAnnualHealthCheckupTemplateFormat } from '../utils/annualHealthCheckupExcelGenerator';
 
 type TemplateType = 'waiting-list' | 'prescription' | 'medication-record' | 'personal-medication-list' | 'consent-form' | 'vital-signs' | 'blood-sugar' | 'weight-control' | 'follow-up-list' | 'restraint-observation' | 'diaper-change-record' | 'personal-hygiene-record' | 'admission-layout' | 'annual-health-checkup';
 
@@ -126,10 +127,11 @@ const TemplateManagement: React.FC = () => {
           return await extractMedicationRecordTemplateFormat(file);
         case 'personal-medication-list':
           return await extractPersonalMedicationListTemplateFormat(file);
+        case 'annual-health-checkup':
+          return await extractAnnualHealthCheckupTemplateFormat(file);
         case 'personal-hygiene-record':
         case 'admission-layout':
         case 'bed-layout':
-        case 'annual-health-checkup':
           return await extractPrintFormTemplateFormat(file);
         default:
           throw new Error(`不支援的範本類型: ${type}`);

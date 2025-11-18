@@ -43,7 +43,7 @@ interface AdvancedFilters {
 }
 
 const AnnualHealthCheckup: React.FC = () => {
-  const { annualHealthCheckups, patients, deleteAnnualHealthCheckup, loading } = usePatients();
+  const { annualHealthCheckups, patients, deleteAnnualHealthCheckup, loading, templates } = usePatients();
   const [showModal, setShowModal] = useState(false);
   const [selectedCheckup, setSelectedCheckup] = useState<AnnualHealthCheckup | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -346,24 +346,52 @@ const AnnualHealthCheckup: React.FC = () => {
     }
 
     try {
+      const annualHealthCheckupTemplate = templates.find(t => t.template_type === 'annual_health_checkup');
+      if (!annualHealthCheckupTemplate) {
+        alert('請先在範本管理中上傳「年度體檢報告書」範本');
+        return;
+      }
+
+      const personalMedicationListTemplate = templates.find(t => t.template_type === 'personal_medication_list');
+      const includePersonalMedicationList = !!personalMedicationListTemplate;
+
+      if (includePersonalMedicationList && !personalMedicationListTemplate) {
+        console.warn('未找到個人藥物記錄範本，將不包含個人藥物記錄工作表');
+      }
+
       const exportData = selectedCheckups.map(checkup => {
         const patient = patients.find(p => p.院友id === checkup.patient_id);
+        const prescriptions = patient ? patient.prescriptions?.filter((p: any) => p.status === 'active') || [] : [];
+
         return {
-          ...checkup,
-          院友: {
+          checkup,
+          patient: {
+            院友id: patient?.院友id,
             床號: patient?.床號 || '',
             中文姓氏: patient?.中文姓氏 || '',
             中文名字: patient?.中文名字 || '',
+            英文姓氏: patient?.英文姓氏,
+            英文名字: patient?.英文名字,
+            英文姓名: patient?.英文姓名,
             性別: patient?.性別 || '',
-            出生日期: patient?.出生日期 || ''
-          }
+            出生日期: patient?.出生日期 || '',
+            身份證號碼: patient?.身份證號碼 || ''
+          },
+          prescriptions
         };
       });
 
-      await exportAnnualHealthCheckupsToExcel(exportData);
-    } catch (error) {
+      await exportAnnualHealthCheckupsToExcel(
+        exportData,
+        annualHealthCheckupTemplate,
+        personalMedicationListTemplate,
+        includePersonalMedicationList
+      );
+
+      alert(`成功匯出 ${selectedCheckups.length} 筆年度體檢報告書`);
+    } catch (error: any) {
       console.error('匯出年度體檢記錄失敗:', error);
-      alert('匯出失敗，請重試');
+      alert('匯出失敗：' + (error.message || '請重試'));
     }
   };
 

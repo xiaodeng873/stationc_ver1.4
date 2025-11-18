@@ -320,7 +320,7 @@ const getFrequencyDescription = (prescription: any): string => {
   }
 };
 
-const applyPersonalMedicationListTemplate = async (
+export const applyPersonalMedicationListTemplate = async (
   worksheet: ExcelJS.Worksheet,
   template: ExtractedTemplate,
   patient: any,
