@@ -602,6 +602,18 @@ export const exportAnnualHealthCheckupsToExcel = async (
       const p5Sheet = workbook.addWorksheet('P5');
       applyP5Template(p5Sheet, templateFormat.p5);
 
+      workbook.properties.printOptions = {
+        printArea: undefined
+      };
+
+      workbook.worksheets.forEach(sheet => {
+        sheet.pageSetup = {
+          ...sheet.pageSetup,
+          printArea: undefined,
+          fitToPage: false
+        };
+      });
+
       const filename = `${patient.床號}_${patient.中文姓氏}${patient.中文名字}_年度體檢報告書_${today}.xlsx`;
 
       const buffer = await workbook.xlsx.writeBuffer();
