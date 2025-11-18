@@ -1109,19 +1109,84 @@ function handleSupabaseError(error: any, operation: string): void {
   console.error(`Error ${operation}:`, error);
 }
 
-export const getHealthRecords = async (): Promise<HealthRecord[]> => {
-  const { data, error } = await supabase
+export interface HealthRecordFilters {
+  院友id?: number;
+  記錄類型?: string;
+  開始日期?: string;
+  結束日期?: string;
+  limit?: number;
+}
+
+export const getHealthRecords = async (filters?: HealthRecordFilters): Promise<HealthRecord[]> => {
+  let query = supabase
     .from('健康記錄主表')
-    .select('*')
+    .select('*', { count: 'exact' });
+
+  if (filters?.院友id) {
+    query = query.eq('院友id', filters.院友id);
+  }
+
+  if (filters?.記錄類型) {
+    query = query.eq('記錄類型', filters.記錄類型);
+  }
+
+  if (filters?.開始日期) {
+    query = query.gte('記錄日期', filters.開始日期);
+  }
+
+  if (filters?.結束日期) {
+    query = query.lte('記錄日期', filters.結束日期);
+  }
+
+  query = query
     .order('記錄日期', { ascending: false })
     .order('記錄時間', { ascending: false });
+
+  if (filters?.limit) {
+    query = query.limit(filters.limit);
+  }
+
+  const { data, error, count } = await query;
 
   if (error) {
     console.error('Error fetching health records:', error);
     throw error;
   }
 
+  console.log(`✅ 成功載入 ${data?.length || 0} 筆健康記錄${count ? ` (總計: ${count})` : ''}`);
+
   return data || [];
+};
+
+export const getAllHealthRecordsWithPagination = async (
+  page: number = 1,
+  pageSize: number = 1000
+): Promise<{ data: HealthRecord[]; total: number; hasMore: boolean }> => {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const { data, error, count } = await supabase
+    .from('健康記錄主表')
+    .select('*', { count: 'exact' })
+    .order('記錄日期', { ascending: false })
+    .order('記錄時間', { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    console.error('Error fetching health records with pagination:', error);
+    throw error;
+  }
+
+  const total = count || 0;
+  const hasMore = to < total - 1;
+
+  console.log(`✅ 載入第 ${page} 頁: ${data?.length || 0} 筆 (共 ${total} 筆, 還有更多: ${hasMore})`);
+
+  return {
+    data: data || [],
+    total,
+    hasMore
+  };
 };
 
 export const createHealthRecord = async (record: Omit<HealthRecord, '記錄id'>): Promise<HealthRecord> => {

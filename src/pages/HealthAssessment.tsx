@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Heart,
   Plus,
@@ -33,6 +33,7 @@ import { exportVitalSignsToExcel, type VitalSignExportData } from '../utils/vita
 import { exportBloodSugarToExcel, type BloodSugarExportData } from '../utils/bloodSugarExcelGenerator';
 import PatientTooltip from '../components/PatientTooltip';
 import { getFormattedEnglishName } from '../utils/nameFormatter';
+import { getAllHealthRecordsWithPagination, type HealthRecord } from '../lib/database';
 
 type RecordType = '生命表徵' | '血糖控制' | '體重控制' | 'all';
 type SortField = '記錄日期' | '記錄時間' | '院友姓名' | '記錄類型' | '體重' | '血糖值' | '血壓';
@@ -51,9 +52,9 @@ interface AdvancedFilters {
 
 const HealthAssessment: React.FC = () => {
   const {
-    healthRecords,
+    healthRecords: contextHealthRecords,
     patients,
-    loading,
+    loading: contextLoading,
     deleteHealthRecord,
     generateRandomTemperaturesForActivePatients,
     recordDailyTemperatureGenerationCompletion,
@@ -61,6 +62,11 @@ const HealthAssessment: React.FC = () => {
     findDuplicateHealthRecords,
     batchDeleteDuplicateRecords
   } = usePatients();
+
+  const [localHealthRecords, setLocalHealthRecords] = useState<HealthRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [hasMoreRecords, setHasMoreRecords] = useState(false);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -76,11 +82,11 @@ const HealthAssessment: React.FC = () => {
   const [isAnalyzingDuplicates, setIsAnalyzingDuplicates] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(1000);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
     床號: '',
     中文姓名: '',
-    記錄類型: '', // 修復：預設為空字串
+    記錄類型: '',
     記錄人員: '',
     備註: '',
     startDate: '',
@@ -88,15 +94,41 @@ const HealthAssessment: React.FC = () => {
     在住狀態: '在住'
   });
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
-  // 添加調試函數來檢查數據載入
-  const debugDataLoading = async () => {
+
+  const healthRecords = localHealthRecords.length > 0 ? localHealthRecords : contextHealthRecords;
+  const loading = isLoadingRecords || contextLoading;
+  const loadHealthRecordsWithPagination = useCallback(async () => {
+    setIsLoadingRecords(true);
     try {
-      console.log('開始調試數據載入...');
- CC
+      console.log(`🔄 載入第 ${currentPage} 頁健康記錄 (每頁 ${pageSize} 筆)...`);
+
+      const result = await getAllHealthRecordsWithPagination(currentPage, pageSize);
+
+      setLocalHealthRecords(result.data);
+      setTotalRecords(result.total);
+      setHasMoreRecords(result.hasMore);
+
+      console.log(`✅ 成功載入 ${result.data.length} 筆記錄 (總計: ${result.total} 筆)`);
+
+      const stats = {
+        總記錄數: result.data.length,
+        生命表徵: result.data.filter(r => r.記錄類型 === '生命表徵').length,
+        血糖控制: result.data.filter(r => r.記錄類型 === '血糖控制').length,
+        體重控制: result.data.filter(r => r.記錄類型 === '體重控制').length,
+        有體重數值: result.data.filter(r => r.體重 != null).length
+      };
+      console.log('📊 記錄類型分布:', stats);
+
     } catch (error) {
-      console.error('調試數據載入失敗:', error);
+      console.error('❌ 載入健康記錄失敗:', error);
+    } finally {
+      setIsLoadingRecords(false);
     }
-  };
+  }, [currentPage, pageSize]);
+
+  useEffect(() => {
+    loadHealthRecordsWithPagination();
+  }, [loadHealthRecordsWithPagination]);
 
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingTemperature, setIsGeneratingTemperature] = useState(false);
@@ -355,18 +387,25 @@ const HealthAssessment: React.FC = () => {
 
   // Pagination logic
   const totalItems = sortedRecords.length;
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
+  const displayPageSize = 50;
+  const totalPages = Math.ceil(totalItems / displayPageSize);
+  const startIndex = (currentPage - 1) * displayPageSize;
+  const endIndex = startIndex + displayPageSize;
   const paginatedRecords = sortedRecords.slice(startIndex, endIndex);
 
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize);
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
     setCurrentPage(1);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const loadMoreRecords = () => {
+    const nextPage = Math.floor(localHealthRecords.length / 1000) + 1;
+    setPageSize(nextPage * 1000);
   };
 
   const generatePageNumbers = () => {
@@ -1364,21 +1403,24 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
       {totalItems > 0 && (
         <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 shadow-lg z-10">
           <div className="flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-700">每頁顯示:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="form-input text-sm w-20"
-              >
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-                <option value={150}>150</option>
-                <option value={200}>200</option>
-                <option value={500}>500</option>
-                <option value={999999}>全部</option>
-              </select>
-              <span className="text-sm text-gray-700">筆記錄</span>
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-700">
+                顯示 <span className="font-semibold">{startIndex + 1}</span> 至 <span className="font-semibold">{Math.min(endIndex, totalItems)}</span> 筆
+                {totalRecords > 0 && (
+                  <span className="ml-2">
+                    (已載入 <span className="font-semibold text-blue-600">{localHealthRecords.length}</span> / 總計 <span className="font-semibold text-blue-600">{totalRecords}</span> 筆)
+                  </span>
+                )}
+              </div>
+              {hasMoreRecords && (
+                <button
+                  onClick={loadMoreRecords}
+                  disabled={isLoadingRecords}
+                  className="btn-secondary text-sm py-1 px-3"
+                >
+                  {isLoadingRecords ? '載入中...' : `載入更多記錄 (+1000 筆)`}
+                </button>
+              )}
             </div>
             
             {totalPages > 1 && (
