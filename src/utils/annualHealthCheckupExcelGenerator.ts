@@ -557,7 +557,13 @@ export const exportAnnualHealthCheckupsToExcel = async (
     const templateFormat = annualHealthCheckupTemplate.extracted_format as AnnualHealthCheckupTemplateFormat;
 
     if (!templateFormat.p1 || !templateFormat.p2 || !templateFormat.p3 || !templateFormat.p4 || !templateFormat.p5) {
-      throw new Error('範本格式不完整：缺少必要的工作表格式');
+      const missingSheets = [];
+      if (!templateFormat.p1) missingSheets.push('P1');
+      if (!templateFormat.p2) missingSheets.push('P2');
+      if (!templateFormat.p3) missingSheets.push('P3');
+      if (!templateFormat.p4) missingSheets.push('P4');
+      if (!templateFormat.p5) missingSheets.push('P5');
+      throw new Error(`範本格式不完整：缺少工作表 ${missingSheets.join(', ')}。\n\n請到「範本管理」頁面重新上傳「安老院住客體格檢驗報告書」範本。\n範本檔案必須包含 P1-P5 共5個工作表。`);
     }
 
     let personalMedFormat: any = null;
