@@ -428,6 +428,20 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
             </div>
           </div>
 
+          {formData.在住狀態 === '已退住' && (
+            <div>
+              <label className="form-label">退住日期</label>
+              <input
+                type="date"
+                name="退住日期"
+                value={formData.退住日期}
+                onChange={handleChange}
+                className="form-input"
+                disabled
+              />
+            </div>
+          )}
+
           <div>
             <label className="form-label">在住狀態</label>
             <div>
