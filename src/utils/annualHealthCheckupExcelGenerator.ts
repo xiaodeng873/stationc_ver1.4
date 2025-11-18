@@ -10,6 +10,14 @@ interface ExtractedTemplate {
   rowHeights: number[];
   mergedCells: string[];
   printSettings?: Partial<ExcelJS.PageSetup>;
+  headerFooter?: {
+    oddHeader?: string;
+    oddFooter?: string;
+    evenHeader?: string;
+    evenFooter?: string;
+    firstHeader?: string;
+    firstFooter?: string;
+  };
   cellData: {
     [address: string]: {
       value?: any;
@@ -79,6 +87,17 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
 
   if (worksheet.pageSetup) {
     extractedTemplate.printSettings = { ...worksheet.pageSetup };
+  }
+
+  if (worksheet.headerFooter) {
+    extractedTemplate.headerFooter = {
+      oddHeader: worksheet.headerFooter.oddHeader,
+      oddFooter: worksheet.headerFooter.oddFooter,
+      evenHeader: worksheet.headerFooter.evenHeader,
+      evenFooter: worksheet.headerFooter.evenFooter,
+      firstHeader: worksheet.headerFooter.firstHeader,
+      firstFooter: worksheet.headerFooter.firstFooter
+    };
   }
 
   try {
@@ -274,6 +293,26 @@ const applyTemplateFormat = (
 
   if (template.printSettings) {
     worksheet.pageSetup = { ...template.printSettings };
+  }
+
+  if (template.headerFooter) {
+    worksheet.headerFooter = {
+      oddHeader: template.headerFooter.oddHeader,
+      oddFooter: template.headerFooter.oddFooter,
+      evenHeader: template.headerFooter.evenHeader,
+      evenFooter: template.headerFooter.evenFooter,
+      firstHeader: template.headerFooter.firstHeader,
+      firstFooter: template.headerFooter.firstFooter
+    };
+  }
+
+  if (template.pageBreaks) {
+    if (template.pageBreaks.rowBreaks && template.pageBreaks.rowBreaks.length > 0) {
+      worksheet.rowBreaks = template.pageBreaks.rowBreaks.map(br => ({ id: br, max: 16383, man: true }));
+    }
+    if (template.pageBreaks.colBreaks && template.pageBreaks.colBreaks.length > 0) {
+      worksheet.colBreaks = template.pageBreaks.colBreaks.map(br => ({ id: br, max: 1048575, man: true }));
+    }
   }
 };
 
@@ -601,18 +640,6 @@ export const exportAnnualHealthCheckupsToExcel = async (
 
       const p5Sheet = workbook.addWorksheet('P5');
       applyP5Template(p5Sheet, templateFormat.p5);
-
-      workbook.properties.printOptions = {
-        printArea: undefined
-      };
-
-      workbook.worksheets.forEach(sheet => {
-        sheet.pageSetup = {
-          ...sheet.pageSetup,
-          printArea: undefined,
-          fitToPage: false
-        };
-      });
 
       const filename = `${patient.床號}_${patient.中文姓氏}${patient.中文名字}_年度體檢報告書_${today}.xlsx`;
 
