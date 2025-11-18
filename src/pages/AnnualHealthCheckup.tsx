@@ -44,7 +44,7 @@ interface AdvancedFilters {
 }
 
 const AnnualHealthCheckup: React.FC = () => {
-  const { annualHealthCheckups, patients, deleteAnnualHealthCheckup, loading } = usePatients();
+  const { annualHealthCheckups, patients, prescriptions, deleteAnnualHealthCheckup, loading } = usePatients();
   const [showModal, setShowModal] = useState(false);
   const [selectedCheckup, setSelectedCheckup] = useState<AnnualHealthCheckup | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -370,7 +370,7 @@ const AnnualHealthCheckup: React.FC = () => {
 
       const exportData = selectedCheckups.map(checkup => {
         const patient = patients.find(p => p.院友id === checkup.patient_id);
-        const prescriptions = patient ? patient.prescriptions || [] : [];
+        const patientPrescriptions = patient ? prescriptions.filter(p => p.patient_id === patient.院友id) : [];
 
         return {
           checkup,
@@ -386,11 +386,14 @@ const AnnualHealthCheckup: React.FC = () => {
             出生日期: patient?.出生日期 || '',
             身份證號碼: patient?.身份證號碼 || ''
           },
-          prescriptions
+          prescriptions: patientPrescriptions
         };
       });
 
       console.log('準備匯出資料:', exportData.length, '筆記錄');
+      exportData.forEach((data, index) => {
+        console.log(`院友 ${index + 1}: ${data.patient.中文姓氏}${data.patient.中文名字}, 處方數量: ${data.prescriptions.length}`, data.prescriptions);
+      });
 
       await exportAnnualHealthCheckupsToExcel(
         exportData,
