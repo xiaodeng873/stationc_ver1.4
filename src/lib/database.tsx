@@ -1110,18 +1110,37 @@ function handleSupabaseError(error: any, operation: string): void {
 }
 
 export const getHealthRecords = async (): Promise<HealthRecord[]> => {
-  const { data, error } = await supabase
-    .from('健康記錄主表')
-    .select('*')
-    .order('記錄日期', { ascending: false })
-    .order('記錄時間', { ascending: false });
+  const pageSize = 1000;
+  let allRecords: HealthRecord[] = [];
+  let page = 0;
+  let hasMore = true;
 
-  if (error) {
-    console.error('Error fetching health records:', error);
-    throw error;
+  while (hasMore) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, error } = await supabase
+      .from('健康記錄主表')
+      .select('*')
+      .order('記錄日期', { ascending: false })
+      .order('記錄時間', { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      console.error('Error fetching health records:', error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allRecords = [...allRecords, ...data];
+      hasMore = data.length === pageSize;
+      page++;
+    } else {
+      hasMore = false;
+    }
   }
 
-  return data || [];
+  return allRecords;
 };
 
 export const createHealthRecord = async (record: Omit<HealthRecord, '記錄id'>): Promise<HealthRecord> => {
