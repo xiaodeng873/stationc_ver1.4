@@ -75,7 +75,6 @@ const HealthAssessment: React.FC = () => {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchRecordType, setBatchRecordType] = useState<'生命表徵' | '血糖控制' | '體重控制'>('生命表徵');
-  const [debugInfo, setDebugInfo] = useState<any>(null);
   const [showDeduplicateModal, setShowDeduplicateModal] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateRecordGroup[]>([]);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
@@ -1497,39 +1496,6 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
         <RecycleBinModal
           onClose={() => setShowRecycleBin(false)}
         />
-      )}
-
-      <button
-        onClick={debugDataLoading}
-        className="btn-secondary flex items-center space-x-2"
-      >
-        <Activity className="h-4 w-4" />
-        <span>調試數據載入</span>
-      </button>
-
-      {debugInfo && (
-        <div className="card p-4 bg-yellow-50 border border-yellow-200">
-          <h3 className="text-lg font-medium text-yellow-900 mb-3">調試信息</h3>
-          <div className="space-y-2 text-sm">
-            <div>體重控制記錄數量: <strong>{debugInfo.weightRecords}</strong></div>
-            <div>資料庫中的記錄類型: <strong>{debugInfo.allTypes.join(', ')}</strong></div>
-            <div>有體重數值的記錄數量: <strong>{debugInfo.weightData}</strong></div>
-            {debugInfo.weightDataSample.length > 0 && (
-              <div>
-                <div>體重數據範例:</div>
-                <pre className="bg-white p-2 rounded text-xs overflow-x-auto">
-                  {JSON.stringify(debugInfo.weightDataSample, null, 2)}
-                </pre>
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => setDebugInfo(null)}
-            className="mt-3 text-yellow-600 hover:text-yellow-700 text-sm"
-          >
-            關閉調試信息
-          </button>
-        </div>
       )}
     </div>
   );
