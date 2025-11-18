@@ -564,6 +564,12 @@ const applyP4Template = (
     worksheet.getCell('A9').value = '☑';
   }
 
+  const a2Cell = worksheet.getCell('A2');
+  a2Cell.border = {
+    ...a2Cell.border,
+    right: { style: 'thin' }
+  };
+
   console.log('P4 工作表範本應用完成');
 };
 
