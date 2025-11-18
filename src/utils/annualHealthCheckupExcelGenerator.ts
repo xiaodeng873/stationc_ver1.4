@@ -571,7 +571,7 @@ export const exportAnnualHealthCheckupsToExcel = async (
       personalMedFormat = personalMedicationListTemplate.extracted_format;
     }
 
-    const workbook = new ExcelJS.Workbook();
+    const today = new Date().toISOString().split('T')[0];
 
     for (const data of exportData) {
       const { checkup, patient, prescriptions } = data;
@@ -579,45 +579,42 @@ export const exportAnnualHealthCheckupsToExcel = async (
 
       console.log(`\n處理院友: ${patient.床號} ${patientName}`);
 
-      const p1Sheet = workbook.addWorksheet(`${patient.床號}_P1`);
+      const workbook = new ExcelJS.Workbook();
+
+      const p1Sheet = workbook.addWorksheet('P1');
       applyP1Template(p1Sheet, templateFormat.p1, checkup, patient);
+
+      const p2Sheet = workbook.addWorksheet('P2');
+      applyP2Template(p2Sheet, templateFormat.p2, checkup);
+
+      const p3Sheet = workbook.addWorksheet('P3');
+      applyP3Template(p3Sheet, templateFormat.p3, checkup);
+
+      const p4Sheet = workbook.addWorksheet('P4');
+      applyP4Template(p4Sheet, templateFormat.p4, checkup);
+
+      const p5Sheet = workbook.addWorksheet('P5');
+      applyP5Template(p5Sheet, templateFormat.p5);
 
       if (includePersonalMedicationList && personalMedFormat && prescriptions && prescriptions.length > 0) {
         console.log('  建立個人藥物記錄工作表');
-        const medListSheet = workbook.addWorksheet(`${patient.床號}_個人藥物記錄`);
+        const medListSheet = workbook.addWorksheet('個人藥物記錄');
         await applyPersonalMedicationListTemplate(medListSheet, personalMedFormat, patient, prescriptions, 'medication_name');
       }
 
-      const p2Sheet = workbook.addWorksheet(`${patient.床號}_P2`);
-      applyP2Template(p2Sheet, templateFormat.p2, checkup);
+      const filename = `${patient.床號}_${patient.中文姓氏}${patient.中文名字}_年度體檢報告書_${today}.xlsx`;
 
-      const p3Sheet = workbook.addWorksheet(`${patient.床號}_P3`);
-      applyP3Template(p3Sheet, templateFormat.p3, checkup);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
 
-      const p4Sheet = workbook.addWorksheet(`${patient.床號}_P4`);
-      applyP4Template(p4Sheet, templateFormat.p4, checkup);
+      saveAs(blob, filename);
 
-      const p5Sheet = workbook.addWorksheet(`${patient.床號}_P5`);
-      applyP5Template(p5Sheet, templateFormat.p5);
+      console.log(`  匯出完成: ${filename}`);
     }
 
-    if (workbook.worksheets.length === 0) {
-      throw new Error('沒有可匯出的資料');
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-    const filename = exportData.length === 1
-      ? `${exportData[0].patient.床號}_${exportData[0].patient.中文姓氏}${exportData[0].patient.中文名字}_年度體檢報告書_${today}.xlsx`
-      : `年度體檢報告書_${exportData.length}位院友_${today}.xlsx`;
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    });
-
-    saveAs(blob, filename);
-
-    console.log('年度體檢報告書匯出完成:', filename);
+    console.log(`\n全部匯出完成，共 ${exportData.length} 個檔案`);
 
   } catch (error: any) {
     console.error('匯出年度體檢報告書失敗:', error);
