@@ -267,7 +267,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
 
               <div>
                 <label className="form-label">地點</label>
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
                   {locationOptions.map(option => (
                     <label key={option} className="flex items-center space-x-2">
                       <input
@@ -279,16 +279,16 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                       <span className="text-sm text-gray-700">{option}</span>
                     </label>
                   ))}
-                  {formData.location === '其他地方' && (
-                    <input
-                      type="text"
-                      value={formData.other_location}
-                      onChange={(e) => setFormData(prev => ({ ...prev, other_location: e.target.value }))}
-                      className="form-input text-sm ml-6"
-                      placeholder="請輸入其他地點..."
-                    />
-                  )}
                 </div>
+                {formData.location === '其他地方' && (
+                  <input
+                    type="text"
+                    value={formData.other_location}
+                    onChange={(e) => setFormData(prev => ({ ...prev, other_location: e.target.value }))}
+                    className="form-input text-sm mt-2"
+                    placeholder="請輸入其他地點..."
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -586,9 +586,9 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
 
               <div>
                 <label className="form-label">受傷情況（複選）</label>
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                   {injuryOptions.map(option => (
-                    <div key={option}>
+                    <div key={option} className="space-y-1">
                       <label className="flex items-center space-x-2">
                         <input
                           type="checkbox"
@@ -603,7 +603,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                           type="text"
                           value={formData.injury_situation[`${option}位置`] || ''}
                           onChange={(e) => handleCheckboxChange('injury_situation', `${option}位置`, e.target.value)}
-                          className="form-input text-sm ml-6 mt-1"
+                          className="form-input text-sm ml-6"
                           placeholder={option === '其他' ? '請詳細說明...' : '請輸入位置...'}
                         />
                       )}
@@ -625,9 +625,9 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
 
               <div>
                 <label className="form-label">即時處理（複選）</label>
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                   {treatmentOptions.map(option => (
-                    <div key={option}>
+                    <div key={option} className="space-y-1">
                       <label className="flex items-center space-x-2">
                         <input
                           type="checkbox"
@@ -642,7 +642,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                           type="text"
                           value={formData.immediate_treatment['其他說明'] || ''}
                           onChange={(e) => handleCheckboxChange('immediate_treatment', '其他說明', e.target.value)}
-                          className="form-input text-sm ml-6 mt-1"
+                          className="form-input text-sm ml-6"
                           placeholder="請詳細說明..."
                         />
                       )}
@@ -653,7 +653,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
 
               <div>
                 <label className="form-label">就診安排</label>
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
                   {medicalArrangementOptions.map(option => (
                     <label key={option} className="flex items-center space-x-2">
                       <input
@@ -810,9 +810,9 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
           {/* 院友在醫院診治情況 */}
           <div className="border rounded-lg p-4 bg-gray-50">
             <h3 className="text-lg font-medium text-gray-900 mb-4">院友在醫院診治情況</h3>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               {hospitalTreatmentOptions.map(option => (
-                <div key={option}>
+                <div key={option} className="space-y-1">
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
@@ -827,12 +827,12 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                       type="text"
                       value={formData.hospital_treatment['其他治療說明'] || ''}
                       onChange={(e) => handleCheckboxChange('hospital_treatment', '其他治療說明', e.target.value)}
-                      className="form-input text-sm ml-6 mt-1"
+                      className="form-input text-sm ml-6"
                       placeholder="請詳細說明..."
                     />
                   )}
                   {formData.hospital_treatment[option] && option === '醫院留醫' && (
-                    <div className="ml-6 mt-2 grid grid-cols-2 gap-2">
+                    <div className="ml-6 grid grid-cols-2 gap-2">
                       <input
                         type="text"
                         value={formData.hospital_admission?.hospital || ''}
@@ -865,18 +865,18 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                   )}
                 </div>
               ))}
-              {formData.hospital_treatment['返回護理院/家'] && (
-                <div>
-                  <label className="text-xs text-gray-600 ml-6">回院時間</label>
-                  <input
-                    type="time"
-                    value={formData.return_time}
-                    onChange={(e) => setFormData(prev => ({ ...prev, return_time: e.target.value }))}
-                    className="form-input text-sm ml-6"
-                  />
-                </div>
-              )}
             </div>
+            {formData.hospital_treatment['返回護理院/家'] && (
+              <div className="mt-3">
+                <label className="text-xs text-gray-600">回院時間</label>
+                <input
+                  type="time"
+                  value={formData.return_time}
+                  onChange={(e) => setFormData(prev => ({ ...prev, return_time: e.target.value }))}
+                  className="form-input text-sm"
+                />
+              </div>
+            )}
           </div>
 
           {/* 事後跟進 */}
