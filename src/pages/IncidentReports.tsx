@@ -17,7 +17,7 @@ import { usePatients, type IncidentReport } from '../context/PatientContext';
 import IncidentReportModal from '../components/IncidentReportModal';
 import PatientTooltip from '../components/PatientTooltip';
 
-type SortField = '院友姓名' | 'incident_date' | 'location' | 'created_at';
+type SortField = '院友姓名' | 'incident_date' | 'incident_type' | 'location' | 'created_at';
 type SortDirection = 'asc' | 'desc';
 
 interface AdvancedFilters {
@@ -152,6 +152,10 @@ const IncidentReports: React.FC = () => {
         valueA = a.incident_date ? new Date(a.incident_date).getTime() : 0;
         valueB = b.incident_date ? new Date(b.incident_date).getTime() : 0;
         break;
+      case 'incident_type':
+        valueA = a.incident_type || '';
+        valueB = b.incident_type || '';
+        break;
       case 'location':
         valueA = a.location || '';
         valueB = b.location || '';
@@ -247,7 +251,7 @@ const IncidentReports: React.FC = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedRows.size === paginatedReports.length) {
+    if (selectedRows.size === paginatedReports.length && paginatedReports.length > 0) {
       setSelectedRows(new Set());
     } else {
       setSelectedRows(new Set(paginatedReports.map(r => r.id)));
@@ -477,8 +481,14 @@ const IncidentReports: React.FC = () => {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
                   意外時間
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                  事故性質
+                <th
+                  className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('incident_type')}
+                >
+                  <div className="flex items-center">
+                    事故性質
+                    {renderSortIcon('incident_type')}
+                  </div>
                 </th>
                 <th
                   className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
@@ -527,8 +537,18 @@ const IncidentReports: React.FC = () => {
                       <td className="px-4 py-3">
                         {patient ? (
                           <PatientTooltip patient={patient}>
-                            <div className="flex items-center space-x-2 cursor-pointer">
-                              <User className="h-4 w-4 text-gray-400" />
+                            <div className="flex items-center space-x-3 cursor-pointer">
+                              {patient.院友相片 ? (
+                                <img
+                                  src={patient.院友相片}
+                                  alt={patient.中文姓名}
+                                  className="h-10 w-10 rounded-full object-cover border-2 border-gray-200"
+                                />
+                              ) : (
+                                <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                  <User className="h-5 w-5 text-gray-400" />
+                                </div>
+                              )}
                               <div>
                                 <div className="font-medium text-gray-900">{patient.中文姓名}</div>
                                 <div className="text-sm text-gray-500">{patient.床號}</div>
