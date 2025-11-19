@@ -53,7 +53,8 @@ const TemplateManagement: React.FC = () => {
     { value: 'personal-hygiene-record', label: '個人衛生記錄', description: '院友個人衛生護理記錄表' },
     { value: 'admission-layout', label: '入住排版', description: '院友入住相關文件排版' },
     { value: 'bed-layout', label: '床位表', description: '站點床位配置和院友分佈表' },
-    { value: 'annual-health-checkup', label: '安老院住客體格檢驗報告書', description: '年度體格檢驗報告書範本' }
+    { value: 'annual-health-checkup', label: '安老院住客體格檢驗報告書', description: '年度體格檢驗報告書範本' },
+    { value: 'incident-report', label: '意外事件報告', description: '院友意外事件記錄報告' }
   ];
 
   React.useEffect(() => {

@@ -277,6 +277,58 @@ export interface DailySystemTask {
   updated_at: string;
 }
 
+export interface IncidentReport {
+  id: string;
+  patient_id: number;
+  incident_date: string;
+  incident_time?: string;
+  incident_type: string;
+  other_incident_type?: string;
+  location?: string;
+  other_location?: string;
+  patient_activity?: string;
+  other_patient_activity?: string;
+  physical_discomfort?: any;
+  unsafe_behavior?: any;
+  environmental_factors?: any;
+  treatment_date?: string;
+  treatment_time?: string;
+  vital_signs?: any;
+  consciousness_level?: string;
+  limb_movement?: any;
+  injury_situation?: any;
+  patient_complaint?: string;
+  immediate_treatment?: any;
+  medical_arrangement?: string;
+  ambulance_call_time?: string;
+  ambulance_arrival_time?: string;
+  ambulance_departure_time?: string;
+  hospital_destination?: string;
+  family_notification_date?: string;
+  family_notification_time?: string;
+  family_name?: string;
+  family_relationship?: string;
+  other_family_relationship?: string;
+  contact_phone?: string;
+  notifying_staff_name?: string;
+  notifying_staff_position?: string;
+  hospital_treatment?: any;
+  hospital_admission?: any;
+  return_time?: string;
+  submit_to_social_welfare?: boolean;
+  submit_to_headquarters?: boolean;
+  immediate_improvement_actions?: string;
+  prevention_methods?: string;
+  reporter_signature?: string;
+  reporter_position?: string;
+  report_date?: string;
+  director_review_date?: string;
+  submit_to_headquarters_flag?: boolean;
+  submit_to_social_welfare_flag?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Drug Database types
 export interface DrugData {
   id: string;
@@ -3501,6 +3553,65 @@ export const getAnnualHealthCheckupByPatientId = async (patientId: number): Prom
   }
 
   return data;
+};
+
+export const getIncidentReports = async (): Promise<IncidentReport[]> => {
+  const { data, error } = await supabase
+    .from('incident_reports')
+    .select('*')
+    .order('incident_date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching incident reports:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createIncidentReport = async (report: Omit<IncidentReport, 'id' | 'created_at' | 'updated_at'>): Promise<IncidentReport> => {
+  const { data, error } = await supabase
+    .from('incident_reports')
+    .insert([report])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating incident report:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const updateIncidentReport = async (report: IncidentReport): Promise<IncidentReport> => {
+  const { id, created_at, updated_at, ...updateData } = report;
+
+  const { data, error } = await supabase
+    .from('incident_reports')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating incident report:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deleteIncidentReport = async (reportId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('incident_reports')
+    .delete()
+    .eq('id', reportId);
+
+  if (error) {
+    console.error('Error deleting incident report:', error);
+    throw error;
+  }
 };
 
 export default DrugModal;
