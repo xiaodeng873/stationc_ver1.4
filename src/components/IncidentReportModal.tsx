@@ -141,7 +141,14 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
     try {
       const reportData = {
         ...formData,
-        patient_id: parseInt(formData.patient_id)
+        patient_id: parseInt(formData.patient_id),
+        incident_time: formData.incident_time || null,
+        treatment_time: formData.treatment_time || null,
+        ambulance_call_time: formData.ambulance_call_time || null,
+        ambulance_arrival_time: formData.ambulance_arrival_time || null,
+        ambulance_departure_time: formData.ambulance_departure_time || null,
+        family_notification_time: formData.family_notification_time || null,
+        return_time: formData.return_time || null
       };
 
       if (report) {

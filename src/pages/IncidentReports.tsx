@@ -67,6 +67,32 @@ const IncidentReports: React.FC = () => {
     );
   }
 
+  const hasAdvancedFilters = () => {
+    return advancedFilters.床號 || advancedFilters.中文姓名 || advancedFilters.incident_type ||
+           advancedFilters.location || advancedFilters.startDate || advancedFilters.endDate ||
+           (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '在住');
+  };
+
+  const updateAdvancedFilter = (field: keyof AdvancedFilters, value: string) => {
+    setAdvancedFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setAdvancedFilters({
+      床號: '',
+      中文姓名: '',
+      incident_type: '',
+      location: '',
+      startDate: '',
+      endDate: '',
+      在住狀態: '在住'
+    });
+  };
+
   const filteredReports = incidentReports.filter(report => {
     const patient = patients.find(p => p.院友id === report.patient_id);
 
@@ -111,40 +137,77 @@ const IncidentReports: React.FC = () => {
   });
 
   const sortedReports = [...filteredReports].sort((a, b) => {
-    let aValue: any;
-    let bValue: any;
+    const patientA = patients.find(p => p.院友id === a.patient_id);
+    const patientB = patients.find(p => p.院友id === b.patient_id);
+
+    let valueA: string | number = '';
+    let valueB: string | number = '';
 
     switch (sortField) {
       case '院友姓名':
-        aValue = patients.find(p => p.院友id === a.patient_id)?.中文姓名 || '';
-        bValue = patients.find(p => p.院友id === b.patient_id)?.中文姓名 || '';
+        valueA = `${patientA?.中文姓氏 || ''}${patientA?.中文名字 || ''}`;
+        valueB = `${patientB?.中文姓氏 || ''}${patientB?.中文名字 || ''}`;
         break;
       case 'incident_date':
-        aValue = a.incident_date || '';
-        bValue = b.incident_date || '';
+        valueA = a.incident_date ? new Date(a.incident_date).getTime() : 0;
+        valueB = b.incident_date ? new Date(b.incident_date).getTime() : 0;
         break;
       case 'location':
-        aValue = a.location || '';
-        bValue = b.location || '';
+        valueA = a.location || '';
+        valueB = b.location || '';
         break;
       case 'created_at':
-        aValue = a.created_at || '';
-        bValue = b.created_at || '';
+        valueA = new Date(a.created_at).getTime();
+        valueB = new Date(b.created_at).getTime();
         break;
-      default:
-        aValue = a.incident_date || '';
-        bValue = b.incident_date || '';
     }
 
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
+    if (typeof valueA === 'string' && typeof valueB === 'string') {
+      valueA = valueA.toLowerCase();
+      valueB = valueB.toLowerCase();
+    }
+
+    if (sortDirection === 'asc') {
+      return valueA < valueB ? -1 : valueA > valueB ? 1 : 0;
+    } else {
+      return valueA > valueB ? -1 : valueA < valueB ? 1 : 0;
+    }
   });
 
-  const totalPages = Math.ceil(sortedReports.length / pageSize);
-  const paginatedReports = pageSize === 999999
-    ? sortedReports
-    : sortedReports.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const totalItems = sortedReports.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedReports = sortedReports.slice(startIndex, endIndex);
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const generatePageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      const start = Math.max(1, currentPage - 2);
+      const end = Math.min(totalPages, start + maxVisiblePages - 1);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+    }
+
+    return pages;
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -201,19 +264,6 @@ const IncidentReports: React.FC = () => {
     setSelectedRows(newSelected);
   };
 
-  const handleClearFilters = () => {
-    setAdvancedFilters({
-      床號: '',
-      中文姓名: '',
-      incident_type: '',
-      location: '',
-      startDate: '',
-      endDate: '',
-      在住狀態: '在住'
-    });
-    setSearchTerm('');
-  };
-
   const renderSortIcon = (field: SortField) => {
     if (sortField !== field) return null;
     return sortDirection === 'asc' ?
@@ -222,154 +272,183 @@ const IncidentReports: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-lg bg-red-100">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">意外事件報告</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                共 {filteredReports.length} 個報告
-                {selectedRows.size > 0 && ` • 已選擇 ${selectedRows.size} 個`}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleAdd}
-            className="btn-primary flex items-center space-x-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span>新增意外事件報告</span>
-          </button>
-        </div>
-
-        <div className="flex items-center space-x-4 mb-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="搜索院友姓名、床號、地點..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <button
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
-              showAdvancedFilters
-                ? 'bg-blue-50 border-blue-300 text-blue-700'
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <Filter className="h-4 w-4" />
-            <span>進階篩選</span>
-          </button>
-        </div>
-
-        {showAdvancedFilters && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="space-y-4">
+      {/* 標題列 */}
+      <div className="card">
+        <div className="p-4 lg:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-lg bg-red-100">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">床號</label>
+                <h1 className="text-2xl font-bold text-gray-900">意外事件報告</h1>
+                <p className="text-sm text-gray-500 mt-1">
+                  共 {totalItems} 個報告
+                  {selectedRows.size > 0 && ` • 已選擇 ${selectedRows.size} 個`}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleAdd}
+              className="btn-primary flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>新增意外事件報告</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 搜索和篩選 */}
+      <div className="sticky top-16 bg-white z-20 shadow-sm">
+        <div className="card p-4">
+          <div className="space-y-4">
+            <div className="flex flex-col lg:flex-row space-y-2 lg:space-y-0 lg:space-x-4 lg:items-center">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  value={advancedFilters.床號}
-                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, 床號: e.target.value }))}
-                  className="form-input text-sm"
-                  placeholder="輸入床號..."
+                  placeholder="搜索院友姓名、床號、地點..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="form-input pl-10"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">院友姓名</label>
-                <input
-                  type="text"
-                  value={advancedFilters.中文姓名}
-                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, 中文姓名: e.target.value }))}
-                  className="form-input text-sm"
-                  placeholder="輸入姓名..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">事故性質</label>
-                <select
-                  value={advancedFilters.incident_type}
-                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, incident_type: e.target.value }))}
-                  className="form-input text-sm"
-                >
-                  <option value="">全部</option>
-                  <option value="跌倒">跌倒</option>
-                  <option value="其他">其他</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">地點</label>
-                <select
-                  value={advancedFilters.location}
-                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, location: e.target.value }))}
-                  className="form-input text-sm"
-                >
-                  <option value="">全部</option>
-                  <option value="客廳/飯廳">客廳/飯廳</option>
-                  <option value="走廊">走廊</option>
-                  <option value="廁所">廁所</option>
-                  <option value="浴室">浴室</option>
-                  <option value="床邊">床邊</option>
-                  <option value="其他地方">其他地方</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">開始日期</label>
-                <input
-                  type="date"
-                  value={advancedFilters.startDate}
-                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                  className="form-input text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">結束日期</label>
-                <input
-                  type="date"
-                  value={advancedFilters.endDate}
-                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                  className="form-input text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">在住狀態</label>
-                <select
-                  value={advancedFilters.在住狀態}
-                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, 在住狀態: e.target.value }))}
-                  className="form-input text-sm"
-                >
-                  <option value="全部">全部</option>
-                  <option value="在住">在住</option>
-                  <option value="待入住">待入住</option>
-                  <option value="已退住">已退住</option>
-                </select>
-              </div>
-              <div className="flex items-end">
+
+              <div className="flex space-x-2">
                 <button
-                  onClick={handleClearFilters}
-                  className="btn-secondary text-sm w-full flex items-center justify-center space-x-1"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className={`btn-secondary flex items-center space-x-2 ${
+                    showAdvancedFilters ? 'bg-blue-50 text-blue-700' : ''
+                  } ${hasAdvancedFilters() ? 'border-blue-300' : ''}`}
                 >
-                  <X className="h-4 w-4" />
-                  <span>清除篩選</span>
+                  <Filter className="h-4 w-4" />
+                  <span>進階篩選</span>
+                  {hasAdvancedFilters() && (
+                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
+                      已套用
+                    </span>
+                  )}
                 </button>
+
+                {(searchTerm || hasAdvancedFilters()) && (
+                  <button
+                    onClick={clearFilters}
+                    className="btn-secondary flex items-center space-x-2 text-red-600 hover:text-red-700"
+                  >
+                    <X className="h-4 w-4" />
+                    <span>清除</span>
+                  </button>
+                )}
               </div>
             </div>
-          </div>
-        )}
 
+            {showAdvancedFilters && (
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-sm font-medium text-gray-900 mb-3">進階篩選</h3>
+
+                <div className="mb-4">
+                  <label className="form-label">意外日期區間</label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="date"
+                      value={advancedFilters.startDate}
+                      onChange={(e) => updateAdvancedFilter('startDate', e.target.value)}
+                      className="form-input"
+                      placeholder="開始日期"
+                    />
+                    <span className="text-gray-500">至</span>
+                    <input
+                      type="date"
+                      value={advancedFilters.endDate}
+                      onChange={(e) => updateAdvancedFilter('endDate', e.target.value)}
+                      className="form-input"
+                      placeholder="結束日期"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="form-label">床號</label>
+                    <input
+                      type="text"
+                      value={advancedFilters.床號}
+                      onChange={(e) => updateAdvancedFilter('床號', e.target.value)}
+                      className="form-input"
+                      placeholder="搜索床號..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label">中文姓名</label>
+                    <input
+                      type="text"
+                      value={advancedFilters.中文姓名}
+                      onChange={(e) => updateAdvancedFilter('中文姓名', e.target.value)}
+                      className="form-input"
+                      placeholder="搜索姓名..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label">事故性質</label>
+                    <select
+                      value={advancedFilters.incident_type}
+                      onChange={(e) => updateAdvancedFilter('incident_type', e.target.value)}
+                      className="form-input"
+                    >
+                      <option value="">所有類型</option>
+                      <option value="跌倒">跌倒</option>
+                      <option value="其他">其他</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="form-label">地點</label>
+                    <select
+                      value={advancedFilters.location}
+                      onChange={(e) => updateAdvancedFilter('location', e.target.value)}
+                      className="form-input"
+                    >
+                      <option value="">所有地點</option>
+                      <option value="客廳/飯廳">客廳/飯廳</option>
+                      <option value="走廊">走廊</option>
+                      <option value="廁所">廁所</option>
+                      <option value="浴室">浴室</option>
+                      <option value="床邊">床邊</option>
+                      <option value="其他地方">其他地方</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="form-label">在住狀態</label>
+                    <select
+                      value={advancedFilters.在住狀態}
+                      onChange={(e) => updateAdvancedFilter('在住狀態', e.target.value)}
+                      className="form-input"
+                    >
+                      <option value="全部">所有狀態</option>
+                      <option value="在住">在住</option>
+                      <option value="待入住">待入住</option>
+                      <option value="已退住">已退住</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 表格 */}
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-y border-gray-200">
+            <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-4 py-3 text-left">
+                <th className="px-4 py-3 text-left w-12">
                   <input
                     type="checkbox"
                     checked={selectedRows.size === paginatedReports.length && paginatedReports.length > 0}
@@ -378,18 +457,22 @@ const IncidentReports: React.FC = () => {
                   />
                 </th>
                 <th
-                  className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('院友姓名')}
                 >
-                  院友
-                  {renderSortIcon('院友姓名')}
+                  <div className="flex items-center">
+                    院友
+                    {renderSortIcon('院友姓名')}
+                  </div>
                 </th>
                 <th
-                  className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('incident_date')}
                 >
-                  意外日期
-                  {renderSortIcon('incident_date')}
+                  <div className="flex items-center">
+                    意外日期
+                    {renderSortIcon('incident_date')}
+                  </div>
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
                   意外時間
@@ -398,26 +481,29 @@ const IncidentReports: React.FC = () => {
                   事故性質
                 </th>
                 <th
-                  className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('location')}
                 >
-                  地點
-                  {renderSortIcon('location')}
+                  <div className="flex items-center">
+                    地點
+                    {renderSortIcon('location')}
+                  </div>
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
                   填報人
                 </th>
-                <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-700 w-24">
                   操作
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200 bg-white">
               {paginatedReports.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     <AlertTriangle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                    <p>暫無意外事件報告</p>
+                    <p className="text-base">暫無意外事件報告</p>
+                    <p className="text-sm mt-1">請點擊上方按鈕新增報告</p>
                   </td>
                 </tr>
               ) : (
@@ -504,18 +590,18 @@ const IncidentReports: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+      {/* 分頁控制 */}
+      {totalItems > 0 && (
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 shadow-lg z-10">
+          <div className="flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0">
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-700">每頁顯示</span>
+              <span className="text-sm text-gray-700">每頁顯示:</span>
               <select
                 value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="form-input text-sm py-1"
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="form-input text-sm w-20"
               >
                 <option value={50}>50</option>
                 <option value={100}>100</option>
@@ -524,30 +610,49 @@ const IncidentReports: React.FC = () => {
                 <option value={500}>500</option>
                 <option value={999999}>全部</option>
               </select>
-              <span className="text-sm text-gray-700">筆</span>
+              <span className="text-sm text-gray-700">筆記錄</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-              >
-                上一頁
-              </button>
-              <span className="text-sm text-gray-700">
-                第 {currentPage} / {totalPages} 頁
-              </span>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-              >
-                下一頁
-              </button>
+
+            {totalPages > 1 && (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  上一頁
+                </button>
+
+                {generatePageNumbers().map(page => (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`px-3 py-1 text-sm border rounded-md ${
+                      currentPage === page
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  下一頁
+                </button>
+              </div>
+            )}
+
+            <div className="text-sm text-gray-700">
+              第 {currentPage} 頁，共 {totalPages} 頁
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {showModal && (
         <IncidentReportModal
