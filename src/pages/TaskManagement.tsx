@@ -393,6 +393,7 @@ const TaskManagement: React.FC = () => {
       case '血糖控制': return <Droplets className="h-4 w-4" />;
       case '體重控制': return <Scale className="h-4 w-4" />;
       case '藥物自存同意書': return <FileText className="h-4 w-4" />;
+      case '晚晴計劃': return <FileText className="h-4 w-4" />;
       default: return <CheckSquare className="h-4 w-4" />;
     }
   };
@@ -403,6 +404,7 @@ const TaskManagement: React.FC = () => {
       case '血糖控制': return 'bg-red-100 text-red-800';
       case '體重控制': return 'bg-green-100 text-green-800';
       case '藥物自存同意書': return 'bg-gray-100 text-gray-800';
+      case '晚晴計劃': return 'bg-pink-100 text-pink-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -603,6 +605,7 @@ const TaskManagement: React.FC = () => {
                     </optgroup>
                     <optgroup label="文件任務">
                       <option value="藥物自存同意書">藥物自存同意書</option>
+                      <option value="晚晴計劃">晚晴計劃</option>
                     </optgroup>
                   </select>
                 </div>

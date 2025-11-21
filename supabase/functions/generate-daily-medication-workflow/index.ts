@@ -110,20 +110,24 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
+      // 處方結束日期包含整天（直到23:59:59），只有在結束日期之後才算過期
       if (endDateStr && targetDateStr > endDateStr) {
         console.log(`❌ 跳過：目標日期超出處方有效期 (${targetDateStr} > ${endDateStr})`);
 
-        // 刪除該處方在此日期及之後的所有工作流程記錄
+        // 刪除該處方在結束日期之後的所有工作流程記錄
+        const nextDay = new Date(new Date(endDateStr).getTime() + 24 * 60 * 60 * 1000)
+          .toISOString().split('T')[0];
+
         const { error: deleteError } = await supabase
           .from('medication_workflow_records')
           .delete()
           .eq('prescription_id', prescription.id)
-          .gte('scheduled_date', targetDateStr);
+          .gte('scheduled_date', nextDay);
 
         if (deleteError) {
           console.error(`刪除過期工作流程記錄失敗: ${deleteError.message}`);
         } else {
-          console.log(`✓ 已刪除處方 ${prescription.id} 在 ${targetDateStr} 及之後的工作流程記錄`);
+          console.log(`✓ 已刪除處方 ${prescription.id} 在 ${nextDay} 及之後的工作流程記錄`);
         }
 
         continue;
@@ -169,10 +173,13 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // 如果是結束日期當天，檢查時間點是否 <= 結束時間
-        if (endDateStr && targetDateStr === endDateStr && normalizedTimeSlot > endTime) {
-          console.log(`  ❌ 跳過：時間點晚於結束時間 (${normalizedTimeSlot} > ${endTime})`);
-          continue;
+        // 如果是結束日期當天，結束時間若未設定則視為23:59，允許整天的所有時間點
+        if (endDateStr && targetDateStr === endDateStr) {
+          const effectiveEndTime = prescription.end_time ? normalizeTime(prescription.end_time) : '23:59';
+          if (normalizedTimeSlot > effectiveEndTime) {
+            console.log(`  ❌ 跳過：時間點晚於結束時間 (${normalizedTimeSlot} > ${effectiveEndTime})`);
+            continue;
+          }
         }
 
         console.log(`  ✓ 準備生成新記錄（若重複則跳過）`);
@@ -226,9 +233,12 @@ Deno.serve(async (req: Request) => {
           else if (endDateStr && recordDate > endDateStr) {
             shouldDelete = true;
           }
-          // 檢查結束日期當天的時間
-          else if (endDateStr && recordDate === endDateStr && recordTime > endTime) {
-            shouldDelete = true;
+          // 檢查結束日期當天的時間（結束時間若未設定則視為23:59）
+          else if (endDateStr && recordDate === endDateStr) {
+            const effectiveEndTime = prescription.end_time ? normalizeTime(prescription.end_time) : '23:59';
+            if (recordTime > effectiveEndTime) {
+              shouldDelete = true;
+            }
           }
 
           if (shouldDelete) {

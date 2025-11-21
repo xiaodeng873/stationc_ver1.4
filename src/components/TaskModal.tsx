@@ -35,6 +35,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
       case '約束物品同意書':
       case '藥物自存同意書':
         return { unit: 'monthly', value: 6 };
+      case '晚晴計劃':
+        return { unit: 'yearly', value: 1 };
       default:
         return { unit: 'monthly', value: 1 };
     }
@@ -198,6 +200,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
       case '血糖控制': return <Droplets className="h-5 w-5" />;
       case '體重控制': return <Scale className="h-5 w-5" />;
       case '藥物自存同意書': return <FileText className="h-5 w-5" />;
+      case '晚晴計劃': return <FileText className="h-5 w-5" />;
       default: return <CheckSquare className="h-5 w-5" />;
     }
   };
@@ -208,6 +211,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
       case '血糖控制': return 'text-red-600';
       case '體重控制': return 'text-green-600';
       case '藥物自存同意書': return 'text-gray-600';
+      case '晚晴計劃': return 'text-pink-600';
       default: return 'text-purple-600';
     }
   };
@@ -279,17 +283,18 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
                 </optgroup>
                 <optgroup label="文件任務">
                   <option value="藥物自存同意書">藥物自存同意書</option>
+                  <option value="晚晴計劃">晚晴計劃</option>
                 </optgroup>
               </select>
             </div>
           </div>
 
           {/* 文件任務的上次醫生簽署日期 */}
-          {formData.health_record_type === '藥物自存同意書' && (
+          {(formData.health_record_type === '藥物自存同意書' || formData.health_record_type === '晚晴計劃') && (
             <div>
               <label className="form-label">
                 <Calendar className="h-4 w-4 inline mr-1" />
-                {formData.health_record_type === '藥物自存同意書' ? '上次簽署日期' : '上次醫生簽署日期'}
+                上次醫生簽署日期
               </label>
               <input
                 type="date"
@@ -299,9 +304,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
                 className="form-input"
               />
               <p className="text-xs text-gray-500 mt-1">
-                {formData.health_record_type === '藥物自存同意書' 
-                  ? '設定上次簽署此文件的日期，系統將根據此日期計算下次到期時間'
-                  : '設定上次醫生簽署此文件的日期，系統將根據此日期計算下次到期時間'}
+                設定上次醫生簽署此文件的日期，系統將根據此日期計算下次到期時間
+                {formData.health_record_type === '晚晴計劃' && ' （預設每年一次，到期前一個月會在主面板提醒）'}
               </p>
             </div>
           )}

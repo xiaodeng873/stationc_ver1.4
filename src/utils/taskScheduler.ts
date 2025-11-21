@@ -2,7 +2,7 @@ import type { PatientHealthTask, FrequencyUnit } from '../lib/database';
 
 // 判斷是否為文件任務
 export function isDocumentTask(taskType: string): boolean {
-  return taskType === '藥物自存同意書';
+  return taskType === '藥物自存同意書' || taskType === '晚晴計劃';
 }
 
 // 判斷是否為監測任務
@@ -13,6 +13,11 @@ export function isMonitoringTask(taskType: string): boolean {
 // 判斷是否為護理任務
 export function isNursingTask(taskType: string): boolean {
   return taskType === '尿導管更換' || taskType === '鼻胃飼管更換' || taskType === '傷口換症';
+}
+
+// 判斷是否為晚晴計劃任務
+export function isEveningCarePlanTask(taskType: string): boolean {
+  return taskType === '晚晴計劃';
 }
 
 export function calculateNextDueDate(task: PatientHealthTask, fromDate?: Date): Date {
