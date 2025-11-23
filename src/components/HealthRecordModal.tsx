@@ -330,7 +330,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     // 檢查記錄日期是否早於當前日期
     const currentDate = getCurrentHongKongDate();
     const recordDate = formData.記錄日期;
-    
+
     if (recordDate < currentDate && !isDateWarningConfirmed) {
       setShowDateWarningModal(true);
       return;
@@ -341,6 +341,11 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       setIsDateWarningConfirmed(false);
     }
 
+    await saveRecord();
+  };
+
+  // 獨立的儲存邏輯
+  const saveRecord = async () => {
     const recordData = {
       院友id: parseInt(formData.院友id),
       記錄日期: formData.記錄日期,
@@ -382,15 +387,11 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   };
 
   // 處理日期警告確認
-  const handleDateWarningConfirm = () => {
-    setIsDateWarningConfirmed(true);
+  const handleDateWarningConfirm = async () => {
     setShowDateWarningModal(false);
-    // 重新觸發提交
-    const form = document.querySelector('form');
-    if (form) {
-      const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
-      form.dispatchEvent(submitEvent);
-    }
+    setIsDateWarningConfirmed(true);
+    // 直接調用儲存邏輯，避免異步狀態問題
+    await saveRecord();
   };
 
   const handleDateWarningCancel = () => {
