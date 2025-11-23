@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { X, AlertTriangle, Calendar, User, FileText, Activity } from 'lucide-react';
+import { X, AlertTriangle, Calendar, User, FileText, Activity, Download } from 'lucide-react';
 import { usePatients, type IncidentReport } from '../context/PatientContext';
 import PatientAutocomplete from './PatientAutocomplete';
+import { generateIncidentReportWord } from '../utils/incidentReportWordGenerator';
+import { getTemplatesMetadata } from '../lib/database';
 
 interface IncidentReportModalProps {
   report?: IncidentReport;
@@ -115,6 +117,8 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
     });
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -169,6 +173,53 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
     } catch (error) {
       console.error('儲存意外事件報告失敗:', error);
       alert('儲存意外事件報告失敗，請重試');
+    }
+  };
+
+  const handleExportWord = async () => {
+    if (!report) {
+      alert('請先儲存報告後再匯出');
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      // 查找院友資料
+      const patient = patients.find(p => p.院友id === report.patient_id);
+      if (!patient) {
+        alert('找不到院友資料');
+        return;
+      }
+
+      // 獲取意外事件報告範本
+      const templates = await getTemplatesMetadata();
+      const incidentTemplate = templates.find(t => t.type === 'incident-report');
+
+      if (!incidentTemplate) {
+        alert('找不到意外事件報告範本，請先在範本管理中上傳 Word 範本');
+        return;
+      }
+
+      // 下載範本檔案
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/templates/${incidentTemplate.storage_path}`
+      );
+
+      if (!response.ok) {
+        throw new Error('無法載入範本檔案');
+      }
+
+      const templateArrayBuffer = await response.arrayBuffer();
+
+      // 生成 Word 文件
+      await generateIncidentReportWord(report, patient, templateArrayBuffer);
+
+    } catch (error) {
+      console.error('匯出 Word 失敗:', error);
+      alert(`匯出失敗：${error instanceof Error ? error.message : '未知錯誤'}`);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -1037,9 +1088,30 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
 
           {/* 提交按鈕 */}
           <div className="flex space-x-3 pt-4 border-t border-gray-200">
+            {report && (
+              <button
+                type="button"
+                onClick={handleExportWord}
+                disabled={isExporting}
+                className="btn-secondary flex items-center justify-center space-x-2"
+              >
+                {isExporting ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
+                    <span>匯出中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    <span>匯出Word</span>
+                  </>
+                )}
+              </button>
+            )}
             <button
               type="submit"
               className="btn-primary flex-1"
+              disabled={isExporting}
             >
               {report ? '更新意外事件報告' : '新增意外事件報告'}
             </button>
@@ -1047,6 +1119,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
               type="button"
               onClick={onClose}
               className="btn-secondary flex-1"
+              disabled={isExporting}
             >
               取消
             </button>

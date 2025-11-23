@@ -11,11 +11,15 @@ import {
   MapPin,
   ChevronUp,
   ChevronDown,
-  X
+  X,
+  Download,
+  FileText
 } from 'lucide-react';
 import { usePatients, type IncidentReport } from '../context/PatientContext';
 import IncidentReportModal from '../components/IncidentReportModal';
 import PatientTooltip from '../components/PatientTooltip';
+import { generateIncidentReportWord } from '../utils/incidentReportWordGenerator';
+import { getTemplatesMetadata, downloadTemplateFile } from '../lib/database';
 
 type SortField = '院友姓名' | 'incident_date' | 'incident_type' | 'location' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -51,6 +55,7 @@ const IncidentReports: React.FC = () => {
     在住狀態: '在住'
   });
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [exportingIds, setExportingIds] = useState<Set<string>>(new Set());
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -247,6 +252,52 @@ const IncidentReports: React.FC = () => {
           return newSet;
         });
       }
+    }
+  };
+
+  const handleExportWord = async (report: IncidentReport) => {
+    setExportingIds(prev => new Set(prev).add(report.id));
+
+    try {
+      // 查找院友資料
+      const patient = patients.find(p => p.院友id === report.patient_id);
+      if (!patient) {
+        alert('找不到院友資料');
+        return;
+      }
+
+      // 獲取意外事件報告範本
+      const templates = await getTemplatesMetadata();
+      const incidentTemplate = templates.find(t => t.type === 'incident-report');
+
+      if (!incidentTemplate) {
+        alert('找不到意外事件報告範本，請先在範本管理中上傳 Word 範本');
+        return;
+      }
+
+      // 下載範本檔案
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/templates/${incidentTemplate.storage_path}`
+      );
+
+      if (!response.ok) {
+        throw new Error('無法載入範本檔案');
+      }
+
+      const templateArrayBuffer = await response.arrayBuffer();
+
+      // 生成 Word 文件
+      await generateIncidentReportWord(report, patient, templateArrayBuffer);
+
+    } catch (error) {
+      console.error('匯出 Word 失敗:', error);
+      alert(`匯出失敗：${error instanceof Error ? error.message : '未知錯誤'}`);
+    } finally {
+      setExportingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(report.id);
+        return newSet;
+      });
     }
   };
 
@@ -520,6 +571,7 @@ const IncidentReports: React.FC = () => {
                 paginatedReports.map(report => {
                   const patient = patients.find(p => p.院友id === report.patient_id);
                   const isDeleting = deletingIds.has(report.id);
+                  const isExporting = exportingIds.has(report.id);
 
                   return (
                     <tr
@@ -586,10 +638,22 @@ const IncidentReports: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center space-x-2">
                           <button
+                            onClick={() => handleExportWord(report)}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                            title="匯出Word"
+                            disabled={isDeleting || isExporting}
+                          >
+                            {isExporting ? (
+                              <div className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button
                             onClick={() => handleEdit(report)}
                             className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                             title="編輯"
-                            disabled={isDeleting}
+                            disabled={isDeleting || isExporting}
                           >
                             <Edit3 className="h-4 w-4" />
                           </button>
@@ -597,7 +661,7 @@ const IncidentReports: React.FC = () => {
                             onClick={() => handleDelete(report.id)}
                             className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
                             title="刪除"
-                            disabled={isDeleting}
+                            disabled={isDeleting || isExporting}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

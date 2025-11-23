@@ -15,7 +15,7 @@ import { extractMedicationRecordTemplateFormat } from '../utils/medicationRecord
 import { extractPersonalMedicationListTemplateFormat } from '../utils/personalMedicationListExcelGenerator';
 import { extractAnnualHealthCheckupTemplateFormat } from '../utils/annualHealthCheckupExcelGenerator';
 
-type TemplateType = 'waiting-list' | 'prescription' | 'medication-record' | 'personal-medication-list' | 'consent-form' | 'vital-signs' | 'blood-sugar' | 'weight-control' | 'follow-up-list' | 'restraint-observation' | 'diaper-change-record' | 'personal-hygiene-record' | 'admission-layout' | 'annual-health-checkup';
+type TemplateType = 'waiting-list' | 'prescription' | 'medication-record' | 'personal-medication-list' | 'consent-form' | 'vital-signs' | 'blood-sugar' | 'weight-control' | 'follow-up-list' | 'restraint-observation' | 'diaper-change-record' | 'personal-hygiene-record' | 'admission-layout' | 'annual-health-checkup' | 'incident-report';
 
 interface TemplateMetadata {
   id: number;
@@ -144,9 +144,17 @@ const TemplateManagement: React.FC = () => {
   };
 
   const handleFileUpload = async (file: File) => {
-    if (!file.name.match(/\.(xlsx|xls)$/i)) {
-      alert('請選擇 Excel 檔案 (.xlsx 或 .xls)');
-      return;
+    // 意外事件報告範本允許 Word 檔案
+    if (selectedType === 'incident-report') {
+      if (!file.name.match(/\.(docx)$/i)) {
+        alert('意外事件報告範本請選擇 Word 檔案 (.docx)');
+        return;
+      }
+    } else {
+      if (!file.name.match(/\.(xlsx|xls)$/i)) {
+        alert('請選擇 Excel 檔案 (.xlsx 或 .xls)');
+        return;
+      }
     }
 
     if (file.size > 50 * 1024 * 1024) { // 50MB limit
@@ -176,12 +184,19 @@ const TemplateManagement: React.FC = () => {
       setUploading(true);
       setUploadProgress({ [uploadId]: 0 });
 
-      // Step 1: Extract template format
+      // Step 1: Extract template format (skip for Word templates)
       console.log('第1步: 提取範本格式...');
       setUploadProgress({ [uploadId]: 20 });
-      
-      const extractedFormat = await extractTemplateFormatByType(file, selectedType);
-      console.log('範本格式提取完成:', extractedFormat);
+
+      let extractedFormat: any = {};
+      if (selectedType === 'incident-report') {
+        // Word 範本不需要提取格式，直接儲存檔案
+        console.log('Word 範本，跳過格式提取');
+        extractedFormat = { type: 'word', format: 'docx' };
+      } else {
+        extractedFormat = await extractTemplateFormatByType(file, selectedType);
+        console.log('範本格式提取完成:', extractedFormat);
+      }
 
       // Step 2: Upload file to storage
       console.log('第2步: 上傳檔案到儲存空間...');
@@ -317,7 +332,8 @@ const TemplateManagement: React.FC = () => {
       'personal-hygiene-record': 'bg-lime-100 text-lime-800',
       'personal-medication-list': 'bg-violet-100 text-violet-800',
       'admission-layout': 'bg-amber-100 text-amber-800',
-      'bed-layout': 'bg-emerald-100 text-emerald-800'
+      'bed-layout': 'bg-emerald-100 text-emerald-800',
+      'incident-report': 'bg-rose-100 text-rose-800'
     };
     return colorMap[type] || 'bg-gray-100 text-gray-800';
   };
@@ -394,7 +410,7 @@ const TemplateManagement: React.FC = () => {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xlsx,.xls"
+            accept={selectedType === 'incident-report' ? '.docx' : '.xlsx,.xls'}
             onChange={handleFileInput}
             className="hidden"
             disabled={uploading}
@@ -402,7 +418,7 @@ const TemplateManagement: React.FC = () => {
         </div>
 
         <div className="mt-4 text-sm text-gray-600">
-          <p><strong>支援格式：</strong>Excel 檔案 (.xlsx, .xls)</p>
+          <p><strong>支援格式：</strong>{selectedType === 'incident-report' ? 'Word 檔案 (.docx)' : 'Excel 檔案 (.xlsx, .xls)'}</p>
           <p><strong>檔案大小限制：</strong>最大 50MB</p>
           <p><strong>注意事項：</strong>上傳的範本將用於自動生成對應的文件格式</p>
         </div>
