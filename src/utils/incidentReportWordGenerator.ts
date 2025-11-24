@@ -370,9 +370,20 @@ export const generateIncidentReportWord = async (
       if (docError.properties && docError.properties.errors) {
         console.error('範本錯誤詳情:', docError.properties.errors);
         const errorMessages = docError.properties.errors.map((err: any) => {
-          return `${err.message} (位置: ${err.part || '未知'})`;
+          let msg = err.message || '未知錯誤';
+          if (err.properties) {
+            if (err.properties.id === 'unopened_tag') {
+              msg = `標籤未開啟: {${err.properties.xtag}}`;
+            } else if (err.properties.id === 'unclosed_tag') {
+              msg = `標籤未閉合: {${err.properties.xtag}}`;
+            } else if (err.properties.id === 'closing_tag_does_not_match_opening_tag') {
+              msg = `標籤不匹配: 開啟 {${err.properties.openingtag}} 但閉合 {${err.properties.closingtag}}`;
+            }
+          }
+          const location = err.properties?.offset ? `字元位置 ${err.properties.offset}` : '未知位置';
+          return `${msg} (${location})`;
         }).join('\n');
-        throw new Error(`範本格式錯誤:\n${errorMessages}`);
+        throw new Error(`範本格式錯誤，請檢查 Word 範本:\n${errorMessages}\n\n提示：請確保所有 {標籤} 都正確閉合`);
       }
       throw docError;
     }
@@ -391,11 +402,22 @@ export const generateIncidentReportWord = async (
     } catch (renderError: any) {
       // 顯示詳細的模板錯誤
       if (renderError.properties && renderError.properties.errors) {
-        console.error('範本錯誤詳情:', renderError.properties.errors);
+        console.error('範本渲染錯誤詳情:', renderError.properties.errors);
         const errorMessages = renderError.properties.errors.map((err: any) => {
-          return `${err.message} (位置: ${err.part || '未知'})`;
+          let msg = err.message || '未知錯誤';
+          if (err.properties) {
+            if (err.properties.id === 'multi_error') {
+              msg = '多個錯誤';
+            } else if (err.properties.id === 'unopened_tag') {
+              msg = `標籤未開啟: {${err.properties.xtag}}`;
+            } else if (err.properties.id === 'unclosed_tag') {
+              msg = `標籤未閉合: {${err.properties.xtag}}`;
+            }
+          }
+          const part = err.properties?.part || '未知位置';
+          return `${msg} (位置: ${part})`;
         }).join('\n');
-        throw new Error(`範本格式錯誤:\n${errorMessages}`);
+        throw new Error(`範本渲染失敗:\n${errorMessages}\n\n提示：請檢查 Word 範本中的標籤語法`);
       }
       throw renderError;
     }
