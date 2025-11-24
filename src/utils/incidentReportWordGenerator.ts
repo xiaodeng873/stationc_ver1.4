@@ -363,8 +363,19 @@ export const convertIncidentReportToTemplateData = (
   data['預防方法'] = report.prevention_methods || '';
 
   // 二十、呈報
-  data['呈報社會福利署'] = (report.submit_to_social_welfare || report.submit_to_social_welfare_flag) ? '☑' : '☐';
-  data['呈報總部'] = (report.submit_to_headquarters || report.submit_to_headquarters_flag) ? '☑' : '☐';
+  // 1. 呈交「特別事故報告」予社署安老院牌照事務處
+  const submitToSocialWelfare = report.submit_to_social_welfare || report.submit_to_social_welfare_flag;
+  data['社署報告_需要'] = submitToSocialWelfare ? '☑' : '☐';
+  data['社署報告_不需要'] = submitToSocialWelfare ? '☐' : '☑';
+
+  // 2. 呈交「特別事故報告」(1)副本或「特別事故報告」(院舍存檔用)予總部
+  const submitToHeadquarters = report.submit_to_headquarters || report.submit_to_headquarters_flag;
+  data['總部報告_需要'] = submitToHeadquarters ? '☑' : '☐';
+  data['總部報告_不需要'] = submitToHeadquarters ? '☐' : '☑';
+
+  // 保留舊的佔位符以向後兼容
+  data['呈報社會福利署'] = submitToSocialWelfare ? '☑' : '☐';
+  data['呈報總部'] = submitToHeadquarters ? '☑' : '☐';
 
   // 二十一、簽署資訊
   data['填報人簽名'] = report.reporter_signature || '';
