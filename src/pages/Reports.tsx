@@ -370,7 +370,7 @@ const Reports: React.FC = () => {
 
       {/* 第四行: 買位/長者等統計 */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">買位/長者/住護等統計</h3>
+        <h3 className="text-lg font-semibold mb-4">入住類型統計</h3>
         <div className="grid grid-cols-4 gap-4">
           <StatCard title="買位" value={dailyReportData.admissionTypeStats.買位.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.admissionTypeStats.買位.names} />
           <StatCard title="私位" value={dailyReportData.admissionTypeStats.私位.count} bgColor="bg-green-50" textColor="text-green-600" patientNames={dailyReportData.admissionTypeStats.私位.names} />
