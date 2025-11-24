@@ -132,10 +132,8 @@ const Reports: React.FC = () => {
     });
 
     const ngTubePatients = activePatients.filter(p => {
-      return (patientHealthTasks || []).some(task =>
-        task.patient_id === p.院友id &&
-        task.task_type === '鼻胃飼更換'
-      );
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
+      return assessment?.treatment_items?.includes('鼻胃管');
     });
 
     const catheterPatients = activePatients.filter(p => {
@@ -166,17 +164,17 @@ const Reports: React.FC = () => {
 
     const dialysisPatients = activePatients.filter(p => {
       const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
-      return assessment?.治療項目?.腹膜透析 || assessment?.治療項目?.血液透析;
+      return assessment?.treatment_items?.includes('腹膜/血液透析');
     });
 
     const oxygenPatients = activePatients.filter(p => {
       const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
-      return assessment?.治療項目?.氧氣治療;
+      return assessment?.treatment_items?.includes('氧氣治療');
     });
 
     const stomaPatients = activePatients.filter(p => {
       const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
-      return assessment?.治療項目?.腸造口 || assessment?.治療項目?.小便造口;
+      return assessment?.treatment_items?.includes('腸造口') || assessment?.treatment_items?.includes('小便造口');
     });
 
     const infectionControlPatients = activePatients.filter(p =>
