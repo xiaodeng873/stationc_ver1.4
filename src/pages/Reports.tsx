@@ -233,7 +233,7 @@ const Reports: React.FC = () => {
         壓瘡: { count: pressureUlcerPatients.length, names: pressureUlcerPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
         腹膜血液透析: { count: dialysisPatients.length, names: dialysisPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
         氧氣治療: { count: oxygenPatients.length, names: oxygenPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
-        小便造口: { count: stomaPatients.length, names: stomaPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        造口: { count: stomaPatients.length, names: stomaPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
         感染控制: { count: infectionControlPatients.length, names: infectionControlPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
         使用約束物品: { count: restraintPatients.length, names: restraintPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
       },
@@ -337,33 +337,11 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
-      {/* 第二行: 本區過去24小時新收院法 */}
+      {/* 第二行: 本區過去24小時 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">本區過去 24 小時</h3>
         <div className="grid grid-cols-4 gap-4">
           <StatCard title="過去 24 小時新收" value={dailyReportData.newAdmissions.count} subtitle={`男: ${dailyReportData.newAdmissions.男} | 女: ${dailyReportData.newAdmissions.女}`} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.newAdmissions.names} />
-          <StatCard
-            title="當日退住"
-            value={dailyReportData.discharge.total}
-            subtitle={`男: ${dailyReportData.discharge.男} | 女: ${dailyReportData.discharge.女}`}
-            bgColor="bg-orange-50"
-            textColor="text-orange-600"
-            patientNames={dailyReportData.discharge.names}
-          />
-          <StatCard
-            title="當月累積死亡"
-            value={dailyReportData.monthlyDeaths.count}
-            bgColor="bg-gray-50"
-            textColor="text-gray-600"
-            patientNames={dailyReportData.monthlyDeaths.names}
-          />
-        </div>
-      </div>
-
-      {/* 第三行: 過去24小時死亡人數 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">過去 24 小時死亡人數</h3>
-        <div className="grid grid-cols-3 gap-4">
           <StatCard
             title="過去 24 小時死亡"
             value={dailyReportData.death.total}
@@ -371,6 +349,13 @@ const Reports: React.FC = () => {
             bgColor="bg-red-50"
             textColor="text-red-600"
             patientNames={dailyReportData.death.names}
+          />
+          <StatCard
+            title="當月累積死亡"
+            value={dailyReportData.monthlyDeaths.count}
+            bgColor="bg-gray-50"
+            textColor="text-gray-600"
+            patientNames={dailyReportData.monthlyDeaths.names}
           />
         </div>
       </div>
