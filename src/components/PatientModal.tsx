@@ -33,6 +33,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
     護理等級: patient?.護理等級 || '',
     入住類型: patient?.入住類型 || '',
     社會福利: patient?.社會福利 || { type: '', subtype: '' },
+    discharge_reason: patient?.discharge_reason || '',
+    death_date: patient?.death_date || '',
+    transfer_facility_name: patient?.transfer_facility_name || '',
   });
   const [photoPreview, setPhotoPreview] = useState<string | null>(patient?.院友相片 || null);
   const [isUploading, setIsUploading] = useState(false);
@@ -444,32 +447,44 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
 
               <div>
                 <label className="form-label">退住原因</label>
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <span className="text-sm font-medium text-gray-700">
-                    {patient?.discharge_reason || '未設定'}
-                  </span>
-                </div>
+                <select
+                  name="discharge_reason"
+                  value={formData.discharge_reason}
+                  onChange={handleChange}
+                  className="form-input"
+                >
+                  <option value="">請選擇</option>
+                  <option value="死亡">死亡</option>
+                  <option value="回家">回家</option>
+                  <option value="留醫">留醫</option>
+                  <option value="轉往其他機構">轉往其他機構</option>
+                </select>
               </div>
 
-              {patient?.discharge_reason === '死亡' && (
+              {formData.discharge_reason === '死亡' && (
                 <div>
                   <label className="form-label">死亡日期</label>
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <span className="text-sm font-medium text-red-800">
-                      {patient?.death_date ? new Date(patient.death_date).toLocaleDateString('zh-TW') : '未設定'}
-                    </span>
-                  </div>
+                  <input
+                    type="date"
+                    name="death_date"
+                    value={formData.death_date}
+                    onChange={handleChange}
+                    className="form-input"
+                  />
                 </div>
               )}
 
-              {patient?.discharge_reason === '轉往其他機構' && (
+              {formData.discharge_reason === '轉往其他機構' && (
                 <div>
                   <label className="form-label">轉往機構名稱</label>
-                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                    <span className="text-sm font-medium text-purple-800">
-                      {patient?.transfer_facility_name || '未設定'}
-                    </span>
-                  </div>
+                  <input
+                    type="text"
+                    name="transfer_facility_name"
+                    value={formData.transfer_facility_name}
+                    onChange={handleChange}
+                    className="form-input"
+                    placeholder="請輸入機構名稱"
+                  />
                 </div>
               )}
             </div>
