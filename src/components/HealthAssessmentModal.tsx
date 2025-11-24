@@ -1024,7 +1024,7 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
                     <option value="正常">正常</option>
                     <option value="間歇性失禁">間歇性失禁</option>
                     <option value="完全失禁">完全失禁</option>
-                    <option value="造口">造口</option>
+                    <option value="小便造口">小便造口</option>
                     <option value="導尿管">導尿管</option>
                     <option value="需要輔助器">需要輔助器</option>
                   </select>
