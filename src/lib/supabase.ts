@@ -14,9 +14,8 @@ console.log('✅ Supabase 配置驗證成功');
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    autoRefreshToken: true,
+    autoRefreshToken: false,
     persistSession: true,
-    detectSessionInUrl: false,
-    flowType: 'pkce'
+    detectSessionInUrl: false
   }
 });

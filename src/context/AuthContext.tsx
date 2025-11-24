@@ -5,7 +5,13 @@ import { getSupabaseUrl, getSupabaseAnonKey } from '../config/supabase.config';
 const supabaseUrl = getSupabaseUrl();
 const supabaseAnonKey = getSupabaseAnonKey();
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: true,
+    detectSessionInUrl: false
+  }
+});
 
 interface AuthContextType {
   user: User | null;
@@ -39,28 +45,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setDisplayName(getUserDisplayName(session?.user ?? null));
-      setLoading(false);
-      setAuthReady(true);
-    });
+    let mounted = true;
 
-    // Listen for auth changes
+    const initAuth = async () => {
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Auth timeout')), 5000)
+        );
+
+        const sessionPromise = supabase.auth.getSession();
+
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+
+        if (mounted) {
+          if (error) {
+            console.warn('Auth session error:', error);
+          }
+          setSession(session);
+          setUser(session?.user ?? null);
+          setDisplayName(getUserDisplayName(session?.user ?? null));
+          setLoading(false);
+          setAuthReady(true);
+        }
+      } catch (err) {
+        console.warn('Auth initialization error (continuing without session):', err);
+        if (mounted) {
+          setSession(null);
+          setUser(null);
+          setDisplayName(null);
+          setLoading(false);
+          setAuthReady(true);
+        }
+      }
+    };
+
+    initAuth();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setDisplayName(getUserDisplayName(session?.user ?? null));
-        setLoading(false);
-        setAuthReady(true);
+        if (mounted) {
+          console.log('Auth state changed:', event, session?.user?.email);
+          setSession(session);
+          setUser(session?.user ?? null);
+          setDisplayName(getUserDisplayName(session?.user ?? null));
+          setLoading(false);
+          setAuthReady(true);
+        }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
