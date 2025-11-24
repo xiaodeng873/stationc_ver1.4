@@ -1,16 +1,204 @@
-import React, { useState } from 'react';
-import { BarChart3, Download, Calendar, Users, FileText, Filter, Guitar as Hospital } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { BarChart3, Download, Calendar, Users, FileText, Activity, Utensils, Stethoscope, AlertCircle } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
-import { exportWaitingListToExcel } from '../utils/waitingListExcelGenerator';
-import { getFormattedEnglishName } from '../utils/nameFormatter';
+
+type ReportTab = 'daily' | 'monthly' | 'infection' | 'meal' | 'tube' | 'special';
+type TimeFilter = 'today' | 'yesterday' | 'thisMonth' | 'lastMonth';
+type StationFilter = 'all' | string;
 
 const Reports: React.FC = () => {
-  const { patients, schedules, loading } = usePatients();
-  const [dateRange, setDateRange] = useState({
-    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
-  });
-  const [selectedReport, setSelectedReport] = useState('overview');
+  const { patients, stations, healthAssessments, woundAssessments, incidentReports, patientHealthTasks, restraintAssessments, prescriptions, loading } = usePatients();
+  const [activeTab, setActiveTab] = useState<ReportTab>('daily');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
+  const [stationFilter, setStationFilter] = useState<StationFilter>('all');
+
+  // 日期計算輔助函數
+  const getDateRanges = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    return { today, yesterday, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd };
+  };
+
+  const { today, yesterday, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd } = getDateRanges();
+
+  // 過濾院友(按站點)
+  const filteredPatients = useMemo(() => {
+    if (stationFilter === 'all') return patients;
+    return patients.filter(p => p.station_id === stationFilter);
+  }, [patients, stationFilter]);
+
+  // 每日報表數據
+  const dailyReportData = useMemo(() => {
+    const targetDate = timeFilter === 'today' ? today : yesterday;
+    const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
+
+    // 社會福利分類統計
+    const socialWelfareStats = {
+      買位: activePatients.filter(p => p.社會福利?.type === '買位').length,
+      私位: activePatients.filter(p => p.社會福利?.type === '私位').length,
+      院舍劵: activePatients.filter(p => p.社會福利?.type === '院舍劵').length,
+      暫住: activePatients.filter(p => p.社會福利?.type === '暫住').length,
+    };
+
+    // 在住狀態統計(按性別)
+    const residenceStats = {
+      住在本站男: activePatients.filter(p => p.性別 === '男' && !p.is_hospitalized).length,
+      住在本站女: activePatients.filter(p => p.性別 === '女' && !p.is_hospitalized).length,
+      入住醫院男: activePatients.filter(p => p.性別 === '男' && p.is_hospitalized).length,
+      入住醫院女: activePatients.filter(p => p.性別 === '女' && p.is_hospitalized).length,
+      暫時回家男: 0, // 需要額外欄位標記
+      暫時回家女: 0,
+    };
+    residenceStats['本站總人數'] = residenceStats.住在本站男 + residenceStats.住在本站女;
+
+    // 過去24小時新入住
+    const newAdmissions = filteredPatients.filter(p => {
+      if (!p.入住日期) return false;
+      const admissionDate = new Date(p.入住日期);
+      return admissionDate >= targetDate && admissionDate < new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
+    }).length;
+
+    // 當日退住
+    const discharges = filteredPatients.filter(p => {
+      if (!p.退住日期) return false;
+      const dischargeDate = new Date(p.退住日期);
+      return dischargeDate.toDateString() === targetDate.toDateString();
+    });
+    const discharge男 = discharges.filter(p => p.性別 === '男').length;
+    const discharge女 = discharges.filter(p => p.性別 === '女').length;
+
+    // 過去24小時死亡人數
+    const deaths = filteredPatients.filter(p => {
+      if (!p.death_date || p.discharge_reason !== '死亡') return false;
+      const deathDate = new Date(p.death_date);
+      return deathDate >= targetDate && deathDate < new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
+    });
+    const death男 = deaths.filter(p => p.性別 === '男').length;
+    const death女 = deaths.filter(p => p.性別 === '女').length;
+
+    // 當月累積死亡人數
+    const monthStart = timeFilter === 'today' ? thisMonthStart : lastMonthStart;
+    const monthEnd = timeFilter === 'today' ? thisMonthEnd : lastMonthEnd;
+    const monthlyDeaths = patients.filter(p => {
+      if (!p.death_date || p.discharge_reason !== '死亡') return false;
+      const deathDate = new Date(p.death_date);
+      return deathDate >= monthStart && deathDate <= monthEnd;
+    }).length;
+
+    // 傷口和壓瘡統計
+    const woundPatients = new Set<number>();
+    const pressureUlcerPatients = new Set<number>();
+    woundAssessments.forEach(assessment => {
+      const patient = activePatients.find(p => p.院友id === assessment.patient_id);
+      if (!patient) return;
+
+      assessment.wound_details?.forEach(detail => {
+        if (detail.wound_status === '未處理' || detail.wound_status === '治療中') {
+          woundPatients.add(assessment.patient_id);
+          if (detail.wound_type === '壓力性') {
+            pressureUlcerPatients.add(assessment.patient_id);
+          }
+        }
+      });
+    });
+
+    // 健康評估相關統計
+    const ngTubeCount = activePatients.filter(p => {
+      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      return assessment?.飲食營養?.狀況 === '鼻胃管';
+    }).length;
+
+    const catheterCount = activePatients.filter(p => {
+      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      return assessment?.日常活動及自理能力?.大小便?.includes('導尿管');
+    }).length;
+
+    const dialysisCount = activePatients.filter(p => {
+      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      return assessment?.治療項目?.腹膜透析 || assessment?.治療項目?.血液透析;
+    }).length;
+
+    const oxygenCount = activePatients.filter(p => {
+      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      return assessment?.治療項目?.氧氣治療;
+    }).length;
+
+    const stomaCount = activePatients.filter(p => {
+      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      return assessment?.治療項目?.腸造口 || assessment?.治療項目?.小便造口;
+    }).length;
+
+    const infectionControlCount = activePatients.filter(p =>
+      p.感染控制 && p.感染控制.length > 0
+    ).length;
+
+    const restraintCount = restraintAssessments.filter(r => {
+      return activePatients.some(p => p.院友id === r.patient_id);
+    }).length;
+
+    // 意外統計
+    const todayIncidents = incidentReports.filter(incident => {
+      const incidentDate = new Date(incident.incident_date);
+      return incidentDate.toDateString() === targetDate.toDateString();
+    });
+
+    const medicationIncidents = todayIncidents.filter(i => i.incident_type === '藥物').length;
+    const fallIncidents = todayIncidents.filter(i => i.incident_nature === '跌倒').length;
+    const deathIncidents = deaths.length;
+
+    // 護理等級統計(按性別)
+    const fullCare男 = activePatients.filter(p => p.護理等級 === '全護理' && p.性別 === '男').length;
+    const fullCare女 = activePatients.filter(p => p.護理等級 === '全護理' && p.性別 === '女').length;
+    const semiCare男 = activePatients.filter(p => p.護理等級 === '半護理' && p.性別 === '男').length;
+    const semiCare女 = activePatients.filter(p => p.護理等級 === '半護理' && p.性別 === '女').length;
+    const convalescent男 = activePatients.filter(p => p.護理等級 === '療養級' && p.性別 === '男').length;
+    const convalescent女 = activePatients.filter(p => p.護理等級 === '療養級' && p.性別 === '女').length;
+
+    return {
+      socialWelfareStats,
+      residenceStats,
+      newAdmissions,
+      discharge: { 男: discharge男, 女: discharge女, total: discharge男 + discharge女 },
+      death: { 男: death男, 女: death女, total: death男 + death女 },
+      monthlyDeaths,
+      medical: {
+        鼻胃飼: ngTubeCount,
+        導尿管: catheterCount,
+        傷口: woundPatients.size,
+        壓瘡: pressureUlcerPatients.size,
+        腹膜血液透析: dialysisCount,
+        氧氣治療: oxygenCount,
+        造口: stomaCount,
+        感染控制: infectionControlCount,
+        使用約束物品: restraintCount,
+      },
+      incidents: {
+        藥物: medicationIncidents,
+        跌倒: fallIncidents,
+        死亡: deathIncidents,
+      },
+      careLevel: {
+        全護理男: fullCare男,
+        全護理女: fullCare女,
+        全護理總: fullCare男 + fullCare女,
+        半護理男: semiCare男,
+        半護理女: semiCare女,
+        半護理總: semiCare男 + semiCare女,
+        療養級男: convalescent男,
+        療養級女: convalescent女,
+        療養級總: convalescent男 + convalescent女,
+      },
+    };
+  }, [filteredPatients, timeFilter, healthAssessments, woundAssessments, incidentReports, restraintAssessments, today, yesterday, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd]);
 
   if (loading) {
     return (
@@ -22,460 +210,230 @@ const Reports: React.FC = () => {
       </div>
     );
   }
-  const handleDownloadReport = (reportType: string) => {
-    handleExportReportToExcel(reportType);
-  };
 
-  const handleExportReportToExcel = async (reportType: string) => {
-    try {
-      const reportData = getReportData(reportType);
-      let exportData: any[] = [];
-      let title = '';
-      let filename = '';
+  const renderDailyReport = () => (
+    <div className="space-y-6">
+      {/* 時間和站點篩選 */}
+      <div className="flex space-x-4">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setTimeFilter('today')}
+            className={`px-4 py-2 rounded-lg ${timeFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            當日
+          </button>
+          <button
+            onClick={() => setTimeFilter('yesterday')}
+            className={`px-4 py-2 rounded-lg ${timeFilter === 'yesterday' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            昨日
+          </button>
+        </div>
+        <select
+          value={stationFilter}
+          onChange={(e) => setStationFilter(e.target.value)}
+          className="form-input"
+        >
+          <option value="all">全部站點</option>
+          {stations.map(station => (
+            <option key={station.id} value={station.id}>{station.name}</option>
+          ))}
+        </select>
+      </div>
 
-      if (reportType === 'schedules') {
-        title = `排程報表 (${dateRange.start} 至 ${dateRange.end})`;
-        filename = `排程報表_${new Date().toISOString().split('T')[0]}.xlsx`;
-        
-        exportData = (reportData as any[]).flatMap(schedule => 
-          schedule.院友列表.map((item: any) => ({
-            床號: item.院友主表.床號,
-            中文姓名: `${item.院友主表.中文姓氏}${item.院友主表.中文名字}`,
-            英文姓名: getFormattedEnglishName(item.院友主表.英文姓氏, item.院友主表.英文名字) || item.院友主表.英文姓名,
-            性別: item.院友主表.性別 || '',
-            身份證號碼: item.院友主表.身份證號碼 || '',
-            出生日期: item.院友主表.出生日期 ? new Date(item.院友主表.出生日期).toLocaleDateString('zh-TW') : '',
-            看診原因: item.看診原因.join(', ') || '',
-            症狀說明: item.症狀說明 || '',
-            藥物敏感: item.院友主表.藥物敏感 || '無',
-            不良藥物反應: item.院友主表.不良藥物反應 || '無',
-            備註: item.備註 || '',
-            到診日期: schedule.到診日期
-          }))
-        );
-        
-        await exportWaitingListToExcel(exportData, filename, title);
-        
-      } else {
-        // 院友報表或總覽報表
-        title = reportType === 'patients' ? '院友報表' : '總覽報表';
-        filename = `${title}_${new Date().toISOString().split('T')[0]}.xlsx`;
-        
-        exportData = patients.map(patient => ({
-          床號: patient.床號,
-          中文姓名: `${patient.中文姓氏}${patient.中文名字}`,
-          英文姓名: getFormattedEnglishName(patient.英文姓氏, patient.英文名字) || patient.英文姓名,
-          性別: patient.性別 || '',
-          身份證號碼: patient.身份證號碼 || '',
-          出生日期: patient.出生日期 ? new Date(patient.出生日期).toLocaleDateString('zh-TW') : '',
-          看診原因: '',
-          症狀說明: '',
-          藥物敏感: patient.藥物敏感 || '無',
-          不良藥物反應: patient.不良藥物反應 || '無',
-          備註: ''
-        }));
-        
-        await exportWaitingListToExcel(exportData, filename, title);
-      }
+      {/* 社會福利統計 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">社會福利分類</h3>
+        <div className="grid grid-cols-4 gap-4">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">買位</p>
+            <p className="text-2xl font-bold text-blue-600">{dailyReportData.socialWelfareStats.買位}</p>
+          </div>
+          <div className="bg-green-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">私位</p>
+            <p className="text-2xl font-bold text-green-600">{dailyReportData.socialWelfareStats.私位}</p>
+          </div>
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">院舍劵</p>
+            <p className="text-2xl font-bold text-purple-600">{dailyReportData.socialWelfareStats.院舍劵}</p>
+          </div>
+          <div className="bg-orange-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">暫住</p>
+            <p className="text-2xl font-bold text-orange-600">{dailyReportData.socialWelfareStats.暫住}</p>
+          </div>
+        </div>
+      </div>
 
+      {/* 在住狀態統計 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">在住狀態</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-green-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">住在本站</p>
+            <p className="text-xs text-gray-500">男: {dailyReportData.residenceStats.住在本站男} | 女: {dailyReportData.residenceStats.住在本站女}</p>
+            <p className="text-2xl font-bold text-green-600">{dailyReportData.residenceStats.本站總人數}</p>
+          </div>
+          <div className="bg-red-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">入住醫院</p>
+            <p className="text-xs text-gray-500">男: {dailyReportData.residenceStats.入住醫院男} | 女: {dailyReportData.residenceStats.入住醫院女}</p>
+            <p className="text-2xl font-bold text-red-600">{dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女}</p>
+          </div>
+          <div className="bg-yellow-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">暫時回家</p>
+            <p className="text-xs text-gray-500">男: {dailyReportData.residenceStats.暫時回家男} | 女: {dailyReportData.residenceStats.暫時回家女}</p>
+            <p className="text-2xl font-bold text-yellow-600">{dailyReportData.residenceStats.暫時回家男 + dailyReportData.residenceStats.暫時回家女}</p>
+          </div>
+        </div>
+      </div>
 
-    } catch (error) {
-      console.error('匯出失敗:', error);
-      alert('匯出失敗，請重試');
-    }
-  };
+      {/* 入住退住統計 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">入住/退住/死亡</h3>
+        <div className="grid grid-cols-4 gap-4">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">過去24小時新入住</p>
+            <p className="text-2xl font-bold text-blue-600">{dailyReportData.newAdmissions}</p>
+          </div>
+          <div className="bg-orange-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">當日退住</p>
+            <p className="text-xs text-gray-500">男: {dailyReportData.discharge.男} | 女: {dailyReportData.discharge.女}</p>
+            <p className="text-2xl font-bold text-orange-600">{dailyReportData.discharge.total}</p>
+          </div>
+          <div className="bg-red-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">過去24小時死亡</p>
+            <p className="text-xs text-gray-500">男: {dailyReportData.death.男} | 女: {dailyReportData.death.女}</p>
+            <p className="text-2xl font-bold text-red-600">{dailyReportData.death.total}</p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">當月累積死亡</p>
+            <p className="text-2xl font-bold text-gray-600">{dailyReportData.monthlyDeaths}</p>
+          </div>
+        </div>
+      </div>
 
-  const getReportData = (reportType: string) => {
-    const startDate = new Date(dateRange.start);
-    const endDate = new Date(dateRange.end);
-    
-    switch (reportType) {
-      case 'schedules':
-        return schedules.filter(s => {
-          const scheduleDate = new Date(s.到診日期);
-          return scheduleDate >= startDate && scheduleDate <= endDate;
-        });
-      case 'patients':
-        return patients;
-      default:
-        return { patients, schedules };
-    }
-  };
+      {/* 醫療項目統計 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">醫療項目</h3>
+        <div className="grid grid-cols-5 gap-4">
+          {Object.entries(dailyReportData.medical).map(([key, value]) => (
+            <div key={key} className="bg-indigo-50 p-4 rounded-lg">
+              <p className="text-sm text-gray-600">{key}</p>
+              <p className="text-2xl font-bold text-indigo-600">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
-  const filteredSchedules = schedules.filter(s => {
-    const scheduleDate = new Date(s.到診日期);
-    return scheduleDate >= new Date(dateRange.start) && scheduleDate <= new Date(dateRange.end);
-  });
+      {/* 意外統計 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">意外事件</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-yellow-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">藥物</p>
+            <p className="text-2xl font-bold text-yellow-600">{dailyReportData.incidents.藥物}</p>
+          </div>
+          <div className="bg-orange-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">跌倒</p>
+            <p className="text-2xl font-bold text-orange-600">{dailyReportData.incidents.跌倒}</p>
+          </div>
+          <div className="bg-red-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">死亡</p>
+            <p className="text-2xl font-bold text-red-600">{dailyReportData.incidents.死亡}</p>
+          </div>
+        </div>
+      </div>
 
-
-  const stats = {
-    totalPatients: patients.length,
-    hospitalizedPatients: patients.filter(p => p.is_hospitalized).length,
-    totalSchedules: filteredSchedules.length,
-    patientsWithSchedules: filteredSchedules.reduce((sum, s) => sum + s.院友列表.length, 0),
-    activePatients: patients.filter(p => p.在住狀態 === '在住').length,
-    dischargedPatients: patients.filter(p => p.在住狀態 === '已退住').length,
-    // 在住院友的護理等級和性別統計
-    在住全護理男: patients.filter(p => p.在住狀態 === '在住' && p.護理等級 === '全護理' && p.性別 === '男').length,
-    在住全護理女: patients.filter(p => p.在住狀態 === '在住' && p.護理等級 === '全護理' && p.性別 === '女').length,
-    在住半護理男: patients.filter(p => p.在住狀態 === '在住' && p.護理等級 === '半護理' && p.性別 === '男').length,
-    在住半護理女: patients.filter(p => p.在住狀態 === '在住' && p.護理等級 === '半護理' && p.性別 === '女').length,
-    在住自理男: patients.filter(p => p.在住狀態 === '在住' && p.護理等級 === '自理' && p.性別 === '男').length,
-    在住自理女: patients.filter(p => p.在住狀態 === '在住' && p.護理等級 === '自理' && p.性別 === '女').length,
-    // 入院留醫統計（在住且入院中）
-    入院留醫男: patients.filter(p => p.在住狀態 === '在住' && p.is_hospitalized && p.性別 === '男').length,
-    入院留醫女: patients.filter(p => p.在住狀態 === '在住' && p.is_hospitalized && p.性別 === '女').length,
-    // 暫住統計（在住且入住類型為暫住）
-    暫住男: patients.filter(p => p.在住狀態 === '在住' && p.入住類型 === '暫住' && p.性別 === '男').length,
-    暫住女: patients.filter(p => p.在住狀態 === '在住' && p.入住類型 === '暫住' && p.性別 === '女').length,
-    // 入住類型統計（僅在住院友）
-    在住私位: patients.filter(p => p.在住狀態 === '在住' && p.入住類型 === '私位').length,
-    在住買位: patients.filter(p => p.在住狀態 === '在住' && p.入住類型 === '買位').length,
-    在住院舍卷: patients.filter(p => p.在住狀態 === '在住' && p.入住類型 === '院舍卷').length,
-    nursingLevels: {
-      全護理: patients.filter(p => p.護理等級 === '全護理').length,
-      半護理: patients.filter(p => p.護理等級 === '半護理').length,
-      自理: patients.filter(p => p.護理等級 === '自理').length
-    },
-    admissionTypes: {
-      私位: patients.filter(p => p.入住類型 === '私位').length,
-      買位: patients.filter(p => p.入住類型 === '買位').length,
-      院舍卷: patients.filter(p => p.入住類型 === '院舍卷').length,
-      暫住: patients.filter(p => p.入住類型 === '暫住').length
-    },
-    socialWelfare: {
-      綜合社會保障援助: patients.filter(p => p.社會福利?.type === '綜合社會保障援助').length,
-      公共福利金計劃: patients.filter(p => p.社會福利?.type === '公共福利金計劃').length
-    }
-  };
-
-  const reportTypes = [
-    { id: 'overview', name: '總覽報表', icon: BarChart3 },
-    { id: 'schedules', name: '排程報表', icon: Calendar },
-    { id: 'patients', name: '院友報表', icon: Users }
-  ];
+      {/* 護理等級統計 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">護理等級</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-red-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">全護理</p>
+            <p className="text-xs text-gray-500">男: {dailyReportData.careLevel.全護理男} | 女: {dailyReportData.careLevel.全護理女}</p>
+            <p className="text-2xl font-bold text-red-600">{dailyReportData.careLevel.全護理總}</p>
+          </div>
+          <div className="bg-yellow-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">半護理</p>
+            <p className="text-xs text-gray-500">男: {dailyReportData.careLevel.半護理男} | 女: {dailyReportData.careLevel.半護理女}</p>
+            <p className="text-2xl font-bold text-yellow-600">{dailyReportData.careLevel.半護理總}</p>
+          </div>
+          <div className="bg-green-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">療養級</p>
+            <p className="text-xs text-gray-500">男: {dailyReportData.careLevel.療養級男} | 女: {dailyReportData.careLevel.療養級女}</p>
+            <p className="text-2xl font-bold text-green-600">{dailyReportData.careLevel.療養級總}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">報表查詢</h1>
-        <button
-          onClick={() => handleDownloadReport(selectedReport)}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>匯出報表</span>
-        </button>
-      </div>
-
-      {/* Date Range Filter */}
-      <div className="card p-4">
-        <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
-          <div className="flex items-center space-x-2">
-            <Calendar className="h-4 w-4 text-gray-500" />
-            <span className="text-sm text-gray-700">日期範圍:</span>
-          </div>
-          <input
-            type="date"
-            value={dateRange.start}
-            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-            className="form-input"
-          />
-          <span className="text-gray-500">至</span>
-          <input
-            type="date"
-            value={dateRange.end}
-            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-            className="form-input"
-          />
-        </div>
-      </div>
-
-      {/* Report Type Selection */}
-      <div className="card p-4">
-        <div className="flex flex-wrap gap-2">
-          {reportTypes.map(type => {
-            const Icon = type.icon;
-            return (
-              <button
-                key={type.id}
-                onClick={() => setSelectedReport(type.id)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                  selectedReport === type.id
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{type.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Statistics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">總院友數</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalPatients}</p>
-              <p className="text-xs text-gray-500">在住: {stats.activePatients} | 已退住: {stats.dischargedPatients} | 入院中: {stats.hospitalizedPatients}</p>
-            </div>
-            <Users className="h-8 w-8 text-blue-600" />
-          </div>
-        </div>
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">入院中院友</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.hospitalizedPatients}</p>
-              <p className="text-xs text-gray-500">目前在醫院接受治療</p>
-            </div>
-            <Hospital className="h-8 w-8 text-red-600" />
-          </div>
-        </div>
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">排程數量</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalSchedules}</p>
-            </div>
-            <Calendar className="h-8 w-8 text-green-600" />
-          </div>
-        </div>
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">預約院友</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.patientsWithSchedules}</p>
-            </div>
-            <BarChart3 className="h-8 w-8 text-orange-600" />
+    <div className="p-6">
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <BarChart3 className="h-8 w-8 text-blue-600" />
+            <h1 className="text-2xl font-bold text-gray-900">統計報表</h1>
           </div>
         </div>
       </div>
 
-      {/* Additional Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">在住院友護理等級分布</h3>
-          <div className="space-y-3">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-red-800 mb-2">全護理</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-red-600">男性</span>
-                  <span className="font-medium text-red-700">{stats.在住全護理男}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-red-600">女性</span>
-                  <span className="font-medium text-red-700">{stats.在住全護理女}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-yellow-800 mb-2">半護理</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-yellow-600">男性</span>
-                  <span className="font-medium text-yellow-700">{stats.在住半護理男}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-yellow-600">女性</span>
-                  <span className="font-medium text-yellow-700">{stats.在住半護理女}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-green-800 mb-2">自理</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-green-600">男性</span>
-                  <span className="font-medium text-green-700">{stats.在住自理男}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-green-600">女性</span>
-                  <span className="font-medium text-green-700">{stats.在住自理女}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">在住院友入住類型分布</h3>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">私位</span>
-              <span className="text-sm font-medium text-purple-600">{stats.在住私位}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">買位</span>
-              <span className="text-sm font-medium text-blue-600">{stats.在住買位}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">院舍卷</span>
-              <span className="text-sm font-medium text-green-600">{stats.在住院舍卷}</span>
-            </div>
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-orange-800 mb-2">暫住</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-orange-600">男性</span>
-                  <span className="font-medium text-orange-700">{stats.暫住男}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-orange-600">女性</span>
-                  <span className="font-medium text-orange-700">{stats.暫住女}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">入院留醫統計</h3>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-red-600">男性</span>
-                <span className="font-medium text-red-700">{stats.入院留醫男}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-red-600">女性</span>
-                <span className="font-medium text-red-700">{stats.入院留醫女}</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between border-t border-red-200 pt-2 mt-2">
-              <span className="text-sm text-red-600 font-medium">總計</span>
-              <span className="text-sm font-bold text-red-700">{stats.入院留醫男 + stats.入院留醫女}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">社會福利分布</h3>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">綜合社會保障援助</span>
-              <span className="text-sm font-medium text-blue-600">{stats.socialWelfare.綜合社會保障援助}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">公共福利金計劃</span>
-              <span className="text-sm font-medium text-green-600">{stats.socialWelfare.公共福利金計劃}</span>
-            </div>
-          </div>
+      {/* 報表類型標籤 */}
+      <div className="mb-6 border-b border-gray-200">
+        <div className="flex space-x-1">
+          <button
+            onClick={() => setActiveTab('daily')}
+            className={`px-4 py-2 font-medium ${activeTab === 'daily' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          >
+            <Calendar className="h-4 w-4 inline mr-1" />
+            每日報表
+          </button>
+          <button
+            onClick={() => setActiveTab('monthly')}
+            className={`px-4 py-2 font-medium ${activeTab === 'monthly' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          >
+            <FileText className="h-4 w-4 inline mr-1" />
+            每月報表
+          </button>
+          <button
+            onClick={() => setActiveTab('infection')}
+            className={`px-4 py-2 font-medium ${activeTab === 'infection' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          >
+            <AlertCircle className="h-4 w-4 inline mr-1" />
+            感染控制報表
+          </button>
+          <button
+            onClick={() => setActiveTab('meal')}
+            className={`px-4 py-2 font-medium ${activeTab === 'meal' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          >
+            <Utensils className="h-4 w-4 inline mr-1" />
+            餐膳報表
+          </button>
+          <button
+            onClick={() => setActiveTab('tube')}
+            className={`px-4 py-2 font-medium ${activeTab === 'tube' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          >
+            <Stethoscope className="h-4 w-4 inline mr-1" />
+            喉管相關報表
+          </button>
+          <button
+            onClick={() => setActiveTab('special')}
+            className={`px-4 py-2 font-medium ${activeTab === 'special' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          >
+            <Activity className="h-4 w-4 inline mr-1" />
+            特別關顧名單
+          </button>
         </div>
       </div>
 
-      {/* Report Content */}
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          {reportTypes.find(t => t.id === selectedReport)?.name}
-        </h2>
-        
-        {selectedReport === 'overview' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-medium text-gray-900 mb-2">性別分布</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">男性</span>
-                    <span className="text-sm font-medium">{patients.filter(p => p.性別 === '男').length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">女性</span>
-                    <span className="text-sm font-medium">{patients.filter(p => p.性別 === '女').length}</span>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <h3 className="font-medium text-gray-900 mb-2">看診原因統計</h3>
-                <div className="space-y-2">
-                  {['申訴不適', '約束物品同意書', '年度體檢', '其他'].map(reason => {
-                    const count = filteredSchedules.reduce((sum, s) => 
-                      sum + s.院友列表.filter(p => p.看診原因 && p.看診原因.includes(reason)).length, 0
-                    );
-                    return (
-                      <div key={reason} className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">{reason}</span>
-                        <span className="text-sm font-medium">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {selectedReport === 'schedules' && (
-          <div className="space-y-4">
-            {filteredSchedules.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left">日期</th>
-                      <th className="px-4 py-2 text-left">院友數量</th>
-                      <th className="px-4 py-2 text-left">主要原因</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {filteredSchedules.map(schedule => (
-                      <tr key={schedule.排程id}>
-                        <td className="px-4 py-2">{new Date(schedule.到診日期).toLocaleDateString('zh-TW')}</td>
-                        <td className="px-4 py-2">{schedule.院友列表.length}</td>
-                        <td className="px-4 py-2">
-                          {schedule.院友列表.map(p => p.看診原因).flat().join(', ')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">選定期間內無排程記錄</p>
-            )}
-          </div>
-        )}
-
-
-        {selectedReport === 'patients' && (
-          <div className="space-y-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left">床號</th>
-                    <th className="px-4 py-2 text-left">姓名</th>
-                    <th className="px-4 py-2 text-left">性別</th>
-                    <th className="px-4 py-2 text-left">年齡</th>
-                    <th className="px-4 py-2 text-left">藥物敏感</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {patients.map(patient => {
-                    const age = Math.floor((new Date().getTime() - new Date(patient.出生日期).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-                    return (
-                      <tr key={patient.院友ID}>
-                        <td className="px-4 py-2">{patient.床號}</td>
-                        <td className="px-4 py-2">{patient.中文姓名}</td>
-                        <td className="px-4 py-2">{patient.性別}</td>
-                        <td className="px-4 py-2">{age}歲</td>
-                        <td className="px-4 py-2">{patient.藥物敏感 || '無'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+      {/* 報表內容 */}
+      <div>
+        {activeTab === 'daily' && renderDailyReport()}
+        {activeTab === 'monthly' && <div className="text-center text-gray-500 py-12">每月報表開發中...</div>}
+        {activeTab === 'infection' && <div className="text-center text-gray-500 py-12">感染控制報表開發中...</div>}
+        {activeTab === 'meal' && <div className="text-center text-gray-500 py-12">餐膳報表開發中...</div>}
+        {activeTab === 'tube' && <div className="text-center text-gray-500 py-12">喉管相關報表開發中...</div>}
+        {activeTab === 'special' && <div className="text-center text-gray-500 py-12">特別關顧名單開發中...</div>}
       </div>
     </div>
   );
