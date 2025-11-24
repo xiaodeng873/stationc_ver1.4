@@ -477,11 +477,11 @@ export const createPatient = async (patient: Omit<Patient, '院友id'>): Promise
 export const updatePatient = async (patient: Patient): Promise<Patient> => {
   const cleanedPatient = { ...patient };
 
-  // 清理空字串日期欄位,將空字串轉為null
-  const dateFields = ['出生日期', '入住日期', '退住日期', '死亡日期'];
-  dateFields.forEach(field => {
-    if (cleanedPatient[field] === '') {
-      cleanedPatient[field] = null;
+  // 清理所有欄位中的空字串,將空字串轉為null
+  // 這對日期欄位特別重要,因為PostgreSQL不接受空字串作為日期值
+  Object.keys(cleanedPatient).forEach(key => {
+    if (cleanedPatient[key] === '') {
+      cleanedPatient[key] = null;
     }
   });
 
