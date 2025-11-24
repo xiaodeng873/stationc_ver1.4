@@ -473,7 +473,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
           <div className="border rounded-lg p-4 bg-gray-50">
             <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
               <FileText className="h-5 w-5 mr-2 text-orange-600" />
-              意外發生經過詳情
+              詳情
             </h3>
             <div>
               <label className="form-label">詳細經過說明</label>
