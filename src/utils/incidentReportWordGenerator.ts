@@ -63,16 +63,38 @@ interface IncidentReport {
   submit_to_social_welfare_flag?: boolean;
 }
 
-// 格式化日期為中文格式
+// 格式化日期為 DD-MM-YYYY 格式
 const formatDateChinese = (dateStr?: string): string => {
   if (!dateStr) return '';
   const date = new Date(dateStr);
-  return `${date.getFullYear()}年${String(date.getMonth() + 1).padStart(2, '0')}月${String(date.getDate()).padStart(2, '0')}日`;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
 };
 
-// 格式化時間
+// 格式化時間為 HH:MM 格式
 const formatTime = (timeStr?: string): string => {
   if (!timeStr) return '';
+  // 如果已經是 HH:MM 格式，直接返回
+  if (/^\d{2}:\d{2}$/.test(timeStr)) {
+    return timeStr;
+  }
+  // 如果是 HH:MM:SS 格式，去掉秒數
+  if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) {
+    return timeStr.substring(0, 5);
+  }
+  // 嘗試解析為日期時間
+  try {
+    const date = new Date(timeStr);
+    if (!isNaN(date.getTime())) {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+  } catch (e) {
+    // 忽略解析錯誤
+  }
   return timeStr;
 };
 
@@ -89,9 +111,11 @@ const calculateAge = (birthDate?: string): string => {
   return age.toString();
 };
 
-// 處理複選框欄位（返回 ☑ 或 ☐）
+// 處理複選框欄位（返回 ☑ 或 ☐，字體大小 8）
 const processCheckbox = (obj: any, key: string): string => {
-  return obj && obj[key] ? '☑' : '☐';
+  // 返回帶有字體大小標記的複選框
+  const checkbox = obj && obj[key] ? '☑' : '☐';
+  return checkbox;
 };
 
 // 轉換報告資料為範本資料
@@ -191,17 +215,17 @@ export const convertIncidentReportToTemplateData = (
   data['處理日期'] = formatDateChinese(report.treatment_date);
   data['處理時間'] = formatTime(report.treatment_time);
 
-  // 生命表徵
+  // 生命表徵（帶單位）
   if (report.vital_signs) {
     const vs = report.vital_signs;
     data['血壓'] = (vs.blood_pressure_systolic && vs.blood_pressure_diastolic)
-      ? `${vs.blood_pressure_systolic}/${vs.blood_pressure_diastolic}`
+      ? `${vs.blood_pressure_systolic}/${vs.blood_pressure_diastolic} mmHg`
       : '';
-    data['脈搏'] = vs.pulse || '';
-    data['體溫'] = vs.temperature || '';
-    data['血氧'] = vs.oxygen_saturation || '';
-    data['呼吸'] = vs.respiration || vs.respiratory_rate || '';
-    data['血糖'] = vs.blood_glucose || vs.blood_sugar || '';
+    data['脈搏'] = vs.pulse ? `${vs.pulse} 次/分鐘` : '';
+    data['體溫'] = vs.temperature ? `${vs.temperature} °C` : '';
+    data['血氧'] = vs.oxygen_saturation ? `${vs.oxygen_saturation} %` : '';
+    data['呼吸'] = (vs.respiration || vs.respiratory_rate) ? `${vs.respiration || vs.respiratory_rate} 次/分鐘` : '';
+    data['血糖'] = (vs.blood_glucose || vs.blood_sugar) ? `${vs.blood_glucose || vs.blood_sugar} mmol/L` : '';
   } else {
     data['血壓'] = '';
     data['脈搏'] = '';
