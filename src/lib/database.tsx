@@ -475,9 +475,19 @@ export const createPatient = async (patient: Omit<Patient, '院友id'>): Promise
 };
 
 export const updatePatient = async (patient: Patient): Promise<Patient> => {
+  const cleanedPatient = { ...patient };
+
+  // 清理空字串日期欄位,將空字串轉為null
+  const dateFields = ['出生日期', '入住日期', '退住日期', '死亡日期'];
+  dateFields.forEach(field => {
+    if (cleanedPatient[field] === '') {
+      cleanedPatient[field] = null;
+    }
+  });
+
   const { data, error } = await supabase
     .from('院友主表')
-    .update(patient)
+    .update(cleanedPatient)
     .eq('院友id', patient.院友id)
     .select()
     .single();
