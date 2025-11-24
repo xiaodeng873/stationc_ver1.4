@@ -268,16 +268,9 @@ const PatientRecords: React.FC = () => {
     setShowDischargeModal(true);
   };
 
-  const handleConfirmDischarge = async (patient: any, dischargeDate: string) => {
+  const handleConfirmDischarge = async (updatedPatient: any, dischargeDate: string) => {
     try {
-      // 退住時自動釋放床位
-      const updatedPatient = {
-        ...patient,
-        退住日期: dischargeDate,
-        在住狀態: '已退住',
-        station_id: null,
-        bed_id: null
-      };
+      // DischargeModal 已經包含了完整的退住資料(退住原因、死亡日期、轉往機構等)
       await updatePatient(updatedPatient);
       setShowDischargeModal(false);
       setSelectedPatient(null);

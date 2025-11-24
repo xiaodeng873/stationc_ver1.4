@@ -1876,10 +1876,7 @@ export const deleteHealthAssessment = async (assessmentId: string): Promise<void
 export const getWoundAssessments = async (): Promise<WoundAssessment[]> => {
   const { data, error } = await supabase
     .from('wound_assessments')
-    .select(`
-      *,
-      wound_details(*)
-    `)
+    .select('*')
     .order('assessment_date', { ascending: false });
 
   if (error) {
@@ -1899,7 +1896,8 @@ export const createWoundAssessment = async (assessment: Omit<WoundAssessment, 'i
       patient_id: assessmentData.patient_id,
       assessment_date: assessmentData.assessment_date,
       next_assessment_date: assessmentData.next_assessment_date,
-      assessor: assessmentData.assessor
+      assessor: assessmentData.assessor,
+      wound_details: wound_details || []
     }])
     .select()
     .single();
@@ -1909,58 +1907,7 @@ export const createWoundAssessment = async (assessment: Omit<WoundAssessment, 'i
     throw assessmentError;
   }
 
-  if (wound_details && wound_details.length > 0) {
-    const detailsToInsert = wound_details.map((detail: any) => ({
-      wound_assessment_id: assessmentRecord.id,
-      wound_location: detail.wound_location,
-      wound_photos: detail.wound_photos || [],
-      area_length: detail.area_length,
-      area_width: detail.area_width,
-      area_depth: detail.area_depth,
-      stage: detail.stage,
-      wound_status: detail.wound_status,
-      responsible_unit: detail.responsible_unit,
-      exudate_present: detail.exudate_present,
-      exudate_amount: detail.exudate_amount,
-      exudate_color: detail.exudate_color,
-      exudate_type: detail.exudate_type,
-      odor: detail.odor,
-      granulation: detail.granulation,
-      necrosis: detail.necrosis,
-      infection: detail.infection,
-      temperature: detail.temperature,
-      surrounding_skin_condition: detail.surrounding_skin_condition,
-      surrounding_skin_color: detail.surrounding_skin_color,
-      cleanser: detail.cleanser,
-      cleanser_other: detail.cleanser_other,
-      dressings: detail.dressings || [],
-      dressing_other: detail.dressing_other,
-      remarks: detail.remarks
-    }));
-
-    const { error: detailsError } = await supabase
-      .from('wound_details')
-      .insert(detailsToInsert);
-
-    if (detailsError) {
-      await supabase.from('wound_assessments').delete().eq('id', assessmentRecord.id);
-      console.error('Error creating wound details:', detailsError);
-      throw detailsError;
-    }
-  }
-
-  const { data: completeData, error: fetchError } = await supabase
-    .from('wound_assessments')
-    .select('*, wound_details(*)')
-    .eq('id', assessmentRecord.id)
-    .single();
-
-  if (fetchError) {
-    console.error('Error fetching complete wound assessment:', fetchError);
-    throw fetchError;
-  }
-
-  return completeData;
+  return assessmentRecord;
 };
 
 export const updateWoundAssessment = async (assessment: WoundAssessment): Promise<WoundAssessment> => {
@@ -1972,7 +1919,8 @@ export const updateWoundAssessment = async (assessment: WoundAssessment): Promis
       patient_id: assessmentData.patient_id,
       assessment_date: assessmentData.assessment_date,
       next_assessment_date: assessmentData.next_assessment_date,
-      assessor: assessmentData.assessor
+      assessor: assessmentData.assessor,
+      wound_details: wound_details || []
     })
     .eq('id', assessment.id)
     .select()
@@ -1983,64 +1931,7 @@ export const updateWoundAssessment = async (assessment: WoundAssessment): Promis
     throw error;
   }
 
-  if (wound_details) {
-    await supabase
-      .from('wound_details')
-      .delete()
-      .eq('wound_assessment_id', assessment.id);
-
-    if (wound_details.length > 0) {
-      const detailsToInsert = wound_details.map((detail: any) => ({
-        wound_assessment_id: assessment.id,
-        wound_location: detail.wound_location,
-        wound_photos: detail.wound_photos || [],
-        area_length: detail.area_length,
-        area_width: detail.area_width,
-        area_depth: detail.area_depth,
-        stage: detail.stage,
-        wound_status: detail.wound_status,
-        responsible_unit: detail.responsible_unit,
-        exudate_present: detail.exudate_present,
-        exudate_amount: detail.exudate_amount,
-        exudate_color: detail.exudate_color,
-        exudate_type: detail.exudate_type,
-        odor: detail.odor,
-        granulation: detail.granulation,
-        necrosis: detail.necrosis,
-        infection: detail.infection,
-        temperature: detail.temperature,
-        surrounding_skin_condition: detail.surrounding_skin_condition,
-        surrounding_skin_color: detail.surrounding_skin_color,
-        cleanser: detail.cleanser,
-        cleanser_other: detail.cleanser_other,
-        dressings: detail.dressings || [],
-        dressing_other: detail.dressing_other,
-        remarks: detail.remarks
-      }));
-
-      const { error: detailsError } = await supabase
-        .from('wound_details')
-        .insert(detailsToInsert);
-
-      if (detailsError) {
-        console.error('Error updating wound details:', detailsError);
-        throw detailsError;
-      }
-    }
-  }
-
-  const { data: completeData, error: fetchError } = await supabase
-    .from('wound_assessments')
-    .select('*, wound_details(*)')
-    .eq('id', assessment.id)
-    .single();
-
-  if (fetchError) {
-    console.error('Error fetching complete wound assessment:', fetchError);
-    throw fetchError;
-  }
-
-  return completeData;
+  return data;
 };
 
 export const deleteWoundAssessment = async (assessmentId: string): Promise<void> => {

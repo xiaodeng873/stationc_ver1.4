@@ -429,16 +429,51 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
           </div>
 
           {formData.在住狀態 === '已退住' && (
-            <div>
-              <label className="form-label">退住日期</label>
-              <input
-                type="date"
-                name="退住日期"
-                value={formData.退住日期}
-                onChange={handleChange}
-                className="form-input"
-                disabled
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="form-label">退住日期</label>
+                <input
+                  type="date"
+                  name="退住日期"
+                  value={formData.退住日期}
+                  onChange={handleChange}
+                  className="form-input"
+                  disabled
+                />
+              </div>
+
+              {patient?.discharge_reason && (
+                <div>
+                  <label className="form-label">退住原因</label>
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">
+                      {patient.discharge_reason}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {patient?.discharge_reason === '死亡' && patient?.death_date && (
+                <div>
+                  <label className="form-label">死亡日期</label>
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <span className="text-sm font-medium text-red-800">
+                      {new Date(patient.death_date).toLocaleDateString('zh-TW')}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {patient?.discharge_reason === '轉往其他機構' && patient?.transfer_facility_name && (
+                <div>
+                  <label className="form-label">轉往機構名稱</label>
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                    <span className="text-sm font-medium text-purple-800">
+                      {patient.transfer_facility_name}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -471,15 +506,22 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
                 {formData.在住狀態 === '已退住' && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        退住日期: '',
-                        在住狀態: '待入住',
-                        station_id: '',
-                        bed_id: '',
-                        床號: ''
-                      }));
+                    onClick={async () => {
+                      if (confirm('確定要取消退住嗎？院友將返回「待入住」狀態。')) {
+                        const updatedPatient = {
+                          ...patient,
+                          退住日期: null,
+                          在住狀態: '待入住',
+                          station_id: null,
+                          bed_id: null,
+                          床號: '待分配',
+                          discharge_reason: null,
+                          death_date: null,
+                          transfer_facility_name: null
+                        };
+                        await updatePatient(updatedPatient);
+                        onClose();
+                      }
                     }}
                     className="btn-secondary text-sm flex items-center space-x-1"
                   >

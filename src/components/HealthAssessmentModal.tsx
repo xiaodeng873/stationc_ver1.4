@@ -108,9 +108,12 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
       bowel: '',
       bowel_aid: '',
       bladder: '',
-      bladder_aid: ''
+      bladder_aid: '',
+      toilet_training: false
     },
+    treatment_items: [],
     emotional_expression: '',
+    behavior_expression: '',
     emotional_other: '',
     remarks: '',
     assessment_date: getDefaultAssessmentDate(healthAssessments, selectedPatientId),
@@ -184,9 +187,12 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
           bowel: '',
           bowel_aid: '',
           bladder: '',
-          bladder_aid: ''
+          bladder_aid: '',
+          toilet_training: false
         },
+        treatment_items: Array.isArray(assessment.treatment_items) ? assessment.treatment_items : [],
         emotional_expression: assessment.emotional_expression || '',
+        behavior_expression: assessment.behavior_expression || '',
         emotional_other: assessment.emotional_other || '',
         remarks: assessment.remarks || '',
         assessment_date: assessment.assessment_date || getDefaultAssessmentDate(healthAssessments, selectedPatientId),
@@ -310,7 +316,7 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
     }));
   };
 
-  const updateBowelBladderControl = (field: string, value: string) => {
+  const updateBowelBladderControl = (field: string, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
       bowel_bladder_control: {
@@ -319,6 +325,18 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
       }
     }));
   };
+
+  const updateTreatmentItems = (item: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      treatment_items: checked
+        ? [...prev.treatment_items, item]
+        : prev.treatment_items.filter(i => i !== item)
+    }));
+  };
+
+  // 檢查是否選擇了鼻胃管，如果是則禁用飯餐欄位
+  const isNasogastricTubeSelected = formData.nutrition_diet.condition === '鼻胃管';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -637,19 +655,25 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">b. 飯餐</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    b. 飯餐
+                    {isNasogastricTubeSelected && (
+                      <span className="text-xs text-gray-500 ml-2">（選擇鼻胃管時不可選）</span>
+                    )}
+                  </label>
                   <div className="space-y-2">
                     <select
                       value={formData.nutrition_diet.meal_type}
                       onChange={(e) => updateNutritionDiet('meal_type', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      disabled={isNasogastricTubeSelected}
                     >
                       <option value="">請選擇</option>
                       <option value="普通">普通</option>
                       <option value="特別">特別</option>
                     </select>
-                    
-                    {formData.nutrition_diet.meal_type === '特別' && (
+
+                    {formData.nutrition_diet.meal_type === '特別' && !isNasogastricTubeSelected && (
                       <select
                         value={formData.nutrition_diet.special_diet}
                         onChange={(e) => updateNutritionDiet('special_diet', e.target.value)}
@@ -947,7 +971,7 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
                     <option value="腸造口">腸造口</option>
                     <option value="需要輔助器">需要輔助器</option>
                   </select>
-                  
+
                   {formData.bowel_bladder_control.bowel === '需要輔助器' && (
                     <div className="mt-2">
                       <input
@@ -976,7 +1000,7 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
                     <option value="導尿管">導尿管</option>
                     <option value="需要輔助器">需要輔助器</option>
                   </select>
-                  
+
                   {formData.bowel_bladder_control.bladder === '需要輔助器' && (
                     <div className="mt-2">
                       <input
@@ -990,45 +1014,145 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* 9. 情緒表現 */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">9. 情緒表現</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <select
-                    value={formData.emotional_expression}
-                    onChange={(e) => setFormData(prev => ({ ...prev, emotional_expression: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">請選擇</option>
-                    <option value="喜樂">喜樂</option>
-                    <option value="平靜">平靜</option>
-                    <option value="冷漠">冷漠</option>
-                    <option value="抑鬱">抑鬱</option>
-                    <option value="激動">激動</option>
-                    <option value="其他">其他</option>
-                  </select>
-                </div>
-                
-                {formData.emotional_expression === '其他' && (
-                  <div>
-                    <input
-                      type="text"
-                      value={formData.emotional_other}
-                      onChange={(e) => setFormData(prev => ({ ...prev, emotional_other: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="請說明其他情況"
-                    />
-                  </div>
-                )}
+              {/* 如廁訓練 Checkbox */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.bowel_bladder_control.toilet_training}
+                    onChange={(e) => updateBowelBladderControl('toilet_training', e.target.checked)}
+                    className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="text-sm font-medium text-blue-900">如廁訓練</span>
+                </label>
               </div>
             </div>
 
-            {/* 10. 備註 */}
+            {/* 9. 治療項目 */}
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">10. 備註</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">9. 治療項目</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  '服藥觀察',
+                  '量血壓',
+                  '量血糖',
+                  '傷口護理',
+                  '氧氣治療',
+                  '引流管護理',
+                  '鼻胃管護理',
+                  '導尿管護理',
+                  '灌腸',
+                  '抽痰',
+                  '物理治療',
+                  '職業治療'
+                ].map(item => (
+                  <label
+                    key={item}
+                    className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-white transition-colors ${
+                      formData.treatment_items.includes(item)
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.treatment_items.includes(item)}
+                      onChange={(e) => updateTreatmentItems(item, e.target.checked)}
+                      className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <span
+                      className={`text-sm font-medium ${
+                        formData.treatment_items.includes(item)
+                          ? 'text-green-800'
+                          : 'text-gray-700'
+                      }`}
+                    >
+                      {item}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {/* 顯示已選擇的治療項目 */}
+              {formData.treatment_items.length > 0 && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm font-medium text-green-800 mb-2">已選擇的治療項目：</p>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.treatment_items.map(item => (
+                      <span
+                        key={item}
+                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800 border border-green-300"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 10. 情緒/行為表現 */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">10. 情緒/行為表現</h3>
+
+              {/* 情緒表現 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">a. 情緒表現</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <select
+                      value={formData.emotional_expression}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emotional_expression: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">請選擇</option>
+                      <option value="喜樂">喜樂</option>
+                      <option value="平靜">平靜</option>
+                      <option value="冷漠">冷漠</option>
+                      <option value="抑鬱">抑鬱</option>
+                      <option value="激動">激動</option>
+                      <option value="其他">其他</option>
+                    </select>
+                  </div>
+
+                  {formData.emotional_expression === '其他' && (
+                    <div>
+                      <input
+                        type="text"
+                        value={formData.emotional_other}
+                        onChange={(e) => setFormData(prev => ({ ...prev, emotional_other: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="請說明其他情況"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 行為表現 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">b. 行為表現</label>
+                <select
+                  value={formData.behavior_expression}
+                  onChange={(e) => setFormData(prev => ({ ...prev, behavior_expression: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">請選擇</option>
+                  <option value="正常">正常</option>
+                  <option value="焦慮不安">焦慮不安</option>
+                  <option value="攻擊性行為">攻擊性行為</option>
+                  <option value="遊走">遊走</option>
+                  <option value="重複行為">重複行為</option>
+                  <option value="拒絕配合">拒絕配合</option>
+                  <option value="自我照顧能力下降">自我照顧能力下降</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 11. 備註 */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">11. 備註</h3>
               <textarea
                 value={formData.remarks}
                 onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
