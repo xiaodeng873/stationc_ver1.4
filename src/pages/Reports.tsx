@@ -75,11 +75,11 @@ const Reports: React.FC = () => {
     const targetDate = timeFilter === 'today' ? today : yesterday;
     const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
 
-    const socialWelfareStats = {
-      買位: activePatients.filter(p => p.社會福利?.type === '買位').length,
-      私位: activePatients.filter(p => p.社會福利?.type === '私位').length,
-      院舍劵: activePatients.filter(p => p.社會福利?.type === '院舍劵').length,
-      暫住: activePatients.filter(p => p.社會福利?.type === '暫住').length,
+    const admissionTypeStats = {
+      買位: activePatients.filter(p => p.入住類型 === '買位').length,
+      私位: activePatients.filter(p => p.入住類型 === '私位').length,
+      院舍劵: activePatients.filter(p => p.入住類型 === '院舍卷').length,
+      暫住: activePatients.filter(p => p.入住類型 === '暫住').length,
     };
 
     const 住在本站男Patients = activePatients.filter(p => p.性別 === '男' && !p.is_hospitalized);
@@ -136,7 +136,7 @@ const Reports: React.FC = () => {
     const catheterPatients = activePatients.filter(p => {
       return (patientHealthTasks || []).some(task =>
         task.patient_id === p.院友id &&
-        task.task_type === '導尿管更換'
+        task.health_record_type === '尿導管更換'
       );
     });
 
@@ -197,7 +197,7 @@ const Reports: React.FC = () => {
     const convalescent女Patients = activePatients.filter(p => p.護理等級 === '療養級' && p.性別 === '女');
 
     return {
-      socialWelfareStats,
+      admissionTypeStats,
       residenceStats,
       newAdmissions: {
         count: newAdmissionsPatients.length,
@@ -293,12 +293,12 @@ const Reports: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">社會福利分類</h3>
+        <h3 className="text-lg font-semibold mb-4">入住類型</h3>
         <div className="grid grid-cols-4 gap-4">
-          <StatCard title="買位" value={dailyReportData.socialWelfareStats.買位} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={[]} />
-          <StatCard title="私位" value={dailyReportData.socialWelfareStats.私位} bgColor="bg-green-50" textColor="text-green-600" patientNames={[]} />
-          <StatCard title="院舍劵" value={dailyReportData.socialWelfareStats.院舍劵} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={[]} />
-          <StatCard title="暫住" value={dailyReportData.socialWelfareStats.暫住} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={[]} />
+          <StatCard title="買位" value={dailyReportData.admissionTypeStats.買位} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={[]} />
+          <StatCard title="私位" value={dailyReportData.admissionTypeStats.私位} bgColor="bg-green-50" textColor="text-green-600" patientNames={[]} />
+          <StatCard title="院舍劵" value={dailyReportData.admissionTypeStats.院舍劵} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={[]} />
+          <StatCard title="暫住" value={dailyReportData.admissionTypeStats.暫住} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={[]} />
         </div>
       </div>
 
