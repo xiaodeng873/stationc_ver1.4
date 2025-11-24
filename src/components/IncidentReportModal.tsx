@@ -149,29 +149,49 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
   };
 
   const [isExporting, setIsExporting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const errors: string[] = [];
+
+    // 基本必填欄位驗證
     if (!formData.patient_id) {
-      alert('請選擇院友');
-      return;
+      errors.push('請選擇院友');
     }
 
     if (!formData.incident_date) {
-      alert('請輸入意外發生日期');
-      return;
+      errors.push('請輸入意外發生日期');
     }
 
     if (!formData.reporter_signature) {
-      alert('請輸入填報人簽名');
-      return;
+      errors.push('請輸入填報人簽名');
     }
 
     if (!formData.reporter_position) {
-      alert('請輸入填報人職位');
+      errors.push('請輸入填報人職位');
+    }
+
+    // 時間邏輯驗證
+    if (formData.ambulance_call_time && formData.ambulance_arrival_time) {
+      if (formData.ambulance_call_time >= formData.ambulance_arrival_time) {
+        errors.push('召車時間必須早於到達時間');
+      }
+    }
+
+    if (formData.ambulance_arrival_time && formData.ambulance_departure_time) {
+      if (formData.ambulance_departure_time <= formData.ambulance_arrival_time) {
+        errors.push('離開時間必須晚於到達時間');
+      }
+    }
+
+    if (errors.length > 0) {
+      setValidationErrors(errors);
       return;
     }
+
+    setValidationErrors([]);
 
     try {
       const reportData = {
@@ -203,7 +223,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
       onClose();
     } catch (error) {
       console.error('儲存意外事件報告失敗:', error);
-      alert('儲存意外事件報告失敗，請重試');
+      setValidationErrors(['儲存意外事件報告失敗，請重試']);
     }
   };
 
@@ -962,43 +982,45 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                         />
                         <span className="text-sm text-gray-700">觀察病房</span>
                       </label>
-                      {/* 醫院資訊輸入 */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          type="text"
-                          value={formData.hospital_admission?.hospital || ''}
-                          onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, hospital: e.target.value } }))}
-                          className="form-input text-sm"
-                          placeholder="醫院..."
-                        />
-                        <input
-                          type="text"
-                          value={formData.hospital_admission?.floor || ''}
-                          onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, floor: e.target.value } }))}
-                          className="form-input text-sm"
-                          placeholder="樓層..."
-                        />
-                        <input
-                          type="text"
-                          value={formData.hospital_admission?.ward || ''}
-                          onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, ward: e.target.value } }))}
-                          className="form-input text-sm"
-                          placeholder="病房..."
-                        />
-                        <input
-                          type="text"
-                          value={formData.hospital_admission?.bed_number || ''}
-                          onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, bed_number: e.target.value } }))}
-                          className="form-input text-sm"
-                          placeholder="床號..."
-                        />
-                      </div>
+                      {/* 只有在沒有勾選觀察病房時才顯示醫院資訊輸入 */}
+                      {!formData.hospital_treatment['觀察病房'] && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={formData.hospital_admission?.hospital || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, hospital: e.target.value } }))}
+                            className="form-input text-sm"
+                            placeholder="醫院..."
+                          />
+                          <input
+                            type="text"
+                            value={formData.hospital_admission?.floor || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, floor: e.target.value } }))}
+                            className="form-input text-sm"
+                            placeholder="樓層..."
+                          />
+                          <input
+                            type="text"
+                            value={formData.hospital_admission?.ward || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, ward: e.target.value } }))}
+                            className="form-input text-sm"
+                            placeholder="病房..."
+                          />
+                          <input
+                            type="text"
+                            value={formData.hospital_admission?.bed_number || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, bed_number: e.target.value } }))}
+                            className="form-input text-sm"
+                            placeholder="床號..."
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               ))}
             </div>
-            {formData.hospital_treatment['返回護理院/家'] && (
+            {formData.hospital_treatment['返回護理院/家'] && !formData.hospital_treatment['醫院留醫'] && (
               <div className="mt-3">
                 <label className="text-xs text-gray-600">回院時間</label>
                 <input
@@ -1156,6 +1178,23 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
               </div>
             </div>
           </div>
+
+          {/* 錯誤提示 */}
+          {validationErrors.length > 0 && (
+            <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+              <div className="flex items-start">
+                <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-red-800 mb-2">請修正以下錯誤：</h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationErrors.map((error, index) => (
+                      <li key={index} className="text-sm text-red-700">{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 提交按鈕 */}
           <div className="flex space-x-3 pt-4 border-t border-gray-200">
