@@ -132,8 +132,10 @@ const Reports: React.FC = () => {
     });
 
     const ngTubePatients = activePatients.filter(p => {
-      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
-      return assessment?.treatment_items?.includes('鼻胃管');
+      return (patientHealthTasks || []).some(task =>
+        task.patient_id === p.院友id &&
+        task.health_record_type === '鼻胃飼管更換'
+      );
     });
 
     const catheterPatients = activePatients.filter(p => {

@@ -192,7 +192,11 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
         },
         treatment_items: Array.isArray(assessment.treatment_items) ? assessment.treatment_items : [],
         emotional_expression: Array.isArray(assessment.emotional_expression) ? assessment.emotional_expression : [],
-        behavior_expression: Array.isArray(assessment.behavior_expression) ? assessment.behavior_expression : [],
+        behavior_expression: Array.isArray(assessment.behavior_expression)
+          ? assessment.behavior_expression
+          : (typeof assessment.behavior_expression === 'string' && assessment.behavior_expression
+              ? assessment.behavior_expression.split('、').filter(Boolean)
+              : []),
         emotional_other: assessment.emotional_other || '',
         remarks: assessment.remarks || '',
         assessment_date: assessment.assessment_date || getDefaultAssessmentDate(healthAssessments, selectedPatientId),
@@ -265,7 +269,10 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
     try {
       const assessmentData = {
         patient_id: selectedPatientId,
-        ...formData
+        ...formData,
+        behavior_expression: Array.isArray(formData.behavior_expression)
+          ? (formData.behavior_expression.length > 0 ? formData.behavior_expression.join('、') : '')
+          : (formData.behavior_expression || '')
       };
 
       if (assessment) {
