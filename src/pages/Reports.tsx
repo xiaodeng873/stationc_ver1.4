@@ -44,7 +44,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, bgColor, textColor, s
 };
 
 const Reports: React.FC = () => {
-  const { patients, stations, healthAssessments, woundAssessments, incidentReports, patientHealthTasks, patientRestraintAssessments, prescriptions, healthRecords, loading } = usePatients();
+  const { patients, stations, healthAssessments, woundAssessments, incidentReports, patientHealthTasks, patientRestraintAssessments, prescriptions, healthRecords, mealGuidances, loading } = usePatients();
   const [activeTab, setActiveTab] = useState<ReportTab>('daily');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [stationFilter, setStationFilter] = useState<StationFilter>('all');
@@ -782,6 +782,315 @@ const Reports: React.FC = () => {
     </div>
   );
 
+  const renderInfectionReport = () => {
+    const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
+    const infectionPatients = activePatients.filter(p => p.感染控制 && p.感染控制.length > 0);
+
+    return (
+      <div className="space-y-6">
+        <div className="flex space-x-4 mb-4">
+          <select
+            value={stationFilter}
+            onChange={(e) => setStationFilter(e.target.value)}
+            className="form-input"
+          >
+            <option value="all">所有分區</option>
+            {stations?.map(station => (
+              <option key={station.id} value={station.id}>{station.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">感染控制資料 (共 {infectionPatients.length} 人)</h3>
+          <div className="space-y-4">
+            {infectionPatients.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">暫無感染控制記錄</p>
+            ) : (
+              infectionPatients.map(patient => (
+                <div key={patient.院友id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h4 className="font-semibold text-lg">{patient.床號} {patient.中文姓氏}{patient.中文名字}</h4>
+                      <p className="text-sm text-gray-600">性別: {patient.性別} | 護理等級: {patient.護理等級 || '未設定'}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 bg-yellow-50 p-3 rounded">
+                    <p className="font-medium text-yellow-800 mb-2">感染資料:</p>
+                    <div className="space-y-1">
+                      {Array.isArray(patient.感染控制) && patient.感染控制.map((infection: any, idx: number) => (
+                        <div key={idx} className="text-sm">
+                          <span className="font-medium">{infection.類型 || infection.type || '未指定類型'}:</span>{' '}
+                          <span className="text-gray-700">{infection.詳情 || infection.details || infection.備註 || '無詳細資料'}</span>
+                          {infection.日期 && <span className="text-gray-500 ml-2">({infection.日期})</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMealReport = () => {
+    const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
+    const patientsWithMealGuidance = activePatients.filter(p =>
+      (mealGuidances || []).some(mg => mg.patient_id === p.院友id)
+    );
+
+    const mealStats = {
+      正飯正餸: [] as typeof activePatients,
+      正飯碎餸: [] as typeof activePatients,
+      正飯糊餸: [] as typeof activePatients,
+      軟飯正餸: [] as typeof activePatients,
+      軟飯碎餸: [] as typeof activePatients,
+      軟飯糊餸: [] as typeof activePatients,
+      糊飯糊餸: [] as typeof activePatients,
+      需要加稠劑: [] as typeof activePatients,
+    };
+
+    patientsWithMealGuidance.forEach(patient => {
+      const guidance = (mealGuidances || []).find(mg => mg.patient_id === patient.院友id);
+      if (guidance) {
+        const combo = guidance.meal_combination;
+        if (combo && mealStats[combo as keyof typeof mealStats]) {
+          mealStats[combo as keyof typeof mealStats].push(patient);
+        }
+        if (guidance.needs_thickener) {
+          mealStats.需要加稠劑.push(patient);
+        }
+      }
+    });
+
+    return (
+      <div className="space-y-6">
+        <div className="flex space-x-4 mb-4">
+          <select
+            value={stationFilter}
+            onChange={(e) => setStationFilter(e.target.value)}
+            className="form-input"
+          >
+            <option value="all">所有分區</option>
+            {stations?.map(station => (
+              <option key={station.id} value={station.id}>{station.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">廚房統計 (餐膳報表)</h3>
+          <div className="grid grid-cols-4 gap-4">
+            {Object.entries(mealStats).map(([type, patients]) => (
+              <StatCard
+                key={type}
+                title={type}
+                value={patients.length}
+                bgColor="bg-blue-50"
+                textColor="text-blue-600"
+                patientNames={patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">餐膳詳細資料</h3>
+          <div className="space-y-4">
+            {patientsWithMealGuidance.map(patient => {
+              const guidance = (mealGuidances || []).find(mg => mg.patient_id === patient.院友id);
+              return (
+                <div key={patient.院友id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="font-semibold">{patient.床號} {patient.中文姓氏}{patient.中文名字}</h4>
+                      <p className="text-sm text-gray-600 mt-1">
+                        餐組合: <span className="font-medium">{guidance?.meal_combination || '未設定'}</span>
+                      </p>
+                      {guidance?.needs_thickener && (
+                        <p className="text-sm text-orange-600 mt-1">
+                          需加稠劑: {guidance.thickener_amount || '未指定份量'}
+                        </p>
+                      )}
+                      {guidance?.special_diets && Array.isArray(guidance.special_diets) && guidance.special_diets.length > 0 && (
+                        <p className="text-sm text-blue-600 mt-1">
+                          特別餐: {guidance.special_diets.join(', ')}
+                        </p>
+                      )}
+                      {guidance?.egg_quantity && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          雞蛋數量: {guidance.egg_quantity}隻
+                        </p>
+                      )}
+                      {guidance?.remarks && (
+                        <p className="text-sm text-gray-500 mt-1">備註: {guidance.remarks}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTubeReport = () => {
+    const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
+    const tubeTypes = ['鼻胃飼管更換', '尿導管更換'];
+
+    const tubeTasks = (patientHealthTasks || []).filter(task =>
+      tubeTypes.includes(task.health_record_type) &&
+      activePatients.some(p => p.院友id === task.patient_id)
+    );
+
+    return (
+      <div className="space-y-6">
+        <div className="flex space-x-4 mb-4">
+          <select
+            value={stationFilter}
+            onChange={(e) => setStationFilter(e.target.value)}
+            className="form-input"
+          >
+            <option value="all">所有分區</option>
+            {stations?.map(station => (
+              <option key={station.id} value={station.id}>{station.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">喉管相關報表 (共 {tubeTasks.length} 項)</h3>
+          <div className="space-y-4">
+            {tubeTasks.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">暫無喉管相關任務</p>
+            ) : (
+              tubeTasks.map(task => {
+                const patient = activePatients.find(p => p.院友id === task.patient_id);
+                if (!patient) return null;
+                return (
+                  <div key={task.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-semibold text-lg mb-2">{patient.床號} {patient.中文姓氏}{patient.中文名字}</h4>
+                        <p className="text-sm text-gray-600">任務類型: <span className="font-medium">{task.health_record_type}</span></p>
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        {task.last_completed_at && (
+                          <p className="text-gray-700">
+                            上次完成: <span className="font-medium">{new Date(task.last_completed_at).toLocaleDateString('zh-TW')}</span>
+                          </p>
+                        )}
+                        {task.next_due_at && (
+                          <p className="text-blue-600">
+                            下次到期: <span className="font-medium">{new Date(task.next_due_at).toLocaleDateString('zh-TW')}</span>
+                          </p>
+                        )}
+                        {task.tube_type && (
+                          <p className="text-gray-700">
+                            喉管類型: <span className="font-medium">{task.tube_type}</span>
+                          </p>
+                        )}
+                        {task.tube_size && (
+                          <p className="text-gray-700">
+                            管徑: <span className="font-medium">{task.tube_size}</span>
+                          </p>
+                        )}
+                        {task.notes && (
+                          <p className="text-gray-500">
+                            備註: {task.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSpecialCareList = () => {
+    const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
+    const specialCareTasks = (patientHealthTasks || []).filter(task =>
+      task.health_record_type === '生命表徵' &&
+      task.notes === '特別關顧' &&
+      activePatients.some(p => p.院友id === task.patient_id)
+    );
+
+    const specialCarePatientIds = new Set(specialCareTasks.map(t => t.patient_id));
+    const specialCarePatients = activePatients.filter(p => specialCarePatientIds.has(p.院友id));
+
+    return (
+      <div className="space-y-6">
+        <div className="flex space-x-4 mb-4">
+          <select
+            value={stationFilter}
+            onChange={(e) => setStationFilter(e.target.value)}
+            className="form-input"
+          >
+            <option value="all">所有分區</option>
+            {stations?.map(station => (
+              <option key={station.id} value={station.id}>{station.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">特別關顧名單 (共 {specialCarePatients.length} 人)</h3>
+          <div className="space-y-4">
+            {specialCarePatients.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">暫無特別關顧院友</p>
+            ) : (
+              specialCarePatients.map(patient => {
+                const tasks = specialCareTasks.filter(t => t.patient_id === patient.院友id);
+                return (
+                  <div key={patient.院友id} className="border border-red-200 bg-red-50 rounded-lg p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-lg text-red-800">{patient.床號} {patient.中文姓氏}{patient.中文名字}</h4>
+                        <p className="text-sm text-gray-700 mt-1">性別: {patient.性別} | 護理等級: {patient.護理等級 || '未設定'}</p>
+                        <div className="mt-3 space-y-2">
+                          {tasks.map(task => (
+                            <div key={task.id} className="bg-white p-2 rounded border border-red-200">
+                              <p className="text-sm">
+                                <span className="font-medium text-red-700">監測頻率:</span>{' '}
+                                {task.frequency_unit === 'hourly' && `每 ${task.frequency_value} 小時`}
+                                {task.frequency_unit === 'daily' && `每日 ${task.frequency_value} 次`}
+                                {task.frequency_unit === 'weekly' && `每週 ${task.frequency_value} 次`}
+                              </p>
+                              {task.specific_times && Array.isArray(task.specific_times) && task.specific_times.length > 0 && (
+                                <p className="text-sm text-gray-600">
+                                  指定時間: {task.specific_times.join(', ')}
+                                </p>
+                              )}
+                              {task.next_due_at && (
+                                <p className="text-sm text-blue-600">
+                                  下次: {new Date(task.next_due_at).toLocaleString('zh-TW')}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -843,10 +1152,10 @@ const Reports: React.FC = () => {
       <div>
         {activeTab === 'daily' && renderDailyReport()}
         {activeTab === 'monthly' && renderMonthlyReport()}
-        {activeTab === 'infection' && <div className="text-center text-gray-500 py-12">感染控制報表開發中...</div>}
-        {activeTab === 'meal' && <div className="text-center text-gray-500 py-12">餐膳報表開發中...</div>}
-        {activeTab === 'tube' && <div className="text-center text-gray-500 py-12">喉管相關報表開發中...</div>}
-        {activeTab === 'special' && <div className="text-center text-gray-500 py-12">特別關顧名單開發中...</div>}
+        {activeTab === 'infection' && renderInfectionReport()}
+        {activeTab === 'meal' && renderMealReport()}
+        {activeTab === 'tube' && renderTubeReport()}
+        {activeTab === 'special' && renderSpecialCareList()}
       </div>
     </div>
   );
