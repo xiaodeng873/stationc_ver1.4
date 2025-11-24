@@ -576,7 +576,11 @@ const IncidentReports: React.FC = () => {
                   return (
                     <tr
                       key={report.id}
-                      className={`hover:bg-gray-50 transition-colors ${isDeleting ? 'opacity-50' : ''}`}
+                      className={`hover:bg-gray-50 transition-colors cursor-pointer ${isDeleting ? 'opacity-50' : ''}`}
+                      onDoubleClick={() => {
+                        setSelectedReport(report);
+                        setShowModal(true);
+                      }}
                     >
                       <td className="px-4 py-3">
                         <input

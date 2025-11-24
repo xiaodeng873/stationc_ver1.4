@@ -28,6 +28,9 @@ export interface Patient {
   station_id?: string;
   bed_id?: string;
   is_hospitalized?: boolean;
+  discharge_reason?: '死亡' | '回家' | '留醫' | '轉往其他機構';
+  death_date?: string;
+  transfer_facility_name?: string;
 }
 
 export interface Station {
@@ -165,7 +168,7 @@ export interface MealGuidance {
   updated_at: string;
 }
 
-export type HealthTaskType = '生命表徵' | '血糖控制' | '體重控制' | '約束物品同意書' | '年度體檢' | '尿導管更換' | '鼻胃飼管更換' | '傷口換症' | '藥物自存同意書' | '晚晴計劃';
+export type HealthTaskType = '生命表徵' | '血糖控制' | '體重控制' | '約束物品同意書' | '年度體檢' | '尿導管更換' | '鼻胃飼管更換' | '傷口換症' | '藥物自存同意書' | '晚晴計劃' | '氧氣喉管清洗/更換';
 export type FrequencyUnit = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface PatientHealthTask {
@@ -236,6 +239,9 @@ export interface HealthAssessment {
   communication_other?: string;
   consciousness_other?: string;
   emotional_other?: string;
+  treatment_items?: string[];
+  toilet_training?: boolean;
+  behavior_expression?: string;
   created_at: string;
   updated_at: string;
 }

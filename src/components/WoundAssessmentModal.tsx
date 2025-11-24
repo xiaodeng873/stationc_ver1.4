@@ -38,6 +38,7 @@ const WoundAssessmentModal: React.FC<WoundAssessmentModalProps> = ({ assessment,
         area_width: detail.area_width,
         area_depth: detail.area_depth,
         stage: detail.stage || '',
+        wound_type: detail.wound_type || '',
         wound_status: detail.wound_status || '未處理',
         responsible_unit: detail.responsible_unit || '本院',
         wound_photos: detail.wound_photos || [],
@@ -66,6 +67,7 @@ const WoundAssessmentModal: React.FC<WoundAssessmentModalProps> = ({ assessment,
         area_width: undefined,
         area_depth: undefined,
         stage: '',
+        wound_type: '',
         wound_status: '未處理',
         responsible_unit: '本院',
         wound_photos: [],
@@ -125,6 +127,7 @@ const WoundAssessmentModal: React.FC<WoundAssessmentModalProps> = ({ assessment,
       area_width: undefined,
       area_depth: undefined,
       stage: '',
+      wound_type: '',
       wound_status: '未處理',
       responsible_unit: '本院',
       wound_photos: [],
@@ -192,6 +195,7 @@ const WoundAssessmentModal: React.FC<WoundAssessmentModalProps> = ({ assessment,
           area_width: wound.area_width || null,
           area_depth: wound.area_depth || null,
           stage: wound.stage || null,
+          wound_type: wound.wound_type || null,
           wound_status: wound.wound_status || '未處理',
           responsible_unit: wound.responsible_unit || '本院',
           exudate_present: wound.exudate_present,
@@ -471,71 +475,94 @@ const WoundAssessmentModal: React.FC<WoundAssessmentModalProps> = ({ assessment,
                   </div>
                 </div>
 
-                {/* 滲出物評估 */}
+                {/* 傷口評估 */}
                 <div className="space-y-4">
                   <h5 className="text-md font-medium text-gray-900 flex items-center">
                     <Droplets className="h-5 w-5 mr-2 text-blue-600" />
-                    滲出物評估
+                    傷口評估
                   </h5>
-                  
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      id={`exudate_present_${index}`}
-                      checked={wound.exudate_present}
-                      onChange={(e) => updateWound(index, 'exudate_present', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor={`exudate_present_${index}`} className="text-sm font-medium text-gray-700">
-                      有滲出物
-                    </label>
+
+                  {/* 傷口類型 */}
+                  <div className="ml-4">
+                    <label className="form-label">傷口類型</label>
+                    <select
+                      value={wound.wound_type || ''}
+                      onChange={(e) => updateWound(index, 'wound_type', e.target.value)}
+                      className="form-input"
+                    >
+                      <option value="">請選擇</option>
+                      <option value="壓力性">壓力性</option>
+                      <option value="手術性">手術性</option>
+                      <option value="撕裂">撕裂</option>
+                      <option value="擦損">擦損</option>
+                      <option value="割傷">割傷</option>
+                      <option value="挫傷">挫傷</option>
+                    </select>
                   </div>
 
-                  {wound.exudate_present && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 ml-7">
-                      <div>
-                        <label className="form-label">量</label>
-                        <select
-                          value={wound.exudate_amount}
-                          onChange={(e) => updateWound(index, 'exudate_amount', e.target.value)}
-                          className="form-input"
-                        >
-                          <option value="">請選擇</option>
-                          <option value="無">無</option>
-                          <option value="少">少</option>
-                          <option value="中">中</option>
-                          <option value="多">多</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label">顏色</label>
-                        <select
-                          value={wound.exudate_color}
-                          onChange={(e) => updateWound(index, 'exudate_color', e.target.value)}
-                          className="form-input"
-                        >
-                          <option value="">請選擇</option>
-                          <option value="紅色">紅色</option>
-                          <option value="黃色">黃色</option>
-                          <option value="綠色">綠色</option>
-                          <option value="透明">透明</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label">種類</label>
-                        <select
-                          value={wound.exudate_type}
-                          onChange={(e) => updateWound(index, 'exudate_type', e.target.value)}
-                          className="form-input"
-                        >
-                          <option value="">請選擇</option>
-                          <option value="血">血</option>
-                          <option value="膿">膿</option>
-                          <option value="血清">血清</option>
-                        </select>
-                      </div>
+                  {/* 滲出物評估子區塊 */}
+                  <div className="ml-4 space-y-3">
+                    <h6 className="text-sm font-medium text-gray-800">滲出物評估</h6>
+
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        id={`exudate_present_${index}`}
+                        checked={wound.exudate_present}
+                        onChange={(e) => updateWound(index, 'exudate_present', e.target.checked)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor={`exudate_present_${index}`} className="text-sm font-medium text-gray-700">
+                        有滲出物
+                      </label>
                     </div>
-                  )}
+
+                    {wound.exudate_present && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 ml-7">
+                        <div>
+                          <label className="form-label">量</label>
+                          <select
+                            value={wound.exudate_amount}
+                            onChange={(e) => updateWound(index, 'exudate_amount', e.target.value)}
+                            className="form-input"
+                          >
+                            <option value="">請選擇</option>
+                            <option value="無">無</option>
+                            <option value="少">少</option>
+                            <option value="中">中</option>
+                            <option value="多">多</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="form-label">顏色</label>
+                          <select
+                            value={wound.exudate_color}
+                            onChange={(e) => updateWound(index, 'exudate_color', e.target.value)}
+                            className="form-input"
+                          >
+                            <option value="">請選擇</option>
+                            <option value="紅色">紅色</option>
+                            <option value="黃色">黃色</option>
+                            <option value="綠色">綠色</option>
+                            <option value="透明">透明</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="form-label">種類</label>
+                          <select
+                            value={wound.exudate_type}
+                            onChange={(e) => updateWound(index, 'exudate_type', e.target.value)}
+                            className="form-input"
+                          >
+                            <option value="">請選擇</option>
+                            <option value="血">血</option>
+                            <option value="膿">膿</option>
+                            <option value="血清">血清</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* 傷口特徵 */}

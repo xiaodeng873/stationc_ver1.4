@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, LogOut, Calendar } from 'lucide-react';
+import { X, LogOut, Calendar, Heart, Home, Hospital, Building2 } from 'lucide-react';
 
 interface DischargeModalProps {
   patient: any;
@@ -11,11 +11,22 @@ const DischargeModal: React.FC<DischargeModalProps> = ({ patient, onClose, onCon
   const [dischargeDate, setDischargeDate] = useState(
     new Date().toISOString().split('T')[0]
   );
+  const [dischargeReason, setDischargeReason] = useState<'死亡' | '回家' | '留醫' | '轉往其他機構'>('回家');
+  const [deathDate, setDeathDate] = useState('');
+  const [transferFacility, setTransferFacility] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!dischargeDate) {
       alert('請選擇退住日期');
+      return;
+    }
+    if (dischargeReason === '死亡' && !deathDate) {
+      alert('請輸入死亡日期');
+      return;
+    }
+    if (dischargeReason === '轉往其他機構' && !transferFacility) {
+      alert('請輸入轉往機構名稱');
       return;
     }
     // 退住時清除床位資訊
@@ -24,7 +35,10 @@ const DischargeModal: React.FC<DischargeModalProps> = ({ patient, onClose, onCon
       退住日期: dischargeDate,
       在住狀態: '已退住',
       station_id: null,
-      bed_id: null
+      bed_id: null,
+      discharge_reason: dischargeReason,
+      death_date: dischargeReason === '死亡' ? deathDate : null,
+      transfer_facility_name: dischargeReason === '轉往其他機構' ? transferFacility : null
     };
     onConfirm(updatedPatient, dischargeDate);
   };
@@ -86,6 +100,101 @@ const DischargeModal: React.FC<DischargeModalProps> = ({ patient, onClose, onCon
               required
             />
           </div>
+
+          <div>
+            <label className="form-label">退住原因 *</label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                dischargeReason === '死亡' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="discharge_reason"
+                  value="死亡"
+                  checked={dischargeReason === '死亡'}
+                  onChange={(e) => setDischargeReason(e.target.value as any)}
+                  className="mr-2"
+                />
+                <Heart className="h-4 w-4 mr-2 text-red-600" />
+                <span className="text-sm font-medium">死亡</span>
+              </label>
+              <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                dischargeReason === '回家' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="discharge_reason"
+                  value="回家"
+                  checked={dischargeReason === '回家'}
+                  onChange={(e) => setDischargeReason(e.target.value as any)}
+                  className="mr-2"
+                />
+                <Home className="h-4 w-4 mr-2 text-green-600" />
+                <span className="text-sm font-medium">回家</span>
+              </label>
+              <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                dischargeReason === '留醫' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="discharge_reason"
+                  value="留醫"
+                  checked={dischargeReason === '留醫'}
+                  onChange={(e) => setDischargeReason(e.target.value as any)}
+                  className="mr-2"
+                />
+                <Hospital className="h-4 w-4 mr-2 text-blue-600" />
+                <span className="text-sm font-medium">留醫</span>
+              </label>
+              <label className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                dischargeReason === '轉往其他機構' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="discharge_reason"
+                  value="轉往其他機構"
+                  checked={dischargeReason === '轉往其他機構'}
+                  onChange={(e) => setDischargeReason(e.target.value as any)}
+                  className="mr-2"
+                />
+                <Building2 className="h-4 w-4 mr-2 text-purple-600" />
+                <span className="text-sm font-medium">轉往其他機構</span>
+              </label>
+            </div>
+          </div>
+
+          {dischargeReason === '死亡' && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <label className="form-label">
+                <Calendar className="h-4 w-4 inline mr-1" />
+                死亡日期 *
+              </label>
+              <input
+                type="date"
+                value={deathDate}
+                onChange={(e) => setDeathDate(e.target.value)}
+                className="form-input"
+                required
+              />
+            </div>
+          )}
+
+          {dischargeReason === '轉往其他機構' && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <label className="form-label">
+                <Building2 className="h-4 w-4 inline mr-1" />
+                轉往機構名稱 *
+              </label>
+              <input
+                type="text"
+                value={transferFacility}
+                onChange={(e) => setTransferFacility(e.target.value)}
+                className="form-input"
+                placeholder="輸入轉往機構名稱"
+                required
+              />
+            </div>
+          )}
 
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
             <p className="text-sm text-orange-800">
