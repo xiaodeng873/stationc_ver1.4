@@ -1040,7 +1040,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
             <h3 className="text-lg font-medium text-gray-900 mb-4">簽署資訊</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="form-label">填報人簽名 *</label>
+                <label className="form-label">填報人姓名 *</label>
                 <input
                   type="text"
                   value={formData.reporter_signature}
