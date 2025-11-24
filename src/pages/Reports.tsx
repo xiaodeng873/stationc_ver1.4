@@ -6,13 +6,49 @@ type ReportTab = 'daily' | 'monthly' | 'infection' | 'meal' | 'tube' | 'special'
 type TimeFilter = 'today' | 'yesterday' | 'thisMonth' | 'lastMonth';
 type StationFilter = 'all' | string;
 
+interface StatCardProps {
+  title: string;
+  value: number;
+  bgColor: string;
+  textColor: string;
+  subtitle?: string;
+  patientNames?: string[];
+}
+
+const StatCard: React.FC<StatCardProps> = ({ title, value, bgColor, textColor, subtitle, patientNames }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  return (
+    <div
+      className={`${bgColor} p-4 rounded-lg relative cursor-pointer`}
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <p className="text-sm text-gray-600">{title}</p>
+      {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+      <p className={`text-2xl font-bold ${textColor}`}>{value}</p>
+
+      {showTooltip && patientNames && patientNames.length > 0 && (
+        <div className="absolute z-50 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl -top-2 left-full ml-2 w-48 max-h-64 overflow-y-auto">
+          <div className="font-semibold mb-2">院友名單:</div>
+          <ul className="space-y-1">
+            {patientNames.map((name, idx) => (
+              <li key={idx} className="text-gray-200">{name}</li>
+            ))}
+          </ul>
+          <div className="absolute w-0 h-0 border-t-8 border-t-transparent border-b-8 border-b-transparent border-r-8 border-r-gray-900 -left-2 top-4"></div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Reports: React.FC = () => {
   const { patients, stations, healthAssessments, woundAssessments, incidentReports, patientHealthTasks, restraintAssessments, prescriptions, loading } = usePatients();
   const [activeTab, setActiveTab] = useState<ReportTab>('daily');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [stationFilter, setStationFilter] = useState<StationFilter>('all');
 
-  // 日期計算輔助函數
   const getDateRanges = () => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -30,18 +66,15 @@ const Reports: React.FC = () => {
 
   const { today, yesterday, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd } = getDateRanges();
 
-  // 過濾院友(按站點)
   const filteredPatients = useMemo(() => {
-    if (stationFilter === 'all') return patients;
-    return patients.filter(p => p.station_id === stationFilter);
+    if (stationFilter === 'all') return patients || [];
+    return (patients || []).filter(p => p.station_id === stationFilter);
   }, [patients, stationFilter]);
 
-  // 每日報表數據
   const dailyReportData = useMemo(() => {
     const targetDate = timeFilter === 'today' ? today : yesterday;
     const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
 
-    // 社會福利分類統計
     const socialWelfareStats = {
       買位: activePatients.filter(p => p.社會福利?.type === '買位').length,
       私位: activePatients.filter(p => p.社會福利?.type === '私位').length,
@@ -49,156 +82,175 @@ const Reports: React.FC = () => {
       暫住: activePatients.filter(p => p.社會福利?.type === '暫住').length,
     };
 
-    // 在住狀態統計(按性別)
-    const residenceStats = {
-      住在本站男: activePatients.filter(p => p.性別 === '男' && !p.is_hospitalized).length,
-      住在本站女: activePatients.filter(p => p.性別 === '女' && !p.is_hospitalized).length,
-      入住醫院男: activePatients.filter(p => p.性別 === '男' && p.is_hospitalized).length,
-      入住醫院女: activePatients.filter(p => p.性別 === '女' && p.is_hospitalized).length,
-      暫時回家男: 0, // 需要額外欄位標記
-      暫時回家女: 0,
-    };
-    residenceStats['本站總人數'] = residenceStats.住在本站男 + residenceStats.住在本站女;
+    const 住在本站男Patients = activePatients.filter(p => p.性別 === '男' && !p.is_hospitalized);
+    const 住在本站女Patients = activePatients.filter(p => p.性別 === '女' && !p.is_hospitalized);
+    const 入住醫院男Patients = activePatients.filter(p => p.性別 === '男' && p.is_hospitalized);
+    const 入住醫院女Patients = activePatients.filter(p => p.性別 === '女' && p.is_hospitalized);
 
-    // 過去24小時新入住
-    const newAdmissions = filteredPatients.filter(p => {
+    const residenceStats = {
+      住在本站男: 住在本站男Patients.length,
+      住在本站女: 住在本站女Patients.length,
+      入住醫院男: 入住醫院男Patients.length,
+      入住醫院女: 入住醫院女Patients.length,
+      暫時回家男: 0,
+      暫時回家女: 0,
+      住在本站男Names: 住在本站男Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
+      住在本站女Names: 住在本站女Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
+      入住醫院男Names: 入住醫院男Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
+      入住醫院女Names: 入住醫院女Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
+    };
+
+    const newAdmissionsPatients = filteredPatients.filter(p => {
       if (!p.入住日期) return false;
       const admissionDate = new Date(p.入住日期);
       return admissionDate >= targetDate && admissionDate < new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
-    }).length;
+    });
 
-    // 當日退住
-    const discharges = filteredPatients.filter(p => {
+    const dischargePatients = filteredPatients.filter(p => {
       if (!p.退住日期) return false;
       const dischargeDate = new Date(p.退住日期);
       return dischargeDate.toDateString() === targetDate.toDateString();
     });
-    const discharge男 = discharges.filter(p => p.性別 === '男').length;
-    const discharge女 = discharges.filter(p => p.性別 === '女').length;
 
-    // 過去24小時死亡人數
-    const deaths = filteredPatients.filter(p => {
+    const deathPatients = filteredPatients.filter(p => {
       if (!p.death_date || p.discharge_reason !== '死亡') return false;
       const deathDate = new Date(p.death_date);
       return deathDate >= targetDate && deathDate < new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
     });
-    const death男 = deaths.filter(p => p.性別 === '男').length;
-    const death女 = deaths.filter(p => p.性別 === '女').length;
 
-    // 當月累積死亡人數
     const monthStart = timeFilter === 'today' ? thisMonthStart : lastMonthStart;
     const monthEnd = timeFilter === 'today' ? thisMonthEnd : lastMonthEnd;
-    const monthlyDeaths = patients.filter(p => {
+    const monthlyDeathPatients = (patients || []).filter(p => {
       if (!p.death_date || p.discharge_reason !== '死亡') return false;
       const deathDate = new Date(p.death_date);
       return deathDate >= monthStart && deathDate <= monthEnd;
-    }).length;
+    });
 
-    // 傷口和壓瘡統計
-    const woundPatients = new Set<number>();
-    const pressureUlcerPatients = new Set<number>();
+    const ngTubePatients = activePatients.filter(p => {
+      return (patientHealthTasks || []).some(task =>
+        task.patient_id === p.院友id &&
+        task.task_type === '鼻胃飼更換'
+      );
+    });
+
+    const catheterPatients = activePatients.filter(p => {
+      return (patientHealthTasks || []).some(task =>
+        task.patient_id === p.院友id &&
+        task.task_type === '導尿管更換'
+      );
+    });
+
+    const woundPatientIds = new Set<number>();
+    const pressureUlcerPatientIds = new Set<number>();
     (woundAssessments || []).forEach(assessment => {
       const patient = activePatients.find(p => p.院友id === assessment.patient_id);
       if (!patient) return;
 
       assessment.wound_details?.forEach(detail => {
         if (detail.wound_status === '未處理' || detail.wound_status === '治療中') {
-          woundPatients.add(assessment.patient_id);
+          woundPatientIds.add(assessment.patient_id);
           if (detail.wound_type === '壓力性') {
-            pressureUlcerPatients.add(assessment.patient_id);
+            pressureUlcerPatientIds.add(assessment.patient_id);
           }
         }
       });
     });
 
-    // 健康評估相關統計
-    const ngTubeCount = activePatients.filter(p => {
-      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
-      return assessment?.飲食營養?.狀況 === '鼻胃管';
-    }).length;
+    const woundPatients = activePatients.filter(p => woundPatientIds.has(p.院友id));
+    const pressureUlcerPatients = activePatients.filter(p => pressureUlcerPatientIds.has(p.院友id));
 
-    const catheterCount = activePatients.filter(p => {
-      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
-      return assessment?.日常活動及自理能力?.大小便?.includes('導尿管');
-    }).length;
-
-    const dialysisCount = activePatients.filter(p => {
+    const dialysisPatients = activePatients.filter(p => {
       const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
       return assessment?.治療項目?.腹膜透析 || assessment?.治療項目?.血液透析;
-    }).length;
+    });
 
-    const oxygenCount = activePatients.filter(p => {
+    const oxygenPatients = activePatients.filter(p => {
       const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
       return assessment?.治療項目?.氧氣治療;
-    }).length;
+    });
 
-    const stomaCount = activePatients.filter(p => {
+    const stomaPatients = activePatients.filter(p => {
       const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
       return assessment?.治療項目?.腸造口 || assessment?.治療項目?.小便造口;
-    }).length;
+    });
 
-    const infectionControlCount = activePatients.filter(p =>
+    const infectionControlPatients = activePatients.filter(p =>
       p.感染控制 && p.感染控制.length > 0
-    ).length;
+    );
 
-    const restraintCount = restraintAssessments?.filter(r => {
-      return activePatients.some(p => p.院友id === r.patient_id);
-    }).length || 0;
+    const restraintPatientIds = new Set((restraintAssessments || []).map(r => r.patient_id));
+    const restraintPatients = activePatients.filter(p => restraintPatientIds.has(p.院友id));
 
-    // 意外統計
     const todayIncidents = (incidentReports || []).filter(incident => {
       const incidentDate = new Date(incident.incident_date);
       return incidentDate.toDateString() === targetDate.toDateString();
     });
 
-    const medicationIncidents = todayIncidents.filter(i => i.incident_type === '藥物').length;
-    const fallIncidents = todayIncidents.filter(i => i.incident_nature === '跌倒').length;
-    const deathIncidents = deaths.length;
+    const medicationIncidentPatients = todayIncidents.filter(i => i.incident_type === '藥物');
+    const fallIncidentPatients = todayIncidents.filter(i => i.incident_nature === '跌倒');
 
-    // 護理等級統計(按性別)
-    const fullCare男 = activePatients.filter(p => p.護理等級 === '全護理' && p.性別 === '男').length;
-    const fullCare女 = activePatients.filter(p => p.護理等級 === '全護理' && p.性別 === '女').length;
-    const semiCare男 = activePatients.filter(p => p.護理等級 === '半護理' && p.性別 === '男').length;
-    const semiCare女 = activePatients.filter(p => p.護理等級 === '半護理' && p.性別 === '女').length;
-    const convalescent男 = activePatients.filter(p => p.護理等級 === '療養級' && p.性別 === '男').length;
-    const convalescent女 = activePatients.filter(p => p.護理等級 === '療養級' && p.性別 === '女').length;
+    const fullCare男Patients = activePatients.filter(p => p.護理等級 === '全護理' && p.性別 === '男');
+    const fullCare女Patients = activePatients.filter(p => p.護理等級 === '全護理' && p.性別 === '女');
+    const semiCare男Patients = activePatients.filter(p => p.護理等級 === '半護理' && p.性別 === '男');
+    const semiCare女Patients = activePatients.filter(p => p.護理等級 === '半護理' && p.性別 === '女');
+    const convalescent男Patients = activePatients.filter(p => p.護理等級 === '療養級' && p.性別 === '男');
+    const convalescent女Patients = activePatients.filter(p => p.護理等級 === '療養級' && p.性別 === '女');
 
     return {
       socialWelfareStats,
       residenceStats,
-      newAdmissions,
-      discharge: { 男: discharge男, 女: discharge女, total: discharge男 + discharge女 },
-      death: { 男: death男, 女: death女, total: death男 + death女 },
-      monthlyDeaths,
+      newAdmissions: {
+        count: newAdmissionsPatients.length,
+        names: newAdmissionsPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)
+      },
+      discharge: {
+        男: dischargePatients.filter(p => p.性別 === '男').length,
+        女: dischargePatients.filter(p => p.性別 === '女').length,
+        total: dischargePatients.length,
+        names: dischargePatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)
+      },
+      death: {
+        男: deathPatients.filter(p => p.性別 === '男').length,
+        女: deathPatients.filter(p => p.性別 === '女').length,
+        total: deathPatients.length,
+        names: deathPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)
+      },
+      monthlyDeaths: {
+        count: monthlyDeathPatients.length,
+        names: monthlyDeathPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)
+      },
       medical: {
-        鼻胃飼: ngTubeCount,
-        導尿管: catheterCount,
-        傷口: woundPatients.size,
-        壓瘡: pressureUlcerPatients.size,
-        腹膜血液透析: dialysisCount,
-        氧氣治療: oxygenCount,
-        造口: stomaCount,
-        感染控制: infectionControlCount,
-        使用約束物品: restraintCount,
+        鼻胃飼: { count: ngTubePatients.length, names: ngTubePatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        導尿管: { count: catheterPatients.length, names: catheterPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        傷口: { count: woundPatients.length, names: woundPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        壓瘡: { count: pressureUlcerPatients.length, names: pressureUlcerPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        腹膜血液透析: { count: dialysisPatients.length, names: dialysisPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        氧氣治療: { count: oxygenPatients.length, names: oxygenPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        造口: { count: stomaPatients.length, names: stomaPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        感染控制: { count: infectionControlPatients.length, names: infectionControlPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        使用約束物品: { count: restraintPatients.length, names: restraintPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
       },
       incidents: {
-        藥物: medicationIncidents,
-        跌倒: fallIncidents,
-        死亡: deathIncidents,
+        藥物: { count: medicationIncidentPatients.length, names: medicationIncidentPatients.map(i => {
+          const p = activePatients.find(patient => patient.院友id === i.patient_id);
+          return p ? `${p.床號} ${p.中文姓氏}${p.中文名字}` : '未知';
+        })},
+        跌倒: { count: fallIncidentPatients.length, names: fallIncidentPatients.map(i => {
+          const p = activePatients.find(patient => patient.院友id === i.patient_id);
+          return p ? `${p.床號} ${p.中文姓氏}${p.中文名字}` : '未知';
+        })},
+        死亡: { count: deathPatients.length, names: deathPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
       },
       careLevel: {
-        全護理男: fullCare男,
-        全護理女: fullCare女,
-        全護理總: fullCare男 + fullCare女,
-        半護理男: semiCare男,
-        半護理女: semiCare女,
-        半護理總: semiCare男 + semiCare女,
-        療養級男: convalescent男,
-        療養級女: convalescent女,
-        療養級總: convalescent男 + convalescent女,
+        全護理男: { count: fullCare男Patients.length, names: fullCare男Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        全護理女: { count: fullCare女Patients.length, names: fullCare女Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        半護理男: { count: semiCare男Patients.length, names: semiCare男Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        半護理女: { count: semiCare女Patients.length, names: semiCare女Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        療養級男: { count: convalescent男Patients.length, names: convalescent男Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+        療養級女: { count: convalescent女Patients.length, names: convalescent女Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
       },
     };
-  }, [filteredPatients, timeFilter, healthAssessments, woundAssessments, incidentReports, restraintAssessments, today, yesterday, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd]);
+  }, [filteredPatients, timeFilter, healthAssessments, woundAssessments, incidentReports, restraintAssessments, patientHealthTasks, today, yesterday, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd, patients]);
 
   if (loading) {
     return (
@@ -213,7 +265,6 @@ const Reports: React.FC = () => {
 
   const renderDailyReport = () => (
     <div className="space-y-6">
-      {/* 時間和站點篩選 */}
       <div className="flex space-x-4">
         <div className="flex space-x-2">
           <button
@@ -235,133 +286,121 @@ const Reports: React.FC = () => {
           className="form-input"
         >
           <option value="all">全部站點</option>
-          {stations.map(station => (
+          {(stations || []).map(station => (
             <option key={station.id} value={station.id}>{station.name}</option>
           ))}
         </select>
       </div>
 
-      {/* 社會福利統計 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">社會福利分類</h3>
         <div className="grid grid-cols-4 gap-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">買位</p>
-            <p className="text-2xl font-bold text-blue-600">{dailyReportData.socialWelfareStats.買位}</p>
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">私位</p>
-            <p className="text-2xl font-bold text-green-600">{dailyReportData.socialWelfareStats.私位}</p>
-          </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">院舍劵</p>
-            <p className="text-2xl font-bold text-purple-600">{dailyReportData.socialWelfareStats.院舍劵}</p>
-          </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">暫住</p>
-            <p className="text-2xl font-bold text-orange-600">{dailyReportData.socialWelfareStats.暫住}</p>
-          </div>
+          <StatCard title="買位" value={dailyReportData.socialWelfareStats.買位} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={[]} />
+          <StatCard title="私位" value={dailyReportData.socialWelfareStats.私位} bgColor="bg-green-50" textColor="text-green-600" patientNames={[]} />
+          <StatCard title="院舍劵" value={dailyReportData.socialWelfareStats.院舍劵} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={[]} />
+          <StatCard title="暫住" value={dailyReportData.socialWelfareStats.暫住} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={[]} />
         </div>
       </div>
 
-      {/* 在住狀態統計 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">在住狀態</h3>
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">住在本站</p>
-            <p className="text-xs text-gray-500">男: {dailyReportData.residenceStats.住在本站男} | 女: {dailyReportData.residenceStats.住在本站女}</p>
-            <p className="text-2xl font-bold text-green-600">{dailyReportData.residenceStats.本站總人數}</p>
-          </div>
-          <div className="bg-red-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">入住醫院</p>
-            <p className="text-xs text-gray-500">男: {dailyReportData.residenceStats.入住醫院男} | 女: {dailyReportData.residenceStats.入住醫院女}</p>
-            <p className="text-2xl font-bold text-red-600">{dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女}</p>
-          </div>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">暫時回家</p>
-            <p className="text-xs text-gray-500">男: {dailyReportData.residenceStats.暫時回家男} | 女: {dailyReportData.residenceStats.暫時回家女}</p>
-            <p className="text-2xl font-bold text-yellow-600">{dailyReportData.residenceStats.暫時回家男 + dailyReportData.residenceStats.暫時回家女}</p>
-          </div>
+          <StatCard
+            title="住在本站"
+            value={dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.住在本站女}
+            subtitle={`男: ${dailyReportData.residenceStats.住在本站男} | 女: ${dailyReportData.residenceStats.住在本站女}`}
+            bgColor="bg-green-50"
+            textColor="text-green-600"
+            patientNames={[...dailyReportData.residenceStats.住在本站男Names, ...dailyReportData.residenceStats.住在本站女Names]}
+          />
+          <StatCard
+            title="入住醫院"
+            value={dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女}
+            subtitle={`男: ${dailyReportData.residenceStats.入住醫院男} | 女: ${dailyReportData.residenceStats.入住醫院女}`}
+            bgColor="bg-red-50"
+            textColor="text-red-600"
+            patientNames={[...dailyReportData.residenceStats.入住醫院男Names, ...dailyReportData.residenceStats.入住醫院女Names]}
+          />
+          <StatCard
+            title="暫時回家"
+            value={0}
+            subtitle="男: 0 | 女: 0"
+            bgColor="bg-yellow-50"
+            textColor="text-yellow-600"
+            patientNames={[]}
+          />
         </div>
       </div>
 
-      {/* 入住退住統計 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">入住/退住/死亡</h3>
         <div className="grid grid-cols-4 gap-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">過去24小時新入住</p>
-            <p className="text-2xl font-bold text-blue-600">{dailyReportData.newAdmissions}</p>
-          </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">當日退住</p>
-            <p className="text-xs text-gray-500">男: {dailyReportData.discharge.男} | 女: {dailyReportData.discharge.女}</p>
-            <p className="text-2xl font-bold text-orange-600">{dailyReportData.discharge.total}</p>
-          </div>
-          <div className="bg-red-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">過去24小時死亡</p>
-            <p className="text-xs text-gray-500">男: {dailyReportData.death.男} | 女: {dailyReportData.death.女}</p>
-            <p className="text-2xl font-bold text-red-600">{dailyReportData.death.total}</p>
-          </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">當月累積死亡</p>
-            <p className="text-2xl font-bold text-gray-600">{dailyReportData.monthlyDeaths}</p>
-          </div>
+          <StatCard title="過去24小時新入住" value={dailyReportData.newAdmissions.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.newAdmissions.names} />
+          <StatCard
+            title="當日退住"
+            value={dailyReportData.discharge.total}
+            subtitle={`男: ${dailyReportData.discharge.男} | 女: ${dailyReportData.discharge.女}`}
+            bgColor="bg-orange-50"
+            textColor="text-orange-600"
+            patientNames={dailyReportData.discharge.names}
+          />
+          <StatCard
+            title="過去24小時死亡"
+            value={dailyReportData.death.total}
+            subtitle={`男: ${dailyReportData.death.男} | 女: ${dailyReportData.death.女}`}
+            bgColor="bg-red-50"
+            textColor="text-red-600"
+            patientNames={dailyReportData.death.names}
+          />
+          <StatCard title="當月累積死亡" value={dailyReportData.monthlyDeaths.count} bgColor="bg-gray-50" textColor="text-gray-600" patientNames={dailyReportData.monthlyDeaths.names} />
         </div>
       </div>
 
-      {/* 醫療項目統計 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">醫療項目</h3>
         <div className="grid grid-cols-5 gap-4">
           {Object.entries(dailyReportData.medical).map(([key, value]) => (
-            <div key={key} className="bg-indigo-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600">{key}</p>
-              <p className="text-2xl font-bold text-indigo-600">{value}</p>
-            </div>
+            <StatCard key={key} title={key} value={value.count} bgColor="bg-indigo-50" textColor="text-indigo-600" patientNames={value.names} />
           ))}
         </div>
       </div>
 
-      {/* 意外統計 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">意外事件</h3>
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">藥物</p>
-            <p className="text-2xl font-bold text-yellow-600">{dailyReportData.incidents.藥物}</p>
-          </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">跌倒</p>
-            <p className="text-2xl font-bold text-orange-600">{dailyReportData.incidents.跌倒}</p>
-          </div>
-          <div className="bg-red-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">死亡</p>
-            <p className="text-2xl font-bold text-red-600">{dailyReportData.incidents.死亡}</p>
-          </div>
+          <StatCard title="藥物" value={dailyReportData.incidents.藥物.count} bgColor="bg-yellow-50" textColor="text-yellow-600" patientNames={dailyReportData.incidents.藥物.names} />
+          <StatCard title="跌倒" value={dailyReportData.incidents.跌倒.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={dailyReportData.incidents.跌倒.names} />
+          <StatCard title="死亡" value={dailyReportData.incidents.死亡.count} bgColor="bg-red-50" textColor="text-red-600" patientNames={dailyReportData.incidents.死亡.names} />
         </div>
       </div>
 
-      {/* 護理等級統計 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">護理等級</h3>
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-red-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">全護理</p>
-            <p className="text-xs text-gray-500">男: {dailyReportData.careLevel.全護理男} | 女: {dailyReportData.careLevel.全護理女}</p>
-            <p className="text-2xl font-bold text-red-600">{dailyReportData.careLevel.全護理總}</p>
-          </div>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">半護理</p>
-            <p className="text-xs text-gray-500">男: {dailyReportData.careLevel.半護理男} | 女: {dailyReportData.careLevel.半護理女}</p>
-            <p className="text-2xl font-bold text-yellow-600">{dailyReportData.careLevel.半護理總}</p>
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">療養級</p>
-            <p className="text-xs text-gray-500">男: {dailyReportData.careLevel.療養級男} | 女: {dailyReportData.careLevel.療養級女}</p>
-            <p className="text-2xl font-bold text-green-600">{dailyReportData.careLevel.療養級總}</p>
-          </div>
+          <StatCard
+            title="全護理"
+            value={dailyReportData.careLevel.全護理男.count + dailyReportData.careLevel.全護理女.count}
+            subtitle={`男: ${dailyReportData.careLevel.全護理男.count} | 女: ${dailyReportData.careLevel.全護理女.count}`}
+            bgColor="bg-red-50"
+            textColor="text-red-600"
+            patientNames={[...dailyReportData.careLevel.全護理男.names, ...dailyReportData.careLevel.全護理女.names]}
+          />
+          <StatCard
+            title="半護理"
+            value={dailyReportData.careLevel.半護理男.count + dailyReportData.careLevel.半護理女.count}
+            subtitle={`男: ${dailyReportData.careLevel.半護理男.count} | 女: ${dailyReportData.careLevel.半護理女.count}`}
+            bgColor="bg-yellow-50"
+            textColor="text-yellow-600"
+            patientNames={[...dailyReportData.careLevel.半護理男.names, ...dailyReportData.careLevel.半護理女.names]}
+          />
+          <StatCard
+            title="療養級"
+            value={dailyReportData.careLevel.療養級男.count + dailyReportData.careLevel.療養級女.count}
+            subtitle={`男: ${dailyReportData.careLevel.療養級男.count} | 女: ${dailyReportData.careLevel.療養級女.count}`}
+            bgColor="bg-green-50"
+            textColor="text-green-600"
+            patientNames={[...dailyReportData.careLevel.療養級男.names, ...dailyReportData.careLevel.療養級女.names]}
+          />
         </div>
       </div>
     </div>
@@ -378,7 +417,6 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
-      {/* 報表類型標籤 */}
       <div className="mb-6 border-b border-gray-200">
         <div className="flex space-x-1">
           <button
@@ -426,7 +464,6 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
-      {/* 報表內容 */}
       <div>
         {activeTab === 'daily' && renderDailyReport()}
         {activeTab === 'monthly' && <div className="text-center text-gray-500 py-12">每月報表開發中...</div>}
