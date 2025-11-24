@@ -75,11 +75,16 @@ const Reports: React.FC = () => {
     const targetDate = timeFilter === 'today' ? today : yesterday;
     const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
 
+    const 買位Patients = activePatients.filter(p => p.入住類型 === '買位');
+    const 私位Patients = activePatients.filter(p => p.入住類型 === '私位');
+    const 院舍劵Patients = activePatients.filter(p => p.入住類型 === '院舍卷');
+    const 暫住Patients = activePatients.filter(p => p.入住類型 === '暫住');
+
     const admissionTypeStats = {
-      買位: activePatients.filter(p => p.入住類型 === '買位').length,
-      私位: activePatients.filter(p => p.入住類型 === '私位').length,
-      院舍劵: activePatients.filter(p => p.入住類型 === '院舍卷').length,
-      暫住: activePatients.filter(p => p.入住類型 === '暫住').length,
+      買位: { count: 買位Patients.length, names: 買位Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+      私位: { count: 私位Patients.length, names: 私位Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+      院舍劵: { count: 院舍劵Patients.length, names: 院舍劵Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
+      暫住: { count: 暫住Patients.length, names: 暫住Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
     };
 
     const 住在本站男Patients = activePatients.filter(p => p.性別 === '男' && !p.is_hospitalized);
@@ -295,10 +300,10 @@ const Reports: React.FC = () => {
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">入住類型</h3>
         <div className="grid grid-cols-4 gap-4">
-          <StatCard title="買位" value={dailyReportData.admissionTypeStats.買位} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={[]} />
-          <StatCard title="私位" value={dailyReportData.admissionTypeStats.私位} bgColor="bg-green-50" textColor="text-green-600" patientNames={[]} />
-          <StatCard title="院舍劵" value={dailyReportData.admissionTypeStats.院舍劵} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={[]} />
-          <StatCard title="暫住" value={dailyReportData.admissionTypeStats.暫住} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={[]} />
+          <StatCard title="買位" value={dailyReportData.admissionTypeStats.買位.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.admissionTypeStats.買位.names} />
+          <StatCard title="私位" value={dailyReportData.admissionTypeStats.私位.count} bgColor="bg-green-50" textColor="text-green-600" patientNames={dailyReportData.admissionTypeStats.私位.names} />
+          <StatCard title="院舍劵" value={dailyReportData.admissionTypeStats.院舍劵.count} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={dailyReportData.admissionTypeStats.院舍劵.names} />
+          <StatCard title="暫住" value={dailyReportData.admissionTypeStats.暫住.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={dailyReportData.admissionTypeStats.暫住.names} />
         </div>
       </div>
 
