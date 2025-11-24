@@ -10,6 +10,7 @@ interface Patient {
   床號: string;
   性別?: string;
   出生日期?: string;
+  身份證號碼?: string;
 }
 
 interface IncidentReport {
@@ -106,6 +107,7 @@ export const convertIncidentReportToTemplateData = (
   data['性別'] = patient.性別 || '';
   data['出生日期'] = formatDateChinese(patient.出生日期);
   data['年齡'] = calculateAge(patient.出生日期);
+  data['身份證號碼'] = patient.身份證號碼 || '';
   data['意外日期'] = formatDateChinese(report.incident_date);
   data['意外時間'] = formatTime(report.incident_time);
 
@@ -154,12 +156,14 @@ export const convertIncidentReportToTemplateData = (
   discomfortOptions.forEach(option => {
     data[`身體不適_${option}`] = processCheckbox(report.physical_discomfort, option);
   });
+  data['身體不適_其他說明'] = (report.physical_discomfort && report.physical_discomfort['其他說明']) || '';
 
   // 六、不安全行為
   const unsafeBehaviorOptions = ['不安全的動作', '沒有使用合適輔助工具', '沒有找人幫助', '其他', '不適用'];
   unsafeBehaviorOptions.forEach(option => {
     data[`不安全行為_${option}`] = processCheckbox(report.unsafe_behavior, option);
   });
+  data['不安全行為_其他說明'] = (report.unsafe_behavior && report.unsafe_behavior['其他說明']) || '';
 
   // 七、環境因素
   const environmentalMap = {
@@ -177,6 +181,10 @@ export const convertIncidentReportToTemplateData = (
   Object.entries(environmentalMap).forEach(([key, placeholder]) => {
     data[`環境因素_${placeholder}`] = processCheckbox(report.environmental_factors, key);
   });
+  data['環境因素_其他說明'] = (report.environmental_factors && report.environmental_factors['其他說明']) || '';
+
+  // 七之一、意外發生經過詳情
+  data['意外發生經過詳情'] = report.incident_details || '';
 
   // 八、處理情況
   data['處理日期'] = formatDateChinese(report.treatment_date);
@@ -191,11 +199,15 @@ export const convertIncidentReportToTemplateData = (
     data['脈搏'] = vs.pulse || '';
     data['體溫'] = vs.temperature || '';
     data['血氧'] = vs.oxygen_saturation || '';
+    data['呼吸'] = vs.respiration || vs.respiratory_rate || '';
+    data['血糖'] = vs.blood_glucose || vs.blood_sugar || '';
   } else {
     data['血壓'] = '';
     data['脈搏'] = '';
     data['體溫'] = '';
     data['血氧'] = '';
+    data['呼吸'] = '';
+    data['血糖'] = '';
   }
 
   // 九、意識程度
@@ -230,6 +242,9 @@ export const convertIncidentReportToTemplateData = (
   injuryOptions.forEach(option => {
     data[`受傷_${option}`] = processCheckbox(report.injury_situation, option);
   });
+  data['受傷_瘀腫位置'] = (report.injury_situation && report.injury_situation['瘀腫位置']) || '';
+  data['受傷_骨折位置'] = (report.injury_situation && report.injury_situation['骨折位置']) || '';
+  data['受傷_其他說明'] = (report.injury_situation && report.injury_situation['其他說明']) || '';
 
   // 十二、院友主訴
   data['院友主訴'] = report.patient_complaint || '';
@@ -239,6 +254,7 @@ export const convertIncidentReportToTemplateData = (
   treatmentOptions.forEach(option => {
     data[`即時處理_${option}`] = processCheckbox(report.immediate_treatment, option);
   });
+  data['即時處理_其他說明'] = (report.immediate_treatment && report.immediate_treatment['其他說明']) || '';
 
   // 十四、醫療安排
   data['醫療安排_急症室'] = report.medical_arrangement === '急症室' ? '☑' : '☐';
@@ -280,6 +296,8 @@ export const convertIncidentReportToTemplateData = (
     '照X光': '照X光',
     '預防破傷風針注射': '預防破傷風針注射',
     '洗傷口': '洗傷口',
+    '縫針': '縫針',
+    '觀察病房': '觀察病房',
     '不需要留醫': '不需要留醫',
     '返回護理院/家': '返回護理院家',
     '其他治療(例如藥物等)': '其他治療',
@@ -289,6 +307,7 @@ export const convertIncidentReportToTemplateData = (
   Object.entries(hospitalTreatmentMap).forEach(([key, placeholder]) => {
     data[`醫院治療_${placeholder}`] = processCheckbox(report.hospital_treatment, key);
   });
+  data['醫院治療_其他治療說明'] = (report.hospital_treatment && report.hospital_treatment['其他治療說明']) || '';
 
   // 十八、住院資訊
   if (report.hospital_admission) {
@@ -297,6 +316,8 @@ export const convertIncidentReportToTemplateData = (
     data['入院時間'] = formatTime(ha.admission_time);
     data['病房'] = ha.ward || '';
     data['床號_醫院'] = ha.bed_number || '';
+    data['樓層_醫院'] = ha.floor || '';
+    data['醫院治療_醫院留醫_醫院名稱'] = ha.hospital || '';
     data['出院日期'] = formatDateChinese(ha.discharge_date);
     data['出院時間'] = formatTime(ha.discharge_time);
   } else {
@@ -304,6 +325,8 @@ export const convertIncidentReportToTemplateData = (
     data['入院時間'] = '';
     data['病房'] = '';
     data['床號_醫院'] = '';
+    data['樓層_醫院'] = '';
+    data['醫院治療_醫院留醫_醫院名稱'] = '';
     data['出院日期'] = '';
     data['出院時間'] = '';
   }

@@ -32,6 +32,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
     physical_discomfort: report?.physical_discomfort || {},
     unsafe_behavior: report?.unsafe_behavior || {},
     environmental_factors: report?.environmental_factors || {},
+    incident_details: report?.incident_details || '',
     treatment_date: report?.treatment_date || '',
     treatment_time: report?.treatment_time || '',
     vital_signs: report?.vital_signs || {},
@@ -78,7 +79,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
   const treatmentOptions = ['包紮傷口', '其他', '不適用'];
   const medicalArrangementOptions = ['急症室', '門診', '醫生到診', '沒有送院'];
   const relationshipOptions = ['保證人', '監護人', '家人', '其他'];
-  const hospitalTreatmentOptions = ['照X光', '預防破傷風針注射', '洗傷口', '不需要留醫', '返回護理院/家', '其他治療(例如藥物等)', '醫院留醫'];
+  const hospitalTreatmentOptions = ['照X光', '預防破傷風針注射', '洗傷口', '縫針', '觀察病房', '不需要留醫', '返回護理院/家', '其他治療(例如藥物等)', '醫院留醫'];
 
   const handleCheckboxChange = (category: string, option: string, checked: boolean) => {
     setFormData(prev => ({
@@ -465,6 +466,24 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                   />
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* 意外發生經過詳情 */}
+          <div className="border rounded-lg p-4 bg-gray-50">
+            <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+              <FileText className="h-5 w-5 mr-2 text-orange-600" />
+              意外發生經過詳情
+            </h3>
+            <div>
+              <label className="form-label">詳細經過說明</label>
+              <textarea
+                value={formData.incident_details}
+                onChange={(e) => setFormData(prev => ({ ...prev, incident_details: e.target.value }))}
+                className="form-input"
+                rows={4}
+                placeholder="請詳細描述意外發生的經過..."
+              />
             </div>
           </div>
 

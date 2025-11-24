@@ -291,6 +291,7 @@ export interface IncidentReport {
   physical_discomfort?: any;
   unsafe_behavior?: any;
   environmental_factors?: any;
+  incident_details?: string;
   treatment_date?: string;
   treatment_time?: string;
   vital_signs?: any;
