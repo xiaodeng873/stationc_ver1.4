@@ -280,8 +280,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
                   <option value="尿導管更換">尿導管更換</option>
                   <option value="鼻胃飼管更換">鼻胃飼管更換</option>
                   <option value="傷口換症">傷口換症</option>
+                  <option value="氧氣喉管清洗/更換">氧氣喉管清洗/更換</option>
                 </optgroup>
                 <optgroup label="文件任務">
+                  <option value="約束物品同意書">約束物品同意書</option>
+                  <option value="年度體檢">年度體檢</option>
                   <option value="藥物自存同意書">藥物自存同意書</option>
                   <option value="晚晴計劃">晚晴計劃</option>
                 </optgroup>
@@ -311,15 +314,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
           )}
 
           {/* 護理任務的上次執行日期 */}
-          {(formData.health_record_type === '尿導管更換' || formData.health_record_type === '鼻胃飼管更換' || 
-            formData.health_record_type === '傷口換症') && (
+          {(formData.health_record_type === '尿導管更換' || formData.health_record_type === '鼻胃飼管更換' ||
+            formData.health_record_type === '傷口換症' || formData.health_record_type === '氧氣喉管清洗/更換') && (
             <div>
               <label className="form-label">
                 <Calendar className="h-4 w-4 inline mr-1" />
-                {formData.health_record_type === '尿導管更換' 
+                {formData.health_record_type === '尿導管更換'
                   ? '上次尿導管更換日期'
                   : formData.health_record_type === '鼻胃飼管更換'
                   ? '上次鼻胃飼管更換日期'
+                  : formData.health_record_type === '氧氣喉管清洗/更換'
+                  ? '上次氧氣喉管清洗/更換日期'
                   : '上次換症日期'}
               </label>
               <input
@@ -330,10 +335,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
                 className="form-input"
               />
               <p className="text-xs text-gray-500 mt-1">
-                {formData.health_record_type === '尿導管更換' 
+                {formData.health_record_type === '尿導管更換'
                   ? '設定上次尿導管更換的日期，系統將根據此日期計算下次到期時間'
                   : formData.health_record_type === '鼻胃飼管更換'
                   ? '設定上次鼻胃飼管更換的日期，系統將根據此日期計算下次到期時間'
+                  : formData.health_record_type === '氧氣喉管清洗/更換'
+                  ? '設定上次氧氣喉管清洗/更換的日期，系統將根據此日期計算下次到期時間'
                   : '設定上次換症的日期，系統將根據此日期計算下次到期時間'}
               </p>
             </div>

@@ -508,19 +508,24 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
                     type="button"
                     onClick={async () => {
                       if (confirm('確定要取消退住嗎？院友將返回「待入住」狀態。')) {
-                        const updatedPatient = {
-                          ...patient,
-                          退住日期: null,
-                          在住狀態: '待入住',
-                          station_id: null,
-                          bed_id: null,
-                          床號: '待分配',
-                          discharge_reason: null,
-                          death_date: null,
-                          transfer_facility_name: null
-                        };
-                        await updatePatient(updatedPatient);
-                        onClose();
+                        try {
+                          const updatedPatient = {
+                            ...patient,
+                            退住日期: null,
+                            在住狀態: '待入住',
+                            station_id: null,
+                            bed_id: null,
+                            床號: '待分配',
+                            discharge_reason: null,
+                            death_date: null,
+                            transfer_facility_name: null
+                          };
+                          await updatePatient(updatedPatient);
+                          onClose();
+                        } catch (error) {
+                          console.error('取消退住失敗:', error);
+                          alert('取消退住失敗，請重試');
+                        }
                       }
                     }}
                     className="btn-secondary text-sm flex items-center space-x-1"
