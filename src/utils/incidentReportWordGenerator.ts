@@ -269,7 +269,8 @@ export const convertIncidentReportToTemplateData = (
   });
   data['受傷_瘀腫位置'] = (report.injury_situation && report.injury_situation['瘀腫位置']) || '';
   data['受傷_骨折位置'] = (report.injury_situation && report.injury_situation['骨折位置']) || '';
-  data['受傷_其他說明'] = (report.injury_situation && report.injury_situation['其他說明']) || '';
+  // 注意：欄位名稱是「其他位置」而不是「其他說明」
+  data['受傷_其他說明'] = (report.injury_situation && report.injury_situation['其他位置']) || '';
 
   // 十二、院友主訴
   data['院友主訴'] = report.patient_complaint || '';

@@ -82,13 +82,34 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
   const hospitalTreatmentOptions = ['照X光', '預防破傷風針注射', '洗傷口', '縫針', '不需要留醫', '返回護理院/家', '其他治療(例如藥物等)', '醫院留醫'];
 
   const handleCheckboxChange = (category: string, option: string, checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        [option]: checked
+    setFormData(prev => {
+      const newCategoryData = { ...prev[category] };
+
+      // 如果選擇「不適用」，清空其他所有選項
+      if (option === '不適用' && checked) {
+        // 清空該類別的所有其他選項
+        Object.keys(newCategoryData).forEach(key => {
+          if (key !== '不適用') {
+            newCategoryData[key] = false;
+          }
+        });
+        newCategoryData['不適用'] = true;
       }
-    }));
+      // 如果選擇其他選項，取消「不適用」
+      else if (option !== '不適用' && checked && newCategoryData['不適用']) {
+        newCategoryData['不適用'] = false;
+        newCategoryData[option] = true;
+      }
+      // 正常處理
+      else {
+        newCategoryData[option] = checked;
+      }
+
+      return {
+        ...prev,
+        [category]: newCategoryData
+      };
+    });
   };
 
   const handleHospitalTreatmentChange = (option: string, checked: boolean) => {
