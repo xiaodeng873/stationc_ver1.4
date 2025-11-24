@@ -339,7 +339,7 @@ const Reports: React.FC = () => {
 
       {/* 第二行: 本區過去24小時新收院法 */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">本區過去 24 小時新收院法</h3>
+        <h3 className="text-lg font-semibold mb-4">本區過去 24 小時</h3>
         <div className="grid grid-cols-4 gap-4">
           <StatCard title="過去 24 小時新收" value={dailyReportData.newAdmissions.count} subtitle={`男: ${dailyReportData.newAdmissions.男} | 女: ${dailyReportData.newAdmissions.女}`} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.newAdmissions.names} />
           <StatCard
