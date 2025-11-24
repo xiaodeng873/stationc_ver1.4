@@ -359,10 +359,23 @@ export const generateIncidentReportWord = async (
   try {
     // 載入範本
     const zip = new PizZip(templateArrayBuffer);
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-    });
+    let doc;
+    try {
+      doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+      });
+    } catch (docError: any) {
+      // 顯示詳細的模板錯誤
+      if (docError.properties && docError.properties.errors) {
+        console.error('範本錯誤詳情:', docError.properties.errors);
+        const errorMessages = docError.properties.errors.map((err: any) => {
+          return `${err.message} (位置: ${err.part || '未知'})`;
+        }).join('\n');
+        throw new Error(`範本格式錯誤:\n${errorMessages}`);
+      }
+      throw docError;
+    }
 
     // 轉換資料
     const templateData = convertIncidentReportToTemplateData(report, patient);
@@ -373,7 +386,19 @@ export const generateIncidentReportWord = async (
     doc.setData(templateData);
 
     // 渲染文件
-    doc.render();
+    try {
+      doc.render();
+    } catch (renderError: any) {
+      // 顯示詳細的模板錯誤
+      if (renderError.properties && renderError.properties.errors) {
+        console.error('範本錯誤詳情:', renderError.properties.errors);
+        const errorMessages = renderError.properties.errors.map((err: any) => {
+          return `${err.message} (位置: ${err.part || '未知'})`;
+        }).join('\n');
+        throw new Error(`範本格式錯誤:\n${errorMessages}`);
+      }
+      throw renderError;
+    }
 
     // 生成輸出
     const output = doc.getZip().generate({
