@@ -163,6 +163,7 @@ export const convertIncidentReportToTemplateData = (
   unsafeBehaviorOptions.forEach(option => {
     data[`不安全行為_${option}`] = processCheckbox(report.unsafe_behavior, option);
   });
+  data['不安全行為_不安全的動作說明'] = (report.unsafe_behavior && report.unsafe_behavior['不安全的動作說明']) || '';
   data['不安全行為_其他說明'] = (report.unsafe_behavior && report.unsafe_behavior['其他說明']) || '';
 
   // 七、環境因素

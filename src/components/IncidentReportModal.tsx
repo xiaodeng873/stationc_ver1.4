@@ -79,7 +79,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
   const treatmentOptions = ['包紮傷口', '其他', '不適用'];
   const medicalArrangementOptions = ['急症室', '門診', '醫生到診', '沒有送院'];
   const relationshipOptions = ['保證人', '監護人', '家人', '其他'];
-  const hospitalTreatmentOptions = ['照X光', '預防破傷風針注射', '洗傷口', '縫針', '觀察病房', '不需要留醫', '返回護理院/家', '其他治療(例如藥物等)', '醫院留醫'];
+  const hospitalTreatmentOptions = ['照X光', '預防破傷風針注射', '洗傷口', '縫針', '不需要留醫', '返回護理院/家', '其他治療(例如藥物等)', '醫院留醫'];
 
   const handleCheckboxChange = (category: string, option: string, checked: boolean) => {
     setFormData(prev => ({
@@ -89,6 +89,36 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
         [option]: checked
       }
     }));
+  };
+
+  const handleHospitalTreatmentChange = (option: string, checked: boolean) => {
+    setFormData(prev => {
+      const newHospitalTreatment = { ...prev.hospital_treatment };
+
+      // 如果選擇「不需要留醫」，取消「醫院留醫」及其子選項
+      if (option === '不需要留醫' && checked) {
+        newHospitalTreatment['醫院留醫'] = false;
+        newHospitalTreatment['觀察病房'] = false;
+      }
+
+      // 如果選擇「醫院留醫」，取消「不需要留醫」
+      if (option === '醫院留醫' && checked) {
+        newHospitalTreatment['不需要留醫'] = false;
+      }
+
+      // 如果取消「醫院留醫」，也取消「觀察病房」
+      if (option === '醫院留醫' && !checked) {
+        newHospitalTreatment['觀察病房'] = false;
+      }
+
+      // 設置當前選項的值
+      newHospitalTreatment[option] = checked;
+
+      return {
+        ...prev,
+        hospital_treatment: newHospitalTreatment
+      };
+    });
   };
 
   const handleLimbMovementChange = (field: string, value: any) => {
@@ -430,6 +460,15 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                     </label>
                   ))}
                 </div>
+                {formData.unsafe_behavior['不安全的動作'] && (
+                  <input
+                    type="text"
+                    value={formData.unsafe_behavior['不安全的動作說明'] || ''}
+                    onChange={(e) => handleCheckboxChange('unsafe_behavior', '不安全的動作說明', e.target.value)}
+                    className="form-input text-sm mt-2"
+                    placeholder="請詳細說明不安全的動作..."
+                  />
+                )}
                 {formData.unsafe_behavior['其他'] && (
                   <input
                     type="text"
@@ -897,7 +936,7 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                     <input
                       type="checkbox"
                       checked={formData.hospital_treatment[option] || false}
-                      onChange={(e) => handleCheckboxChange('hospital_treatment', option, e.target.checked)}
+                      onChange={(e) => handleHospitalTreatmentChange(option, e.target.checked)}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                     <span className="text-sm text-gray-700">{option}</span>
@@ -912,35 +951,48 @@ const IncidentReportModal: React.FC<IncidentReportModalProps> = ({ report, onClo
                     />
                   )}
                   {formData.hospital_treatment[option] && option === '醫院留醫' && (
-                    <div className="ml-6 grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={formData.hospital_admission?.hospital || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, hospital: e.target.value } }))}
-                        className="form-input text-sm"
-                        placeholder="醫院..."
-                      />
-                      <input
-                        type="text"
-                        value={formData.hospital_admission?.floor || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, floor: e.target.value } }))}
-                        className="form-input text-sm"
-                        placeholder="樓層..."
-                      />
-                      <input
-                        type="text"
-                        value={formData.hospital_admission?.ward || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, ward: e.target.value } }))}
-                        className="form-input text-sm"
-                        placeholder="病房..."
-                      />
-                      <input
-                        type="text"
-                        value={formData.hospital_admission?.bed_number || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, bed_number: e.target.value } }))}
-                        className="form-input text-sm"
-                        placeholder="床號..."
-                      />
+                    <div className="ml-6 space-y-3">
+                      {/* 觀察病房選項 */}
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={formData.hospital_treatment['觀察病房'] || false}
+                          onChange={(e) => handleCheckboxChange('hospital_treatment', '觀察病房', e.target.checked)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className="text-sm text-gray-700">觀察病房</span>
+                      </label>
+                      {/* 醫院資訊輸入 */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={formData.hospital_admission?.hospital || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, hospital: e.target.value } }))}
+                          className="form-input text-sm"
+                          placeholder="醫院..."
+                        />
+                        <input
+                          type="text"
+                          value={formData.hospital_admission?.floor || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, floor: e.target.value } }))}
+                          className="form-input text-sm"
+                          placeholder="樓層..."
+                        />
+                        <input
+                          type="text"
+                          value={formData.hospital_admission?.ward || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, ward: e.target.value } }))}
+                          className="form-input text-sm"
+                          placeholder="病房..."
+                        />
+                        <input
+                          type="text"
+                          value={formData.hospital_admission?.bed_number || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, hospital_admission: { ...prev.hospital_admission, bed_number: e.target.value } }))}
+                          className="form-input text-sm"
+                          placeholder="床號..."
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
