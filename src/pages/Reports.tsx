@@ -176,7 +176,7 @@ const Reports: React.FC = () => {
 
     const stomaPatients = activePatients.filter(p => {
       const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
-      return assessment?.treatment_items?.includes('腸造口') || assessment?.treatment_items?.includes('小便造口');
+      return assessment?.bowel_bladder_control?.bowel === '腸造口' || assessment?.bowel_bladder_control?.bladder === '小便造口';
     });
 
     const infectionControlPatients = activePatients.filter(p =>
@@ -349,6 +349,14 @@ const Reports: React.FC = () => {
             bgColor="bg-red-50"
             textColor="text-red-600"
             patientNames={dailyReportData.death.names}
+          />
+          <StatCard
+            title="當日退住"
+            value={dailyReportData.discharge.total}
+            subtitle={`男: ${dailyReportData.discharge.男} | 女: ${dailyReportData.discharge.女}`}
+            bgColor="bg-orange-50"
+            textColor="text-orange-600"
+            patientNames={dailyReportData.discharge.names}
           />
           <StatCard
             title="當月累積死亡"
