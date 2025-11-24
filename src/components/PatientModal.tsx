@@ -442,34 +442,32 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
                 />
               </div>
 
-              {patient?.discharge_reason && (
-                <div>
-                  <label className="form-label">退住原因</label>
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                    <span className="text-sm font-medium text-gray-700">
-                      {patient.discharge_reason}
-                    </span>
-                  </div>
+              <div>
+                <label className="form-label">退住原因</label>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <span className="text-sm font-medium text-gray-700">
+                    {patient?.discharge_reason || '未設定'}
+                  </span>
                 </div>
-              )}
+              </div>
 
-              {patient?.discharge_reason === '死亡' && patient?.death_date && (
+              {patient?.discharge_reason === '死亡' && (
                 <div>
                   <label className="form-label">死亡日期</label>
                   <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                     <span className="text-sm font-medium text-red-800">
-                      {new Date(patient.death_date).toLocaleDateString('zh-TW')}
+                      {patient?.death_date ? new Date(patient.death_date).toLocaleDateString('zh-TW') : '未設定'}
                     </span>
                   </div>
                 </div>
               )}
 
-              {patient?.discharge_reason === '轉往其他機構' && patient?.transfer_facility_name && (
+              {patient?.discharge_reason === '轉往其他機構' && (
                 <div>
                   <label className="form-label">轉往機構名稱</label>
                   <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
                     <span className="text-sm font-medium text-purple-800">
-                      {patient.transfer_facility_name}
+                      {patient?.transfer_facility_name || '未設定'}
                     </span>
                   </div>
                 </div>
