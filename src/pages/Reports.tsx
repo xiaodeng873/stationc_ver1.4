@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BarChart3, Download, Calendar, Users, FileText, Activity, Utensils, Stethoscope, AlertCircle } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 
-type ReportTab = 'daily' | 'monthly' | 'infection' | 'meal' | 'tube' | 'special';
+type ReportTab = 'daily' | 'monthly' | 'infection' | 'meal' | 'tube' | 'special' | 'drugSensitivity';
 type TimeFilter = 'today' | 'yesterday' | 'thisMonth' | 'lastMonth';
 type StationFilter = 'all' | string;
 
@@ -784,7 +784,16 @@ const Reports: React.FC = () => {
 
   const renderInfectionReport = () => {
     const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
-    const infectionPatients = activePatients.filter(p => p.感染控制 && p.感染控制.length > 0);
+    const infectionPatients = activePatients.filter(p => p.感染控制 && Array.isArray(p.感染控制) && p.感染控制.length > 0);
+
+    const infectionStats = {
+      MRSA: infectionPatients.filter(p => p.感染控制.includes('MRSA')),
+      CPE: infectionPatients.filter(p => p.感染控制.includes('CPE')),
+      VRE: infectionPatients.filter(p => p.感染控制.includes('VRE')),
+      其他: infectionPatients.filter(p =>
+        p.感染控制.some((item: string) => !['MRSA', 'CPE', 'VRE'].includes(item))
+      ),
+    };
 
     return (
       <div className="space-y-6">
@@ -802,29 +811,58 @@ const Reports: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">感染控制資料 (共 {infectionPatients.length} 人)</h3>
+          <h3 className="text-lg font-semibold mb-4">感染控制統計</h3>
+          <div className="grid grid-cols-4 gap-4">
+            <StatCard
+              title="MRSA"
+              value={infectionStats.MRSA.length}
+              bgColor="bg-red-50"
+              textColor="text-red-600"
+              patientNames={infectionStats.MRSA.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)}
+            />
+            <StatCard
+              title="CPE"
+              value={infectionStats.CPE.length}
+              bgColor="bg-orange-50"
+              textColor="text-orange-600"
+              patientNames={infectionStats.CPE.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)}
+            />
+            <StatCard
+              title="VRE"
+              value={infectionStats.VRE.length}
+              bgColor="bg-yellow-50"
+              textColor="text-yellow-600"
+              patientNames={infectionStats.VRE.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)}
+            />
+            <StatCard
+              title="其他"
+              value={infectionStats.其他.length}
+              bgColor="bg-blue-50"
+              textColor="text-blue-600"
+              patientNames={infectionStats.其他.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)}
+            />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">感染控制名單 (共 {infectionPatients.length} 人)</h3>
           <div className="space-y-4">
             {infectionPatients.length === 0 ? (
               <p className="text-gray-500 text-center py-8">暫無感染控制記錄</p>
             ) : (
               infectionPatients.map(patient => (
-                <div key={patient.院友id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-2">
+                <div key={patient.院友id} className="border border-red-200 rounded-lg p-4 bg-red-50">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <h4 className="font-semibold text-lg">{patient.床號} {patient.中文姓氏}{patient.中文名字}</h4>
-                      <p className="text-sm text-gray-600">性別: {patient.性別} | 護理等級: {patient.護理等級 || '未設定'}</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 bg-yellow-50 p-3 rounded">
-                    <p className="font-medium text-yellow-800 mb-2">感染資料:</p>
-                    <div className="space-y-1">
-                      {Array.isArray(patient.感染控制) && patient.感染控制.map((infection: any, idx: number) => (
-                        <div key={idx} className="text-sm">
-                          <span className="font-medium">{infection.類型 || infection.type || '未指定類型'}:</span>{' '}
-                          <span className="text-gray-700">{infection.詳情 || infection.details || infection.備註 || '無詳細資料'}</span>
-                          {infection.日期 && <span className="text-gray-500 ml-2">({infection.日期})</span>}
-                        </div>
-                      ))}
+                      <h4 className="font-semibold text-lg text-red-800">{patient.床號} {patient.中文姓氏}{patient.中文名字}</h4>
+                      <p className="text-sm text-gray-700 mt-1">性別: {patient.性別} | 護理等級: {patient.護理等級 || '未設定'}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {Array.isArray(patient.感染控制) && patient.感染控制.map((infection: string, idx: number) => (
+                          <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                            {infection}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -842,29 +880,26 @@ const Reports: React.FC = () => {
       (mealGuidances || []).some(mg => mg.patient_id === p.院友id)
     );
 
-    const mealStats = {
-      正飯正餸: [] as typeof activePatients,
-      正飯碎餸: [] as typeof activePatients,
-      正飯糊餸: [] as typeof activePatients,
-      軟飯正餸: [] as typeof activePatients,
-      軟飯碎餸: [] as typeof activePatients,
-      軟飯糊餸: [] as typeof activePatients,
-      糊飯糊餸: [] as typeof activePatients,
-      需要加稠劑: [] as typeof activePatients,
-    };
+    const filteredGuidances = (mealGuidances || []).filter(mg =>
+      patientsWithMealGuidance.some(p => p.院友id === mg.patient_id)
+    );
 
-    patientsWithMealGuidance.forEach(patient => {
-      const guidance = (mealGuidances || []).find(mg => mg.patient_id === patient.院友id);
-      if (guidance) {
-        const combo = guidance.meal_combination;
-        if (combo && mealStats[combo as keyof typeof mealStats]) {
-          mealStats[combo as keyof typeof mealStats].push(patient);
-        }
-        if (guidance.needs_thickener) {
-          mealStats.需要加稠劑.push(patient);
-        }
-      }
-    });
+    const statistics = {
+      總餐膳數: filteredGuidances.length,
+      正飯: filteredGuidances.filter(g => g.meal_combination?.includes('正飯')).length,
+      軟飯: filteredGuidances.filter(g => g.meal_combination?.includes('軟飯')).length,
+      糊飯: filteredGuidances.filter(g => g.meal_combination?.includes('糊飯')).length,
+      正餸: filteredGuidances.filter(g => g.meal_combination?.includes('正餸')).length,
+      碎餸: filteredGuidances.filter(g => g.meal_combination?.includes('碎餸')).length,
+      糊餸: filteredGuidances.filter(g => g.meal_combination?.includes('糊餸')).length,
+      糖尿餐: filteredGuidances.filter(g => g.special_diets?.includes('糖尿餐')).length,
+      痛風餐: filteredGuidances.filter(g => g.special_diets?.includes('痛風餐')).length,
+      低鹽餐: filteredGuidances.filter(g => g.special_diets?.includes('低鹽餐')).length,
+      雞蛋總數: filteredGuidances
+        .filter(g => g.special_diets?.includes('雞蛋') && g.egg_quantity)
+        .reduce((sum, g) => sum + (g.egg_quantity || 0), 0),
+      需要凝固粉: filteredGuidances.filter(g => g.needs_thickener).length
+    };
 
     return (
       <div className="space-y-6">
@@ -882,57 +917,80 @@ const Reports: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">廚房統計 (餐膳報表)</h3>
-          <div className="grid grid-cols-4 gap-4">
-            {Object.entries(mealStats).map(([type, patients]) => (
-              <StatCard
-                key={type}
-                title={type}
-                value={patients.length}
-                bgColor="bg-blue-50"
-                textColor="text-blue-600"
-                patientNames={patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)}
-              />
-            ))}
-          </div>
-        </div>
+          <h3 className="text-lg font-semibold mb-4">廚房準備統計</h3>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">餐膳詳細資料</h3>
-          <div className="space-y-4">
-            {patientsWithMealGuidance.map(patient => {
-              const guidance = (mealGuidances || []).find(mg => mg.patient_id === patient.院友id);
-              return (
-                <div key={patient.院友id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="font-semibold">{patient.床號} {patient.中文姓氏}{patient.中文名字}</h4>
-                      <p className="text-sm text-gray-600 mt-1">
-                        餐組合: <span className="font-medium">{guidance?.meal_combination || '未設定'}</span>
-                      </p>
-                      {guidance?.needs_thickener && (
-                        <p className="text-sm text-orange-600 mt-1">
-                          需加稠劑: {guidance.thickener_amount || '未指定份量'}
-                        </p>
-                      )}
-                      {guidance?.special_diets && Array.isArray(guidance.special_diets) && guidance.special_diets.length > 0 && (
-                        <p className="text-sm text-blue-600 mt-1">
-                          特別餐: {guidance.special_diets.join(', ')}
-                        </p>
-                      )}
-                      {guidance?.egg_quantity && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          雞蛋數量: {guidance.egg_quantity}隻
-                        </p>
-                      )}
-                      {guidance?.remarks && (
-                        <p className="text-sm text-gray-500 mt-1">備註: {guidance.remarks}</p>
-                      )}
-                    </div>
-                  </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div>
+              <h4 className="text-md font-medium text-gray-700 mb-3">總數統計</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">餐膳總數</span>
+                  <span className="font-bold text-blue-600 text-lg">{statistics.總餐膳數} 份</span>
                 </div>
-              );
-            })}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">需要凝固粉</span>
+                  <span className="font-medium text-blue-600">{statistics.需要凝固粉} 份</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-md font-medium text-gray-700 mb-3">主食需求</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">正飯</span>
+                  <span className="font-medium text-green-600">{statistics.正飯} 份</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">軟飯</span>
+                  <span className="font-medium text-yellow-600">{statistics.軟飯} 份</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">糊飯</span>
+                  <span className="font-medium text-orange-600">{statistics.糊飯} 份</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-md font-medium text-gray-700 mb-3">配菜需求</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">正餸</span>
+                  <span className="font-medium text-green-600">{statistics.正餸} 份</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">碎餸</span>
+                  <span className="font-medium text-yellow-600">{statistics.碎餸} 份</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">糊餸</span>
+                  <span className="font-medium text-orange-600">{statistics.糊餸} 份</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-md font-medium text-gray-700 mb-3">特殊餐膳需求</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">糖尿餐</span>
+                  <span className="font-medium text-blue-600">{statistics.糖尿餐} 份</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">痛風餐</span>
+                  <span className="font-medium text-purple-600">{statistics.痛風餐} 份</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">低鹽餐</span>
+                  <span className="font-medium text-green-600">{statistics.低鹽餐} 份</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">雞蛋</span>
+                  <span className="font-medium text-yellow-600">{statistics.雞蛋總數} 隻</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1091,6 +1149,77 @@ const Reports: React.FC = () => {
     );
   };
 
+  const renderDrugSensitivityReport = () => {
+    const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
+    const drugSensitivityPatients = activePatients.filter(p =>
+      (p.藥物敏感 && Array.isArray(p.藥物敏感) && p.藥物敏感.length > 0) ||
+      (p.不良藥物反應 && Array.isArray(p.不良藥物反應) && p.不良藥物反應.length > 0)
+    );
+
+    return (
+      <div className="space-y-6">
+        <div className="flex space-x-4 mb-4">
+          <select
+            value={stationFilter}
+            onChange={(e) => setStationFilter(e.target.value)}
+            className="form-input"
+          >
+            <option value="all">所有分區</option>
+            {stations?.map(station => (
+              <option key={station.id} value={station.id}>{station.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">藥物敏感報表 (共 {drugSensitivityPatients.length} 人)</h3>
+          <div className="space-y-4">
+            {drugSensitivityPatients.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">暫無藥物敏感或不良反應記錄</p>
+            ) : (
+              drugSensitivityPatients.map(patient => (
+                <div key={patient.院友id} className="border border-orange-200 rounded-lg p-4 bg-orange-50">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg text-orange-800">{patient.床號} {patient.中文姓氏}{patient.中文名字}</h4>
+                      <p className="text-sm text-gray-700 mt-1">性別: {patient.性別} | 護理等級: {patient.護理等級 || '未設定'}</p>
+
+                      {patient.藥物敏感 && Array.isArray(patient.藥物敏感) && patient.藥物敏感.length > 0 && (
+                        <div className="mt-3">
+                          <p className="font-medium text-orange-800 mb-2">藥物敏感:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {patient.藥物敏感.map((drug: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
+                                {drug}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {patient.不良藥物反應 && Array.isArray(patient.不良藥物反應) && patient.不良藥物反應.length > 0 && (
+                        <div className="mt-3">
+                          <p className="font-medium text-red-800 mb-2">不良藥物反應:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {patient.不良藥物反應.map((drug: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                {drug}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -1146,6 +1275,13 @@ const Reports: React.FC = () => {
             <Activity className="h-4 w-4 inline mr-1" />
             特別關顧名單
           </button>
+          <button
+            onClick={() => setActiveTab('drugSensitivity')}
+            className={`px-4 py-2 font-medium ${activeTab === 'drugSensitivity' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          >
+            <AlertCircle className="h-4 w-4 inline mr-1" />
+            藥物敏感報表
+          </button>
         </div>
       </div>
 
@@ -1156,6 +1292,7 @@ const Reports: React.FC = () => {
         {activeTab === 'meal' && renderMealReport()}
         {activeTab === 'tube' && renderTubeReport()}
         {activeTab === 'special' && renderSpecialCareList()}
+        {activeTab === 'drugSensitivity' && renderDrugSensitivityReport()}
       </div>
     </div>
   );
