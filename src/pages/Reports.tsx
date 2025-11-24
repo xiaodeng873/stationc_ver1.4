@@ -767,7 +767,7 @@ const Reports: React.FC = () => {
         <h3 className="text-lg font-semibold mb-4">傷口與意外</h3>
         <div className="grid grid-cols-2 gap-4">
           <StatCard title="壓瘡" value={monthlyReportData.壓瘡.count} bgColor="bg-red-50" textColor="text-red-600" patientNames={monthlyReportData.壓瘡.names} />
-          <StatCard title="跌倒(當月)" value={monthlyReportData.跌倒.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={monthlyReportData.跌倒.names} />
+          <StatCard title="跌倒" value={monthlyReportData.跌倒.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={monthlyReportData.跌倒.names} />
         </div>
       </div>
 
