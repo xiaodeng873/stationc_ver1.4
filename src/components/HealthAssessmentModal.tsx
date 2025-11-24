@@ -1032,20 +1032,10 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
             {/* 9. 治療項目 */}
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-lg font-medium text-gray-900 mb-4">9. 治療項目</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {[
-                  '服藥觀察',
-                  '量血壓',
-                  '量血糖',
-                  '傷口護理',
-                  '氧氣治療',
-                  '引流管護理',
-                  '鼻胃管護理',
-                  '導尿管護理',
-                  '灌腸',
-                  '抽痰',
-                  '物理治療',
-                  '職業治療'
+                  '腹膜/血液透析',
+                  '氧氣治療'
                 ].map(item => (
                   <label
                     key={item}
@@ -1073,32 +1063,15 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
                   </label>
                 ))}
               </div>
-
-              {/* 顯示已選擇的治療項目 */}
-              {formData.treatment_items.length > 0 && (
-                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm font-medium text-green-800 mb-2">已選擇的治療項目：</p>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.treatment_items.map(item => (
-                      <span
-                        key={item}
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800 border border-green-300"
-                      >
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* 10. 情緒/行為表現 */}
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-lg font-medium text-gray-900 mb-4">10. 情緒/行為表現</h3>
 
-              {/* 情緒表現 */}
+              {/* 情緒 */}
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">a. 情緒表現</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">情緒</label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <select
@@ -1130,22 +1103,21 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
                 </div>
               </div>
 
-              {/* 行為表現 */}
+              {/* 行為 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">b. 行為表現</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">行為</label>
                 <select
                   value={formData.behavior_expression}
                   onChange={(e) => setFormData(prev => ({ ...prev, behavior_expression: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">請選擇</option>
-                  <option value="正常">正常</option>
-                  <option value="焦慮不安">焦慮不安</option>
-                  <option value="攻擊性行為">攻擊性行為</option>
                   <option value="遊走">遊走</option>
-                  <option value="重複行為">重複行為</option>
-                  <option value="拒絕配合">拒絕配合</option>
-                  <option value="自我照顧能力下降">自我照顧能力下降</option>
+                  <option value="逃跑">逃跑</option>
+                  <option value="暴力">暴力</option>
+                  <option value="偷竊">偷竊</option>
+                  <option value="夢遊">夢遊</option>
+                  <option value="囤積">囤積</option>
                 </select>
               </div>
             </div>
