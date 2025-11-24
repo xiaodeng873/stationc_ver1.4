@@ -44,7 +44,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, bgColor, textColor, s
 };
 
 const Reports: React.FC = () => {
-  const { patients, stations, healthAssessments, woundAssessments, incidentReports, patientHealthTasks, restraintAssessments, prescriptions, loading } = usePatients();
+  const { patients, stations, healthAssessments, woundAssessments, incidentReports, patientHealthTasks, patientRestraintAssessments, prescriptions, loading } = usePatients();
   const [activeTab, setActiveTab] = useState<ReportTab>('daily');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [stationFilter, setStationFilter] = useState<StationFilter>('all');
@@ -183,7 +183,7 @@ const Reports: React.FC = () => {
       p.感染控制 && p.感染控制.length > 0
     );
 
-    const restraintPatientIds = new Set((restraintAssessments || []).map(r => r.patient_id));
+    const restraintPatientIds = new Set((patientRestraintAssessments || []).map(r => r.patient_id));
     const restraintPatients = activePatients.filter(p => restraintPatientIds.has(p.院友id));
 
     const todayIncidents = (incidentReports || []).filter(incident => {
@@ -205,6 +205,8 @@ const Reports: React.FC = () => {
       admissionTypeStats,
       residenceStats,
       newAdmissions: {
+        男: newAdmissionsPatients.filter(p => p.性別 === '男').length,
+        女: newAdmissionsPatients.filter(p => p.性別 === '女').length,
         count: newAdmissionsPatients.length,
         names: newAdmissionsPatients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`)
       },
@@ -297,21 +299,12 @@ const Reports: React.FC = () => {
         </select>
       </div>
 
+      {/* 第一行: 在住狀態統計 */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">入住類型</h3>
+        <h3 className="text-lg font-semibold mb-4">在住狀態統計</h3>
         <div className="grid grid-cols-4 gap-4">
-          <StatCard title="買位" value={dailyReportData.admissionTypeStats.買位.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.admissionTypeStats.買位.names} />
-          <StatCard title="私位" value={dailyReportData.admissionTypeStats.私位.count} bgColor="bg-green-50" textColor="text-green-600" patientNames={dailyReportData.admissionTypeStats.私位.names} />
-          <StatCard title="院舍劵" value={dailyReportData.admissionTypeStats.院舍劵.count} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={dailyReportData.admissionTypeStats.院舍劵.names} />
-          <StatCard title="暫住" value={dailyReportData.admissionTypeStats.暫住.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={dailyReportData.admissionTypeStats.暫住.names} />
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">在住狀態</h3>
-        <div className="grid grid-cols-3 gap-4">
           <StatCard
-            title="住在本站"
+            title="在住本區人數"
             value={dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.住在本站女}
             subtitle={`男: ${dailyReportData.residenceStats.住在本站男} | 女: ${dailyReportData.residenceStats.住在本站女}`}
             bgColor="bg-green-50"
@@ -319,7 +312,7 @@ const Reports: React.FC = () => {
             patientNames={[...dailyReportData.residenceStats.住在本站男Names, ...dailyReportData.residenceStats.住在本站女Names]}
           />
           <StatCard
-            title="入住醫院"
+            title="入住醫院人數"
             value={dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女}
             subtitle={`男: ${dailyReportData.residenceStats.入住醫院男} | 女: ${dailyReportData.residenceStats.入住醫院女}`}
             bgColor="bg-red-50"
@@ -327,20 +320,28 @@ const Reports: React.FC = () => {
             patientNames={[...dailyReportData.residenceStats.入住醫院男Names, ...dailyReportData.residenceStats.入住醫院女Names]}
           />
           <StatCard
-            title="暫時回家"
+            title="暫時回家人數"
             value={0}
             subtitle="男: 0 | 女: 0"
             bgColor="bg-yellow-50"
             textColor="text-yellow-600"
             patientNames={[]}
           />
+          <StatCard
+            title="總人數 (a+b+c)"
+            value={dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.住在本站女 + dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女}
+            bgColor="bg-blue-50"
+            textColor="text-blue-600"
+            patientNames={[]}
+          />
         </div>
       </div>
 
+      {/* 第二行: 本區過去24小時新收院法 */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">入住/退住/死亡</h3>
+        <h3 className="text-lg font-semibold mb-4">本區過去 24 小時新收院法</h3>
         <div className="grid grid-cols-4 gap-4">
-          <StatCard title="過去24小時新入住" value={dailyReportData.newAdmissions.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.newAdmissions.names} />
+          <StatCard title="過去 24 小時新收" value={dailyReportData.newAdmissions.count} subtitle={`男: ${dailyReportData.newAdmissions.男} | 女: ${dailyReportData.newAdmissions.女}`} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.newAdmissions.names} />
           <StatCard
             title="當日退住"
             value={dailyReportData.discharge.total}
@@ -350,14 +351,38 @@ const Reports: React.FC = () => {
             patientNames={dailyReportData.discharge.names}
           />
           <StatCard
-            title="過去24小時死亡"
+            title="當月累積死亡"
+            value={dailyReportData.monthlyDeaths.count}
+            bgColor="bg-gray-50"
+            textColor="text-gray-600"
+            patientNames={dailyReportData.monthlyDeaths.names}
+          />
+        </div>
+      </div>
+
+      {/* 第三行: 過去24小時死亡人數 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">過去 24 小時死亡人數</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <StatCard
+            title="過去 24 小時死亡"
             value={dailyReportData.death.total}
             subtitle={`男: ${dailyReportData.death.男} | 女: ${dailyReportData.death.女}`}
             bgColor="bg-red-50"
             textColor="text-red-600"
             patientNames={dailyReportData.death.names}
           />
-          <StatCard title="當月累積死亡" value={dailyReportData.monthlyDeaths.count} bgColor="bg-gray-50" textColor="text-gray-600" patientNames={dailyReportData.monthlyDeaths.names} />
+        </div>
+      </div>
+
+      {/* 第四行: 買位/長者等統計 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">買位/長者/住護等統計</h3>
+        <div className="grid grid-cols-4 gap-4">
+          <StatCard title="買位" value={dailyReportData.admissionTypeStats.買位.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.admissionTypeStats.買位.names} />
+          <StatCard title="私位" value={dailyReportData.admissionTypeStats.私位.count} bgColor="bg-green-50" textColor="text-green-600" patientNames={dailyReportData.admissionTypeStats.私位.names} />
+          <StatCard title="院舍劵" value={dailyReportData.admissionTypeStats.院舍劵.count} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={dailyReportData.admissionTypeStats.院舍劵.names} />
+          <StatCard title="暫住" value={dailyReportData.admissionTypeStats.暫住.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={dailyReportData.admissionTypeStats.暫住.names} />
         </div>
       </div>
 
