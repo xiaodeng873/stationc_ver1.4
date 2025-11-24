@@ -97,7 +97,7 @@ const Reports: React.FC = () => {
     // 傷口和壓瘡統計
     const woundPatients = new Set<number>();
     const pressureUlcerPatients = new Set<number>();
-    woundAssessments.forEach(assessment => {
+    (woundAssessments || []).forEach(assessment => {
       const patient = activePatients.find(p => p.院友id === assessment.patient_id);
       if (!patient) return;
 
@@ -113,27 +113,27 @@ const Reports: React.FC = () => {
 
     // 健康評估相關統計
     const ngTubeCount = activePatients.filter(p => {
-      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
       return assessment?.飲食營養?.狀況 === '鼻胃管';
     }).length;
 
     const catheterCount = activePatients.filter(p => {
-      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
       return assessment?.日常活動及自理能力?.大小便?.includes('導尿管');
     }).length;
 
     const dialysisCount = activePatients.filter(p => {
-      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
       return assessment?.治療項目?.腹膜透析 || assessment?.治療項目?.血液透析;
     }).length;
 
     const oxygenCount = activePatients.filter(p => {
-      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
       return assessment?.治療項目?.氧氣治療;
     }).length;
 
     const stomaCount = activePatients.filter(p => {
-      const assessment = healthAssessments.find(a => a.patient_id === p.院友id);
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
       return assessment?.治療項目?.腸造口 || assessment?.治療項目?.小便造口;
     }).length;
 
@@ -141,12 +141,12 @@ const Reports: React.FC = () => {
       p.感染控制 && p.感染控制.length > 0
     ).length;
 
-    const restraintCount = restraintAssessments.filter(r => {
+    const restraintCount = restraintAssessments?.filter(r => {
       return activePatients.some(p => p.院友id === r.patient_id);
-    }).length;
+    }).length || 0;
 
     // 意外統計
-    const todayIncidents = incidentReports.filter(incident => {
+    const todayIncidents = (incidentReports || []).filter(incident => {
       const incidentDate = new Date(incident.incident_date);
       return incidentDate.toDateString() === targetDate.toDateString();
     });
