@@ -188,11 +188,11 @@ const TemplateManagement: React.FC = () => {
       console.log('第1步: 提取範本格式...');
       setUploadProgress({ [uploadId]: 20 });
 
-      let extractedFormat: any = null;
+      let extractedFormat: any = {};
       if (selectedType === 'incident-report') {
-        // Word 範本不需要提取格式，直接儲存檔案
+        // Word 範本不需要提取格式，使用空物件
         console.log('Word 範本，跳過格式提取');
-        extractedFormat = null;
+        extractedFormat = {};
       } else {
         extractedFormat = await extractTemplateFormatByType(file, selectedType);
         console.log('範本格式提取完成:', extractedFormat);
