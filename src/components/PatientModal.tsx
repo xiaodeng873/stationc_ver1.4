@@ -711,7 +711,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
                 value={formData.英文姓氏}
                 onChange={handleChange}
                 className="form-input"
-                placeholder="Surname (e.g., TAM)"
+                placeholder="Surname "
               />
               <input
                 type="text"
@@ -719,7 +719,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
                 value={formData.英文名字}
                 onChange={handleChange}
                 className="form-input"
-                placeholder="Given Name (e.g., Wing Siu)"
+                placeholder="Given Name"
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">英文姓氏將自動轉為大寫，英文名字每個單字首字母自動大寫。</p>
