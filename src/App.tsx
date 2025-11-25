@@ -33,6 +33,7 @@ const AnnualHealthCheckup = lazy(() => import('./pages/AnnualHealthCheckup'));
 const IncidentReports = lazy(() => import('./pages/IncidentReports'));
 const DiagnosisRecords = lazy(() => import('./pages/DiagnosisRecords'));
 const VaccinationRecords = lazy(() => import('./pages/VaccinationRecords'));
+const OCRDocumentRecognition = lazy(() => import('./pages/OCRDocumentRecognition'));
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-64">
@@ -106,6 +107,7 @@ function AppContent() {
             <Route path="/incident-reports" element={<IncidentReports />} />
             <Route path="/diagnosis-records" element={<DiagnosisRecords />} />
             <Route path="/vaccination-records" element={<VaccinationRecords />} />
+            <Route path="/ocr" element={<OCRDocumentRecognition />} />
             <Route path="/patients" element={<PatientRecords />} />
             <Route path="/templates" element={<TemplateManagement />} />
             <Route path="/health" element={<HealthAssessment />} />

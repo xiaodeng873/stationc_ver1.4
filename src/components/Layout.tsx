@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Users, FileText, BarChart3, Menu, X, Home, LogOut, User, Clock, BicepsFlexed, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Settings, Ambulance, Activity, Hospital, Bed, Stethoscope, Database, Bandage, UserSearch, Pill, AlertTriangle, Syringe } from 'lucide-react';
+import { Users, FileText, BarChart3, Menu, X, Home, LogOut, User, Clock, BicepsFlexed, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Settings, Ambulance, Activity, Hospital, Bed, Stethoscope, Database, Bandage, UserSearch, Pill, AlertTriangle, Syringe, ScanLine } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { useAuth } from '../context/AuthContext';
 
@@ -57,6 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
     { name: '年度體檢', href: '/annual-health-checkup', icon: BicepsFlexed },
     { name: '出入院記錄', href: '/admission-records', icon: Ambulance },
     { name: '傷口管理', href: '/wound', icon: Bandage },
+    { name: 'OCR文件識別', href: '/ocr', icon: ScanLine },
     { name: '處方管理', href: '/prescriptions', icon: Pill },
     { name: '藥物資料庫', href: '/drug-database', icon: Database },
     { name: '藥物工作流程', href: '/medication-workflow', icon: CheckSquare },
