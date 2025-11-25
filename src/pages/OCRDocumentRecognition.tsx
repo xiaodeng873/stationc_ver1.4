@@ -47,10 +47,44 @@ const OCRDocumentRecognition: React.FC = () => {
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [prefilledData, setPrefilledData] = useState<any>(null);
   const [showManualTypeSelector, setShowManualTypeSelector] = useState(false);
+  const [showClassificationEditor, setShowClassificationEditor] = useState(false);
+  const [classificationRules, setClassificationRules] = useState<string>('');
 
   useEffect(() => {
     loadPromptData();
+    initializeClassificationRules();
   }, []);
+
+  const initializeClassificationRules = () => {
+    const defaultRules = `文件分類規則說明：
+
+系統會根據以下關鍵字和權重來判斷文件類型。
+
+【疫苗注射記錄】
+關鍵字：vaccine, vaccination, immunization, 疫苗, 注射
+欄位：疫苗名稱, vaccine_item, 注射日期, vaccination_date, 注射單位
+
+【覆診資料】
+關鍵字：appointment, follow, 覆診, 門診, 專科
+欄位：覆診日期, 覆診地點, 醫院, 診所, 覆診時間
+
+【藥物敏感資料】
+關鍵字：allergy, adverse, reaction, 敏感, 過敏, 不良反應
+欄位：藥物敏感, allergies
+
+【診斷記錄】
+關鍵字：diagnosis, diagnosed, condition, 診斷
+欄位：診斷項目, diagnosis_item, 診斷日期, diagnosis_date
+
+【藥物處方】
+關鍵字：prescription, 處方
+欄位：藥物名稱, medication_name, 劑量, dosage, 服用次數, 頻率, 處方日期
+
+提示：您可以在此編輯分類規則，但目前系統使用硬編碼邏輯執行分類。
+未來版本將支援根據此規則進行動態分類。`;
+
+    setClassificationRules(defaultRules);
+  };
 
   const loadPromptData = async () => {
     const templates = await getPromptTemplates();
@@ -225,12 +259,13 @@ const OCRDocumentRecognition: React.FC = () => {
         }
       }
 
-      // 處方類型：只需1個線索（通常只有姓名），其他類型需要2個線索
-      const minMatchRequired = isPrescription ? 1 : 2;
-      if (matchedFields.length >= minMatchRequired) {
-        // 如果是處方且只有姓名匹配，降低信心度
+      // 只要有至少1個線索匹配就加入候選清單
+      if (matchedFields.length >= 1) {
+        // 根據匹配線索數量調整信心度
         let finalConfidence = Math.min(score, 100);
-        if (isPrescription && matchedFields.length === 1 && matchedFields[0] === '中文姓名') {
+
+        // 只有1個線索匹配時，降低信心度以提醒用戶確認
+        if (matchedFields.length === 1) {
           finalConfidence = Math.min(finalConfidence, 65);
         }
 
@@ -668,7 +703,55 @@ const OCRDocumentRecognition: React.FC = () => {
               )}
             </div>
 
-            {!showPromptEditor && (
+            {/* 分類規則編輯器 */}
+            <div className="mt-4">
+              <button
+                onClick={() => setShowClassificationEditor(!showClassificationEditor)}
+                className="form-label flex items-center justify-between w-full hover:text-blue-600 transition-colors"
+              >
+                <span>文件分類規則設定</span>
+                {showClassificationEditor ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+
+              {showClassificationEditor && (
+                <div className="space-y-3 mt-2">
+                  <div className="text-xs text-gray-600 mb-2">
+                    <p className="mb-1">系統根據以下規則判斷文件類型：</p>
+                    <p className="text-yellow-700 bg-yellow-50 p-2 rounded">
+                      ⚠️ 注意：目前系統使用硬編碼邏輯進行分類。您可以查看和編輯這些規則以了解分類邏輯，但實際分類暫不會使用此處的編輯內容。
+                    </p>
+                  </div>
+
+                  <textarea
+                    value={classificationRules}
+                    onChange={(e) => setClassificationRules(e.target.value)}
+                    className="form-input font-mono text-xs"
+                    rows={15}
+                    placeholder="編輯分類規則..."
+                    disabled={isProcessing}
+                  />
+
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500">
+                      參考這些規則了解系統如何分類文件
+                    </p>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={initializeClassificationRules}
+                        className="text-xs text-gray-600 hover:text-gray-800 flex items-center space-x-1 px-2 py-1 rounded hover:bg-gray-100"
+                        disabled={isProcessing}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span>恢復預設</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!showPromptEditor && !showClassificationEditor && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start space-x-2">
                   <AlertTriangle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -677,7 +760,7 @@ const OCRDocumentRecognition: React.FC = () => {
                     <ul className="list-disc list-inside space-y-1 text-xs">
                       <li>請確保圖片清晰，文字可辨識</li>
                       <li>系統會自動識別院友並分類文件類型</li>
-                      <li>一般需匹配至少 2 個院友線索（處方標籤例外：只需姓名）</li>
+                      <li>只需匹配至少 1 個院友線索即可（姓名、身份證、出生日期等）</li>
                       <li>識別後會自動開啟對應功能模組填入資料</li>
                       <li>如 AI 判斷錯誤，可手動選擇正確的文件類型</li>
                     </ul>
@@ -749,10 +832,10 @@ const OCRDocumentRecognition: React.FC = () => {
                           {field}
                         </span>
                       ))}
-                      {documentClassification?.type === 'prescription' && match.matchedFields.length === 1 && match.matchedFields[0] === '中文姓名' && (
+                      {match.matchedFields.length === 1 && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">
                           <AlertTriangle className="h-3 w-3 mr-1" />
-                          僅姓名匹配（處方標籤）
+                          僅1個線索匹配，請確認院友
                         </span>
                       )}
                     </div>
