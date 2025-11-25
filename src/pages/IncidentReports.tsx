@@ -309,6 +309,45 @@ const IncidentReports: React.FC = () => {
     }
   };
 
+  const handleInvertSelection = () => {
+    const newSelected = new Set<string>();
+    paginatedReports.forEach(report => {
+      if (!selectedRows.has(report.id)) {
+        newSelected.add(report.id);
+      }
+    });
+    setSelectedRows(newSelected);
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedRows.size === 0) {
+      alert('請先選擇要刪除的記錄');
+      return;
+    }
+
+    const confirmMessage = `確定要刪除 ${selectedRows.size} 筆意外事件報告嗎？\n\n此操作無法復原。`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    const deletingArray = Array.from(selectedRows);
+    setDeletingIds(new Set(deletingArray));
+
+    try {
+      for (const reportId of deletingArray) {
+        await deleteIncidentReport(reportId);
+      }
+      setSelectedRows(new Set());
+      alert(`成功刪除 ${deletingArray.length} 筆意外事件報告`);
+    } catch (error) {
+      console.error('批量刪除意外事件報告失敗:', error);
+      alert('批量刪除意外事件報告失敗，請重試');
+    } finally {
+      setDeletingIds(new Set());
+    }
+  };
+
   const handleRowSelect = (id: string) => {
     const newSelected = new Set(selectedRows);
     if (newSelected.has(id)) {
@@ -496,6 +535,42 @@ const IncidentReports: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 選取控制 */}
+      {totalItems > 0 && (
+        <div className="sticky top-40 bg-white z-10 shadow-sm">
+          <div className="card p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={handleSelectAll}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  {selectedRows.size === paginatedReports.length ? '取消全選' : '全選'}
+                </button>
+                <button
+                  onClick={handleInvertSelection}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  反選
+                </button>
+                {selectedRows.size > 0 && (
+                  <button
+                    onClick={handleBatchDelete}
+                    className="text-sm text-red-600 hover:text-red-700 font-medium"
+                    disabled={deletingIds.size > 0}
+                  >
+                    刪除選定記錄 ({selectedRows.size})
+                  </button>
+                )}
+              </div>
+              <div className="text-sm text-gray-600">
+                已選擇 {selectedRows.size} / {totalItems} 筆記錄
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 表格 */}
       <div className="card overflow-hidden">
