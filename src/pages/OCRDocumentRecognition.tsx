@@ -505,11 +505,17 @@ const OCRDocumentRecognition: React.FC = () => {
   };
 
   const findFieldValue = (data: any, possibleFieldNames: string[]): string | null => {
+    console.log('尋找欄位值 - 候選欄位名稱:', possibleFieldNames);
+    console.log('可用的資料欄位:', Object.keys(data));
+
     for (const fieldName of possibleFieldNames) {
       if (data[fieldName] !== undefined && data[fieldName] !== null && data[fieldName] !== '') {
-        return String(data[fieldName]).trim();
+        const value = String(data[fieldName]).trim();
+        console.log(`✓ 找到欄位 "${fieldName}": "${value}"`);
+        return value;
       }
     }
+    console.log('✗ 未找到任何匹配的欄位');
     return null;
   };
 
@@ -685,7 +691,15 @@ const OCRDocumentRecognition: React.FC = () => {
   };
 
   const handleOpenModalWithType = (type: DocumentType, patient: any, extractedData: any) => {
+    console.log('=== OCR 提取的原始資料 ===');
+    console.log('文件類型:', type);
+    console.log('提取資料:', JSON.stringify(extractedData, null, 2));
+
     const mappedData = mapExtractedDataToModalFields(extractedData, type, patient.院友id);
+
+    console.log('=== 映射後的資料 ===');
+    console.log('映射結果:', JSON.stringify(mappedData, null, 2));
+
     setPrefilledData(mappedData);
 
     switch (type) {
