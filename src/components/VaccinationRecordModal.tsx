@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Syringe, Calendar, Building2, Plus, Trash2 } from 'lucide-react';
 import { usePatients, type VaccinationRecord } from '../context/PatientContext';
 import PatientAutocomplete from './PatientAutocomplete';
+import OCRDocumentBlock from './OCRDocumentBlock';
 
 interface VaccinationRecordModalProps {
   patientId?: number;
@@ -44,6 +45,36 @@ const VaccinationRecordModal: React.FC<VaccinationRecordModalProps> = ({
   ]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ocrError, setOcrError] = useState<string>('');
+
+  const handleOCRComplete = (extractedData: any) => {
+    setOcrError('');
+
+    if (extractedData.patient_id) {
+      setSelectedPatientId(extractedData.patient_id);
+    }
+
+    if (extractedData.records && Array.isArray(extractedData.records)) {
+      const newItems = extractedData.records.map((record: any) => ({
+        id: Date.now().toString() + Math.random(),
+        vaccination_date: record.vaccination_date || getHongKongDate(),
+        vaccine_item: record.vaccine_item || '',
+        vaccination_unit: record.vaccination_unit || ''
+      }));
+      setVaccinationItems(newItems);
+    } else {
+      setVaccinationItems([{
+        id: Date.now().toString(),
+        vaccination_date: extractedData.vaccination_date || getHongKongDate(),
+        vaccine_item: extractedData.vaccine_item || '',
+        vaccination_unit: extractedData.vaccination_unit || ''
+      }]);
+    }
+  };
+
+  const handleOCRError = (error: string) => {
+    setOcrError(error);
+  };
 
   const addVaccinationItem = () => {
     setVaccinationItems([
@@ -151,6 +182,18 @@ const VaccinationRecordModal: React.FC<VaccinationRecordModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <OCRDocumentBlock
+            documentType="vaccination"
+            onOCRComplete={handleOCRComplete}
+            onOCRError={handleOCRError}
+          />
+
+          {ocrError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center space-x-2">
+              <span className="text-red-600 text-sm">{ocrError}</span>
+            </div>
+          )}
+
           <div>
             <label className="form-label flex items-center space-x-2">
               <span className="text-red-500">*</span>

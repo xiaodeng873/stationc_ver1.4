@@ -376,7 +376,7 @@ const OCRDocumentRecognition: React.FC = () => {
         }
       }
 
-      // === 身份證號碼匹配 ===
+      // === 身份證號碼匹配（支援完整和部分匹配）===
       const possibleIdFields = ['身份證號碼', 'HKID', 'ID', 'Identity'];
       let idToMatch = '';
       for (const field of possibleIdFields) {
@@ -386,11 +386,44 @@ const OCRDocumentRecognition: React.FC = () => {
         }
       }
 
-      if (idToMatch) {
-        const patientId = patient.身份證號碼?.replace(/\s+/g, '').toUpperCase();
-        if (patientId && patientId === idToMatch) {
-          matchedFields.push('身份證號碼');
+      if (idToMatch && patient.身份證號碼) {
+        const patientId = patient.身份證號碼.replace(/\s+/g, '').toUpperCase();
+
+        // 完整匹配（最高分）
+        if (patientId === idToMatch) {
+          matchedFields.push('身份證號碼（完整）');
           score += 50;
+        } else {
+          // 部分匹配：逐字符比對對應位格
+          let matchedPositions = 0;
+          let totalValidPositions = 0;
+
+          const maxLength = Math.max(patientId.length, idToMatch.length);
+
+          for (let i = 0; i < maxLength; i++) {
+            const extractedChar = idToMatch[i];
+            const patientChar = patientId[i];
+
+            // 忽略 X（遮罩）和特殊符號
+            if (extractedChar && extractedChar !== 'X' && extractedChar !== '_' &&
+                extractedChar !== '*' && extractedChar !== '(' && extractedChar !== ')') {
+              totalValidPositions++;
+
+              if (patientChar && extractedChar === patientChar) {
+                matchedPositions++;
+              }
+            }
+          }
+
+          // 如果至少有3個字符匹配，且匹配率 >= 60%
+          if (matchedPositions >= 3 && totalValidPositions > 0) {
+            const matchRate = matchedPositions / totalValidPositions;
+            if (matchRate >= 0.6) {
+              matchedFields.push(`身份證號碼（部分 ${matchedPositions}/${totalValidPositions}）`);
+              // 根據匹配率給分：60% = 25分，100% = 40分
+              score += Math.round(25 + (matchRate - 0.6) * 37.5);
+            }
+          }
         }
       }
 

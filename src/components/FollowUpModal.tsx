@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CalendarCheck, Clock, MapPin, User, Car, UserCheck, MessageSquare, Copy } from 'lucide-react';
 import { usePatients, type FollowUpAppointment } from '../context/PatientContext';
 import PatientAutocomplete from './PatientAutocomplete';
+import OCRDocumentBlock from './OCRDocumentBlock';
 
 interface FollowUpModalProps {
   appointment?: FollowUpAppointment;
@@ -32,6 +33,38 @@ export default function FollowUpModal({ appointment, onClose }: FollowUpModalPro
   });
 
   const [notificationMessage, setNotificationMessage] = useState('');
+  const [ocrError, setOcrError] = useState<string>('');
+
+  const handleOCRComplete = (extractedData: any) => {
+    setOcrError('');
+
+    const updates: any = {};
+
+    if (extractedData.院友id || extractedData.patient_id) {
+      updates.院友id = String(extractedData.院友id || extractedData.patient_id);
+    }
+    if (extractedData.覆診日期 || extractedData.followup_date) {
+      updates.覆診日期 = extractedData.覆診日期 || extractedData.followup_date;
+    }
+    if (extractedData.覆診時間 || extractedData.followup_time) {
+      updates.覆診時間 = extractedData.覆診時間 || extractedData.followup_time;
+    }
+    if (extractedData.覆診地點 || extractedData.followup_location) {
+      updates.覆診地點 = extractedData.覆診地點 || extractedData.followup_location;
+    }
+    if (extractedData.覆診專科 || extractedData.specialty) {
+      updates.覆診專科 = extractedData.覆診專科 || extractedData.specialty;
+    }
+    if (extractedData.出發時間 || extractedData.departure_time) {
+      updates.出發時間 = extractedData.出發時間 || extractedData.departure_time;
+    }
+
+    setFormData(prev => ({ ...prev, ...updates }));
+  };
+
+  const handleOCRError = (error: string) => {
+    setOcrError(error);
+  };
 
   // 醫院名稱選項
   const hospitalOptions = [
@@ -186,6 +219,18 @@ export default function FollowUpModal({ appointment, onClose }: FollowUpModalPro
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <OCRDocumentBlock
+            documentType="followup"
+            onOCRComplete={handleOCRComplete}
+            onOCRError={handleOCRError}
+          />
+
+          {ocrError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center space-x-2">
+              <span className="text-red-600 text-sm">{ocrError}</span>
+            </div>
+          )}
+
           {/* 基本資訊 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
