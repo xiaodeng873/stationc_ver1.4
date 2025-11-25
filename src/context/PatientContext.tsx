@@ -6,7 +6,7 @@ import { generateDailyWorkflowRecords } from '../utils/workflowGenerator';
 import { useAuth } from './AuthContext';
 
 // Re-export types from database module
-export type { Patient, HealthRecord, PatientHealthTask, HealthTaskType, FrequencyUnit, FollowUpAppointment, MealGuidance, MealCombinationType, SpecialDietType, PatientLog, PatientRestraintAssessment, WoundAssessment, PatientAdmissionRecord, AdmissionEventType, DailySystemTask, DeletedHealthRecord, DuplicateRecordGroup, IncidentReport } from '../lib/database';
+export type { Patient, HealthRecord, PatientHealthTask, HealthTaskType, FrequencyUnit, FollowUpAppointment, MealGuidance, MealCombinationType, SpecialDietType, PatientLog, PatientRestraintAssessment, WoundAssessment, PatientAdmissionRecord, AdmissionEventType, DailySystemTask, DeletedHealthRecord, DuplicateRecordGroup, IncidentReport, DiagnosisRecord, VaccinationRecord } from '../lib/database';
 
 // Wound photo interface
 export interface WoundPhoto {
@@ -96,6 +96,8 @@ interface PatientContextType {
   hospitalEpisodes: any[];
   annualHealthCheckups: any[];
   incidentReports: db.IncidentReport[];
+  diagnosisRecords: db.DiagnosisRecord[];
+  vaccinationRecords: db.VaccinationRecord[];
   loading: boolean;
   
   // 新增的處方工作流程相關屬性
@@ -176,6 +178,12 @@ interface PatientContextType {
   addIncidentReport: (report: Omit<db.IncidentReport, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   updateIncidentReport: (report: db.IncidentReport) => Promise<void>;
   deleteIncidentReport: (id: string) => Promise<void>;
+  addDiagnosisRecord: (record: Omit<db.DiagnosisRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  updateDiagnosisRecord: (record: db.DiagnosisRecord) => Promise<void>;
+  deleteDiagnosisRecord: (id: string) => Promise<void>;
+  addVaccinationRecord: (record: Omit<db.VaccinationRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  updateVaccinationRecord: (record: db.VaccinationRecord) => Promise<void>;
+  deleteVaccinationRecord: (id: string) => Promise<void>;
   addPatientAdmissionRecord: (record: Omit<db.PatientAdmissionRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   updatePatientAdmissionRecord: (record: db.PatientAdmissionRecord) => Promise<void>;
   deletePatientAdmissionRecord: (id: string) => Promise<void>;
@@ -251,6 +259,8 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const [woundAssessments, setWoundAssessments] = useState<db.WoundAssessment[]>([]);
   const [annualHealthCheckups, setAnnualHealthCheckups] = useState<any[]>([]);
   const [incidentReports, setIncidentReports] = useState<db.IncidentReport[]>([]);
+  const [diagnosisRecords, setDiagnosisRecords] = useState<db.DiagnosisRecord[]>([]);
+  const [vaccinationRecords, setVaccinationRecords] = useState<db.VaccinationRecord[]>([]);
   const [patientAdmissionRecords, setPatientAdmissionRecords] = useState<db.PatientAdmissionRecord[]>([]);
   const [hospitalEpisodes, setHospitalEpisodes] = useState<any[]>([]);
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -550,7 +560,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         drugDatabaseData,
         workflowRecordsData,
         annualHealthCheckupsData,
-        incidentReportsData
+        incidentReportsData,
+        diagnosisRecordsData,
+        vaccinationRecordsData
       ] = await Promise.all([
         db.getPatients(),
         db.getStations(),
@@ -571,7 +583,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getDrugDatabase(),
         fetchPrescriptionWorkflowRecords(),
         db.getAnnualHealthCheckups(),
-        db.getIncidentReports()
+        db.getIncidentReports(),
+        db.getDiagnosisRecords(),
+        db.getVaccinationRecords()
       ]);
 
       console.log('🔍 載入的工作流程記錄數:', workflowRecordsData?.length || 0);
@@ -650,6 +664,8 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       setPrescriptionWorkflowRecords(workflowRecordsData || []);
       setAnnualHealthCheckups(annualHealthCheckupsData || []);
       setIncidentReports(incidentReportsData || []);
+      setDiagnosisRecords(diagnosisRecordsData || []);
+      setVaccinationRecords(vaccinationRecordsData || []);
 
       // 載入每日系統任務
       try {
@@ -2279,6 +2295,66 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
+  const addDiagnosisRecord = async (record: Omit<db.DiagnosisRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createDiagnosisRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding diagnosis record:', error);
+      throw error;
+    }
+  };
+
+  const updateDiagnosisRecord = async (record: db.DiagnosisRecord) => {
+    try {
+      await db.updateDiagnosisRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating diagnosis record:', error);
+      throw error;
+    }
+  };
+
+  const deleteDiagnosisRecord = async (id: string) => {
+    try {
+      await db.deleteDiagnosisRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting diagnosis record:', error);
+      throw error;
+    }
+  };
+
+  const addVaccinationRecord = async (record: Omit<db.VaccinationRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createVaccinationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding vaccination record:', error);
+      throw error;
+    }
+  };
+
+  const updateVaccinationRecord = async (record: db.VaccinationRecord) => {
+    try {
+      await db.updateVaccinationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating vaccination record:', error);
+      throw error;
+    }
+  };
+
+  const deleteVaccinationRecord = async (id: string) => {
+    try {
+      await db.deleteVaccinationRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting vaccination record:', error);
+      throw error;
+    }
+  };
+
   // Patient admission record functions
   const addPatientAdmissionRecord = async (record: Omit<db.PatientAdmissionRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -2567,6 +2643,14 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       addIncidentReport,
       updateIncidentReport,
       deleteIncidentReport,
+      diagnosisRecords,
+      addDiagnosisRecord,
+      updateDiagnosisRecord,
+      deleteDiagnosisRecord,
+      vaccinationRecords,
+      addVaccinationRecord,
+      updateVaccinationRecord,
+      deleteVaccinationRecord,
       addPatientAdmissionRecord,
       updatePatientAdmissionRecord,
       deletePatientAdmissionRecord,

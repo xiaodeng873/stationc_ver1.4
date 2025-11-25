@@ -336,6 +336,30 @@ export interface IncidentReport {
   updated_at: string;
 }
 
+export interface DiagnosisRecord {
+  id: string;
+  patient_id: number;
+  diagnosis_date: string;
+  diagnosis_item: string;
+  diagnosis_unit: string;
+  remarks?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+export interface VaccinationRecord {
+  id: string;
+  patient_id: number;
+  vaccination_date: string;
+  vaccine_item: string;
+  vaccination_unit: string;
+  remarks?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
 // Drug Database types
 export interface DrugData {
   id: string;
@@ -3518,6 +3542,124 @@ export const deleteIncidentReport = async (reportId: string): Promise<void> => {
 
   if (error) {
     console.error('Error deleting incident report:', error);
+    throw error;
+  }
+};
+
+export const getDiagnosisRecords = async (): Promise<DiagnosisRecord[]> => {
+  const { data, error } = await supabase
+    .from('diagnosis_records')
+    .select('*')
+    .order('diagnosis_date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching diagnosis records:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createDiagnosisRecord = async (record: Omit<DiagnosisRecord, 'id' | 'created_at' | 'updated_at'>): Promise<DiagnosisRecord> => {
+  const { data, error } = await supabase
+    .from('diagnosis_records')
+    .insert([record])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating diagnosis record:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const updateDiagnosisRecord = async (record: DiagnosisRecord): Promise<DiagnosisRecord> => {
+  const { id, created_at, updated_at, ...updateData } = record;
+
+  const { data, error } = await supabase
+    .from('diagnosis_records')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating diagnosis record:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deleteDiagnosisRecord = async (recordId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('diagnosis_records')
+    .delete()
+    .eq('id', recordId);
+
+  if (error) {
+    console.error('Error deleting diagnosis record:', error);
+    throw error;
+  }
+};
+
+export const getVaccinationRecords = async (): Promise<VaccinationRecord[]> => {
+  const { data, error } = await supabase
+    .from('vaccination_records')
+    .select('*')
+    .order('vaccination_date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching vaccination records:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createVaccinationRecord = async (record: Omit<VaccinationRecord, 'id' | 'created_at' | 'updated_at'>): Promise<VaccinationRecord> => {
+  const { data, error } = await supabase
+    .from('vaccination_records')
+    .insert([record])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating vaccination record:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const updateVaccinationRecord = async (record: VaccinationRecord): Promise<VaccinationRecord> => {
+  const { id, created_at, updated_at, ...updateData } = record;
+
+  const { data, error } = await supabase
+    .from('vaccination_records')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating vaccination record:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deleteVaccinationRecord = async (recordId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('vaccination_records')
+    .delete()
+    .eq('id', recordId);
+
+  if (error) {
+    console.error('Error deleting vaccination record:', error);
     throw error;
   }
 };
