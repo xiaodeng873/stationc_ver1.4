@@ -92,15 +92,33 @@ const DiagnosisRecords: React.FC = () => {
     });
   };
 
-  const filteredRecords = diagnosisRecords.filter(record => {
-    const patient = patients.find(p => p.院友id === record.patient_id);
+  const groupedByPatient = diagnosisRecords.reduce((acc, record) => {
+    const patientId = record.patient_id;
+    if (!acc[patientId]) {
+      acc[patientId] = [];
+    }
+    acc[patientId].push(record);
+    return acc;
+  }, {} as Record<number, DiagnosisRecord[]>);
+
+  const patientGroups = Object.entries(groupedByPatient).map(([patientId, records]) => ({
+    patientId: parseInt(patientId),
+    records: records.sort((a, b) =>
+      new Date(b.diagnosis_date).getTime() - new Date(a.diagnosis_date).getTime()
+    )
+  }));
+
+  const filteredPatientGroups = patientGroups.filter(group => {
+    const patient = patients.find(p => p.院友id === group.patientId);
     if (!patient) return false;
 
     const matchesSearch = !searchTerm ||
       patient.中文姓名?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       patient.床號?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.diagnosis_item?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.diagnosis_unit?.toLowerCase().includes(searchTerm.toLowerCase());
+      group.records.some(r =>
+        r.diagnosis_item?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.diagnosis_unit?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
 
     const matchesBedNumber = !advancedFilters.床號 ||
       patient.床號?.includes(advancedFilters.床號);
@@ -109,38 +127,43 @@ const DiagnosisRecords: React.FC = () => {
       patient.中文姓名?.toLowerCase().includes(advancedFilters.中文姓名.toLowerCase());
 
     const matchesDiagnosisItem = !advancedFilters.diagnosis_item ||
-      record.diagnosis_item?.toLowerCase().includes(advancedFilters.diagnosis_item.toLowerCase());
+      group.records.some(r => r.diagnosis_item?.toLowerCase().includes(advancedFilters.diagnosis_item.toLowerCase()));
 
     const matchesDiagnosisUnit = !advancedFilters.diagnosis_unit ||
-      record.diagnosis_unit?.toLowerCase().includes(advancedFilters.diagnosis_unit.toLowerCase());
+      group.records.some(r => r.diagnosis_unit?.toLowerCase().includes(advancedFilters.diagnosis_unit.toLowerCase()));
 
     const matchesResidencyStatus = !advancedFilters.在住狀態 ||
       patient.在住狀態 === advancedFilters.在住狀態;
 
     let matchesDateRange = true;
     if (advancedFilters.startDate && advancedFilters.endDate) {
-      const recordDate = new Date(record.diagnosis_date);
       const startDate = new Date(advancedFilters.startDate);
       const endDate = new Date(advancedFilters.endDate);
-      matchesDateRange = recordDate >= startDate && recordDate <= endDate;
+      matchesDateRange = group.records.some(r => {
+        const recordDate = new Date(r.diagnosis_date);
+        return recordDate >= startDate && recordDate <= endDate;
+      });
     }
 
     return matchesSearch && matchesBedNumber && matchesName && matchesDiagnosisItem &&
            matchesDiagnosisUnit && matchesResidencyStatus && matchesDateRange;
   });
 
-  const sortedRecords = [...filteredRecords].sort((a, b) => {
+  const sortedPatientGroups = [...filteredPatientGroups].sort((a, b) => {
     let valueA: any;
     let valueB: any;
 
     if (sortField === '院友姓名') {
-      const patientA = patients.find(p => p.院友id === a.patient_id);
-      const patientB = patients.find(p => p.院友id === b.patient_id);
+      const patientA = patients.find(p => p.院友id === a.patientId);
+      const patientB = patients.find(p => p.院友id === b.patientId);
       valueA = patientA?.中文姓名 || '';
       valueB = patientB?.中文姓名 || '';
-    } else {
-      valueA = a[sortField] || '';
-      valueB = b[sortField] || '';
+    } else if (sortField === 'diagnosis_date') {
+      valueA = a.records[0]?.diagnosis_date || '';
+      valueB = b.records[0]?.diagnosis_date || '';
+    } else if (sortField === 'created_at') {
+      valueA = a.records[0]?.created_at || '';
+      valueB = b.records[0]?.created_at || '';
     }
 
     if (typeof valueA === 'string') {
@@ -155,11 +178,11 @@ const DiagnosisRecords: React.FC = () => {
     }
   });
 
-  const totalItems = sortedRecords.length;
+  const totalItems = sortedPatientGroups.length;
   const totalPages = Math.ceil(totalItems / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedRecords = sortedRecords.slice(startIndex, endIndex);
+  const paginatedPatientGroups = sortedPatientGroups.slice(startIndex, endIndex);
 
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
@@ -271,19 +294,22 @@ const DiagnosisRecords: React.FC = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedRows.size === paginatedRecords.length) {
+    const allRecordIds = paginatedPatientGroups.flatMap(g => g.records.map(r => r.id));
+    if (selectedRows.size === allRecordIds.length) {
       setSelectedRows(new Set());
     } else {
-      setSelectedRows(new Set(paginatedRecords.map(r => r.id)));
+      setSelectedRows(new Set(allRecordIds));
     }
   };
 
   const handleInvertSelection = () => {
     const newSelected = new Set<string>();
-    paginatedRecords.forEach(record => {
-      if (!selectedRows.has(record.id)) {
-        newSelected.add(record.id);
-      }
+    paginatedPatientGroups.forEach(group => {
+      group.records.forEach(record => {
+        if (!selectedRows.has(record.id)) {
+          newSelected.add(record.id);
+        }
+      });
     });
     setSelectedRows(newSelected);
   };
@@ -499,7 +525,7 @@ const DiagnosisRecords: React.FC = () => {
       )}
 
       <div className="card overflow-hidden">
-        {paginatedRecords.length > 0 ? (
+        {paginatedPatientGroups.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -507,47 +533,55 @@ const DiagnosisRecords: React.FC = () => {
                   <th className="px-4 py-3 text-left">
                     <input
                       type="checkbox"
-                      checked={selectedRows.size === paginatedRecords.length && paginatedRecords.length > 0}
+                      checked={selectedRows.size > 0 && selectedRows.size === paginatedPatientGroups.flatMap(g => g.records).length}
                       onChange={handleSelectAll}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                   </th>
                   <SortableHeader field="院友姓名">院友</SortableHeader>
-                  <SortableHeader field="diagnosis_date">診斷日期</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    診斷項目
+                    診斷記錄 (日期 | 項目 | 單位)
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    診斷單位
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    備註
-                  </th>
-                  <SortableHeader field="created_at">建立日期</SortableHeader>
+                  <SortableHeader field="created_at">最新建立</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     操作
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedRecords.map(record => {
-                  const patient = patients.find(p => p.院友id === record.patient_id);
-                  const isDeleting = deletingIds.has(record.id);
+                {paginatedPatientGroups.map(group => {
+                  const patient = patients.find(p => p.院友id === group.patientId);
+                  const hasAnyDeleting = group.records.some(r => deletingIds.has(r.id));
+                  const allSelected = group.records.every(r => selectedRows.has(r.id));
+                  const someSelected = group.records.some(r => selectedRows.has(r.id));
 
                   return (
                     <tr
-                      key={record.id}
-                      className={`hover:bg-gray-50 ${isDeleting ? 'opacity-50' : ''}`}
+                      key={group.patientId}
+                      className={`hover:bg-gray-50 ${hasAnyDeleting ? 'opacity-50' : ''}`}
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-top">
                         <input
                           type="checkbox"
-                          checked={selectedRows.has(record.id)}
-                          onChange={() => handleSelectRow(record.id)}
+                          checked={allSelected}
+                          ref={input => {
+                            if (input) {
+                              input.indeterminate = someSelected && !allSelected;
+                            }
+                          }}
+                          onChange={() => {
+                            const newSelected = new Set(selectedRows);
+                            if (allSelected) {
+                              group.records.forEach(r => newSelected.delete(r.id));
+                            } else {
+                              group.records.forEach(r => newSelected.add(r.id));
+                            }
+                            setSelectedRows(newSelected);
+                          }}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-top">
                         {patient ? (
                           <PatientTooltip patient={patient}>
                             <div className="flex items-center space-x-3">
@@ -565,6 +599,7 @@ const DiagnosisRecords: React.FC = () => {
                               <div>
                                 <p className="font-medium text-gray-900">{patient.中文姓名}</p>
                                 <p className="text-sm text-gray-500">床號: {patient.床號}</p>
+                                <p className="text-xs text-blue-600">共 {group.records.length} 筆記錄</p>
                               </div>
                             </div>
                           </PatientTooltip>
@@ -573,47 +608,58 @@ const DiagnosisRecords: React.FC = () => {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span className="text-gray-900">
-                            {new Date(record.diagnosis_date).toLocaleDateString('zh-TW')}
-                          </span>
+                        <div className="space-y-2">
+                          {group.records.map((record, index) => {
+                            const isDeleting = deletingIds.has(record.id);
+                            return (
+                              <div
+                                key={record.id}
+                                className={`flex items-center space-x-2 p-2 rounded ${
+                                  selectedRows.has(record.id) ? 'bg-blue-50' : 'bg-gray-50'
+                                } ${isDeleting ? 'opacity-50' : ''}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRows.has(record.id)}
+                                  onChange={() => handleSelectRow(record.id)}
+                                  className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                />
+                                <span className="text-xs text-gray-600 min-w-[80px]">
+                                  {new Date(record.diagnosis_date).toLocaleDateString('zh-TW')}
+                                </span>
+                                <span className="text-sm text-gray-900 font-medium flex-1">
+                                  {record.diagnosis_item}
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                  {record.diagnosis_unit}
+                                </span>
+                                <button
+                                  onClick={() => handleDelete(record.id)}
+                                  className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                  title="刪除此記錄"
+                                  disabled={isDeleting}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="text-gray-900">{record.diagnosis_item}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-gray-900">{record.diagnosis_unit}</span>
-                      </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-top">
                         <span className="text-gray-600 text-sm">
-                          {record.remarks || '-'}
+                          {new Date(group.records[0].created_at).toLocaleDateString('zh-TW')}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="text-gray-600 text-sm">
-                          {new Date(record.created_at).toLocaleDateString('zh-TW')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => handleAddForPatient(record.patient_id)}
-                            className="p-1 text-green-600 hover:bg-green-50 rounded"
-                            title="新增記錄"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(record.id)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
-                            title="刪除"
-                            disabled={isDeleting}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                      <td className="px-4 py-3 align-top">
+                        <button
+                          onClick={() => handleAddForPatient(group.patientId)}
+                          className="btn-secondary text-sm flex items-center space-x-1"
+                          title="新增記錄"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>新增</span>
+                        </button>
                       </td>
                     </tr>
                   );
