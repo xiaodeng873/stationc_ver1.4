@@ -59,31 +59,64 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
 
     const updates: any = {};
 
+    // 處理中文姓名
     if (extractedData.中文姓名) {
       const fullName = String(extractedData.中文姓名).trim();
       if (fullName.length >= 2) {
-        updates.中文姓氏 = fullName.charAt(0);
-        updates.中文名字 = fullName.substring(1);
+        // 如果是4個字，前2個字為姓氏
+        if (fullName.length === 4) {
+          updates.中文姓氏 = fullName.substring(0, 2);
+          updates.中文名字 = fullName.substring(2);
+        } else {
+          // 其他情況，第1個字為姓氏
+          updates.中文姓氏 = fullName.charAt(0);
+          updates.中文名字 = fullName.substring(1);
+        }
       }
     }
 
+    // 處理英文姓名
     if (extractedData.英文姓名) {
       const englishName = String(extractedData.英文姓名).trim();
-      const nameParts = englishName.split(/\s+/);
-      if (nameParts.length >= 2) {
-        updates.英文姓氏 = formatEnglishSurname(nameParts[0]);
-        updates.英文名字 = formatEnglishGivenName(nameParts.slice(1).join(' '));
-      } else if (nameParts.length === 1) {
-        updates.英文姓氏 = formatEnglishSurname(nameParts[0]);
+
+      // 檢查是否包含逗號（SURNAME, Given names 格式）
+      if (englishName.includes(',')) {
+        const parts = englishName.split(',').map(p => p.trim());
+        if (parts.length >= 2) {
+          updates.英文姓氏 = formatEnglishSurname(parts[0]);
+          updates.英文名字 = formatEnglishGivenName(parts[1]);
+        } else if (parts.length === 1) {
+          updates.英文姓氏 = formatEnglishSurname(parts[0]);
+        }
+      } else {
+        // 沒有逗號，按空格分割
+        const nameParts = englishName.split(/\s+/);
+        if (nameParts.length >= 2) {
+          updates.英文姓氏 = formatEnglishSurname(nameParts[0]);
+          updates.英文名字 = formatEnglishGivenName(nameParts.slice(1).join(' '));
+        } else if (nameParts.length === 1) {
+          updates.英文姓氏 = formatEnglishSurname(nameParts[0]);
+        }
       }
     }
 
+    // 處理身份證號碼
     if (extractedData.身份證號碼) {
       updates.身份證號碼 = String(extractedData.身份證號碼).trim();
     }
 
+    // 處理出生日期
     if (extractedData.出生日期) {
       updates.出生日期 = String(extractedData.出生日期).trim();
+    }
+
+    // 處理性別
+    if (extractedData.性別) {
+      const gender = String(extractedData.性別).trim();
+      // 確保性別值為 "男" 或 "女"
+      if (gender === '男' || gender === '女') {
+        updates.性別 = gender;
+      }
     }
 
     setFormData(prev => ({

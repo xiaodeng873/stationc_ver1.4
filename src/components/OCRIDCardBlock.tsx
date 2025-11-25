@@ -295,6 +295,12 @@ const OCRIDCardBlock: React.FC<OCRIDCardBlockProps> = ({ onOCRComplete, onOCRErr
                         <span>{ocrResult.extractedData.出生日期}</span>
                       </div>
                     )}
+                    {ocrResult.extractedData.性別 && (
+                      <div>
+                        <span className="font-medium">性別：</span>
+                        <span>{ocrResult.extractedData.性別}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
