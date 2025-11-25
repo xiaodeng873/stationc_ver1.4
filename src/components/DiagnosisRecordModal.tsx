@@ -153,14 +153,15 @@ const DiagnosisRecordModal: React.FC<DiagnosisRecordModalProps> = ({
               <span>院友</span>
             </label>
             <PatientAutocomplete
-              patients={patients}
-              selectedPatientId={selectedPatientId}
-              onSelect={(patientId) => {
-                setSelectedPatientId(patientId);
+              value={selectedPatientId?.toString() || ''}
+              onChange={(patientIdStr) => {
+                setSelectedPatientId(parseInt(patientIdStr));
                 setErrors(prev => ({ ...prev, patient_id: '' }));
               }}
               placeholder="搜索院友姓名或床號..."
-              disabled={!!patientId}
+              showResidencyFilter={true}
+              defaultResidencyStatus="在住"
+              className={!!patientId ? 'pointer-events-none opacity-60' : ''}
             />
             {errors.patient_id && (
               <p className="mt-1 text-sm text-red-600">{errors.patient_id}</p>
