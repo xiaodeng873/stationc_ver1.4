@@ -471,10 +471,36 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
           </div>
 
           <div>
-            <label className="form-label">
-              <User className="h-4 w-4 inline mr-1" />
-              院友 *
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="form-label mb-0">
+                <User className="h-4 w-4 inline mr-1" />
+                院友 *
+              </label>
+              <div className={`flex items-center space-x-2 px-3 py-1 rounded-lg border ${
+                currentIsPatientHospitalized
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-orange-50 border-orange-200'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={formData.isAbsent}
+                  onChange={(e) => handleAbsenceChange(e.target.checked)}
+                  className={`h-4 w-4 focus:ring-orange-500 border-gray-300 rounded ${
+                    currentIsPatientHospitalized
+                      ? 'text-red-600 focus:ring-red-500'
+                      : 'text-orange-600 focus:ring-orange-500'
+                  }`}
+                />
+                <label className={`text-sm font-medium whitespace-nowrap cursor-pointer ${
+                  currentIsPatientHospitalized ? 'text-red-800' : 'text-orange-800'
+                }`}>
+                  院友未能進行監測
+                  {currentIsPatientHospitalized && (
+                    <span className="ml-1 text-red-600 font-bold">(入院中)</span>
+                  )}
+                </label>
+              </div>
+            </div>
             <PatientAutocomplete
               value={formData.院友id}
               onChange={(patientId) => updateFormData('院友id', patientId)}
@@ -482,74 +508,55 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
               showResidencyFilter={true}
               defaultResidencyStatus="在住"
             />
+            {/* 未能監測原因選項 */}
+            {formData.isAbsent && (
+              <div className={`flex items-center space-x-2 mt-2 p-2 rounded-lg border ${
+                currentIsPatientHospitalized
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-orange-50 border-orange-200'
+              }`}>
+                <label className={`text-sm ${
+                  currentIsPatientHospitalized ? 'text-red-700' : 'text-orange-700'
+                }`}>原因:</label>
+                <select
+                  value={formData.absenceReason}
+                  onChange={(e) => handleAbsenceReasonChange(e.target.value)}
+                  className="form-input text-sm w-24"
+                  required={formData.isAbsent}
+                  disabled={currentIsPatientHospitalized && formData.absenceReason === '入院'}
+                >
+                  <option value="">請選擇</option>
+                  <option value="入院">入院</option>
+                  <option value="回家">回家</option>
+                  <option value="拒絕">拒絕</option>
+                  <option value="其他">其他</option>
+                </select>
+                {formData.absenceReason === '其他' && (
+                  <input
+                    type="text"
+                    value={formData.customAbsenceReason || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, customAbsenceReason: e.target.value }))}
+                    className="form-input text-sm flex-1"
+                    placeholder="請輸入原因..."
+                    required
+                  />
+                )}
+              </div>
+            )}
+            {/* 入院中院友的提示訊息 */}
+            {currentIsPatientHospitalized && (
+              <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-sm text-red-800">
+                <div className="flex items-center space-x-1">
+                  <span>🏥</span>
+                  <span>此院友目前入院中，系統已自動設定為無法量度，原因：入院</span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* 無法量度選項 */}
-          <div className="col-span-full">
-            <div className={`flex items-center space-x-3 p-3 rounded-lg border ${
-              currentIsPatientHospitalized 
-                ? 'bg-red-50 border-red-200' 
-                : 'bg-orange-50 border-orange-200'
-            }`}>
-              <input
-                type="checkbox"
-                checked={formData.isAbsent}
-                onChange={(e) => handleAbsenceChange(e.target.checked)}
-                className={`h-4 w-4 focus:ring-orange-500 border-gray-300 rounded ${
-                  currentIsPatientHospitalized 
-                    ? 'text-red-600 focus:ring-red-500' 
-                    : 'text-orange-600 focus:ring-orange-500'
-                }`}
-              />
-              <label className={`text-sm font-medium ${
-                currentIsPatientHospitalized ? 'text-red-800' : 'text-orange-800'
-              }`}>
-                院友未能進行監測
-                {currentIsPatientHospitalized && (
-                  <span className="ml-2 text-red-600 font-bold">(院友入院中)</span>
-                )}
-              </label>
-              {formData.isAbsent && (
-                <div className="flex items-center space-x-2">
-                  <label className={`text-sm ${
-                    currentIsPatientHospitalized ? 'text-red-700' : 'text-orange-700'
-                  }`}>原因:</label>
-                  <select
-                    value={formData.absenceReason}
-                    onChange={(e) => handleAbsenceReasonChange(e.target.value)}
-                    className="form-input text-sm w-24"
-                    required={formData.isAbsent}
-                    disabled={currentIsPatientHospitalized && formData.absenceReason === '入院'}
-                  >
-                    <option value="">請選擇</option>
-                    <option value="入院">入院</option>
-                    <option value="回家">回家</option>
-                    <option value="拒絕">拒絕</option>
-                    <option value="其他">其他</option>
-                  </select>
-                  {formData.absenceReason === '其他' && (
-                    <input
-                      type="text"
-                      value={formData.customAbsenceReason || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, customAbsenceReason: e.target.value }))}
-                      className="form-input text-sm w-32 ml-2"
-                      placeholder="請輸入原因..."
-                      required
-                    />
-                  )}
-                </div>
-              )}
-              
-              {/* 入院中院友的提示訊息 */}
-              {currentIsPatientHospitalized && (
-                <div className="w-full mt-2 p-2 bg-red-100 border border-red-300 rounded text-sm text-red-800">
-                  <div className="flex items-center space-x-1">
-                    <span>🏥</span>
-                    <span>此院友目前入院中，系統已自動設定為無法量度，原因：入院</span>
-                  </div>
-                </div>
-              )}
-            </div>
+          {/* 原來的無法量度選項區塊已整合到院友欄位中 */}
+          <div className="col-span-full hidden">
+            {/* 已移動至院友欄位 */}
           </div>
 
           {formData.記錄類型 === '生命表徵' && (
