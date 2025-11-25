@@ -3,6 +3,7 @@ import { X, User, Upload, Camera, Trash2, LogOut, LogIn, Calendar } from 'lucide
 import { usePatients } from '../context/PatientContext';
 import { formatEnglishGivenName, formatEnglishSurname } from '../utils/nameFormatter';
 import SimpleStationBedSelector from './SimpleStationBedSelector';
+import OCRIDCardBlock from './OCRIDCardBlock';
 
 interface PatientModalProps {
   patient?: any;
@@ -50,7 +51,50 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
   );
   const [showDischargeModal, setShowDischargeModal] = useState(false);
   const [dischargeDate, setDischargeDate] = useState('');
+  const [ocrError, setOcrError] = useState<string>('');
 
+
+  const handleOCRComplete = (extractedData: any) => {
+    setOcrError('');
+
+    const updates: any = {};
+
+    if (extractedData.中文姓名) {
+      const fullName = String(extractedData.中文姓名).trim();
+      if (fullName.length >= 2) {
+        updates.中文姓氏 = fullName.charAt(0);
+        updates.中文名字 = fullName.substring(1);
+      }
+    }
+
+    if (extractedData.英文姓名) {
+      const englishName = String(extractedData.英文姓名).trim();
+      const nameParts = englishName.split(/\s+/);
+      if (nameParts.length >= 2) {
+        updates.英文姓氏 = formatEnglishSurname(nameParts[0]);
+        updates.英文名字 = formatEnglishGivenName(nameParts.slice(1).join(' '));
+      } else if (nameParts.length === 1) {
+        updates.英文姓氏 = formatEnglishSurname(nameParts[0]);
+      }
+    }
+
+    if (extractedData.身份證號碼) {
+      updates.身份證號碼 = String(extractedData.身份證號碼).trim();
+    }
+
+    if (extractedData.出生日期) {
+      updates.出生日期 = String(extractedData.出生日期).trim();
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      ...updates
+    }));
+  };
+
+  const handleOCRError = (error: string) => {
+    setOcrError(error);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -311,6 +355,18 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* OCR 身份證識別區塊 */}
+          <OCRIDCardBlock
+            onOCRComplete={handleOCRComplete}
+            onOCRError={handleOCRError}
+          />
+
+          {ocrError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start space-x-2">
+              <div className="text-red-600 text-sm">{ocrError}</div>
+            </div>
+          )}
+
           {/* 站點和床位選擇 - 編輯時顯示資訊，新增時可選擇 */}
           {patient ? (
             <div>
