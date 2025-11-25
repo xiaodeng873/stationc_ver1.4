@@ -113,6 +113,78 @@ export async function getDefaultPrompt(): Promise<string> {
   }
 }
 
+export async function getUserClassificationRules(): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('user_ocr_prompts')
+      .select('classification_rules')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to fetch classification rules:', error);
+      return null;
+    }
+
+    return data?.classification_rules || null;
+  } catch (error) {
+    console.error('Error fetching classification rules:', error);
+    return null;
+  }
+}
+
+export async function saveClassificationRules(rulesContent: string): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('User not authenticated');
+      return false;
+    }
+
+    const { data: existingPrompt } = await supabase
+      .from('user_ocr_prompts')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (existingPrompt) {
+      const { error } = await supabase
+        .from('user_ocr_prompts')
+        .update({ classification_rules: rulesContent })
+        .eq('id', existingPrompt.id);
+
+      if (error) {
+        console.error('Failed to update classification rules:', error);
+        return false;
+      }
+    } else {
+      const { error } = await supabase
+        .from('user_ocr_prompts')
+        .insert({
+          user_id: user.id,
+          prompt_content: await getDefaultPrompt(),
+          classification_rules: rulesContent,
+          is_active: true
+        });
+
+      if (error) {
+        console.error('Failed to save classification rules:', error);
+        return false;
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error saving classification rules:', error);
+    return false;
+  }
+}
+
 function getHardcodedDefaultPrompt(): string {
   return `你是醫療資料分類的專家，你能從文本中熟練地分辨、提取有效的資料，其他都會自動中文化（藥物名稱以外），數字阿拉伯化
 

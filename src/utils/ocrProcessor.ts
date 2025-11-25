@@ -1,10 +1,17 @@
 import { supabase } from '../lib/supabase';
 
+export interface DocumentClassification {
+  type: 'vaccination' | 'followup' | 'allergy' | 'diagnosis' | 'prescription' | 'unknown';
+  confidence: number;
+  reasoning?: string;
+}
+
 export interface OCRResult {
   success: boolean;
   text?: string;
   extractedData?: any;
   confidenceScores?: Record<string, number>;
+  classification?: DocumentClassification;
   error?: string;
   processingTimeMs?: number;
 }
@@ -119,13 +126,14 @@ export async function performOCR(imageBase64: string): Promise<OCRResult> {
 
 export async function extractDataWithAI(
   ocrText: string,
-  prompt: string
+  prompt: string,
+  classificationPrompt?: string
 ): Promise<OCRResult> {
   try {
     const startTime = Date.now();
 
     const { data, error } = await supabase.functions.invoke('gemini-extract', {
-      body: { ocrText, prompt }
+      body: { ocrText, prompt, classificationPrompt }
     });
 
     if (error) {
@@ -162,7 +170,8 @@ export async function extractDataWithAI(
 
 export async function processImageAndExtract(
   file: File,
-  prompt: string
+  prompt: string,
+  classificationPrompt?: string
 ): Promise<OCRResult> {
   try {
     if (file.size > MAX_IMAGE_SIZE) {
@@ -201,13 +210,14 @@ export async function processImageAndExtract(
       return ocrResult;
     }
 
-    const extractResult = await extractDataWithAI(ocrResult.text, prompt);
+    const extractResult = await extractDataWithAI(ocrResult.text, prompt, classificationPrompt);
 
     const finalResult: OCRResult = {
       success: extractResult.success,
       text: ocrResult.text,
       extractedData: extractResult.extractedData,
       confidenceScores: extractResult.confidenceScores,
+      classification: extractResult.classification,
       error: extractResult.error,
       processingTimeMs: (ocrResult.processingTimeMs || 0) + (extractResult.processingTimeMs || 0)
     };

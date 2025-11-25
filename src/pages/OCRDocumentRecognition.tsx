@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, Upload, X, Loader, CheckCircle, AlertTriangle, RefreshCw, Save, RotateCcw, ChevronDown, ChevronUp, User, FileText, Syringe, CalendarCheck, Shield, Pill } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
-import { processImageAndExtract, validateImageFile } from '../utils/ocrProcessor';
-import { getPromptTemplates, getUserActivePrompt, saveUserPrompt, getDefaultPrompt, type PromptTemplate } from '../utils/promptManager';
+import { processImageAndExtract, validateImageFile, type DocumentClassification as OCRDocClassification } from '../utils/ocrProcessor';
+import { getPromptTemplates, getUserActivePrompt, saveUserPrompt, getDefaultPrompt, getUserClassificationRules, saveClassificationRules, type PromptTemplate } from '../utils/promptManager';
 import VaccinationRecordModal from '../components/VaccinationRecordModal';
 import FollowUpModal from '../components/FollowUpModal';
 import DiagnosisRecordModal from '../components/DiagnosisRecordModal';
@@ -52,11 +52,11 @@ const OCRDocumentRecognition: React.FC = () => {
 
   useEffect(() => {
     loadPromptData();
-    initializeClassificationRules();
+    loadClassificationData();
   }, []);
 
-  const initializeClassificationRules = () => {
-    const defaultRules = `文件分類規則說明：
+  const getDefaultClassificationRules = () => {
+    return `文件分類規則說明：
 
 系統會根據以下關鍵字和權重來判斷文件類型。
 
@@ -80,10 +80,30 @@ const OCRDocumentRecognition: React.FC = () => {
 關鍵字：prescription, 處方
 欄位：藥物名稱, medication_name, 劑量, dosage, 服用次數, 頻率, 處方日期
 
-提示：您可以在此編輯分類規則，但目前系統使用硬編碼邏輯執行分類。
-未來版本將支援根據此規則進行動態分類。`;
+提示：系統現已使用 AI 根據這些規則進行智能分類。
+如 AI 分類失敗，系統會自動降級使用硬編碼邏輯。`;
+  };
 
-    setClassificationRules(defaultRules);
+  const loadClassificationData = async () => {
+    const userRules = await getUserClassificationRules();
+    if (userRules) {
+      setClassificationRules(userRules);
+    } else {
+      setClassificationRules(getDefaultClassificationRules());
+    }
+  };
+
+  const initializeClassificationRules = () => {
+    setClassificationRules(getDefaultClassificationRules());
+  };
+
+  const handleSaveClassificationRules = async () => {
+    const success = await saveClassificationRules(classificationRules);
+    if (success) {
+      alert('分類規則已儲存為您的預設設定');
+    } else {
+      alert('儲存分類規則失敗，請重試');
+    }
   };
 
   const loadPromptData = async () => {
@@ -391,21 +411,33 @@ const OCRDocumentRecognition: React.FC = () => {
       setProcessingStage('正在識別文字...');
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      setProcessingStage('正在擷取資料...');
-      const result = await processImageAndExtract(selectedFile, prompt);
+      setProcessingStage('正在擷取資料並分類文件...');
+      const result = await processImageAndExtract(selectedFile, prompt, classificationRules);
 
       if (result.success && result.extractedData && result.text) {
         setOcrText(result.text);
 
-        // 階段1: 先分類文件類型
+        // 階段1: 使用 AI 分類結果或降級到硬編碼邏輯
         setProcessingStage('正在分類文件類型...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const classification = classifyDocument(result.extractedData, result.text);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        let classification: DocumentClassification;
+        if (result.classification) {
+          // 使用 AI 分類結果
+          classification = {
+            type: result.classification.type,
+            confidence: result.classification.confidence,
+            extractedData: result.extractedData
+          };
+        } else {
+          // 降級使用硬編碼邏輯
+          classification = classifyDocument(result.extractedData, result.text);
+        }
         setDocumentClassification(classification);
 
-        // 階段2: 根據文件類型匹配院友（處方只需姓名匹配）
+        // 階段2: 根據文件類型匹配院友
         setProcessingStage('正在匹配院友資料...');
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 300));
         const matches = findMatchingPatients(result.extractedData, classification.type);
         setPatientMatches(matches);
 
@@ -715,11 +747,9 @@ const OCRDocumentRecognition: React.FC = () => {
 
               {showClassificationEditor && (
                 <div className="space-y-3 mt-2">
-                  <div className="text-xs text-gray-600 mb-2">
-                    <p className="mb-1">系統根據以下規則判斷文件類型：</p>
-                    <p className="text-yellow-700 bg-yellow-50 p-2 rounded">
-                      ⚠️ 注意：目前系統使用硬編碼邏輯進行分類。您可以查看和編輯這些規則以了解分類邏輯，但實際分類暫不會使用此處的編輯內容。
-                    </p>
+                  <div className="text-xs text-gray-600 mb-2 bg-green-50 p-2 rounded border border-green-200">
+                    <p className="text-green-800 font-medium mb-1">✓ 系統現已使用 AI 根據以下規則進行智能分類</p>
+                    <p className="text-green-700">編輯這些規則將直接影響文件分類結果。如 AI 分類失敗，系統會自動降級使用硬編碼邏輯。</p>
                   </div>
 
                   <textarea
@@ -733,7 +763,7 @@ const OCRDocumentRecognition: React.FC = () => {
 
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-gray-500">
-                      參考這些規則了解系統如何分類文件
+                      自訂分類規則可提高分類準確度
                     </p>
                     <div className="flex items-center space-x-2">
                       <button
@@ -744,6 +774,15 @@ const OCRDocumentRecognition: React.FC = () => {
                       >
                         <RotateCcw className="h-3 w-3" />
                         <span>恢復預設</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveClassificationRules}
+                        className="text-xs text-blue-600 hover:text-blue-700 flex items-center space-x-1 px-2 py-1 rounded hover:bg-blue-50"
+                        disabled={isProcessing}
+                      >
+                        <Save className="h-3 w-3" />
+                        <span>儲存為預設</span>
                       </button>
                     </div>
                   </div>
@@ -763,6 +802,7 @@ const OCRDocumentRecognition: React.FC = () => {
                       <li>只需匹配至少 1 個院友線索即可（姓名、身份證、出生日期等）</li>
                       <li>識別後會自動開啟對應功能模組填入資料</li>
                       <li>如 AI 判斷錯誤，可手動選擇正確的文件類型</li>
+                      <li>需要重新識別？修改 Prompt 後再次點擊「開始識別」按鈕</li>
                     </ul>
                   </div>
                 </div>
@@ -898,7 +938,7 @@ const OCRDocumentRecognition: React.FC = () => {
                 >
                   <span className="flex items-center space-x-2">
                     <AlertTriangle className="h-4 w-4" />
-                    <span>AI 判斷錯誤？手動選擇正確的文件類型</span>
+                    <span>AI 判斷錯誤？手動選擇正確的文件類型（將使用已識別的資料）</span>
                   </span>
                   {showManualTypeSelector ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
@@ -959,18 +999,6 @@ const OCRDocumentRecognition: React.FC = () => {
                     )}
                   </div>
                 )}
-              </div>
-
-              {/* 重新識別按鈕 */}
-              <div className="mt-3">
-                <button
-                  onClick={handleStartOCR}
-                  disabled={isProcessing || !selectedFile}
-                  className="w-full text-sm text-gray-600 hover:text-blue-600 flex items-center justify-center space-x-2 p-2 border border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  <span>重新識別（可先修改 Prompt）</span>
-                </button>
               </div>
 
               {ocrText && (

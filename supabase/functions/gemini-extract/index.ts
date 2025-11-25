@@ -11,11 +11,19 @@ const GOOGLE_GEMINI_API_KEY = "AIzaSyDz_Rcu5Vm_D__-bkIKAvfGVUOlhcy855o";
 interface GeminiRequest {
   ocrText: string;
   prompt: string;
+  classificationPrompt?: string;
+}
+
+interface DocumentClassification {
+  type: 'vaccination' | 'followup' | 'allergy' | 'diagnosis' | 'prescription' | 'unknown';
+  confidence: number;
+  reasoning?: string;
 }
 
 interface GeminiResponse {
   extractedData: any;
   confidenceScores: Record<string, number>;
+  classification?: DocumentClassification;
   success: boolean;
   error?: string;
 }
@@ -29,7 +37,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { ocrText, prompt }: GeminiRequest = await req.json();
+    const { ocrText, prompt, classificationPrompt }: GeminiRequest = await req.json();
 
     if (!ocrText || !prompt) {
       return new Response(
@@ -110,10 +118,61 @@ Deno.serve(async (req: Request) => {
             confidenceScores[key] = 0.0;
           }
         }
-        
+
+        let classification: DocumentClassification | undefined;
+
+        if (classificationPrompt) {
+          try {
+            const classificationFullPrompt = `${classificationPrompt}\n\nOCR 原始文字：\n${ocrText}\n\n已提取的結構化資料：\n${JSON.stringify(extractedData, null, 2)}\n\n請根據以上資訊判斷文件類型，返回 JSON 格式：\n{\n  \"type\": \"vaccination | followup | allergy | diagnosis | prescription | unknown\",\n  \"confidence\": 0-100的數字,\n  \"reasoning\": \"簡短說明判斷理由\"\n}`;
+
+            const classificationPayload = {
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: classificationFullPrompt,
+                    },
+                  ],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                topK: 1,
+                topP: 1,
+                maxOutputTokens: 512,
+              },
+            };
+
+            const classificationResponse = await fetch(geminiApiUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(classificationPayload),
+            });
+
+            if (classificationResponse.ok) {
+              const classificationData = await classificationResponse.json();
+              if (classificationData.candidates && classificationData.candidates[0]?.content?.parts) {
+                let classificationText = classificationData.candidates[0].content.parts[0].text;
+                classificationText = classificationText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+                try {
+                  classification = JSON.parse(classificationText);
+                } catch (e) {
+                  console.error("Failed to parse classification:", e);
+                }
+              }
+            }
+          } catch (classError) {
+            console.error("Classification error:", classError);
+          }
+        }
+
         const result: GeminiResponse = {
           extractedData,
           confidenceScores,
+          classification,
           success: true,
         };
 
