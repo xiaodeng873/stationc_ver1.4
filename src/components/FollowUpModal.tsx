@@ -197,6 +197,8 @@ export default function FollowUpModal({ appointment, onClose }: FollowUpModalPro
                 value={formData.院友id}
                 onChange={(patientId) => setFormData(prev => ({ ...prev, 院友id: patientId }))}
                 placeholder="搜索院友..."
+                showResidencyFilter={true}
+                defaultResidencyStatus="在住"
               />
             </div>
 

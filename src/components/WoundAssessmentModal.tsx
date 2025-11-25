@@ -278,6 +278,8 @@ const WoundAssessmentModal: React.FC<WoundAssessmentModalProps> = ({ assessment,
                 value={formData.patient_id}
                 onChange={(patientId) => setFormData(prev => ({ ...prev, patient_id: patientId }))}
                 placeholder="搜索院友..."
+                showResidencyFilter={true}
+                defaultResidencyStatus="在住"
               />
             </div>
 

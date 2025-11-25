@@ -414,6 +414,8 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
                     }
                   }}
                   placeholder="搜尋院友姓名或床號"
+                  showResidencyFilter={true}
+                  defaultResidencyStatus="在住"
                 />
                 
                 {/* 顯示上次評估日期 */}

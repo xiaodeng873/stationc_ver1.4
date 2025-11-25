@@ -428,6 +428,8 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                   value={formData.patient_id}
                   onChange={(patientId) => setFormData({ ...formData, patient_id: patientId })}
                   placeholder="搜索院友..."
+                  showResidencyFilter={true}
+                  defaultResidencyStatus="在住"
                 />
                 {patients.length === 0 && (
                   <p className="text-sm text-red-600 mt-1">

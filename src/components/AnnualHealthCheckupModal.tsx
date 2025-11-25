@@ -203,6 +203,8 @@ export default function AnnualHealthCheckupModal({ checkup, onClose, onSave, pre
                     value={formData.patient_id?.toString() || ''}
                     onChange={handlePatientSelect}
                     placeholder="選擇院友"
+                    showResidencyFilter={true}
+                    defaultResidencyStatus="在住"
                   />
                 )}
                 {selectedPatient && !checkup && (

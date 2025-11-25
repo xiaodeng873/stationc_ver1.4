@@ -260,6 +260,8 @@ const ScheduleDetailModal: React.FC<ScheduleDetailModalProps> = ({
                   value={newPatientId}
                   onChange={setNewPatientId}
                   placeholder="搜索院友..."
+                  showResidencyFilter={true}
+                  defaultResidencyStatus="在住"
                 />
               </div>
               <button

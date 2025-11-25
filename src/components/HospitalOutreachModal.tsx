@@ -230,6 +230,8 @@ const HospitalOutreachModal: React.FC<HospitalOutreachModalProps> = ({ record, o
                 value={formData.patient_id}
                 onChange={(patientId) => setFormData(prev => ({ ...prev, patient_id: patientId }))}
                 placeholder="搜索院友..."
+                showResidencyFilter={true}
+                defaultResidencyStatus="在住"
               />
               {errors.patient_id && (
                 <p className="text-red-500 text-sm mt-1">{errors.patient_id}</p>
