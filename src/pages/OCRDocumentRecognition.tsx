@@ -131,39 +131,90 @@ const OCRDocumentRecognition: React.FC = () => {
   };
 
   const getExtractionPrompt = () => {
-    return `你是醫療文件資料提取專家。請從以下文件中提取關鍵資訊。
+    return `你是醫療文件資料提取專家。請從以下文件中提取關鍵資訊，並使用標準化的欄位名稱。
 
-必須提取的基本資訊（統一使用以下欄位名稱）：
-1. 中文姓名（欄位名稱：中文姓名）- 必須提取，不得留空
-2. 英文姓名（欄位名稱：英文姓名）- 如果有的話
-3. 身份證號碼（欄位名稱：身份證號碼）- 如果有的話
-4. 出生日期（欄位名稱：出生日期，格式：YYYY-MM-DD）- 如果有的話
-5. 年齡（欄位名稱：年齡）- 如果有的話
+【核心原則】
+1. 理解文件內容的語義，而不僅僅是照搬文字
+2. 使用標準化的欄位名稱（見下方），確保與系統表單欄位一致
+3. 將日期統一轉換為 YYYY-MM-DD 格式
+4. 將時間統一轉換為 HH:MM 格式（24小時制）
 
-根據文件類型提取對應資料：
+【基本資訊 - 必須提取】
+請使用以下標準欄位名稱：
+- "中文姓名": 患者的中文姓名（只提取中文部分，不含括號或換行後的內容）
+- "英文姓名": 患者的英文姓名（如有）
+- "身份證號碼": 香港身份證號碼（如有）
+- "出生日期": 格式 YYYY-MM-DD（如有）
+- "年齡": 數字（如有）
 
 【疫苗注射記錄】
-- 疫苗名稱（欄位：疫苗名稱）
-- 注射日期（欄位：注射日期，格式：YYYY-MM-DD）
-- 注射單位（欄位：注射單位，如醫院或診所名稱）
+請使用以下標準欄位名稱：
+- "vaccination_date": 注射日期（格式：YYYY-MM-DD）
+- "vaccine_item": 疫苗名稱或項目（如：流感疫苗、COVID-19疫苗）
+- "vaccination_unit": 注射單位/醫院/診所名稱
+
+範例：
+原始文字: "接種日期: 2024/09/15, 疫苗: 流感疫苗, 地點: 衛生署"
+正確輸出: {
+  "vaccination_date": "2024-09-15",
+  "vaccine_item": "流感疫苗",
+  "vaccination_unit": "衛生署"
+}
 
 【覆診預約】
-- 覆診日期（欄位：覆診日期，格式：YYYY-MM-DD）
-- 覆診時間（欄位：覆診時間，格式：HH:MM）
-- 覆診地點（欄位：覆診地點，醫院或診所名稱）
-- 專科（欄位：專科，如眼專科、骨科）
+請使用以下標準欄位名稱：
+- "followup_date": 覆診日期（格式：YYYY-MM-DD）
+- "followup_time": 覆診時間（格式：HH:MM，24小時制）
+- "followup_location": 覆診地點/醫院名稱（完整名稱）
+- "specialty": 專科名稱（如：眼專科、骨科、內科）
+- "departure_time": 出發時間（如有，格式：HH:MM）
+
+範例：
+原始文字: "預約日期: 2025/10/24, 登記時間: 08:30, 地點: 香港眼科醫院, 專科: 眼科"
+正確輸出: {
+  "followup_date": "2025-10-24",
+  "followup_time": "08:30",
+  "followup_location": "香港眼科醫院",
+  "specialty": "眼科"
+}
 
 【診斷記錄】
-- 診斷項目（欄位：診斷項目）
-- 診斷日期（欄位：診斷日期，格式：YYYY-MM-DD）
-- 診斷單位（欄位：診斷單位，醫院或診所名稱）
+請使用以下標準欄位名稱：
+- "diagnosis_date": 診斷日期（格式：YYYY-MM-DD）
+- "diagnosis_item": 診斷項目/病名（如：高血壓、糖尿病）
+- "diagnosis_unit": 診斷單位/醫院名稱
 
-特別注意：
-- 姓名如果包含括號或換行符（如 "鍾蓮女\n(Chung, Lin Nui)"），請分別提取中文姓名和英文姓名
-- 中文姓名只提取中文部分，不包含括號內容
-- 英文姓名提取括號內或姓名後的英文部分
+範例：
+原始文字: "診斷日期: 2024-08-20, 診斷: 高血壓, 醫院: 伊利沙伯醫院"
+正確輸出: {
+  "diagnosis_date": "2024-08-20",
+  "diagnosis_item": "高血壓",
+  "diagnosis_unit": "伊利沙伯醫院"
+}
 
-返回 JSON 格式。`;
+【特殊處理規則】
+1. 姓名處理：
+   - 如遇到 "鍾蓮女\n(Chung, Lin Nui)" 格式
+   - 中文姓名: "鍾蓮女"
+   - 英文姓名: "Chung, Lin Nui"
+
+2. 日期轉換：
+   - 2024/09/15 → 2024-09-15
+   - 2024.09.15 → 2024-09-15
+   - 15/9/2024 → 2024-09-15
+
+3. 時間轉換：
+   - 上午8:30 → 08:30
+   - 下午2:15 → 14:15
+   - 8:30am → 08:30
+
+4. 地點完整性：
+   - 提取完整的醫院/診所名稱
+   - 包含前綴（如：香港眼科醫院）
+
+【輸出格式】
+返回純JSON格式，不要包含任何markdown標記或說明文字。
+確保所有欄位名稱完全符合上述標準。`;
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -358,6 +409,82 @@ const OCRDocumentRecognition: React.FC = () => {
     return matches.sort((a, b) => b.confidence - a.confidence);
   };
 
+  const mapExtractedDataToModalFields = (extractedData: any, documentType: DocumentType, patientId: number): any => {
+    const baseData = {
+      院友id: patientId,
+      patient_id: patientId
+    };
+
+    switch (documentType) {
+      case 'vaccination': {
+        const possibleDateFields = ['vaccination_date', '注射日期', 'injection_date', 'date'];
+        const possibleItemFields = ['vaccine_item', '疫苗名稱', '疫苗項目', '疫苗', 'vaccine', 'vaccine_name'];
+        const possibleUnitFields = ['vaccination_unit', '注射單位', 'unit', 'hospital', '醫院', '診所'];
+
+        const vaccinationDate = findFieldValue(extractedData, possibleDateFields);
+        const vaccineItem = findFieldValue(extractedData, possibleItemFields);
+        const vaccinationUnit = findFieldValue(extractedData, possibleUnitFields);
+
+        return {
+          ...baseData,
+          vaccination_date: vaccinationDate || '',
+          vaccine_item: vaccineItem || '',
+          vaccination_unit: vaccinationUnit || ''
+        };
+      }
+
+      case 'followup': {
+        const possibleDateFields = ['followup_date', '覆診日期', 'appointment_date', '預約日期', 'date'];
+        const possibleTimeFields = ['followup_time', '覆診時間', 'appointment_time', '預約時間', '登記時間', 'time'];
+        const possibleLocationFields = ['followup_location', '覆診地點', 'location', 'hospital', '醫院', '地點'];
+        const possibleSpecialtyFields = ['specialty', '專科', '覆診專科', 'department', '科別'];
+        const possibleDepartureFields = ['departure_time', '出發時間'];
+
+        return {
+          ...baseData,
+          覆診日期: findFieldValue(extractedData, possibleDateFields) || '',
+          覆診時間: findFieldValue(extractedData, possibleTimeFields) || '',
+          覆診地點: findFieldValue(extractedData, possibleLocationFields) || '',
+          覆診專科: findFieldValue(extractedData, possibleSpecialtyFields) || '',
+          出發時間: findFieldValue(extractedData, possibleDepartureFields) || '',
+          交通安排: '',
+          陪診人員: '',
+          備註: '',
+          狀態: '' as ''
+        };
+      }
+
+      case 'diagnosis': {
+        const possibleDateFields = ['diagnosis_date', '診斷日期', 'date'];
+        const possibleItemFields = ['diagnosis_item', '診斷項目', '診斷', 'diagnosis', '病名'];
+        const possibleUnitFields = ['diagnosis_unit', '診斷單位', 'unit', 'hospital', '醫院'];
+
+        const diagnosisDate = findFieldValue(extractedData, possibleDateFields);
+        const diagnosisItem = findFieldValue(extractedData, possibleItemFields);
+        const diagnosisUnit = findFieldValue(extractedData, possibleUnitFields);
+
+        return {
+          ...baseData,
+          diagnosis_date: diagnosisDate || '',
+          diagnosis_item: diagnosisItem || '',
+          diagnosis_unit: diagnosisUnit || ''
+        };
+      }
+
+      default:
+        return baseData;
+    }
+  };
+
+  const findFieldValue = (data: any, possibleFieldNames: string[]): string | null => {
+    for (const fieldName of possibleFieldNames) {
+      if (data[fieldName] !== undefined && data[fieldName] !== null && data[fieldName] !== '') {
+        return String(data[fieldName]).trim();
+      }
+    }
+    return null;
+  };
+
   const classifyDocument = (extractedData: any, ocrText: string): DocumentClassification => {
     let maxScore = 0;
     let bestType: DocumentType = 'unknown';
@@ -530,12 +657,8 @@ const OCRDocumentRecognition: React.FC = () => {
   };
 
   const handleOpenModalWithType = (type: DocumentType, patient: any, extractedData: any) => {
-    const data = {
-      patient_id: patient.院友id,
-      院友id: patient.院友id,
-      ...extractedData
-    };
-    setPrefilledData(data);
+    const mappedData = mapExtractedDataToModalFields(extractedData, type, patient.院友id);
+    setPrefilledData(mappedData);
 
     switch (type) {
       case 'vaccination':
@@ -993,6 +1116,7 @@ const OCRDocumentRecognition: React.FC = () => {
         <VaccinationRecordModal
           patientId={selectedPatient.院友id}
           existingRecords={[]}
+          prefilledData={prefilledData}
           onClose={() => {
             setShowVaccinationModal(false);
             setPrefilledData(null);
@@ -1014,6 +1138,7 @@ const OCRDocumentRecognition: React.FC = () => {
         <DiagnosisRecordModal
           patientId={selectedPatient.院友id}
           existingRecords={[]}
+          prefilledData={prefilledData}
           onClose={() => {
             setShowDiagnosisModal(false);
             setPrefilledData(null);

@@ -6,6 +6,7 @@ import PatientAutocomplete from './PatientAutocomplete';
 interface VaccinationRecordModalProps {
   patientId?: number;
   existingRecords?: VaccinationRecord[];
+  prefilledData?: any;
   onClose: () => void;
 }
 
@@ -19,6 +20,7 @@ interface VaccinationItem {
 const VaccinationRecordModal: React.FC<VaccinationRecordModalProps> = ({
   patientId,
   existingRecords = [],
+  prefilledData,
   onClose
 }) => {
   const { patients, addVaccinationRecord } = usePatients();
@@ -29,13 +31,15 @@ const VaccinationRecordModal: React.FC<VaccinationRecordModalProps> = ({
     return hongKongTime.toISOString().split('T')[0];
   };
 
-  const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(patientId);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(
+    prefilledData?.patient_id || patientId
+  );
   const [vaccinationItems, setVaccinationItems] = useState<VaccinationItem[]>([
     {
       id: Date.now().toString(),
-      vaccination_date: getHongKongDate(),
-      vaccine_item: '',
-      vaccination_unit: ''
+      vaccination_date: prefilledData?.vaccination_date || getHongKongDate(),
+      vaccine_item: prefilledData?.vaccine_item || '',
+      vaccination_unit: prefilledData?.vaccination_unit || ''
     }
   ]);
   const [errors, setErrors] = useState<Record<string, string>>({});

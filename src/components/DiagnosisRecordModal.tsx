@@ -6,6 +6,7 @@ import PatientAutocomplete from './PatientAutocomplete';
 interface DiagnosisRecordModalProps {
   patientId?: number;
   existingRecords?: DiagnosisRecord[];
+  prefilledData?: any;
   onClose: () => void;
 }
 
@@ -19,6 +20,7 @@ interface DiagnosisItem {
 const DiagnosisRecordModal: React.FC<DiagnosisRecordModalProps> = ({
   patientId,
   existingRecords = [],
+  prefilledData,
   onClose
 }) => {
   const { patients, addDiagnosisRecord } = usePatients();
@@ -29,13 +31,15 @@ const DiagnosisRecordModal: React.FC<DiagnosisRecordModalProps> = ({
     return hongKongTime.toISOString().split('T')[0];
   };
 
-  const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(patientId);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(
+    prefilledData?.patient_id || patientId
+  );
   const [diagnosisItems, setDiagnosisItems] = useState<DiagnosisItem[]>([
     {
       id: Date.now().toString(),
-      diagnosis_date: getHongKongDate(),
-      diagnosis_item: '',
-      diagnosis_unit: ''
+      diagnosis_date: prefilledData?.diagnosis_date || getHongKongDate(),
+      diagnosis_item: prefilledData?.diagnosis_item || '',
+      diagnosis_unit: prefilledData?.diagnosis_unit || ''
     }
   ]);
   const [errors, setErrors] = useState<Record<string, string>>({});
