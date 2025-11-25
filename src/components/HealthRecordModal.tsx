@@ -420,16 +420,13 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="form-label">
-                <User className="h-4 w-4 inline mr-1" />
-                院友 *
-              </label>
-              <PatientAutocomplete
-                value={formData.院友id}
-                onChange={(patientId) => updateFormData('院友id', patientId)}
-                placeholder="搜索院友..."
-                showResidencyFilter={true}
-                defaultResidencyStatus="在住"
+              <label className="form-label">記錄人員</label>
+              <input
+                type="text"
+                value={formData.記錄人員}
+                onChange={(e) => updateFormData('記錄人員', e.target.value)}
+                className="form-input"
+                placeholder="記錄人員姓名"
               />
             </div>
             <div>
@@ -474,13 +471,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
           </div>
 
           <div>
-            <label className="form-label">記錄人員</label>
-            <input
-              type="text"
-              value={formData.記錄人員}
-              onChange={(e) => updateFormData('記錄人員', e.target.value)}
-              className="form-input"
-              placeholder="記錄人員姓名"
+            <label className="form-label">
+              <User className="h-4 w-4 inline mr-1" />
+              院友 *
+            </label>
+            <PatientAutocomplete
+              value={formData.院友id}
+              onChange={(patientId) => updateFormData('院友id', patientId)}
+              placeholder="搜索院友..."
+              showResidencyFilter={true}
+              defaultResidencyStatus="在住"
             />
           </div>
 
