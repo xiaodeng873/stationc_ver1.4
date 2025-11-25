@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   FileText,
   Plus,
-  Edit3,
   Trash2,
   Search,
   Filter,
@@ -32,7 +31,8 @@ interface AdvancedFilters {
 const DiagnosisRecords: React.FC = () => {
   const { diagnosisRecords, patients, deleteDiagnosisRecord, loading } = usePatients();
   const [showModal, setShowModal] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<DiagnosisRecord | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>();
+  const [selectedPatientRecords, setSelectedPatientRecords] = useState<DiagnosisRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>('diagnosis_date');
@@ -199,8 +199,10 @@ const DiagnosisRecords: React.FC = () => {
     }
   };
 
-  const handleEdit = (record: DiagnosisRecord) => {
-    setSelectedRecord(record);
+  const handleAddForPatient = (patientId: number) => {
+    const patientRecords = diagnosisRecords.filter(r => r.patient_id === patientId);
+    setSelectedPatientId(patientId);
+    setSelectedPatientRecords(patientRecords);
     setShowModal(true);
   };
 
@@ -309,7 +311,8 @@ const DiagnosisRecords: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">診斷記錄</h1>
           <button
             onClick={() => {
-              setSelectedRecord(null);
+              setSelectedPatientId(undefined);
+              setSelectedPatientRecords([]);
               setShowModal(true);
             }}
             className="btn-primary flex items-center space-x-2"
@@ -596,11 +599,11 @@ const DiagnosisRecords: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => handleEdit(record)}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                            title="編輯"
+                            onClick={() => handleAddForPatient(record.patient_id)}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                            title="新增記錄"
                           >
-                            <Edit3 className="h-4 w-4" />
+                            <Plus className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(record.id)}
@@ -626,7 +629,8 @@ const DiagnosisRecords: React.FC = () => {
             <div className="mt-6">
               <button
                 onClick={() => {
-                  setSelectedRecord(null);
+                  setSelectedPatientId(undefined);
+                  setSelectedPatientRecords([]);
                   setShowModal(true);
                 }}
                 className="btn-primary inline-flex items-center space-x-2"
@@ -698,10 +702,12 @@ const DiagnosisRecords: React.FC = () => {
 
       {showModal && (
         <DiagnosisRecordModal
-          record={selectedRecord || undefined}
+          patientId={selectedPatientId}
+          existingRecords={selectedPatientRecords}
           onClose={() => {
             setShowModal(false);
-            setSelectedRecord(null);
+            setSelectedPatientId(undefined);
+            setSelectedPatientRecords([]);
           }}
         />
       )}

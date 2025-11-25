@@ -1,15 +1,27 @@
 import React, { useState } from 'react';
-import { X, FileText, Calendar, Building2 } from 'lucide-react';
+import { X, FileText, Calendar, Building2, Plus, Trash2 } from 'lucide-react';
 import { usePatients, type DiagnosisRecord } from '../context/PatientContext';
 import PatientAutocomplete from './PatientAutocomplete';
 
 interface DiagnosisRecordModalProps {
-  record?: DiagnosisRecord;
+  patientId?: number;
+  existingRecords?: DiagnosisRecord[];
   onClose: () => void;
 }
 
-const DiagnosisRecordModal: React.FC<DiagnosisRecordModalProps> = ({ record, onClose }) => {
-  const { patients, addDiagnosisRecord, updateDiagnosisRecord } = usePatients();
+interface DiagnosisItem {
+  id: string;
+  diagnosis_date: string;
+  diagnosis_item: string;
+  diagnosis_unit: string;
+}
+
+const DiagnosisRecordModal: React.FC<DiagnosisRecordModalProps> = ({
+  patientId,
+  existingRecords = [],
+  onClose
+}) => {
+  const { patients, addDiagnosisRecord } = usePatients();
 
   const getHongKongDate = () => {
     const now = new Date();
@@ -17,35 +29,60 @@ const DiagnosisRecordModal: React.FC<DiagnosisRecordModalProps> = ({ record, onC
     return hongKongTime.toISOString().split('T')[0];
   };
 
-  const [formData, setFormData] = useState({
-    patient_id: record?.patient_id?.toString() || '',
-    diagnosis_date: record?.diagnosis_date || getHongKongDate(),
-    diagnosis_item: record?.diagnosis_item || '',
-    diagnosis_unit: record?.diagnosis_unit || '',
-    remarks: record?.remarks || ''
-  });
-
+  const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(patientId);
+  const [diagnosisItems, setDiagnosisItems] = useState<DiagnosisItem[]>([
+    {
+      id: Date.now().toString(),
+      diagnosis_date: getHongKongDate(),
+      diagnosis_item: '',
+      diagnosis_unit: ''
+    }
+  ]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const addDiagnosisItem = () => {
+    setDiagnosisItems([
+      ...diagnosisItems,
+      {
+        id: Date.now().toString(),
+        diagnosis_date: getHongKongDate(),
+        diagnosis_item: '',
+        diagnosis_unit: ''
+      }
+    ]);
+  };
+
+  const removeDiagnosisItem = (id: string) => {
+    if (diagnosisItems.length > 1) {
+      setDiagnosisItems(diagnosisItems.filter(item => item.id !== id));
+    }
+  };
+
+  const updateDiagnosisItem = (id: string, field: keyof DiagnosisItem, value: string) => {
+    setDiagnosisItems(diagnosisItems.map(item =>
+      item.id === id ? { ...item, [field]: value } : item
+    ));
+  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.patient_id) {
+    if (!selectedPatientId) {
       newErrors.patient_id = '請選擇院友';
     }
 
-    if (!formData.diagnosis_date) {
-      newErrors.diagnosis_date = '請選擇診斷日期';
-    }
-
-    if (!formData.diagnosis_item.trim()) {
-      newErrors.diagnosis_item = '請輸入診斷項目';
-    }
-
-    if (!formData.diagnosis_unit.trim()) {
-      newErrors.diagnosis_unit = '請輸入診斷單位';
-    }
+    diagnosisItems.forEach((item, index) => {
+      if (!item.diagnosis_date) {
+        newErrors[`diagnosis_date_${index}`] = '請選擇診斷日期';
+      }
+      if (!item.diagnosis_item.trim()) {
+        newErrors[`diagnosis_item_${index}`] = '請輸入診斷項目';
+      }
+      if (!item.diagnosis_unit.trim()) {
+        newErrors[`diagnosis_unit_${index}`] = '請輸入診斷單位';
+      }
+    });
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -61,46 +98,45 @@ const DiagnosisRecordModal: React.FC<DiagnosisRecordModalProps> = ({ record, onC
     setIsSubmitting(true);
 
     try {
-      const recordData = {
-        patient_id: parseInt(formData.patient_id),
-        diagnosis_date: formData.diagnosis_date,
-        diagnosis_item: formData.diagnosis_item.trim(),
-        diagnosis_unit: formData.diagnosis_unit.trim(),
-        remarks: formData.remarks.trim()
-      };
+      for (const item of diagnosisItems) {
+        const recordData = {
+          patient_id: selectedPatientId!,
+          diagnosis_date: item.diagnosis_date,
+          diagnosis_item: item.diagnosis_item.trim(),
+          diagnosis_unit: item.diagnosis_unit.trim(),
+          remarks: ''
+        };
 
-      if (record) {
-        await updateDiagnosisRecord({
-          ...recordData,
-          id: record.id,
-          created_at: record.created_at,
-          updated_at: record.updated_at,
-          created_by: record.created_by
-        });
-      } else {
         await addDiagnosisRecord(recordData);
       }
 
       onClose();
     } catch (error) {
-      console.error('Error saving diagnosis record:', error);
+      console.error('Error saving diagnosis records:', error);
       alert('儲存診斷記錄失敗，請重試');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const selectedPatient = patients.find(p => p.院友id === selectedPatientId);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               <FileText className="h-6 w-6 text-blue-600" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              {record ? '編輯診斷記錄' : '新增診斷記錄'}
-            </h2>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">診斷記錄</h2>
+              {selectedPatient && (
+                <p className="text-sm text-gray-500">
+                  {selectedPatient.中文姓名} - 床號: {selectedPatient.床號}
+                </p>
+              )}
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -118,90 +154,131 @@ const DiagnosisRecordModal: React.FC<DiagnosisRecordModalProps> = ({ record, onC
             </label>
             <PatientAutocomplete
               patients={patients}
-              selectedPatientId={formData.patient_id ? parseInt(formData.patient_id) : undefined}
+              selectedPatientId={selectedPatientId}
               onSelect={(patientId) => {
-                setFormData(prev => ({ ...prev, patient_id: patientId.toString() }));
+                setSelectedPatientId(patientId);
                 setErrors(prev => ({ ...prev, patient_id: '' }));
               }}
               placeholder="搜索院友姓名或床號..."
-              disabled={!!record}
+              disabled={!!patientId}
             />
             {errors.patient_id && (
               <p className="mt-1 text-sm text-red-600">{errors.patient_id}</p>
             )}
           </div>
 
-          <div>
-            <label className="form-label flex items-center space-x-2">
-              <Calendar className="h-4 w-4 text-gray-400" />
-              <span className="text-red-500">*</span>
-              <span>診斷日期</span>
-            </label>
-            <input
-              type="date"
-              value={formData.diagnosis_date}
-              onChange={(e) => {
-                setFormData(prev => ({ ...prev, diagnosis_date: e.target.value }));
-                setErrors(prev => ({ ...prev, diagnosis_date: '' }));
-              }}
-              className={`form-input ${errors.diagnosis_date ? 'border-red-500' : ''}`}
-            />
-            {errors.diagnosis_date && (
-              <p className="mt-1 text-sm text-red-600">{errors.diagnosis_date}</p>
-            )}
-          </div>
+          {existingRecords.length > 0 && (
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">現有診斷記錄</h3>
+              <div className="space-y-2">
+                {existingRecords.map((record, index) => (
+                  <div key={index} className="flex items-center space-x-4 text-sm">
+                    <span className="text-gray-600">
+                      {new Date(record.diagnosis_date).toLocaleDateString('zh-TW')}
+                    </span>
+                    <span className="text-gray-900 font-medium">{record.diagnosis_item}</span>
+                    <span className="text-gray-600">{record.diagnosis_unit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-          <div>
-            <label className="form-label flex items-center space-x-2">
-              <FileText className="h-4 w-4 text-gray-400" />
-              <span className="text-red-500">*</span>
-              <span>診斷項目 / 病名</span>
-            </label>
-            <input
-              type="text"
-              value={formData.diagnosis_item}
-              onChange={(e) => {
-                setFormData(prev => ({ ...prev, diagnosis_item: e.target.value }));
-                setErrors(prev => ({ ...prev, diagnosis_item: '' }));
-              }}
-              className={`form-input ${errors.diagnosis_item ? 'border-red-500' : ''}`}
-              placeholder="例如：高血壓、糖尿病、心臟病等"
-            />
-            {errors.diagnosis_item && (
-              <p className="mt-1 text-sm text-red-600">{errors.diagnosis_item}</p>
-            )}
-          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="form-label mb-0">
+                <span className="text-red-500">*</span> 診斷記錄項目
+              </label>
+              <button
+                type="button"
+                onClick={addDiagnosisItem}
+                className="btn-secondary text-sm flex items-center space-x-1"
+              >
+                <Plus className="h-4 w-4" />
+                <span>新增項目</span>
+              </button>
+            </div>
 
-          <div>
-            <label className="form-label flex items-center space-x-2">
-              <Building2 className="h-4 w-4 text-gray-400" />
-              <span className="text-red-500">*</span>
-              <span>診斷單位 / 醫院名稱</span>
-            </label>
-            <input
-              type="text"
-              value={formData.diagnosis_unit}
-              onChange={(e) => {
-                setFormData(prev => ({ ...prev, diagnosis_unit: e.target.value }));
-                setErrors(prev => ({ ...prev, diagnosis_unit: '' }));
-              }}
-              className={`form-input ${errors.diagnosis_unit ? 'border-red-500' : ''}`}
-              placeholder="例如：瑪麗醫院、伊利沙伯醫院、私家診所等"
-            />
-            {errors.diagnosis_unit && (
-              <p className="mt-1 text-sm text-red-600">{errors.diagnosis_unit}</p>
-            )}
-          </div>
+            {diagnosisItems.map((item, index) => (
+              <div key={item.id} className="border border-gray-200 rounded-lg p-4 space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">項目 {index + 1}</span>
+                  {diagnosisItems.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeDiagnosisItem(item.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
 
-          <div>
-            <label className="form-label">備註</label>
-            <textarea
-              value={formData.remarks}
-              onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
-              className="form-input"
-              rows={3}
-              placeholder="其他補充說明..."
-            />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="form-label flex items-center space-x-2">
+                      <Calendar className="h-4 w-4 text-gray-400" />
+                      <span className="text-red-500">*</span>
+                      <span>診斷日期</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={item.diagnosis_date}
+                      onChange={(e) => {
+                        updateDiagnosisItem(item.id, 'diagnosis_date', e.target.value);
+                        setErrors(prev => ({ ...prev, [`diagnosis_date_${index}`]: '' }));
+                      }}
+                      className={`form-input ${errors[`diagnosis_date_${index}`] ? 'border-red-500' : ''}`}
+                    />
+                    {errors[`diagnosis_date_${index}`] && (
+                      <p className="mt-1 text-sm text-red-600">{errors[`diagnosis_date_${index}`]}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="form-label flex items-center space-x-2">
+                      <FileText className="h-4 w-4 text-gray-400" />
+                      <span className="text-red-500">*</span>
+                      <span>診斷項目 / 病名</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={item.diagnosis_item}
+                      onChange={(e) => {
+                        updateDiagnosisItem(item.id, 'diagnosis_item', e.target.value);
+                        setErrors(prev => ({ ...prev, [`diagnosis_item_${index}`]: '' }));
+                      }}
+                      className={`form-input ${errors[`diagnosis_item_${index}`] ? 'border-red-500' : ''}`}
+                      placeholder="例如：高血壓、糖尿病"
+                    />
+                    {errors[`diagnosis_item_${index}`] && (
+                      <p className="mt-1 text-sm text-red-600">{errors[`diagnosis_item_${index}`]}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="form-label flex items-center space-x-2">
+                      <Building2 className="h-4 w-4 text-gray-400" />
+                      <span className="text-red-500">*</span>
+                      <span>診斷單位 / 醫院</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={item.diagnosis_unit}
+                      onChange={(e) => {
+                        updateDiagnosisItem(item.id, 'diagnosis_unit', e.target.value);
+                        setErrors(prev => ({ ...prev, [`diagnosis_unit_${index}`]: '' }));
+                      }}
+                      className={`form-input ${errors[`diagnosis_unit_${index}`] ? 'border-red-500' : ''}`}
+                      placeholder="例如：瑪麗醫院"
+                    />
+                    {errors[`diagnosis_unit_${index}`] && (
+                      <p className="mt-1 text-sm text-red-600">{errors[`diagnosis_unit_${index}`]}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
@@ -218,7 +295,7 @@ const DiagnosisRecordModal: React.FC<DiagnosisRecordModalProps> = ({ record, onC
               className="btn-primary"
               disabled={isSubmitting}
             >
-              {isSubmitting ? '儲存中...' : record ? '更新' : '新增'}
+              {isSubmitting ? '儲存中...' : `新增 ${diagnosisItems.length} 項記錄`}
             </button>
           </div>
         </form>
