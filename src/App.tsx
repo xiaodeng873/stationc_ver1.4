@@ -31,6 +31,8 @@ const StaffWorkPanel = lazy(() => import('./pages/StaffWorkPanel'));
 const HospitalOutreach = lazy(() => import('./pages/HospitalOutreach'));
 const AnnualHealthCheckup = lazy(() => import('./pages/AnnualHealthCheckup'));
 const IncidentReports = lazy(() => import('./pages/IncidentReports'));
+const DiagnosisRecords = lazy(() => import('./pages/DiagnosisRecords'));
+const VaccinationRecords = lazy(() => import('./pages/VaccinationRecords'));
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-64">
@@ -102,6 +104,8 @@ function AppContent() {
             <Route path="/hospital-outreach" element={<HospitalOutreach />} />
             <Route path="/annual-health-checkup" element={<AnnualHealthCheckup />} />
             <Route path="/incident-reports" element={<IncidentReports />} />
+            <Route path="/diagnosis-records" element={<DiagnosisRecords />} />
+            <Route path="/vaccination-records" element={<VaccinationRecords />} />
             <Route path="/patients" element={<PatientRecords />} />
             <Route path="/templates" element={<TemplateManagement />} />
             <Route path="/health" element={<HealthAssessment />} />
