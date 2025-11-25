@@ -856,7 +856,7 @@ const PatientRecords: React.FC = () => {
                         >
                           <Edit3 className="h-4 w-4" />
                         </button>
-                        {patient.在住狀態 === '在住' && (
+                        {(patient.在住狀態 === '在住' || patient.在住狀態 === '待入住') && (
                           <button
                             onClick={() => handleDischarge(patient)}
                             className="text-orange-600 hover:text-orange-900"

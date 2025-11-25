@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Pill, Calendar, Clock, User, AlertTriangle, Plus, Trash2, Sparkles } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import PatientAutocomplete from './PatientAutocomplete';
@@ -129,6 +129,65 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
     }
   };
 
+  const getAutoTimeSlots = (dailyFrequency: number, mealTiming: string): string[] => {
+    let times: string[] = [];
+
+    if (dailyFrequency === 1) {
+      switch (mealTiming) {
+        case '早餐前':
+        case '餐前':
+          times = ['07:00'];
+          break;
+        case '午餐前':
+          times = ['11:00'];
+          break;
+        case '早上':
+        case '早餐時':
+          times = ['08:00'];
+          break;
+        case '午餐時':
+        case '中午':
+          times = ['12:00'];
+          break;
+        case '晚餐時':
+          times = ['16:00'];
+          break;
+        case '晚上':
+        case '睡前':
+          times = ['20:00'];
+          break;
+        default:
+          times = ['08:00'];
+      }
+    } else if (dailyFrequency === 2) {
+      const firstTime = mealTiming === '早餐前' || mealTiming === '餐前' ? '07:00' : '08:00';
+      times = [firstTime, '16:00'];
+    } else if (dailyFrequency === 3) {
+      const firstTime = mealTiming === '早餐前' || mealTiming === '餐前' ? '07:00' : '08:00';
+      times = [firstTime, '12:00', '16:00'];
+    } else if (dailyFrequency === 4) {
+      const firstTime = mealTiming === '早餐前' || mealTiming === '餐前' ? '07:00' : '08:00';
+      times = [firstTime, '12:00', '16:00', '20:00'];
+    } else if (dailyFrequency === 5) {
+      times = ['08:00', '12:00', '16:00', '20:00', '00:00'];
+    } else if (dailyFrequency === 6) {
+      times = ['08:00', '12:00', '16:00', '20:00', '00:00', '04:00'];
+    } else if (dailyFrequency === 7) {
+      times = ['08:00', '11:00', '14:00', '17:00', '20:00', '23:00', '02:00'];
+    } else if (dailyFrequency === 8) {
+      times = ['08:00', '11:00', '14:00', '17:00', '20:00', '23:00', '02:00', '05:00'];
+    } else {
+      const targetCount = Math.max(1, dailyFrequency);
+      const interval = 24 / targetCount;
+      for (let i = 0; i < targetCount; i++) {
+        const hour = Math.floor(8 + (i * interval)) % 24;
+        times.push(`${hour.toString().padStart(2, '0')}:00`);
+      }
+    }
+
+    return times.sort();
+  };
+
   const removeTimeSlot = (timeSlot: string) => {
     if (validationError) setValidationError('');
     setFormData(prev => ({
@@ -136,6 +195,16 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
       medication_time_slots: prev.medication_time_slots.filter(slot => slot !== timeSlot)
     }));
   };
+
+  useEffect(() => {
+    if (formData.daily_frequency && formData.medication_time_slots.length === 0 && !prescription) {
+      const autoTimes = getAutoTimeSlots(formData.daily_frequency, formData.meal_timing);
+      setFormData(prev => ({
+        ...prev,
+        medication_time_slots: autoTimes
+      }));
+    }
+  }, [formData.daily_frequency, formData.meal_timing]);
 
   const addInspectionRule = () => {
     setInspectionRules(prev => [...prev, {
@@ -874,52 +943,18 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
                   type="button"
                   onClick={() => {
                     const frequency = formData.daily_frequency || 1;
-                    let autoTimes: string[] = [];
-                    
-                    switch (frequency) {
-                      case 1:
-                        autoTimes = ['08:00'];
-                        break;
-                      case 2:
-                        autoTimes = ['08:00', '20:00'];
-                        break;
-                      case 3:
-                        autoTimes = ['08:00', '14:00', '20:00'];
-                        break;
-                      case 4:
-                        autoTimes = ['08:00', '12:00', '16:00', '20:00'];
-                        break;
-                      case 5:
-                        autoTimes = ['08:00', '12:00', '16:00', '20:00', '00:00'];
-                        break;
-                      case 6:
-                        autoTimes = ['08:00', '12:00', '16:00', '20:00', '00:00', '04:00'];
-                        break;
-                      case 7:
-                        autoTimes = ['08:00', '11:00', '14:00', '17:00', '20:00', '23:00', '02:00'];
-                        break;
-                      case 8:
-                        autoTimes = ['08:00', '11:00', '14:00', '17:00', '20:00', '23:00', '02:00', '05:00'];
-                        break;
-                      default:
-                        // 根據目標次數平均分配時間
-                        const targetCount = Math.max(1, frequency);
-                        const interval = 24 / targetCount;
-                        for (let i = 0; i < targetCount; i++) {
-                          const hour = Math.floor(8 + (i * interval)) % 24;
-                          autoTimes.push(`${hour.toString().padStart(2, '0')}:00`);
-                        }
-                    }
-                    
+                    const autoTimes = getAutoTimeSlots(frequency, formData.meal_timing);
+
                     setFormData(prev => ({
                       ...prev,
                       medication_time_slots: autoTimes
                     }));
                   }}
                   className="btn-secondary flex items-center space-x-2 text-sm h-8"
+                  title="根據服用次數和服用時段智能分配時間點"
                 >
                   <Clock className="h-4 w-4" />
-                  <span>自動分配 {formData.daily_frequency} 次服用時間</span>
+                  <span>智能分配時間 {formData.meal_timing && `(${formData.meal_timing})`}</span>
                 </button>
               </div>
               
