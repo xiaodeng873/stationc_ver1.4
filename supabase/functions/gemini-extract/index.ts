@@ -15,7 +15,7 @@ interface GeminiRequest {
 }
 
 interface DocumentClassification {
-  type: 'vaccination' | 'followup' | 'allergy' | 'diagnosis' | 'prescription' | 'unknown';
+  type: 'vaccination' | 'followup' | 'diagnosis' | 'unknown';
   confidence: number;
   reasoning?: string;
 }
@@ -123,7 +123,7 @@ Deno.serve(async (req: Request) => {
 
         if (classificationPrompt) {
           try {
-            const classificationFullPrompt = `${classificationPrompt}\n\nOCR 原始文字：\n${ocrText}\n\n已提取的結構化資料：\n${JSON.stringify(extractedData, null, 2)}\n\n請根據以上資訊判斷文件類型，返回 JSON 格式：\n{\n  \"type\": \"vaccination | followup | allergy | diagnosis | prescription | unknown\",\n  \"confidence\": 0-100的數字,\n  \"reasoning\": \"簡短說明判斷理由\"\n}`;
+            const classificationFullPrompt = `${classificationPrompt}\n\nOCR 原始文字：\n${ocrText}\n\n已提取的結構化資料：\n${JSON.stringify(extractedData, null, 2)}\n\n請根據以上資訊判斷文件類型，返回 JSON 格式：\n{\n  \"type\": \"vaccination | followup | diagnosis | unknown\",\n  \"confidence\": 0-100的數字,\n  \"reasoning\": \"簡短說明判斷理由\"\n}`;
 
             const classificationPayload = {
               contents: [

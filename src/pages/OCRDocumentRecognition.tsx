@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Upload, X, Loader, CheckCircle, AlertTriangle, RefreshCw, Save, RotateCcw, ChevronDown, ChevronUp, User, FileText, Syringe, CalendarCheck, Shield, Pill } from 'lucide-react';
+import { Camera, Upload, X, Loader, CheckCircle, AlertTriangle, Save, RotateCcw, ChevronDown, ChevronUp, User, FileText, Syringe, CalendarCheck } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { processImageAndExtract, validateImageFile, type DocumentClassification as OCRDocClassification } from '../utils/ocrProcessor';
-import { getPromptTemplates, getUserActivePrompt, saveUserPrompt, getDefaultPrompt, getUserClassificationRules, saveClassificationRules, type PromptTemplate } from '../utils/promptManager';
+import { getUserClassificationRules, saveClassificationRules } from '../utils/promptManager';
 import VaccinationRecordModal from '../components/VaccinationRecordModal';
 import FollowUpModal from '../components/FollowUpModal';
 import DiagnosisRecordModal from '../components/DiagnosisRecordModal';
-import PrescriptionModal from '../components/PrescriptionModal';
 
-type DocumentType = 'vaccination' | 'followup' | 'allergy' | 'diagnosis' | 'prescription' | 'unknown';
+type DocumentType = 'vaccination' | 'followup' | 'diagnosis' | 'unknown';
 
 interface PatientMatch {
   patient: any;
@@ -26,12 +25,8 @@ const OCRDocumentRecognition: React.FC = () => {
   const { patients } = usePatients();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState<string>('');
-  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState<string>('');
-  const [showPromptEditor, setShowPromptEditor] = useState(false);
 
   // 階段性結果
   const [patientMatches, setPatientMatches] = useState<PatientMatch[]>([]);
@@ -44,44 +39,73 @@ const OCRDocumentRecognition: React.FC = () => {
   const [showVaccinationModal, setShowVaccinationModal] = useState(false);
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
-  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [prefilledData, setPrefilledData] = useState<any>(null);
   const [showManualTypeSelector, setShowManualTypeSelector] = useState(false);
   const [showClassificationEditor, setShowClassificationEditor] = useState(false);
   const [classificationRules, setClassificationRules] = useState<string>('');
 
   useEffect(() => {
-    loadPromptData();
     loadClassificationData();
   }, []);
 
   const getDefaultClassificationRules = () => {
-    return `文件分類規則說明：
+    return `文件分類專家指引：
 
-系統會根據以下關鍵字和權重來判斷文件類型。
+請根據以下規則判斷文件類型（只有三種類型）。
 
-【疫苗注射記錄】
-關鍵字：vaccine, vaccination, immunization, 疫苗, 注射
-欄位：疫苗名稱, vaccine_item, 注射日期, vaccination_date, 注射單位
+【覆診資料 - followup】
+判斷標準（優先級最高）：
+✓ 標題包含：預約、Appointment、覆診、門診、Appointment Slip
+✓ 有明確的就診日期和時間
+✓ 有醫院或診所名稱
+✓ 有專科名稱（如眼專科、骨科、內科）
+✓ 有登記時間
 
-【覆診資料】
-關鍵字：appointment, follow, 覆診, 門診, 專科
-欄位：覆診日期, 覆診地點, 醫院, 診所, 覆診時間
+重要排除規則：
+- 出現「敏感個人資料」不代表是藥物敏感，可能只是隱私聲明
+- 預約便條、覆診卡都屬於覆診資料
 
-【藥物敏感資料】
-關鍵字：allergy, adverse, reaction, 敏感, 過敏, 不良反應
-欄位：藥物敏感, allergies
+範例文字特徵：
+- "預約便條-Appointment Slip"
+- "覆診日期: 2025/10/24"
+- "香港眼科醫院"
+- "眼專科 Eye Specialty"
 
-【診斷記錄】
-關鍵字：diagnosis, diagnosed, condition, 診斷
-欄位：診斷項目, diagnosis_item, 診斷日期, diagnosis_date
+【疫苗注射記錄 - vaccination】
+判斷標準：
+✓ 明確提到疫苗名稱（流感疫苗、COVID-19疫苗、肺炎球菌疫苗等）
+✓ 有注射日期
+✓ 關鍵字：vaccine, vaccination, immunization, 疫苗, 接種, 注射
 
-【藥物處方】
-關鍵字：prescription, 處方
-欄位：藥物名稱, medication_name, 劑量, dosage, 服用次數, 頻率, 處方日期
+範例文字特徵：
+- "流感疫苗接種記錄"
+- "COVID-19 Vaccination Record"
+- "注射日期: 2024-09-15"
 
-提示：系統現已使用 AI 根據這些規則進行智能分類。
-如 AI 分類失敗，系統會自動降級使用硬編碼邏輯。`;
+【診斷記錄 - diagnosis】
+判斷標準：
+✓ 有診斷病名或診斷項目
+✓ 醫生診斷報告或診斷證明
+✓ 關鍵字：diagnosis, diagnosed, 診斷, 確診, 病症
+
+範例文字特徵：
+- "診斷: 高血壓"
+- "Diagnosis: Diabetes Mellitus"
+- "診斷日期: 2024-08-20"
+
+判斷優先順序：
+1. 先檢查文件標題和類型標識（最重要）
+2. 再檢查核心內容特徵
+3. 最後才檢查關鍵字
+
+如果無法確定，返回 type: "unknown"
+
+返回格式：
+{
+  "type": "followup",
+  "confidence": 95,
+  "reasoning": "文件標題為'預約便條-Appointment Slip'，包含覆診日期、時間、醫院名稱和專科，明確是覆診預約"
+}`;
   };
 
   const loadClassificationData = async () => {
@@ -106,48 +130,40 @@ const OCRDocumentRecognition: React.FC = () => {
     }
   };
 
-  const loadPromptData = async () => {
-    const templates = await getPromptTemplates();
-    setPromptTemplates(templates);
+  const getExtractionPrompt = () => {
+    return `你是醫療文件資料提取專家。請從以下文件中提取關鍵資訊。
 
-    if (templates.length > 0) {
-      const defaultTemplate = templates.find(t => t.is_default) || templates[0];
-      setSelectedTemplateId(defaultTemplate.id);
-    }
+必須提取的基本資訊（統一使用以下欄位名稱）：
+1. 中文姓名（欄位名稱：中文姓名）- 必須提取，不得留空
+2. 英文姓名（欄位名稱：英文姓名）- 如果有的話
+3. 身份證號碼（欄位名稱：身份證號碼）- 如果有的話
+4. 出生日期（欄位名稱：出生日期，格式：YYYY-MM-DD）- 如果有的話
+5. 年齡（欄位名稱：年齡）- 如果有的話
 
-    const userPrompt = await getUserActivePrompt();
-    if (userPrompt) {
-      setPrompt(userPrompt);
-    } else {
-      const defaultPrompt = await getDefaultPrompt();
-      setPrompt(defaultPrompt);
-    }
-  };
+根據文件類型提取對應資料：
 
-  const handleTemplateChange = (templateId: string) => {
-    setSelectedTemplateId(templateId);
-    const template = promptTemplates.find(t => t.id === templateId);
-    if (template) {
-      setPrompt(template.prompt_content);
-    }
-  };
+【疫苗注射記錄】
+- 疫苗名稱（欄位：疫苗名稱）
+- 注射日期（欄位：注射日期，格式：YYYY-MM-DD）
+- 注射單位（欄位：注射單位，如醫院或診所名稱）
 
-  const handleSavePrompt = async () => {
-    const success = await saveUserPrompt(prompt);
-    if (success) {
-      alert('Prompt已儲存為您的預設設定');
-    } else {
-      alert('儲存Prompt失敗，請重試');
-    }
-  };
+【覆診預約】
+- 覆診日期（欄位：覆診日期，格式：YYYY-MM-DD）
+- 覆診時間（欄位：覆診時間，格式：HH:MM）
+- 覆診地點（欄位：覆診地點，醫院或診所名稱）
+- 專科（欄位：專科，如眼專科、骨科）
 
-  const handleRestoreDefault = async () => {
-    const defaultPrompt = await getDefaultPrompt();
-    setPrompt(defaultPrompt);
-    const defaultTemplate = promptTemplates.find(t => t.is_default);
-    if (defaultTemplate) {
-      setSelectedTemplateId(defaultTemplate.id);
-    }
+【診斷記錄】
+- 診斷項目（欄位：診斷項目）
+- 診斷日期（欄位：診斷日期，格式：YYYY-MM-DD）
+- 診斷單位（欄位：診斷單位，醫院或診所名稱）
+
+特別注意：
+- 姓名如果包含括號或換行符（如 "鍾蓮女\n(Chung, Lin Nui)"），請分別提取中文姓名和英文姓名
+- 中文姓名只提取中文部分，不包含括號內容
+- 英文姓名提取括號內或姓名後的英文部分
+
+返回 JSON 格式。`;
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,35 +238,76 @@ const OCRDocumentRecognition: React.FC = () => {
 
   const findMatchingPatients = (extractedData: any, documentType?: DocumentType): PatientMatch[] => {
     const matches: PatientMatch[] = [];
-    const isPrescription = documentType === 'prescription';
 
     patients.forEach(patient => {
       const matchedFields: string[] = [];
       let score = 0;
 
-      // 中文姓名匹配
-      if (extractedData.中文姓名 || extractedData.院友姓名) {
-        const nameToMatch = (extractedData.中文姓名 || extractedData.院友姓名).trim();
+      // === 中文姓名匹配 - 支援多種欄位名稱 ===
+      const possibleChineseNameFields = [
+        '中文姓名', '姓名', '院友姓名', '病人姓名',
+        '患者姓名', 'Name', 'Chinese_Name'
+      ];
+
+      let chineseNameToMatch = '';
+      for (const field of possibleChineseNameFields) {
+        if (extractedData[field]) {
+          chineseNameToMatch = String(extractedData[field]).trim();
+          // 清理特殊格式：移除括號內容和換行符
+          chineseNameToMatch = chineseNameToMatch.split('\n')[0].trim();
+          chineseNameToMatch = chineseNameToMatch.split('(')[0].trim();
+          break;
+        }
+      }
+
+      if (chineseNameToMatch) {
         const patientFullName = `${patient.中文姓氏}${patient.中文名字}`.trim();
-        if (patientFullName === nameToMatch || patientFullName.includes(nameToMatch) || nameToMatch.includes(patientFullName)) {
+        if (patientFullName === chineseNameToMatch ||
+            patientFullName.includes(chineseNameToMatch) ||
+            chineseNameToMatch.includes(patientFullName)) {
           matchedFields.push('中文姓名');
           score += 40;
         }
       }
 
-      // 英文姓名匹配
-      if (extractedData.英文姓名 || extractedData.English_Name) {
-        const englishName = (extractedData.英文姓名 || extractedData.English_Name).toLowerCase().trim();
+      // === 英文姓名匹配 - 支援多種欄位名稱 ===
+      const possibleEnglishNameFields = [
+        '英文姓名', 'English_Name', 'Name_EN', 'English Name'
+      ];
+
+      let englishNameToMatch = '';
+      for (const field of possibleEnglishNameFields) {
+        if (extractedData[field]) {
+          englishNameToMatch = String(extractedData[field]).toLowerCase().trim();
+          // 清理格式：移除括號、逗號後的內容
+          englishNameToMatch = englishNameToMatch.replace(/[()]/g, ' ').trim();
+          break;
+        }
+      }
+
+      if (englishNameToMatch) {
         const patientEnglishName = `${patient.英文姓氏 || ''} ${patient.英文名字 || ''}`.toLowerCase().trim();
-        if (patientEnglishName && (patientEnglishName === englishName || patientEnglishName.includes(englishName) || englishName.includes(patientEnglishName))) {
+        if (patientEnglishName && (
+            patientEnglishName === englishNameToMatch ||
+            patientEnglishName.includes(englishNameToMatch) ||
+            englishNameToMatch.includes(patientEnglishName)
+        )) {
           matchedFields.push('英文姓名');
           score += 35;
         }
       }
 
-      // 身份證號碼匹配
-      if (extractedData.身份證號碼 || extractedData.HKID) {
-        const idToMatch = (extractedData.身份證號碼 || extractedData.HKID).replace(/\s+/g, '').toUpperCase();
+      // === 身份證號碼匹配 ===
+      const possibleIdFields = ['身份證號碼', 'HKID', 'ID', 'Identity'];
+      let idToMatch = '';
+      for (const field of possibleIdFields) {
+        if (extractedData[field]) {
+          idToMatch = String(extractedData[field]).replace(/\s+/g, '').toUpperCase();
+          break;
+        }
+      }
+
+      if (idToMatch) {
         const patientId = patient.身份證號碼?.replace(/\s+/g, '').toUpperCase();
         if (patientId && patientId === idToMatch) {
           matchedFields.push('身份證號碼');
@@ -258,7 +315,7 @@ const OCRDocumentRecognition: React.FC = () => {
         }
       }
 
-      // 出生日期匹配
+      // === 出生日期匹配 ===
       if (extractedData.出生日期 || extractedData.Birth_Date) {
         const birthDate = extractedData.出生日期 || extractedData.Birth_Date;
         if (patient.出生日期 && patient.出生日期 === birthDate) {
@@ -267,7 +324,7 @@ const OCRDocumentRecognition: React.FC = () => {
         }
       }
 
-      // 年齡匹配（模糊匹配，±1歲）
+      // === 年齡匹配（模糊匹配，±1歲）===
       if (extractedData.年齡 || extractedData.Age) {
         const age = parseInt(extractedData.年齡 || extractedData.Age);
         if (!isNaN(age) && patient.出生日期) {
@@ -307,69 +364,74 @@ const OCRDocumentRecognition: React.FC = () => {
     const scores: Record<DocumentType, number> = {
       vaccination: 0,
       followup: 0,
-      allergy: 0,
       diagnosis: 0,
-      prescription: 0,
       unknown: 0
     };
 
     const lowerText = ocrText.toLowerCase();
     const hasData = (field: string) => extractedData[field] !== undefined && extractedData[field] !== null && extractedData[field] !== '';
 
-    // 疫苗記錄特徵
-    if (lowerText.includes('vaccine') || lowerText.includes('vaccination') || lowerText.includes('immunization') ||
-        lowerText.includes('疫苗') || lowerText.includes('注射') || hasData('疫苗名稱') || hasData('vaccine_item')) {
-      scores.vaccination += 40;
-    }
-    if (hasData('注射日期') || hasData('vaccination_date')) {
-      scores.vaccination += 30;
-    }
-    if (hasData('注射單位') || hasData('vaccination_unit')) {
-      scores.vaccination += 20;
+    // === 覆診資料特徵（優先級最高）===
+    // 標題關鍵字（高權重）
+    if (lowerText.includes('appointment slip') ||
+        lowerText.includes('預約便條') ||
+        lowerText.includes('預約卡')) {
+      scores.followup += 60;
     }
 
-    // 覆診資料特徵
-    if (lowerText.includes('appointment') || lowerText.includes('follow') || lowerText.includes('覆診') ||
-        lowerText.includes('門診') || lowerText.includes('專科') || hasData('覆診日期')) {
-      scores.followup += 40;
-    }
-    if (hasData('覆診地點') || hasData('醫院') || hasData('診所')) {
+    if (lowerText.includes('appointment') ||
+        lowerText.includes('覆診') ||
+        lowerText.includes('門診')) {
       scores.followup += 30;
     }
-    if (hasData('覆診時間') || hasData('專科')) {
+
+    if (hasData('覆診日期') || hasData('覆診時間') || hasData('覆診地點')) {
+      scores.followup += 40;
+    }
+
+    if (lowerText.includes('專科') || lowerText.includes('specialty')) {
       scores.followup += 20;
     }
 
-    // 藥物敏感特徵
-    if (lowerText.includes('allergy') || lowerText.includes('adverse') || lowerText.includes('reaction') ||
-        lowerText.includes('敏感') || lowerText.includes('過敏') || lowerText.includes('不良反應')) {
-      scores.allergy += 60;
-    }
-    if (hasData('藥物敏感') || hasData('allergies')) {
-      scores.allergy += 30;
+    // 排除：「敏感個人資料」不影響覆診判斷
+    if (lowerText.includes('敏感個人資料') || lowerText.includes('sensitive personal data')) {
+      // 不做任何處理，這只是隱私聲明
     }
 
-    // 診斷記錄特徵
-    if (lowerText.includes('diagnosis') || lowerText.includes('diagnosed') || lowerText.includes('condition') ||
-        lowerText.includes('診斷') || hasData('診斷項目') || hasData('diagnosis_item')) {
+    // === 疫苗記錄特徵 ===
+    if (lowerText.includes('vaccine') ||
+        lowerText.includes('vaccination') ||
+        lowerText.includes('immunization') ||
+        lowerText.includes('疫苗') ||
+        lowerText.includes('接種')) {
+      scores.vaccination += 50;
+    }
+
+    if (hasData('疫苗名稱') || hasData('vaccine_item')) {
+      scores.vaccination += 40;
+    }
+
+    if (hasData('注射日期') || hasData('vaccination_date')) {
+      scores.vaccination += 30;
+    }
+
+    // === 診斷記錄特徵 ===
+    if (lowerText.includes('diagnosis') ||
+        lowerText.includes('diagnosed') ||
+        lowerText.includes('診斷') ||
+        lowerText.includes('確診')) {
       scores.diagnosis += 50;
     }
+
+    if (hasData('診斷項目') || hasData('diagnosis_item')) {
+      scores.diagnosis += 40;
+    }
+
     if (hasData('診斷日期') || hasData('diagnosis_date')) {
       scores.diagnosis += 30;
     }
 
-    // 處方特徵
-    if (hasData('藥物名稱') || hasData('medication_name') || hasData('藥物')) {
-      scores.prescription += 40;
-    }
-    if (hasData('劑量') || hasData('dosage') || hasData('服用次數') || hasData('頻率')) {
-      scores.prescription += 30;
-    }
-    if (hasData('處方日期') || hasData('prescription_date') || lowerText.includes('prescription')) {
-      scores.prescription += 20;
-    }
-
-    // 找出最高分
+    // 選擇得分最高的類型
     Object.entries(scores).forEach(([type, score]) => {
       if (score > maxScore) {
         maxScore = score;
@@ -377,12 +439,14 @@ const OCRDocumentRecognition: React.FC = () => {
       }
     });
 
-    // 信心度閾值
-    const confidence = maxScore > 50 ? Math.min(maxScore, 100) : 0;
+    // 如果最高分數太低，判定為未知
+    if (maxScore < 30) {
+      bestType = 'unknown';
+    }
 
     return {
       type: bestType,
-      confidence,
+      confidence: Math.min(maxScore, 100),
       extractedData
     };
   };
@@ -390,11 +454,6 @@ const OCRDocumentRecognition: React.FC = () => {
   const handleStartOCR = async () => {
     if (!selectedFile) {
       alert('請先選擇圖片');
-      return;
-    }
-
-    if (!prompt.trim()) {
-      alert('請輸入或選擇Prompt');
       return;
     }
 
@@ -412,7 +471,8 @@ const OCRDocumentRecognition: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 300));
 
       setProcessingStage('正在擷取資料並分類文件...');
-      const result = await processImageAndExtract(selectedFile, prompt, classificationRules);
+      const extractionPrompt = getExtractionPrompt();
+      const result = await processImageAndExtract(selectedFile, extractionPrompt, classificationRules);
 
       if (result.success && result.extractedData && result.text) {
         setOcrText(result.text);
@@ -449,7 +509,7 @@ const OCRDocumentRecognition: React.FC = () => {
         setProcessingStage('');
 
         // 階段3: 自動開啟模態框（延遲500ms讓用戶看到結果）
-        if (matches.length > 0 && classification.type !== 'unknown' && classification.type !== 'allergy') {
+        if (matches.length > 0 && classification.type !== 'unknown') {
           await new Promise(resolve => setTimeout(resolve, 500));
           handleOpenModalWithType(classification.type, matches[0].patient, result.extractedData);
         }
@@ -487,14 +547,8 @@ const OCRDocumentRecognition: React.FC = () => {
       case 'diagnosis':
         setShowDiagnosisModal(true);
         break;
-      case 'prescription':
-        setShowPrescriptionModal(true);
-        break;
-      case 'allergy':
-        alert('藥物敏感資料需要在院友資料頁面手動更新');
-        break;
       default:
-        alert('無法判斷文件類型，請手動選擇');
+        alert('未知的文件類型');
     }
   };
 
@@ -530,9 +584,7 @@ const OCRDocumentRecognition: React.FC = () => {
     const labels: Record<DocumentType, string> = {
       vaccination: '疫苗注射記錄',
       followup: '覆診資料',
-      allergy: '藥物敏感資料',
       diagnosis: '診斷記錄',
-      prescription: '藥物處方',
       unknown: '未知類型'
     };
     return labels[type];
@@ -542,9 +594,7 @@ const OCRDocumentRecognition: React.FC = () => {
     const icons: Record<DocumentType, any> = {
       vaccination: Syringe,
       followup: CalendarCheck,
-      allergy: Shield,
       diagnosis: FileText,
-      prescription: Pill,
       unknown: AlertTriangle
     };
     return icons[type];
@@ -650,7 +700,7 @@ const OCRDocumentRecognition: React.FC = () => {
             <button
               type="button"
               onClick={handleStartOCR}
-              disabled={!selectedFile || isProcessing || !prompt.trim()}
+              disabled={!selectedFile || isProcessing}
               className="btn-primary w-full flex items-center justify-center space-x-2 py-3"
             >
               {isProcessing ? (
@@ -667,76 +717,10 @@ const OCRDocumentRecognition: React.FC = () => {
             </button>
           </div>
 
-          {/* 右側：Prompt 編輯 */}
+          {/* 右側：分類規則編輯器 */}
           <div className="space-y-4">
-            <div>
-              <button
-                onClick={() => setShowPromptEditor(!showPromptEditor)}
-                className="form-label flex items-center justify-between w-full hover:text-blue-600 transition-colors"
-              >
-                <span>AI 識別指令 (Prompt)</span>
-                {showPromptEditor ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-
-              {showPromptEditor && (
-                <div className="space-y-3 mt-2">
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">Prompt模板</label>
-                    <select
-                      value={selectedTemplateId}
-                      onChange={(e) => handleTemplateChange(e.target.value)}
-                      className="form-input text-sm"
-                      disabled={isProcessing}
-                    >
-                      <option value="">選擇模板...</option>
-                      {promptTemplates.map(template => (
-                        <option key={template.id} value={template.id}>
-                          {template.name} {template.is_default ? '(預設)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    className="form-input font-mono text-xs"
-                    rows={10}
-                    placeholder="輸入AI識別指令..."
-                    disabled={isProcessing}
-                  />
-
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-500">
-                      自訂prompt可提高識別準確度
-                    </p>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={handleRestoreDefault}
-                        className="text-xs text-gray-600 hover:text-gray-800 flex items-center space-x-1 px-2 py-1 rounded hover:bg-gray-100"
-                        disabled={isProcessing}
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        <span>恢復預設</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSavePrompt}
-                        className="text-xs text-blue-600 hover:text-blue-700 flex items-center space-x-1 px-2 py-1 rounded hover:bg-blue-50"
-                        disabled={isProcessing}
-                      >
-                        <Save className="h-3 w-3" />
-                        <span>儲存為預設</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* 分類規則編輯器 */}
-            <div className="mt-4">
+            <div>
               <button
                 onClick={() => setShowClassificationEditor(!showClassificationEditor)}
                 className="form-label flex items-center justify-between w-full hover:text-blue-600 transition-colors"
@@ -790,7 +774,7 @@ const OCRDocumentRecognition: React.FC = () => {
               )}
             </div>
 
-            {!showPromptEditor && !showClassificationEditor && (
+            {!showClassificationEditor && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start space-x-2">
                   <AlertTriangle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -799,10 +783,12 @@ const OCRDocumentRecognition: React.FC = () => {
                     <ul className="list-disc list-inside space-y-1 text-xs">
                       <li>請確保圖片清晰，文字可辨識</li>
                       <li>系統會自動識別院友並分類文件類型</li>
+                      <li>支援文件類型：疫苗注射記錄、覆診資料、診斷記錄</li>
                       <li>只需匹配至少 1 個院友線索即可（姓名、身份證、出生日期等）</li>
                       <li>識別後會自動開啟對應功能模組填入資料</li>
                       <li>如 AI 判斷錯誤，可手動選擇正確的文件類型</li>
-                      <li>需要重新識別？修改 Prompt 後再次點擊「開始識別」按鈕</li>
+                      <li>需要重新識別？修改分類規則後再次點擊「開始識別」按鈕</li>
+                      <li>藥物處方請使用「處方 OCR」頁面，藥物敏感在「院友資料」頁面維護</li>
                     </ul>
                   </div>
                 </div>
@@ -944,7 +930,7 @@ const OCRDocumentRecognition: React.FC = () => {
                 </button>
 
                 {showManualTypeSelector && (
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="mt-3 grid grid-cols-3 gap-2">
                     <button
                       onClick={() => handleManualSelectType('vaccination')}
                       disabled={!selectedPatient}
@@ -972,28 +958,8 @@ const OCRDocumentRecognition: React.FC = () => {
                       <span className="text-sm font-medium">診斷記錄</span>
                     </button>
 
-                    <button
-                      onClick={() => handleManualSelectType('prescription')}
-                      disabled={!selectedPatient}
-                      className="flex items-center space-x-2 p-3 border-2 border-pink-300 bg-pink-50 text-pink-800 rounded-lg hover:bg-pink-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Pill className="h-5 w-5" />
-                      <span className="text-sm font-medium">藥物處方</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        alert('藥物敏感資料請在院友資料頁面手動更新');
-                      }}
-                      disabled={!selectedPatient}
-                      className="flex items-center space-x-2 p-3 border-2 border-orange-300 bg-orange-50 text-orange-800 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed col-span-2"
-                    >
-                      <Shield className="h-5 w-5" />
-                      <span className="text-sm font-medium">藥物敏感資料</span>
-                    </button>
-
                     {!selectedPatient && (
-                      <div className="col-span-2 text-xs text-center text-gray-500 py-2">
+                      <div className="col-span-3 text-xs text-center text-gray-500 py-2">
                         請先選擇院友才能開啟功能模組
                       </div>
                     )}
@@ -1055,15 +1021,6 @@ const OCRDocumentRecognition: React.FC = () => {
         />
       )}
 
-      {showPrescriptionModal && selectedPatient && prefilledData && (
-        <PrescriptionModal
-          prescription={prefilledData}
-          onClose={() => {
-            setShowPrescriptionModal(false);
-            setPrefilledData(null);
-          }}
-        />
-      )}
     </div>
   );
 };
