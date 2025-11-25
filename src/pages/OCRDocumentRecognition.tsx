@@ -462,10 +462,22 @@ const OCRDocumentRecognition: React.FC = () => {
       }
 
       case 'followup': {
-        const possibleDateFields = ['followup_date', '覆診日期', 'appointment_date', '預約日期', 'date'];
-        const possibleTimeFields = ['followup_time', '覆診時間', 'appointment_time', '預約時間', '登記時間', 'time'];
-        const possibleLocationFields = ['followup_location', '覆診地點', 'location', 'hospital', '醫院', '地點'];
-        const possibleSpecialtyFields = ['specialty', '專科', '覆診專科', 'department', '科別'];
+        const possibleDateFields = [
+          'followup_date', '覆診日期', 'appointment_date', '預約日期', 'date',
+          '處方日期', '日期', 'registration_date', '登記日期'
+        ];
+        const possibleTimeFields = [
+          'followup_time', '覆診時間', 'appointment_time', '預約時間', '登記時間',
+          'time', '時間', 'registration_time'
+        ];
+        const possibleLocationFields = [
+          'followup_location', '覆診地點', 'location', 'hospital', '醫院', '地點',
+          '藥物來源', '診所', 'clinic', '醫療機構', 'institution'
+        ];
+        const possibleSpecialtyFields = [
+          'specialty', '專科', '覆診專科', 'department', '科別',
+          '科室', '門診科別', '診療科'
+        ];
         const possibleDepartureFields = ['departure_time', '出發時間'];
 
         return {
