@@ -465,6 +465,8 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
                   }}
                   placeholder="搜索院友..."
                   className={getFieldClassName('patient_id', '')}
+                  showResidencyFilter={true}
+                  defaultResidencyStatus="在住"
                 />
               </div>
 

@@ -8,17 +8,22 @@ interface PatientAutocompleteProps {
   onChange: (patientId: string) => void;
   placeholder?: string;
   className?: string;
+  showResidencyFilter?: boolean;
+  defaultResidencyStatus?: string;
 }
 
 const PatientAutocomplete: React.FC<PatientAutocompleteProps> = ({
   value,
   onChange,
   placeholder = "搜索院友...",
-  className = ""
+  className = "",
+  showResidencyFilter = false,
+  defaultResidencyStatus = "在住"
 }) => {
   const { patients } = usePatients();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [residencyStatus, setResidencyStatus] = useState(defaultResidencyStatus);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -29,20 +34,26 @@ const PatientAutocomplete: React.FC<PatientAutocompleteProps> = ({
 
   // 過濾院友列表
   const filteredPatients = patients.filter(patient => {
-    // 隱藏已退住的院友
-    if (patient.在住狀態 === '已退住') {
+    // 先根據在住狀態篩選
+    if (residencyStatus !== '全部' && patient.在住狀態 !== residencyStatus) {
       return false;
     }
-    
+
+    // 再根據搜索條件篩選
     if (!searchTerm) return true;
+
     const searchLower = searchTerm.toLowerCase();
+    const chineseName = `${patient.中文姓氏}${patient.中文名字}`.toLowerCase();
+    const englishName = getFormattedEnglishName(patient.英文姓氏, patient.英文名字).toLowerCase();
+
     return (
+      patient.床號.toLowerCase().includes(searchLower) ||
+      chineseName.includes(searchLower) ||
       patient.中文姓氏.toLowerCase().includes(searchLower) ||
       patient.中文名字.toLowerCase().includes(searchLower) ||
+      englishName.includes(searchLower) ||
       (patient.英文姓氏?.toLowerCase().includes(searchLower) || false) ||
       (patient.英文名字?.toLowerCase().includes(searchLower) || false) ||
-      patient.床號.toLowerCase().includes(searchLower) ||
-      (patient.英文姓名?.toLowerCase().includes(searchLower) || false) ||
       patient.身份證號碼.toLowerCase().includes(searchLower)
     );
   });
@@ -167,8 +178,28 @@ const PatientAutocomplete: React.FC<PatientAutocompleteProps> = ({
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-          <div ref={listRef}>
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
+          {showResidencyFilter && (
+            <div className="p-3 border-b border-gray-200">
+              <select
+                value={residencyStatus}
+                onChange={(e) => {
+                  setResidencyStatus(e.target.value);
+                  setHighlightedIndex(-1);
+                }}
+                className="form-input w-full text-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <option value="在住">在住院友</option>
+                <option value="待入住">待入住院友</option>
+                <option value="已退住">已退住院友</option>
+                <option value="全部">全部院友</option>
+              </select>
+            </div>
+          )}
+
+          <div className="max-h-60 overflow-y-auto">
+            <div ref={listRef}>
             {filteredPatients.length > 0 ? (
               filteredPatients.map((patient, index) => (
                 <div
@@ -199,6 +230,15 @@ const PatientAutocomplete: React.FC<PatientAutocompleteProps> = ({
                       <span className="font-medium text-gray-900">
                         {patient.中文姓氏}{patient.中文名字}
                       </span>
+                      {showResidencyFilter && (
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          patient.在住狀態 === '在住' ? 'bg-green-100 text-green-800' :
+                          patient.在住狀態 === '待入住' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {patient.在住狀態}
+                        </span>
+                      )}
                     </div>
                     {patient.英文姓氏 || patient.英文名字 ? (
                       <p className="text-sm text-gray-600 truncate mt-1">{getFormattedEnglishName(patient.英文姓氏, patient.英文名字)}</p>
@@ -220,6 +260,7 @@ const PatientAutocomplete: React.FC<PatientAutocompleteProps> = ({
                 )}
               </div>
             )}
+            </div>
           </div>
         </div>
       )}

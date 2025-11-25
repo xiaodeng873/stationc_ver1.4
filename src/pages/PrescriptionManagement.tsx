@@ -217,11 +217,20 @@ const PrescriptionManagement: React.FC = () => {
       
       // 再根據搜索條件篩選
       if (!patientFilters.searchTerm) return true;
+
       const searchLower = patientFilters.searchTerm.toLowerCase();
+      const chineseName = `${summary.patient.中文姓氏}${summary.patient.中文名字}`.toLowerCase();
+      const englishName = getFormattedEnglishName(summary.patient.英文姓氏, summary.patient.英文名字).toLowerCase();
+
       return (
+        summary.patient.床號.toLowerCase().includes(searchLower) ||
+        chineseName.includes(searchLower) ||
         summary.patient.中文姓氏.toLowerCase().includes(searchLower) ||
         summary.patient.中文名字.toLowerCase().includes(searchLower) ||
-        summary.patient.床號.toLowerCase().includes(searchLower)
+        englishName.includes(searchLower) ||
+        (summary.patient.英文姓氏?.toLowerCase().includes(searchLower) || false) ||
+        (summary.patient.英文名字?.toLowerCase().includes(searchLower) || false) ||
+        summary.patient.身份證號碼.toLowerCase().includes(searchLower)
       );
     });
   }, [patientPrescriptionSummaries, patientFilters.searchTerm, patientFilters.residencyStatus]);

@@ -428,6 +428,8 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                 value={formData.院友id}
                 onChange={(patientId) => updateFormData('院友id', patientId)}
                 placeholder="搜索院友..."
+                showResidencyFilter={true}
+                defaultResidencyStatus="在住"
               />
             </div>
             <div>

@@ -2271,6 +2271,8 @@ const MedicationWorkflow: React.FC = () => {
                         value={selectedPatientId}
                         onChange={setSelectedPatientId}
                         placeholder="搜索院友..."
+                        showResidencyFilter={true}
+                        defaultResidencyStatus="在住"
                       />
                     </div>
                     <button
