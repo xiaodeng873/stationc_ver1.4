@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Camera, ChevronDown, ChevronUp, Upload, X, Loader, CheckCircle, AlertTriangle, FileText, RefreshCw } from 'lucide-react';
 import { processImageAndExtract, validateImageFile } from '../utils/ocrProcessor';
 import { getDefaultPrompt } from '../utils/promptManager';
+import { usePatients } from '../context/PatientContext';
 
 interface OCRDocumentBlockProps {
   documentType: 'vaccination' | 'diagnosis' | 'followup';
@@ -10,6 +11,7 @@ interface OCRDocumentBlockProps {
 }
 
 const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCRComplete, onOCRError }) => {
+  const { patients } = usePatients();
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -98,6 +100,73 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
     }
   };
 
+  const findMatchingPatient = (extractedData: any): number | undefined => {
+    if (!patients || patients.length === 0) return undefined;
+
+    let bestMatch: { patient: any; score: number } | null = null;
+
+    patients.forEach(patient => {
+      let score = 0;
+
+      const chineseNameToMatch = extractedData.中文姓名 || extractedData.姓名 || extractedData.院友姓名;
+      if (chineseNameToMatch) {
+        const patientFullName = `${patient.中文姓氏}${patient.中文名字}`.trim();
+        if (patientFullName === chineseNameToMatch || patientFullName.includes(chineseNameToMatch)) {
+          score += 40;
+        }
+      }
+
+      const englishNameToMatch = extractedData.英文姓名 || extractedData.English_Name;
+      if (englishNameToMatch) {
+        const patientEnglishName = `${patient.英文姓氏 || ''} ${patient.英文名字 || ''}`.toLowerCase().trim();
+        const extractedLower = String(englishNameToMatch).toLowerCase().trim();
+        if (patientEnglishName && (patientEnglishName === extractedLower || patientEnglishName.includes(extractedLower))) {
+          score += 35;
+        }
+      }
+
+      const idToMatch = extractedData.身份證號碼 || extractedData.HKID;
+      if (idToMatch && patient.身份證號碼) {
+        const patientId = patient.身份證號碼.replace(/\s+/g, '').toUpperCase();
+        const extractedId = String(idToMatch).replace(/\s+/g, '').toUpperCase();
+
+        if (patientId === extractedId) {
+          score += 50;
+        } else {
+          let matchedPositions = 0;
+          let totalValidPositions = 0;
+          const maxLength = Math.max(patientId.length, extractedId.length);
+
+          for (let i = 0; i < maxLength; i++) {
+            const extractedChar = extractedId[i];
+            const patientChar = patientId[i];
+
+            if (extractedChar && extractedChar !== 'X' && extractedChar !== '_' &&
+                extractedChar !== '*' && extractedChar !== '(' && extractedChar !== ')') {
+              totalValidPositions++;
+              if (patientChar && extractedChar === patientChar) {
+                matchedPositions++;
+              }
+            }
+          }
+
+          if (matchedPositions >= 3 && totalValidPositions > 0) {
+            const matchRate = matchedPositions / totalValidPositions;
+            if (matchRate >= 0.6) {
+              score += Math.round(25 + (matchRate - 0.6) * 37.5);
+            }
+          }
+        }
+      }
+
+      if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+        bestMatch = { patient, score };
+      }
+    });
+
+    return bestMatch ? bestMatch.patient.院友id : undefined;
+  };
+
   const handleStartOCR = async (skipCache: boolean = false) => {
     if (!selectedFile) {
       onOCRError('請先選擇圖片');
@@ -122,14 +191,25 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
       const prompt = await getDefaultPrompt();
       const result = await processImageAndExtract(selectedFile, prompt, undefined, skipCache);
 
-      setIsProcessing(false);
-      setProcessingStage('');
-
       if (result.success && result.extractedData) {
+        setProcessingStage('正在匹配院友資料...');
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        const matchedPatientId = findMatchingPatient(result.extractedData);
+
+        const dataWithPatientId = {
+          ...result.extractedData,
+          patient_id: matchedPatientId
+        };
+
+        setIsProcessing(false);
+        setProcessingStage('');
         setOcrResult(result);
         setForceRefresh(false);
-        onOCRComplete(result.extractedData);
+        onOCRComplete(dataWithPatientId);
       } else {
+        setIsProcessing(false);
+        setProcessingStage('');
         onOCRError(result.error || 'OCR識別失敗');
       }
     } catch (error: any) {
