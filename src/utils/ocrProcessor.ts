@@ -171,7 +171,8 @@ export async function extractDataWithAI(
 export async function processImageAndExtract(
   file: File,
   prompt: string,
-  classificationPrompt?: string
+  classificationPrompt?: string,
+  forceRefresh: boolean = false
 ): Promise<OCRResult> {
   try {
     if (file.size > MAX_IMAGE_SIZE) {
@@ -184,24 +185,28 @@ export async function processImageAndExtract(
     const imageBase64 = await compressImage(file);
     const imageHash = await calculateImageHash(imageBase64);
 
-    const { data: cachedResult } = await supabase
-      .from('ocr_recognition_logs')
-      .select('*')
-      .eq('image_hash', imageHash)
-      .eq('success', true)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    if (!forceRefresh) {
+      const { data: cachedResult } = await supabase
+        .from('ocr_recognition_logs')
+        .select('*')
+        .eq('image_hash', imageHash)
+        .eq('success', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (cachedResult && cachedResult.extracted_data) {
-      console.log('使用快取的OCR結果');
-      return {
-        success: true,
-        text: cachedResult.ocr_text,
-        extractedData: cachedResult.extracted_data,
-        confidenceScores: cachedResult.confidence_scores,
-        processingTimeMs: 0
-      };
+      if (cachedResult && cachedResult.extracted_data) {
+        console.log('使用快取的OCR結果');
+        return {
+          success: true,
+          text: cachedResult.ocr_text,
+          extractedData: cachedResult.extracted_data,
+          confidenceScores: cachedResult.confidence_scores,
+          processingTimeMs: 0
+        };
+      }
+    } else {
+      console.log('強制重新識別，跳過快取');
     }
 
     const ocrResult = await performOCR(imageBase64);

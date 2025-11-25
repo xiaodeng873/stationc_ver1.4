@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, ChevronDown, ChevronUp, Upload, X, Loader, CheckCircle, AlertTriangle, FileText } from 'lucide-react';
+import { Camera, ChevronDown, ChevronUp, Upload, X, Loader, CheckCircle, AlertTriangle, FileText, RefreshCw } from 'lucide-react';
 import { processImageAndExtract, validateImageFile } from '../utils/ocrProcessor';
 import { getDefaultPrompt } from '../utils/promptManager';
 
@@ -17,6 +17,7 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
   const [processingStage, setProcessingStage] = useState<string>('');
   const [ocrResult, setOcrResult] = useState<any>(null);
   const [showRawText, setShowRawText] = useState(false);
+  const [forceRefresh, setForceRefresh] = useState(false);
 
   const titles = {
     vaccination: '智能識別疫苗記錄',
@@ -97,7 +98,7 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
     }
   };
 
-  const handleStartOCR = async () => {
+  const handleStartOCR = async (skipCache: boolean = false) => {
     if (!selectedFile) {
       onOCRError('請先選擇圖片');
       return;
@@ -107,7 +108,11 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
     setOcrResult(null);
 
     try {
-      setProcessingStage('正在壓縮圖片...');
+      if (skipCache) {
+        setProcessingStage('強制重新識別（跳過快取）...');
+      } else {
+        setProcessingStage('正在壓縮圖片...');
+      }
       await new Promise(resolve => setTimeout(resolve, 300));
 
       setProcessingStage('正在識別文字...');
@@ -115,13 +120,14 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
 
       setProcessingStage('正在擷取資料...');
       const prompt = await getDefaultPrompt();
-      const result = await processImageAndExtract(selectedFile, prompt);
+      const result = await processImageAndExtract(selectedFile, prompt, undefined, skipCache);
 
       setIsProcessing(false);
       setProcessingStage('');
 
       if (result.success && result.extractedData) {
         setOcrResult(result);
+        setForceRefresh(false);
         onOCRComplete(result.extractedData);
       } else {
         onOCRError(result.error || 'OCR識別失敗');
@@ -240,10 +246,10 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
                 )}
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <button
                   type="button"
-                  onClick={handleStartOCR}
+                  onClick={() => handleStartOCR(false)}
                   disabled={!selectedFile || isProcessing}
                   className="btn-primary w-full flex items-center justify-center space-x-2"
                 >
@@ -259,6 +265,18 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
                     </>
                   )}
                 </button>
+
+                {ocrResult && (
+                  <button
+                    type="button"
+                    onClick={() => handleStartOCR(true)}
+                    disabled={!selectedFile || isProcessing}
+                    className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span>強制重新識別（清除快取）</span>
+                  </button>
+                )}
               </div>
             </div>
 
