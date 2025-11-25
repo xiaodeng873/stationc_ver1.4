@@ -498,7 +498,7 @@ const DiagnosisRecords: React.FC = () => {
                   onClick={handleSelectAll}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  {selectedRows.size === paginatedRecords.length ? '取消全選' : '全選'}
+                  {selectedRows.size === paginatedPatientGroups.flatMap(g => g.records).length ? '取消全選' : '全選'}
                 </button>
                 <button
                   onClick={handleInvertSelection}
