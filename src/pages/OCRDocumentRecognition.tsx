@@ -46,6 +46,7 @@ const OCRDocumentRecognition: React.FC = () => {
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [prefilledData, setPrefilledData] = useState<any>(null);
+  const [showManualTypeSelector, setShowManualTypeSelector] = useState(false);
 
   useEffect(() => {
     loadPromptData();
@@ -165,8 +166,9 @@ const OCRDocumentRecognition: React.FC = () => {
     }
   };
 
-  const findMatchingPatients = (extractedData: any): PatientMatch[] => {
+  const findMatchingPatients = (extractedData: any, documentType?: DocumentType): PatientMatch[] => {
     const matches: PatientMatch[] = [];
+    const isPrescription = documentType === 'prescription';
 
     patients.forEach(patient => {
       const matchedFields: string[] = [];
@@ -223,12 +225,19 @@ const OCRDocumentRecognition: React.FC = () => {
         }
       }
 
-      // 只添加至少匹配2個線索的院友
-      if (matchedFields.length >= 2) {
+      // 處方類型：只需1個線索（通常只有姓名），其他類型需要2個線索
+      const minMatchRequired = isPrescription ? 1 : 2;
+      if (matchedFields.length >= minMatchRequired) {
+        // 如果是處方且只有姓名匹配，降低信心度
+        let finalConfidence = Math.min(score, 100);
+        if (isPrescription && matchedFields.length === 1 && matchedFields[0] === '中文姓名') {
+          finalConfidence = Math.min(finalConfidence, 65);
+        }
+
         matches.push({
           patient,
           matchedFields,
-          confidence: Math.min(score, 100)
+          confidence: finalConfidence
         });
       }
     });
@@ -353,24 +362,30 @@ const OCRDocumentRecognition: React.FC = () => {
       if (result.success && result.extractedData && result.text) {
         setOcrText(result.text);
 
-        // 階段1: 識別院友
+        // 階段1: 先分類文件類型
+        setProcessingStage('正在分類文件類型...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const classification = classifyDocument(result.extractedData, result.text);
+        setDocumentClassification(classification);
+
+        // 階段2: 根據文件類型匹配院友（處方只需姓名匹配）
         setProcessingStage('正在匹配院友資料...');
         await new Promise(resolve => setTimeout(resolve, 500));
-        const matches = findMatchingPatients(result.extractedData);
+        const matches = findMatchingPatients(result.extractedData, classification.type);
         setPatientMatches(matches);
 
         if (matches.length > 0) {
           setSelectedPatient(matches[0].patient);
         }
 
-        // 階段2: 分類文件
-        setProcessingStage('正在分類文件類型...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const classification = classifyDocument(result.extractedData, result.text);
-        setDocumentClassification(classification);
-
         setIsProcessing(false);
         setProcessingStage('');
+
+        // 階段3: 自動開啟模態框（延遲500ms讓用戶看到結果）
+        if (matches.length > 0 && classification.type !== 'unknown' && classification.type !== 'allergy') {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          handleOpenModalWithType(classification.type, matches[0].patient, result.extractedData);
+        }
       } else {
         setIsProcessing(false);
         setProcessingStage('');
@@ -387,24 +402,15 @@ const OCRDocumentRecognition: React.FC = () => {
     setSelectedPatient(patient);
   };
 
-  const handleOpenModal = () => {
-    if (!selectedPatient) {
-      alert('請先選擇院友');
-      return;
-    }
-
-    if (!documentClassification) {
-      alert('尚未分類文件類型');
-      return;
-    }
-
+  const handleOpenModalWithType = (type: DocumentType, patient: any, extractedData: any) => {
     const data = {
-      patient_id: selectedPatient.院友id,
-      ...documentClassification.extractedData
+      patient_id: patient.院友id,
+      院友id: patient.院友id,
+      ...extractedData
     };
     setPrefilledData(data);
 
-    switch (documentClassification.type) {
+    switch (type) {
       case 'vaccination':
         setShowVaccinationModal(true);
         break;
@@ -423,6 +429,34 @@ const OCRDocumentRecognition: React.FC = () => {
       default:
         alert('無法判斷文件類型，請手動選擇');
     }
+  };
+
+  const handleOpenModal = () => {
+    if (!selectedPatient) {
+      alert('請先選擇院友');
+      return;
+    }
+
+    if (!documentClassification) {
+      alert('尚未分類文件類型');
+      return;
+    }
+
+    handleOpenModalWithType(documentClassification.type, selectedPatient, documentClassification.extractedData);
+  };
+
+  const handleManualSelectType = (type: DocumentType) => {
+    if (!selectedPatient) {
+      alert('請先選擇院友');
+      return;
+    }
+
+    if (!documentClassification) {
+      alert('尚未識別資料');
+      return;
+    }
+
+    handleOpenModalWithType(type, selectedPatient, documentClassification.extractedData);
   };
 
   const getDocumentTypeLabel = (type: DocumentType): string => {
@@ -643,8 +677,9 @@ const OCRDocumentRecognition: React.FC = () => {
                     <ul className="list-disc list-inside space-y-1 text-xs">
                       <li>請確保圖片清晰，文字可辨識</li>
                       <li>系統會自動識別院友並分類文件類型</li>
-                      <li>至少需要匹配 2 個院友資料線索</li>
-                      <li>識別後可直接開啟對應功能模組填入資料</li>
+                      <li>一般需匹配至少 2 個院友線索（處方標籤例外：只需姓名）</li>
+                      <li>識別後會自動開啟對應功能模組填入資料</li>
+                      <li>如 AI 判斷錯誤，可手動選擇正確的文件類型</li>
                     </ul>
                   </div>
                 </div>
@@ -714,6 +749,12 @@ const OCRDocumentRecognition: React.FC = () => {
                           {field}
                         </span>
                       ))}
+                      {documentClassification?.type === 'prescription' && match.matchedFields.length === 1 && match.matchedFields[0] === '中文姓名' && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          僅姓名匹配（處方標籤）
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -764,6 +805,89 @@ const OCRDocumentRecognition: React.FC = () => {
                     </ul>
                   </div>
                 )}
+              </div>
+
+              {/* 手動選擇文件類型 */}
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowManualTypeSelector(!showManualTypeSelector)}
+                  className="w-full text-sm text-gray-700 hover:text-blue-600 flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <span className="flex items-center space-x-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>AI 判斷錯誤？手動選擇正確的文件類型</span>
+                  </span>
+                  {showManualTypeSelector ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+
+                {showManualTypeSelector && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleManualSelectType('vaccination')}
+                      disabled={!selectedPatient}
+                      className="flex items-center space-x-2 p-3 border-2 border-green-300 bg-green-50 text-green-800 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Syringe className="h-5 w-5" />
+                      <span className="text-sm font-medium">疫苗注射記錄</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleManualSelectType('followup')}
+                      disabled={!selectedPatient}
+                      className="flex items-center space-x-2 p-3 border-2 border-blue-300 bg-blue-50 text-blue-800 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <CalendarCheck className="h-5 w-5" />
+                      <span className="text-sm font-medium">覆診資料</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleManualSelectType('diagnosis')}
+                      disabled={!selectedPatient}
+                      className="flex items-center space-x-2 p-3 border-2 border-purple-300 bg-purple-50 text-purple-800 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <FileText className="h-5 w-5" />
+                      <span className="text-sm font-medium">診斷記錄</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleManualSelectType('prescription')}
+                      disabled={!selectedPatient}
+                      className="flex items-center space-x-2 p-3 border-2 border-pink-300 bg-pink-50 text-pink-800 rounded-lg hover:bg-pink-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Pill className="h-5 w-5" />
+                      <span className="text-sm font-medium">藥物處方</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        alert('藥物敏感資料請在院友資料頁面手動更新');
+                      }}
+                      disabled={!selectedPatient}
+                      className="flex items-center space-x-2 p-3 border-2 border-orange-300 bg-orange-50 text-orange-800 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed col-span-2"
+                    >
+                      <Shield className="h-5 w-5" />
+                      <span className="text-sm font-medium">藥物敏感資料</span>
+                    </button>
+
+                    {!selectedPatient && (
+                      <div className="col-span-2 text-xs text-center text-gray-500 py-2">
+                        請先選擇院友才能開啟功能模組
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 重新識別按鈕 */}
+              <div className="mt-3">
+                <button
+                  onClick={handleStartOCR}
+                  disabled={isProcessing || !selectedFile}
+                  className="w-full text-sm text-gray-600 hover:text-blue-600 flex items-center justify-center space-x-2 p-2 border border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>重新識別（可先修改 Prompt）</span>
+                </button>
               </div>
 
               {ocrText && (
