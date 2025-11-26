@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, AlertTriangle, Clock, User, Pill } from 'lucide-react';
+import { X, AlertTriangle, Clock, User, Pill, CheckCircle, XCircle } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 
 interface RevertConfirmModalProps {
@@ -61,6 +61,39 @@ const RevertConfirmModal: React.FC<RevertConfirmModalProps> = ({
 
   const staff = getStepStaff();
   const time = getStepTime();
+
+  const getDispensingStatus = () => {
+    if (step !== 'dispensing') return null;
+    return workflowRecord.dispensing_status;
+  };
+
+  const getDispensingFailureInfo = () => {
+    if (step !== 'dispensing' || workflowRecord.dispensing_status !== 'failed') return null;
+
+    const failureReason = workflowRecord.dispensing_failure_reason;
+    const customReason = workflowRecord.custom_failure_reason;
+
+    let blockedRules = null;
+    if (workflowRecord.inspection_check_result) {
+      try {
+        const result = typeof workflowRecord.inspection_check_result === 'string'
+          ? JSON.parse(workflowRecord.inspection_check_result)
+          : workflowRecord.inspection_check_result;
+        blockedRules = result?.blockedRules;
+      } catch (error) {
+        console.error('解析檢測結果失敗:', error);
+      }
+    }
+
+    return {
+      failureReason,
+      customReason,
+      blockedRules
+    };
+  };
+
+  const dispensingStatus = getDispensingStatus();
+  const failureInfo = getDispensingFailureInfo();
 
   const handleConfirm = () => {
     onConfirm();
@@ -138,6 +171,54 @@ const RevertConfirmModal: React.FC<RevertConfirmModalProps> = ({
                 <div className="text-sm text-gray-700">
                   執行時間：{new Date(time).toLocaleString('zh-TW')}
                 </div>
+              </div>
+            )}
+
+            {/* 派藥狀態區塊 */}
+            {step === 'dispensing' && dispensingStatus && (
+              <div className="pt-3 border-t border-gray-200">
+                <div className="text-xs text-gray-500 mb-1">派藥狀態</div>
+                {dispensingStatus === 'completed' && (
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="text-sm font-medium text-green-700">派藥成功</span>
+                  </div>
+                )}
+                {dispensingStatus === 'failed' && failureInfo && (
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <XCircle className="h-5 w-5 text-red-600" />
+                      <span className="text-sm font-medium text-red-700">派藥失敗</span>
+                    </div>
+
+                    {/* 失敗原因 */}
+                    {failureInfo.failureReason && (
+                      <div className="pl-7">
+                        <div className="text-xs text-gray-600">失敗原因：</div>
+                        <div className="text-sm text-red-700 font-medium">
+                          {failureInfo.failureReason === '其他' && failureInfo.customReason
+                            ? failureInfo.customReason
+                            : failureInfo.failureReason}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 檢測不合格項目 */}
+                    {failureInfo.blockedRules && failureInfo.blockedRules.length > 0 && (
+                      <div className="pl-7">
+                        <div className="text-xs text-gray-600 mb-1">檢測不合格項目：</div>
+                        <div className="space-y-1">
+                          {failureInfo.blockedRules.map((rule: any, index: number) => (
+                            <div key={index} className="text-sm text-red-700">
+                              <span className="font-medium">{rule.vital_sign_type}:</span>{' '}
+                              {rule.actual_value || rule.actualValue}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

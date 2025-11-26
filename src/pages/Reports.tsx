@@ -44,7 +44,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, bgColor, textColor, s
 };
 
 const Reports: React.FC = () => {
-  const { patients, stations, healthAssessments, woundAssessments, incidentReports, patientHealthTasks, patientRestraintAssessments, prescriptions, healthRecords, mealGuidances, loading } = usePatients();
+  const { patients, stations, healthAssessments, woundAssessments, incidentReports, patientHealthTasks, patientRestraintAssessments, prescriptions, healthRecords, mealGuidances, hospitalEpisodes, loading } = usePatients();
   const [activeTab, setActiveTab] = useState<ReportTab>('daily');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [stationFilter, setStationFilter] = useState<StationFilter>('all');
@@ -87,10 +87,17 @@ const Reports: React.FC = () => {
       暫住: { count: 暫住Patients.length, names: 暫住Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
     };
 
-    const 住在本站男Patients = activePatients.filter(p => p.性別 === '男' && !p.is_hospitalized);
-    const 住在本站女Patients = activePatients.filter(p => p.性別 === '女' && !p.is_hospitalized);
-    const 入住醫院男Patients = activePatients.filter(p => p.性別 === '男' && p.is_hospitalized);
-    const 入住醫院女Patients = activePatients.filter(p => p.性別 === '女' && p.is_hospitalized);
+    // 使用 hospitalEpisodes 來判斷是否入院，而不是依賴 is_hospitalized 欄位
+    const getIsHospitalized = (patientId: number) => {
+      return hospitalEpisodes.some(episode =>
+        episode.patient_id === patientId && episode.status === 'active'
+      );
+    };
+
+    const 住在本站男Patients = activePatients.filter(p => p.性別 === '男' && !getIsHospitalized(p.院友id));
+    const 住在本站女Patients = activePatients.filter(p => p.性別 === '女' && !getIsHospitalized(p.院友id));
+    const 入住醫院男Patients = activePatients.filter(p => p.性別 === '男' && getIsHospitalized(p.院友id));
+    const 入住醫院女Patients = activePatients.filter(p => p.性別 === '女' && getIsHospitalized(p.院友id));
 
     const residenceStats = {
       住在本站男: 住在本站男Patients.length,

@@ -586,6 +586,50 @@ const applyMedicationRecordTemplate = async (
     ? new Date(patient.出生日期).toLocaleDateString('zh-TW')
     : '';
 
+  // 插入患者相片到H32單元格
+  if (patient.院友相片) {
+    try {
+      console.log('開始處理患者相片:', patient.院友相片);
+
+      // 從 URL 下載圖片並轉換為 base64
+      const response = await fetch(patient.院友相片);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = (reader.result as string).split(',')[1];
+          resolve(base64String);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      // 判斷圖片格式
+      let extension: 'png' | 'jpeg' | 'jpg' | 'gif' = 'jpeg';
+      if (patient.院友相片.toLowerCase().includes('.png')) {
+        extension = 'png';
+      } else if (patient.院友相片.toLowerCase().includes('.gif')) {
+        extension = 'gif';
+      }
+
+      // 添加圖片到工作簿
+      const imageId = worksheet.workbook.addImage({
+        base64: base64,
+        extension: extension
+      });
+
+      // 將圖片插入到H32單元格
+      worksheet.addImage(imageId, {
+        tl: { col: 7, row: 31 }, // H32 (列索引從0開始，所以H=7, 32行=31)
+        ext: { width: 80, height: 100 } // 設定圖片大小
+      });
+
+      console.log('患者相片已成功插入到H32單元格');
+    } catch (error) {
+      console.error('插入患者相片失敗:', error);
+    }
+  }
+
   // 填入處方資料（智能分页）
   let currentPage = 1;
   let prescriptionIndex = 0;
