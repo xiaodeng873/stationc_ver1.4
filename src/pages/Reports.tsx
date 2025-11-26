@@ -369,8 +369,18 @@ const Reports: React.FC = () => {
       );
     });
 
-    // 入院
-    const hospitalizedPatients = activePatients.filter(p => p.is_hospitalized);
+    // 醫院服務使用人次（本月入院事件總次數，包含重複患者）
+    const hospitalServiceEpisodes = (hospitalEpisodes || []).filter(episode => {
+      const startDate = new Date(episode.episode_start_date);
+      return startDate >= thisMonthStart && startDate <= thisMonthEnd;
+    });
+
+    const hospitalServiceCount = hospitalServiceEpisodes.length;
+
+    const hospitalServicePatientNames = hospitalServiceEpisodes.map(episode => {
+      const patient = activePatients.find(p => p.院友id === episode.patient_id);
+      return patient ? `${patient.床號} ${patient.中文姓氏}${patient.中文名字}` : '';
+    }).filter(name => name !== '');
 
     // 認知障礙
     const cognitiveImpairmentPatients = activePatients.filter(p => {
@@ -469,7 +479,7 @@ const Reports: React.FC = () => {
       服藥9種或以上: { count: multiMedicationPatients.length, names: multiMedicationPatients.map(formatPatientName) },
       接受物理治療: { count: physioTherapyPatients.length, names: physioTherapyPatients.map(formatPatientName) },
       接受職業治療: { count: occupationalTherapyPatients.length, names: occupationalTherapyPatients.map(formatPatientName) },
-      入院: { count: hospitalizedPatients.length, names: hospitalizedPatients.map(formatPatientName) },
+      醫院服務使用人次: { count: hospitalServiceCount, names: hospitalServicePatientNames },
       認知障礙: { count: cognitiveImpairmentPatients.length, names: cognitiveImpairmentPatients.map(formatPatientName) },
       失禁: { count: incontinencePatients.length, names: incontinencePatients.map(formatPatientName) },
       如廁訓練: { count: toiletTrainingPatients.length, names: toiletTrainingPatients.map(formatPatientName) },
@@ -756,7 +766,7 @@ const Reports: React.FC = () => {
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">健康狀況</h3>
         <div className="grid grid-cols-3 gap-4">
-          <StatCard title="入院" value={monthlyReportData.入院.count} bgColor="bg-red-50" textColor="text-red-600" patientNames={monthlyReportData.入院.names} />
+          <StatCard title="醫院服務使用人次" value={monthlyReportData.醫院服務使用人次.count} bgColor="bg-red-50" textColor="text-red-600" subtitle="本月入院事件總次數" patientNames={monthlyReportData.醫院服務使用人次.names} />
           <StatCard title="認知障礙" value={monthlyReportData.認知障礙.count} bgColor="bg-yellow-50" textColor="text-yellow-600" patientNames={monthlyReportData.認知障礙.names} />
           <StatCard title="傳染病" value={monthlyReportData.傳染病.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={monthlyReportData.傳染病.names} />
         </div>

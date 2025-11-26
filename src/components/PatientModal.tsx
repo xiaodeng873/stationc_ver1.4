@@ -205,6 +205,48 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
     }));
   };
 
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+            reject(new Error('無法獲取 Canvas 上下文'));
+            return;
+          }
+
+          // 設定目標寬度，保持比例
+          const maxWidth = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          // 繪製圖片
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // 轉換為 JPEG base64，品質 0.85
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(compressedBase64);
+        };
+        img.onerror = () => reject(new Error('圖片載入失敗'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('檔案讀取失敗'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handlePhotoUpload = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('請選擇圖片文件');
@@ -217,20 +259,16 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
     }
 
     setIsUploading(true);
-    
+
     try {
-      // Convert image to base64
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64String = e.target?.result as string;
-        setPhotoPreview(base64String);
-        setFormData(prev => ({
-          ...prev,
-          院友相片: base64String
-        }));
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(file);
+      // 壓縮圖片
+      const compressedBase64 = await compressImage(file);
+      setPhotoPreview(compressedBase64);
+      setFormData(prev => ({
+        ...prev,
+        院友相片: compressedBase64
+      }));
+      setIsUploading(false);
     } catch (error) {
       console.error('上傳照片失敗:', error);
       alert('上傳照片失敗，請重試');

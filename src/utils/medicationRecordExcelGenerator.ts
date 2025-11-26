@@ -618,10 +618,10 @@ const applyMedicationRecordTemplate = async (
         extension: extension
       });
 
-      // 將圖片插入到H32單元格
+      // 將圖片插入到H32單元格，使用 tl + br 座標方式填滿單元格
       worksheet.addImage(imageId, {
-        tl: { col: 7, row: 31 }, // H32 (列索引從0開始，所以H=7, 32行=31)
-        ext: { width: 80, height: 100 } // 設定圖片大小
+        tl: { col: 7, row: 31 }, // H32 的左上角 (列索引從0開始，所以H=7, 32行=31)
+        br: { col: 8, row: 32 }  // H32 的右下角 (填滿整個單元格)
       });
 
       console.log('患者相片已成功插入到H32單元格');
