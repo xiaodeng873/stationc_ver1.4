@@ -67,33 +67,43 @@ const RevertConfirmModal: React.FC<RevertConfirmModalProps> = ({
     return workflowRecord.dispensing_status;
   };
 
-  const getDispensingFailureInfo = () => {
-    if (step !== 'dispensing' || workflowRecord.dispensing_status !== 'failed') return null;
+  const getDispensingInfo = () => {
+    if (step !== 'dispensing') return null;
 
+    const status = workflowRecord.dispensing_status;
     const failureReason = workflowRecord.dispensing_failure_reason;
     const customReason = workflowRecord.custom_failure_reason;
 
-    let blockedRules = null;
+    let inspectionData = null;
     if (workflowRecord.inspection_check_result) {
       try {
         const result = typeof workflowRecord.inspection_check_result === 'string'
           ? JSON.parse(workflowRecord.inspection_check_result)
           : workflowRecord.inspection_check_result;
-        blockedRules = result?.blockedRules;
+
+        // 提取檢測項數據
+        const usedVitalSignData = result?.usedVitalSignData || {};
+        const blockedRules = result?.blockedRules || [];
+
+        inspectionData = {
+          usedVitalSignData,
+          blockedRules
+        };
       } catch (error) {
         console.error('解析檢測結果失敗:', error);
       }
     }
 
     return {
+      status,
       failureReason,
       customReason,
-      blockedRules
+      inspectionData
     };
   };
 
   const dispensingStatus = getDispensingStatus();
-  const failureInfo = getDispensingFailureInfo();
+  const dispensingInfo = getDispensingInfo();
 
   const handleConfirm = () => {
     onConfirm();
@@ -175,16 +185,32 @@ const RevertConfirmModal: React.FC<RevertConfirmModalProps> = ({
             )}
 
             {/* 派藥狀態區塊 */}
-            {step === 'dispensing' && dispensingStatus && (
+            {step === 'dispensing' && dispensingStatus && dispensingInfo && (
               <div className="pt-3 border-t border-gray-200">
                 <div className="text-xs text-gray-500 mb-1">派藥狀態</div>
                 {dispensingStatus === 'completed' && (
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span className="text-sm font-medium text-green-700">派藥成功</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <span className="text-sm font-medium text-green-700">派藥成功</span>
+                    </div>
+
+                    {/* 檢測項資訊（iPad橫向模式隱藏檢測數據） */}
+                    {dispensingInfo.inspectionData && Object.keys(dispensingInfo.inspectionData.usedVitalSignData).length > 0 && (
+                      <div className="pl-7 md:landscape:hidden">
+                        <div className="text-xs text-gray-600 mb-1">檢測項數據：</div>
+                        <div className="space-y-1">
+                          {Object.entries(dispensingInfo.inspectionData.usedVitalSignData).map(([key, value]) => (
+                            <div key={key} className="text-sm text-green-700">
+                              <span className="font-medium">{key}:</span> {value as string}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
-                {dispensingStatus === 'failed' && failureInfo && (
+                {dispensingStatus === 'failed' && (
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
                       <XCircle className="h-5 w-5 text-red-600" />
@@ -192,23 +218,23 @@ const RevertConfirmModal: React.FC<RevertConfirmModalProps> = ({
                     </div>
 
                     {/* 失敗原因 */}
-                    {failureInfo.failureReason && (
+                    {dispensingInfo.failureReason && (
                       <div className="pl-7">
                         <div className="text-xs text-gray-600">失敗原因：</div>
                         <div className="text-sm text-red-700 font-medium">
-                          {failureInfo.failureReason === '其他' && failureInfo.customReason
-                            ? failureInfo.customReason
-                            : failureInfo.failureReason}
+                          {dispensingInfo.failureReason === '其他' && dispensingInfo.customReason
+                            ? dispensingInfo.customReason
+                            : dispensingInfo.failureReason}
                         </div>
                       </div>
                     )}
 
-                    {/* 檢測不合格項目 */}
-                    {failureInfo.blockedRules && failureInfo.blockedRules.length > 0 && (
-                      <div className="pl-7">
+                    {/* 檢測不合格項目（iPad橫向模式隱藏檢測數據） */}
+                    {dispensingInfo.inspectionData && dispensingInfo.inspectionData.blockedRules.length > 0 && (
+                      <div className="pl-7 md:landscape:hidden">
                         <div className="text-xs text-gray-600 mb-1">檢測不合格項目：</div>
                         <div className="space-y-1">
-                          {failureInfo.blockedRules.map((rule: any, index: number) => (
+                          {dispensingInfo.inspectionData.blockedRules.map((rule: any, index: number) => (
                             <div key={index} className="text-sm text-red-700">
                               <span className="font-medium">{rule.vital_sign_type}:</span>{' '}
                               {rule.actual_value || rule.actualValue}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { X, Clock, CheckCircle, Pill, AlertTriangle, User, Activity } from 'lucide-react';
+import { X, Clock, CheckCircle, Pill, AlertTriangle, User, Activity, ChevronDown, ChevronUp } from 'lucide-react';
 import InspectionCheckModal from './InspectionCheckModal';
 
 interface TimeSlotSummary {
@@ -38,6 +38,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const [currentInspectionIndex, setCurrentInspectionIndex] = useState(0);
   const [inspectionResults, setInspectionResults] = useState<Map<string, any>>(new Map());
   const [recordsToProcess, setRecordsToProcess] = useState<any[]>([]);
+  const [expandedTimeSlots, setExpandedTimeSlots] = useState<Set<string>>(new Set());
 
   const currentPatient = useMemo(() => {
     return patients.find(p => p.院友id === parseInt(selectedPatientId));
@@ -141,6 +142,37 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
     } else {
       setSelectedTimeSlots(new Set(timeSlotSummaries.map(s => s.time)));
     }
+  };
+
+  const handleToggleExpand = (time: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newExpanded = new Set(expandedTimeSlots);
+    if (newExpanded.has(time)) {
+      newExpanded.delete(time);
+    } else {
+      newExpanded.add(time);
+    }
+    setExpandedTimeSlots(newExpanded);
+  };
+
+  const getPrescriptionDetails = (time: string) => {
+    const records = activeWorkflowRecords.filter(r => r.scheduled_time === time);
+    return records.map(record => {
+      const prescription = prescriptions.find(p => p.id === record.prescription_id);
+      if (!prescription) return null;
+
+      const dosageInfo = [
+        prescription.dosage,
+        prescription.dosage_unit,
+        prescription.frequency
+      ].filter(Boolean).join(' ');
+
+      return {
+        id: record.id,
+        medicationName: prescription.medication_name,
+        dosageInfo: dosageInfo || '劑量資訊未提供'
+      };
+    }).filter(Boolean);
   };
 
   const handleConfirm = async () => {
@@ -409,13 +441,36 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
                               </div>
 
                               <div className="space-y-1 text-sm">
-                                <div>
+                                <div
+                                  className="flex items-center cursor-pointer hover:bg-gray-50 rounded px-2 py-1 -mx-2"
+                                  onClick={(e) => handleToggleExpand(summary.time, e)}
+                                >
                                   <span className="text-gray-600">處方數量: </span>
                                   <span className={`font-bold text-lg ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
                                     {summary.uniquePrescriptionCount}
                                   </span>
                                   <span className="text-gray-600 ml-1">筆</span>
+                                  {expandedTimeSlots.has(summary.time) ? (
+                                    <ChevronUp className="h-4 w-4 ml-2 text-gray-500" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 ml-2 text-gray-500" />
+                                  )}
                                 </div>
+
+                                {expandedTimeSlots.has(summary.time) && (
+                                  <div className="ml-4 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                                    <div className="text-xs font-medium text-gray-700 mb-2">處方細節：</div>
+                                    {getPrescriptionDetails(summary.time).map((detail: any) => (
+                                      <div key={detail.id} className="text-xs text-gray-700 flex items-start space-x-2">
+                                        <Pill className="h-3 w-3 mt-0.5 flex-shrink-0 text-gray-500" />
+                                        <div>
+                                          <div className="font-medium">{detail.medicationName}</div>
+                                          <div className="text-gray-600">{detail.dosageInfo}</div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
 
                                 <div>
                                   <span className="text-gray-600">藥物總量: </span>
