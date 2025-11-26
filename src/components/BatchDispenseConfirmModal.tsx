@@ -161,16 +161,21 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       const prescription = prescriptions.find(p => p.id === record.prescription_id);
       if (!prescription) return null;
 
-      const dosageInfo = [
-        prescription.dosage,
-        prescription.dosage_unit,
-        prescription.frequency
-      ].filter(Boolean).join(' ');
+      // 組合劑量資訊：數量 + 單位
+      const dosageParts = [];
+      if (prescription.dosage_amount) {
+        dosageParts.push(prescription.dosage_amount);
+      }
+      if (prescription.dosage_unit) {
+        dosageParts.push(prescription.dosage_unit);
+      }
+
+      const dosageInfo = dosageParts.length > 0 ? dosageParts.join('') : '劑量資訊未提供';
 
       return {
         id: record.id,
         medicationName: prescription.medication_name,
-        dosageInfo: dosageInfo || '劑量資訊未提供'
+        dosageInfo: dosageInfo
       };
     }).filter(Boolean);
   };

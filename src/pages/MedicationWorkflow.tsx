@@ -320,7 +320,7 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
       )}
 
       {status === 'failed' && record.dispensing_failure_reason && !inspectionValues && !blockedRules && (
-        <div className="text-xs text-red-600 mt-1 truncate font-medium md:landscape:hidden">
+        <div className="text-xs text-red-600 mt-1 truncate font-medium max-[1024px]:landscape:hidden">
           {record.dispensing_failure_reason === '其他' && record.custom_failure_reason
             ? record.custom_failure_reason
             : record.dispensing_failure_reason}
@@ -340,9 +340,9 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         </div>
       )}
 
-      {/* 顯示檢測不合格的項目及數值（iPad橫向模式隱藏） */}
+      {/* 顯示檢測不合格的項目及數值（iPad橫向模式隱藏，Web桌面顯示） */}
       {step === 'dispensing' && status === 'failed' && blockedRules && blockedRules.length > 0 && (
-        <div className="mt-1 space-y-0.5 md:landscape:hidden">
+        <div className="mt-1 space-y-0.5 max-[1024px]:landscape:hidden">
           {blockedRules.map((rule: any, index: number) => (
             <div key={index} className="text-xs text-red-700">
               <span className="font-medium">{rule.vital_sign_type}:</span> {rule.actual_value || rule.actualValue}
@@ -351,9 +351,9 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         </div>
       )}
 
-      {/* 顯示檢測合格的項目數值（iPad橫向模式隱藏） */}
+      {/* 顯示檢測合格的項目數值（iPad橫向模式隱藏，Web桌面顯示） */}
       {step === 'dispensing' && status === 'completed' && inspectionValues && !inspectionValues.isHospitalized && (
-        <div className="mt-1 space-y-0.5 md:landscape:hidden">
+        <div className="mt-1 space-y-0.5 max-[1024px]:landscape:hidden">
           {Object.entries(inspectionValues).map(([key, value]) => (
             <div key={key} className="text-xs">
               <span className="font-medium">{key}:</span> {value}

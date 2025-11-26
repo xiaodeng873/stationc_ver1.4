@@ -195,9 +195,9 @@ const RevertConfirmModal: React.FC<RevertConfirmModalProps> = ({
                       <span className="text-sm font-medium text-green-700">派藥成功</span>
                     </div>
 
-                    {/* 檢測項資訊（iPad橫向模式隱藏檢測數據） */}
+                    {/* 檢測項資訊（iPad橫向模式隱藏檢測數據，Web桌面顯示） */}
                     {dispensingInfo.inspectionData && Object.keys(dispensingInfo.inspectionData.usedVitalSignData).length > 0 && (
-                      <div className="pl-7 md:landscape:hidden">
+                      <div className="pl-7 max-[1024px]:landscape:hidden">
                         <div className="text-xs text-gray-600 mb-1">檢測項數據：</div>
                         <div className="space-y-1">
                           {Object.entries(dispensingInfo.inspectionData.usedVitalSignData).map(([key, value]) => (
@@ -229,9 +229,9 @@ const RevertConfirmModal: React.FC<RevertConfirmModalProps> = ({
                       </div>
                     )}
 
-                    {/* 檢測不合格項目（iPad橫向模式隱藏檢測數據） */}
+                    {/* 檢測不合格項目（iPad橫向模式隱藏檢測數據，Web桌面顯示） */}
                     {dispensingInfo.inspectionData && dispensingInfo.inspectionData.blockedRules.length > 0 && (
-                      <div className="pl-7 md:landscape:hidden">
+                      <div className="pl-7 max-[1024px]:landscape:hidden">
                         <div className="text-xs text-gray-600 mb-1">檢測不合格項目：</div>
                         <div className="space-y-1">
                           {dispensingInfo.inspectionData.blockedRules.map((rule: any, index: number) => (
