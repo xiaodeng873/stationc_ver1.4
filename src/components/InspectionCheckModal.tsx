@@ -35,6 +35,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   const [isChecking, setIsChecking] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasNoRulesAndHandled, setHasNoRulesAndHandled] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const isMountedRef = React.useRef(true);
 
   const patient = patients.find(p => p.院友id === workflowRecord.patient_id);
@@ -178,6 +179,11 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
 
   // 執行檢測檢查
   const performInspectionCheck = async () => {
+    if (isChecking || isSubmitting) {
+      console.log('[InspectionCheckModal] 正在處理中，忽略重複請求');
+      return;
+    }
+
     setIsChecking(true);
 
     try {
@@ -193,6 +199,8 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
           key => newVitalSignData[key] !== undefined && newVitalSignData[key] !== ''
         );
 
+        const savePromises: Promise<any>[] = [];
+
         // 如果有血糖值，需要保存血糖控制記錄
         if (hasBloodSugar) {
           const bloodSugarRecord = {
@@ -205,7 +213,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             記錄人員: displayName || '系統'
           };
           console.log('[InspectionCheckModal] 保存血糖控制記錄:', bloodSugarRecord);
-          await addHealthRecord(bloodSugarRecord);
+          savePromises.push(addHealthRecord(bloodSugarRecord, true));
         }
 
         // 如果有生命表徵數據，需要保存生命表徵記錄
@@ -225,12 +233,12 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             記錄人員: displayName || '系統'
           };
           console.log('[InspectionCheckModal] 保存生命表徵記錄:', vitalSignsRecord);
-          await addHealthRecord(vitalSignsRecord);
+          savePromises.push(addHealthRecord(vitalSignsRecord, true));
         }
 
-        // 等待短暫時間確保數據庫寫入完成
-        console.log('[InspectionCheckModal] 等待數據寫入完成...');
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 並行保存所有記錄，無需等待
+        await Promise.all(savePromises);
+        console.log('[InspectionCheckModal] 健康記錄保存完成');
       }
 
       // 執行檢測規則檢查（不再傳遞 vitalSignDataToUse，因為數據已經保存到數據庫）
@@ -253,7 +261,9 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
 
   // 處理確認派藥
   const handleConfirmDispense = async () => {
-    if (!checkResult) return;
+    if (!checkResult || isSubmitting) return;
+
+    setIsSubmitting(true);
 
     try {
       if (checkResult.canDispense) {
@@ -277,6 +287,8 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     } catch (error) {
       console.error('處理派藥確認失敗:', error);
       alert(`操作失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -335,7 +347,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600"
-              disabled={isChecking}
+              disabled={isChecking || isSubmitting}
             >
               <X className="h-6 w-6" />
             </button>
@@ -502,13 +514,13 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             {!checkResult ? (
               <button
                 onClick={performInspectionCheck}
-                disabled={isChecking}
+                disabled={isChecking || isSubmitting}
                 className="btn-primary flex-1 flex items-center justify-center space-x-2"
               >
-                {isChecking ? (
+                {isChecking || isSubmitting ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>檢測中...</span>
+                    <span>{isChecking ? '檢測中...' : '處理中...'}</span>
                   </>
                 ) : (
                   <>
@@ -520,11 +532,17 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             ) : (
               <button
                 onClick={handleConfirmDispense}
+                disabled={isSubmitting}
                 className={`flex-1 flex items-center justify-center space-x-2 ${
                   checkResult.canDispense ? 'btn-primary' : 'btn-danger'
                 }`}
               >
-                {checkResult.canDispense ? (
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>處理中...</span>
+                  </>
+                ) : checkResult.canDispense ? (
                   <>
                     <CheckCircle className="h-4 w-4" />
                     <span>確認派藥</span>
@@ -541,7 +559,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             <button
               onClick={onClose}
               className="btn-secondary flex-1"
-              disabled={isChecking}
+              disabled={isChecking || isSubmitting}
             >
               取消
             </button>

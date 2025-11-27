@@ -889,13 +889,18 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  const addHealthRecord = async (record: Omit<db.HealthRecord, '記錄id'>) => {
+  const addHealthRecord = async (record: Omit<db.HealthRecord, '記錄id'>, skipRefresh = false) => {
     try {
       console.log('Adding health record:', record);
-      await db.createHealthRecord(record);
-      console.log('Health record added successfully, refreshing data...');
-      await refreshData();
-      console.log('Data refreshed successfully');
+      const newRecord = await db.createHealthRecord(record);
+      console.log('Health record added successfully');
+
+      if (!skipRefresh) {
+        // 只更新健康記錄，不重新載入所有數據
+        setHealthRecords(prev => [...prev, newRecord]);
+      }
+
+      return newRecord;
     } catch (error) {
       console.error('Error adding health record:', error);
       throw error;
@@ -1193,20 +1198,24 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         updateData.custom_failure_reason = null;
       }
       
-      const { error } = await supabase
+      const { data: updatedRecord, error } = await supabase
         .from('medication_workflow_records')
         .update(updateData)
-        .eq('id', recordId);
+        .eq('id', recordId)
+        .select()
+        .single();
 
       if (error) {
         console.error('Supabase 更新錯誤:', error);
         throw error;
       }
 
-      console.log('執藥操作完成，準備重新載入記錄');
-      
-      // 重新載入該院友該日期的工作流程記錄
-      await fetchPrescriptionWorkflowRecords(normalizedPatientId, normalizedScheduledDate);
+      console.log('執藥操作完成');
+
+      // 使用樂觀更新：直接更新本地狀態
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(rec => rec.id === recordId ? updatedRecord : rec)
+      );
     } catch (error) {
       console.error('執行preparation失敗:', error);
       throw error;
@@ -1270,20 +1279,24 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         updateData.custom_failure_reason = null;
       }
       
-      const { error } = await supabase
+      const { data: updatedRecord, error } = await supabase
         .from('medication_workflow_records')
         .update(updateData)
-        .eq('id', recordId);
+        .eq('id', recordId)
+        .select()
+        .single();
 
       if (error) {
         console.error('Supabase 更新錯誤:', error);
         throw error;
       }
 
-      console.log('核藥操作完成，準備重新載入記錄');
-      
-      // 重新載入該院友該日期的工作流程記錄
-      await fetchPrescriptionWorkflowRecords(normalizedPatientId, normalizedScheduledDate);
+      console.log('核藥操作完成');
+
+      // 使用樂觀更新：直接更新本地狀態
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(rec => rec.id === recordId ? updatedRecord : rec)
+      );
     } catch (error) {
       console.error('執行verification失敗:', error);
       throw error;
@@ -1368,10 +1381,12 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       console.log('[dispenseMedication] 更新數據:', updateData);
 
-      const { error } = await supabase
+      const { data: updatedRecord, error } = await supabase
         .from('medication_workflow_records')
         .update(updateData)
-        .eq('id', recordId);
+        .eq('id', recordId)
+        .select()
+        .single();
 
       if (error) {
         console.error('[dispenseMedication] Supabase 更新錯誤:', error);
@@ -1380,10 +1395,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       console.log('[dispenseMedication] 派藥記錄更新成功');
 
-      console.log('派藥操作完成，準備重新載入記錄');
-
-      // 重新載入該院友該日期的工作流程記錄
-      await fetchPrescriptionWorkflowRecords(normalizedPatientId, normalizedScheduledDate);
+      // 使用樂觀更新：直接更新本地狀態，不需要重新載入
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(rec => rec.id === recordId ? updatedRecord : rec)
+      );
     } catch (error) {
       console.error('執行dispensing失敗:', error);
       throw error;
