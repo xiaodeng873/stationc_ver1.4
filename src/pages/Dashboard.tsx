@@ -258,23 +258,29 @@ const Dashboard: React.FC = () => {
     .sort((a, b) => new Date(`${b.記錄日期} ${b.記錄時間}`).getTime() - new Date(`${a.記錄日期} ${a.記錄時間}`).getTime())
     .slice(0, 30);
 
-  const recentPrescriptions = prescriptions
-    .sort((a, b) => new Date(b.處方日期).getTime() - new Date(a.處方日期).getTime())
-    .slice(0, 5);
-
-  const upcomingFollowUps = followUpAppointments
-    .filter(a => {
-      if (new Date(a.覆診日期) < new Date()) return false;
-      const patient = patients.find(p => p.院友id === a.院友id);
-      return patient && patient.在住狀態 === '在住';
-    })
-    .sort((a, b) => new Date(a.覆診日期).getTime() - new Date(b.覆診日期).getTime())
-    .slice(0, 10);
-
-  // 創建院友查找Map，提升查找效率 O(1)
+  // 創建院友查找Map，提升查找效率 O(1) - 必須在最前面
   const patientsMap = useMemo(() => {
     return new Map(patients.map(p => [p.院友id, p]));
   }, [patients]);
+
+  const recentPrescriptions = useMemo(() =>
+    prescriptions
+      .sort((a, b) => new Date(b.處方日期).getTime() - new Date(a.處方日期).getTime())
+      .slice(0, 5),
+    [prescriptions]
+  );
+
+  const upcomingFollowUps = useMemo(() =>
+    followUpAppointments
+      .filter(a => {
+        if (new Date(a.覆診日期) < new Date()) return false;
+        const patient = patientsMap.get(a.院友id);
+        return patient && patient.在住狀態 === '在住';
+      })
+      .sort((a, b) => new Date(a.覆診日期).getTime() - new Date(b.覆診日期).getTime())
+      .slice(0, 10),
+    [followUpAppointments, patientsMap]
+  );
 
   // 任務統計 - 使用useMemo緩存
   const monitoringTasks = useMemo(() =>
