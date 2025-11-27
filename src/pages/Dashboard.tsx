@@ -175,7 +175,7 @@ const Dashboard: React.FC = () => {
     });
 
     return result;
-  }, [patients, patientHealthTasks]);
+  }, [patients, patientHealthTasks, annualHealthCheckups]);
 
   // 計算欠缺餐膳指引的院友
   const missingMealGuidance = useMemo(() => {
@@ -236,32 +236,28 @@ const Dashboard: React.FC = () => {
     setShowFollowUpModal(true);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">載入中...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 最近排程：今天及未來最多5個排程
-  const recentSchedules = schedules
-    .filter(s => new Date(s.到診日期) >= new Date(new Date().toDateString()))
-    .sort((a, b) => new Date(a.到診日期).getTime() - new Date(b.到診日期).getTime())
-    .slice(0, 5);
-
-  // 近期監測：最近30個健康記錄
-  const recentHealthRecords = healthRecords
-    .sort((a, b) => new Date(`${b.記錄日期} ${b.記錄時間}`).getTime() - new Date(`${a.記錄日期} ${a.記錄時間}`).getTime())
-    .slice(0, 30);
-
-  // 創建院友查找Map，提升查找效率 O(1) - 必須在最前面
+  // ✅ 所有 useMemo 必須在 early return 之前 - 符合 React Hooks 規則
+  // 創建院友查找Map，提升查找效率 O(1)
   const patientsMap = useMemo(() => {
     return new Map(patients.map(p => [p.院友id, p]));
   }, [patients]);
+
+  // 最近排程：今天及未來最多5個排程
+  const recentSchedules = useMemo(() =>
+    schedules
+      .filter(s => new Date(s.到診日期) >= new Date(new Date().toDateString()))
+      .sort((a, b) => new Date(a.到診日期).getTime() - new Date(b.到診日期).getTime())
+      .slice(0, 5),
+    [schedules]
+  );
+
+  // 近期監測：最近30個健康記錄
+  const recentHealthRecords = useMemo(() =>
+    healthRecords
+      .sort((a, b) => new Date(`${b.記錄日期} ${b.記錄時間}`).getTime() - new Date(`${a.記錄日期} ${a.記錄時間}`).getTime())
+      .slice(0, 30),
+    [healthRecords]
+  );
 
   const recentPrescriptions = useMemo(() =>
     prescriptions
