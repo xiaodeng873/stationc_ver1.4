@@ -1423,7 +1423,7 @@ const MedicationWorkflow: React.FC = () => {
     return true;
   };
 
-  // 一鍵派藥（即時備藥+口服+無檢測項）- 優化並行處理
+  // 一鍵全程（即時備藥+口服+無檢測項）- 完成執藥、核藥、派藥全流程
   const handleOneClickDispenseSpecial = async () => {
     if (!selectedPatientId || !selectedDate) {
       return;
@@ -1438,10 +1438,11 @@ const MedicationWorkflow: React.FC = () => {
 
     try {
       console.log('=== 一鍵全程開始 ===');
-      // 找到符合一鍵派藥條件的記錄
+      // 找到所有符合一鍵全程條件的當日即時備藥處方記錄（任何階段）
       const eligibleRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
-        return r.dispensing_status === 'pending' && canOneClickDispense(prescription);
+        // 只要符合即時備藥條件，無論目前在哪個階段
+        return canOneClickDispense(prescription);
       });
 
       if (eligibleRecords.length === 0) {
@@ -1450,6 +1451,13 @@ const MedicationWorkflow: React.FC = () => {
       }
 
       console.log(`找到 ${eligibleRecords.length} 筆符合條件的記錄`);
+
+      // 統計各階段數量
+      let preparedCount = 0;
+      let verifiedCount = 0;
+      let successCount = 0;
+      let hospitalizedCount = 0;
+      let failCount = 0;
 
       // 並行處理所有記錄
       const results = await Promise.allSettled(
@@ -1461,25 +1469,57 @@ const MedicationWorkflow: React.FC = () => {
             record.scheduled_time
           );
 
-          // 一鍵完成執藥、核藥、派藥
-          await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
-          await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
+          // 執行完整流程：執藥 -> 核藥 -> 派藥
+          try {
+            // 1. 執藥（如果還未執藥）
+            if (record.preparation_status === 'pending') {
+              await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
+            }
 
-          if (inHospitalizationPeriod) {
-            // 如果服藥時間在入院期間，自動標記為「入院」失敗原因
-            await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
-            return { type: 'hospitalized' };
-          } else {
-            // 正常派藥
-            await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
-            return { type: 'success' };
+            // 2. 核藥（如果還未核藥）
+            if (record.verification_status === 'pending') {
+              await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
+            }
+
+            // 3. 派藥（如果還未派藥）
+            if (record.dispensing_status === 'pending') {
+              if (inHospitalizationPeriod) {
+                // 如果服藥時間在入院期間，自動標記為「入院」失敗原因
+                await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
+                return { type: 'hospitalized' };
+              } else {
+                // 正常派藥
+                await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
+                return { type: 'success' };
+              }
+            }
+
+            return { type: 'already_completed' };
+          } catch (error) {
+            console.error(`處理記錄 ${record.id} 失敗:`, error);
+            throw error;
           }
         })
       );
 
-      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'success').length;
-      const hospitalizedCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'hospitalized').length;
-      const failCount = results.filter(r => r.status === 'rejected').length;
+      // 統計結果
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          switch (result.value.type) {
+            case 'success':
+              successCount++;
+              break;
+            case 'hospitalized':
+              hospitalizedCount++;
+              break;
+            case 'already_completed':
+              // 已完成的記錄不計入統計
+              break;
+          }
+        } else {
+          failCount++;
+        }
+      });
 
       console.log(`一鍵全程完成: 成功 ${successCount} 筆, 入院 ${hospitalizedCount} 筆, 失敗 ${failCount} 筆`);
 
@@ -2359,7 +2399,8 @@ const MedicationWorkflow: React.FC = () => {
                   onClick={handleOneClickDispenseSpecial}
                   disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
                     const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                    return r.dispensing_status === 'pending' && canOneClickDispense(prescription);
+                    // 只要是符合即時備藥條件的處方，無論處於哪個階段都可以使用
+                    return canOneClickDispense(prescription);
                   })}
                   className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 lg:w-full xl:w-auto"
                 >

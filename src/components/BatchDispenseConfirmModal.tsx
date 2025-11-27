@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { X, Clock, CheckCircle, Pill, AlertTriangle, User, Activity, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Clock, CheckCircle, Pill, AlertTriangle, User, Activity, ChevronDown, ChevronUp, Shield } from 'lucide-react';
 import InspectionCheckModal from './InspectionCheckModal';
+import { getFormattedEnglishName } from '../utils/nameFormatter';
 
 interface TimeSlotSummary {
   time: string;
@@ -43,6 +44,25 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const currentPatient = useMemo(() => {
     return patients.find(p => p.院友id === parseInt(selectedPatientId));
   }, [patients, selectedPatientId]);
+
+  // 計算年齡
+  const calculateAge = (birthDate: string) => {
+    if (!birthDate) return null;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // 獲取床號
+  const getBedNumber = () => {
+    if (currentPatient?.床號) return currentPatient.床號;
+    return '未分配';
+  };
 
   // 過濾只包含在服處方或有效期內的停用處方
   const activeWorkflowRecords = useMemo(() => {
@@ -348,32 +368,55 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
             </div>
           </div>
 
-          {/* 院友資訊區 */}
+          {/* 院友資訊區 - 兩欄佈局 */}
           <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-            <div className="flex items-start space-x-4">
-              {currentPatient?.院友相片 ? (
-                <img
-                  src={currentPatient.院友相片}
-                  alt={currentPatient.中文姓氏 + currentPatient.中文名字}
-                  className="w-16 h-16 rounded-lg object-cover border-2 border-gray-300"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-lg bg-gray-300 flex items-center justify-center border-2 border-gray-400">
-                  <User className="h-8 w-8 text-gray-600" />
+            <div className="grid grid-cols-2 gap-6">
+              {/* 左欄：院友基本資訊 */}
+              <div className="flex items-start space-x-4">
+                {currentPatient?.院友相片 ? (
+                  <img
+                    src={currentPatient.院友相片}
+                    alt={currentPatient.中文姓氏 + currentPatient.中文名字}
+                    className="w-16 h-16 rounded-lg object-cover border-2 border-gray-300"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-gray-300 flex items-center justify-center border-2 border-gray-400">
+                    <User className="h-8 w-8 text-gray-600" />
+                  </div>
+                )}
+
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {getBedNumber()} - {currentPatient?.中文姓氏}{currentPatient?.中文名字}
+                  </h3>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    {getFormattedEnglishName(currentPatient?.英文姓氏, currentPatient?.英文名字) && (
+                      <p>英文姓名: <span className="font-medium text-gray-900">{getFormattedEnglishName(currentPatient?.英文姓氏, currentPatient?.英文名字)}</span></p>
+                    )}
+                    {currentPatient?.身份證號碼 && (
+                      <p>身份證號碼: <span className="font-medium text-gray-900">{currentPatient.身份證號碼}</span></p>
+                    )}
+                    <p>
+                      性別: <span className="font-medium text-gray-900">{currentPatient?.性別}</span>
+                      {currentPatient?.出生日期 && calculateAge(currentPatient.出生日期) !== null && (
+                        <> | 年齡: <span className="font-medium text-gray-900">{calculateAge(currentPatient.出生日期)}歲</span></>
+                      )}
+                    </p>
+                    {currentPatient?.出生日期 && (
+                      <p>出生日期: <span className="font-medium text-gray-900">{currentPatient.出生日期}</span></p>
+                    )}
+                  </div>
                 </div>
-              )}
+              </div>
 
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {currentPatient?.中文姓氏}{currentPatient?.中文名字}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  性別: {currentPatient?.性別} | 出生日期: {currentPatient?.出生日期 || '未設定'}
-                </p>
-
-                {/* 用藥安全警示 */}
-                {(hasAllergyWarning || hasAdverseReaction) && (
-                  <div className="mt-3 space-y-2">
+              {/* 右欄：藥物安全資訊 */}
+              <div className="border-l border-gray-300 pl-6">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Shield className="h-5 w-5 text-blue-600" />
+                  <h4 className="text-sm font-semibold text-gray-900">藥物安全資訊</h4>
+                </div>
+                {(hasAllergyWarning || hasAdverseReaction) ? (
+                  <div className="space-y-2">
                     {hasAllergyWarning && (
                       <div className="flex items-start space-x-2 bg-orange-100 border border-orange-300 rounded-lg px-3 py-2">
                         <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
@@ -392,6 +435,10 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
                         </div>
                       </div>
                     )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500 italic">
+                    無記錄
                   </div>
                 )}
               </div>
@@ -466,12 +513,10 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
                                   <div className="ml-4 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
                                     <div className="text-xs font-medium text-gray-700 mb-2">處方細節：</div>
                                     {getPrescriptionDetails(summary.time).map((detail: any) => (
-                                      <div key={detail.id} className="text-xs text-gray-700 flex items-start space-x-2">
-                                        <Pill className="h-3 w-3 mt-0.5 flex-shrink-0 text-gray-500" />
-                                        <div>
-                                          <div className="font-medium">{detail.medicationName}</div>
-                                          <div className="text-gray-600">{detail.dosageInfo}</div>
-                                        </div>
+                                      <div key={detail.id} className="text-xs text-gray-700 flex items-center space-x-2">
+                                        <Pill className="h-3 w-3 flex-shrink-0 text-gray-500" />
+                                        <span className="font-medium">{detail.medicationName}</span>
+                                        <span className="text-gray-600">{detail.dosageInfo}</span>
                                       </div>
                                     ))}
                                   </div>

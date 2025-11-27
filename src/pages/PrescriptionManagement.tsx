@@ -724,12 +724,7 @@ const PrescriptionManagement: React.FC = () => {
                           <span>年齡: <span className="font-medium text-gray-900">{calculateAge(currentPatient.patient.出生日期)}歲</span></span>
                         )}
                       </div>
-                      
-                      <div className="flex items-center space-x-4">
-                        <span>護理等級: <span className="font-medium text-gray-900">{currentPatient.patient.護理等級 || '未設定'}</span></span>
-                        <span>入住類型: <span className="font-medium text-gray-900">{currentPatient.patient.入住類型 || '未設定'}</span></span>
-                      </div>
-                      
+
                       {currentPatient.patient.身份證號碼 && (
                         <div>身份證號碼: <span className="font-medium text-gray-900">{currentPatient.patient.身份證號碼}</span></div>
                       )}

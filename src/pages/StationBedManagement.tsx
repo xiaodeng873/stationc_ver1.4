@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { 
-  Building2, 
-  Bed, 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  Search, 
+import React, { useState, useEffect } from 'react';
+import {
+  Building2,
+  Bed,
+  Plus,
+  Edit3,
+  Trash2,
+  Search,
   Filter,
   Users,
   User,
@@ -15,8 +15,10 @@ import {
   CheckCircle,
   X,
   Settings,
-  Download
+  Download,
+  QrCode
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { usePatients } from '../context/PatientContext';
 import StationModal from '../components/StationModal';
 import BedModal from '../components/BedModal';
@@ -50,6 +52,101 @@ const StationBedManagement: React.FC = () => {
   const [occupancyFilter, setOccupancyFilter] = useState('all');
   const [selectedStationsForExport, setSelectedStationsForExport] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
+  const [qrCodeDataUrls, setQrCodeDataUrls] = useState<Map<string, string>>(new Map());
+
+  // 生成床位 QR Code（縮圖）
+  useEffect(() => {
+    const generateQRCodes = async () => {
+      const newQrCodes = new Map<string, string>();
+
+      for (const bed of beds) {
+        const station = stations.find(s => s.id === bed.station_id);
+        const qrData = {
+          type: 'bed',
+          bed_id: bed.id,
+          bed_number: bed.bed_number,
+          station_id: bed.station_id,
+          station_name: station?.name || ''
+        };
+
+        try {
+          const dataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
+            width: 80,
+            margin: 1
+          });
+          newQrCodes.set(bed.id, dataUrl);
+        } catch (error) {
+          console.error(`生成床位 ${bed.bed_number} QR Code 失敗:`, error);
+        }
+      }
+
+      setQrCodeDataUrls(newQrCodes);
+    };
+
+    if (beds.length > 0 && stations.length > 0) {
+      generateQRCodes();
+    }
+  }, [beds, stations]);
+
+  // 下載床位 QR Code
+  const downloadBedQRCode = async (bed: any) => {
+    const station = stations.find(s => s.id === bed.station_id);
+    const qrData = {
+      type: 'bed',
+      bed_id: bed.id,
+      bed_number: bed.bed_number,
+      station_id: bed.station_id,
+      station_name: station?.name || ''
+    };
+
+    try {
+      // 生成大尺寸 QR Code（3cm x 3cm @ 300 DPI = 354px）
+      const qrDataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
+        width: 354,
+        margin: 2
+      });
+
+      // 創建 canvas 繪製床位編號和 QR Code
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 450;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) return;
+
+      // 繪製白色背景
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 繪製床位編號文字
+      ctx.fillStyle = 'black';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(`床位: ${bed.bed_number}`, canvas.width / 2, 40);
+
+      // 載入並繪製 QR Code
+      const qrImage = new Image();
+      qrImage.onload = () => {
+        ctx.drawImage(qrImage, (canvas.width - 354) / 2, 60, 354, 354);
+
+        // 轉換為 Blob 並下載
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `床位QR_${bed.bed_number}.png`;
+            link.click();
+            URL.revokeObjectURL(url);
+          }
+        }, 'image/png');
+      };
+      qrImage.src = qrDataUrl;
+    } catch (error) {
+      console.error('下載 QR Code 失敗:', error);
+      alert('下載失敗，請重試');
+    }
+  };
 
   if (loading) {
     return (
@@ -489,44 +586,80 @@ const StationBedManagement: React.FC = () => {
                             </div>
                           </div>
                           
-                          {patient ? (
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
-                                {patient.院友相片 ? (
-                                  <img 
-                                    src={patient.院友相片} 
-                                    alt={patient.中文姓名} 
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <User className="h-5 w-5 text-blue-600" />
-                                )}
+                          <div className="grid grid-cols-[1fr_auto] gap-3">
+                            {/* 左欄：院友資訊 */}
+                            {patient ? (
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                                  {patient.院友相片 ? (
+                                    <img
+                                      src={patient.院友相片}
+                                      alt={patient.中文姓名}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <User className="h-5 w-5 text-blue-600" />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <PatientTooltip patient={patient}>
+                                    <p className="font-medium text-gray-900 cursor-help hover:text-blue-600 transition-colors">
+                                      {patient.中文姓氏}{patient.中文名字}
+                                    </p>
+                                  </PatientTooltip>
+                                  <p className="text-sm text-gray-600">{patient.性別} | {patient.入住類型 || '未設定'}</p>
+                                  {patient.感染控制 && Array.isArray(patient.感染控制) && patient.感染控制.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {patient.感染控制.map((item: string, index: number) => (
+                                        <span key={index} className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full border border-red-300">
+                                          🔴 {item}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex-1">
-                                <PatientTooltip patient={patient}>
-                                  <p className="font-medium text-gray-900 cursor-help hover:text-blue-600 transition-colors">
-                                    {patient.中文姓氏}{patient.中文名字}
-                                  </p>
-                                </PatientTooltip>
-                                <p className="text-sm text-gray-600">{patient.性別} | {patient.護理等級 || '未設定'}</p>
+                            ) : (
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 mx-auto mb-2 rounded-full border-2 border-dashed border-blue-300 flex items-center justify-center">
+                                  <User className="h-5 w-5 text-blue-400" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">空置床位</p>
+                                  <button
+                                    onClick={() => handleAssignBed(bed)}
+                                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                  >
+                                    指派院友
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 mx-auto mb-2 rounded-full border-2 border-dashed border-blue-300 flex items-center justify-center">
-                                <User className="h-5 w-5 text-blue-400" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-medium text-gray-900">空置床位</p>
-                                <button
-                                  onClick={() => handleAssignBed(bed)}
-                                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                            )}
+
+                            {/* 右欄：QR Code */}
+                            <div className="flex items-center justify-center">
+                              {qrCodeDataUrls.get(bed.id) ? (
+                                <div
+                                  onClick={() => downloadBedQRCode(bed)}
+                                  className="cursor-pointer hover:opacity-75 transition-opacity group relative"
+                                  title="點擊下載列印用 QR Code"
                                 >
-                                  指派院友
-                                </button>
-                              </div>
+                                  <img
+                                    src={qrCodeDataUrls.get(bed.id)}
+                                    alt={`${bed.bed_number} QR Code`}
+                                    className="w-20 h-20 rounded-lg border-2 border-gray-300"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-50 rounded-lg">
+                                    <Download className="h-6 w-6 text-white" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="w-20 h-20 bg-gray-100 rounded-lg border-2 border-gray-300 flex items-center justify-center">
+                                  <QrCode className="h-8 w-8 text-gray-400" />
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
                       );
                     })}
