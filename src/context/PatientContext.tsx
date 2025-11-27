@@ -541,9 +541,202 @@ const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
       throw error;
     }
   };
-  
+
   const prepareMedication = async (
+    recordId: string,
+    staffName: string,
+    failureReason?: string,
+    failureCustomReason?: string,
+    patientId?: number,
+    scheduledDate?: string
+  ) => {
+    const normalizedPatientId = patientId && !isNaN(patientId) && patientId > 0 ? patientId : null;
+    const normalizedScheduledDate = scheduledDate && scheduledDate.trim() !== '' ? scheduledDate.trim() : null;
+
+    if (!normalizedPatientId || !normalizedScheduledDate) {
+      console.error('prepareMedication 參數無效:', { normalizedPatientId, normalizedScheduledDate });
+      throw new Error('院友ID和排程日期為必填項目');
+    }
+
+    try {
+      const updateData: any = {
+        preparation_staff_name: staffName,
+        preparation_status: failureReason ? 'failed' : 'completed',
+        preparation_time: new Date().toISOString()
+      };
+
+      if (failureReason) {
+        updateData.preparation_failure_reason = failureReason;
+        if (failureCustomReason) {
+          updateData.preparation_failure_custom_reason = failureCustomReason;
         }
+      }
+
+      const { error } = await supabase
+        .from('medication_workflow_records')
+        .update(updateData)
+        .eq('id', recordId);
+
+      if (error) throw error;
+
+      await fetchPrescriptionWorkflowRecords(normalizedPatientId, normalizedScheduledDate);
+    } catch (error) {
+      console.error('執藥失敗:', error);
+      throw error;
+    }
+  };
+
+  const verifyMedication = async (
+    recordId: string,
+    staffName: string,
+    failureReason?: string,
+    failureCustomReason?: string,
+    patientId?: number,
+    scheduledDate?: string
+  ) => {
+    const normalizedPatientId = patientId && !isNaN(patientId) && patientId > 0 ? patientId : null;
+    const normalizedScheduledDate = scheduledDate && scheduledDate.trim() !== '' ? scheduledDate.trim() : null;
+
+    if (!normalizedPatientId || !normalizedScheduledDate) {
+      console.error('verifyMedication 參數無效:', { normalizedPatientId, normalizedScheduledDate });
+      throw new Error('院友ID和排程日期為必填項目');
+    }
+
+    try {
+      const { data: record, error: fetchError } = await supabase
+        .from('medication_workflow_records')
+        .select('preparation_status')
+        .eq('id', recordId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      if (!failureReason && record.preparation_status !== 'completed') {
+        throw new Error('必須先完成執藥步驟才能進行核藥');
+      }
+
+      const updateData: any = {
+        verification_staff_name: staffName,
+        verification_status: failureReason ? 'failed' : 'completed',
+        verification_time: new Date().toISOString()
+      };
+
+      if (failureReason) {
+        updateData.verification_failure_reason = failureReason;
+        if (failureCustomReason) {
+          updateData.verification_failure_custom_reason = failureCustomReason;
+        }
+      }
+
+      const { error } = await supabase
+        .from('medication_workflow_records')
+        .update(updateData)
+        .eq('id', recordId);
+
+      if (error) throw error;
+
+      await fetchPrescriptionWorkflowRecords(normalizedPatientId, normalizedScheduledDate);
+    } catch (error) {
+      console.error('核藥失敗:', error);
+      throw error;
+    }
+  };
+
+  const dispenseMedication = async (
+    recordId: string,
+    staffName: string,
+    failureReason?: string,
+    failureCustomReason?: string,
+    patientId?: number,
+    scheduledDate?: string,
+    notes?: string,
+    inspectionCheckResult?: any
+  ) => {
+    const normalizedPatientId = patientId && !isNaN(patientId) && patientId > 0 ? patientId : null;
+    const normalizedScheduledDate = scheduledDate && scheduledDate.trim() !== '' ? scheduledDate.trim() : null;
+
+    if (!normalizedPatientId || !normalizedScheduledDate) {
+      console.error('dispenseMedication 參數無效:', { normalizedPatientId, normalizedScheduledDate });
+      throw new Error('院友ID和排程日期為必填項目');
+    }
+
+    try {
+      const { data: record, error: fetchError } = await supabase
+        .from('medication_workflow_records')
+        .select('verification_status, prescription_id, patient_id')
+        .eq('id', recordId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      if (!failureReason && record.verification_status !== 'completed') {
+        throw new Error('必須先完成核藥步驟才能進行派藥');
+      }
+
+      const updateData: any = {
+        dispensing_staff_name: staffName,
+        dispensing_status: failureReason ? 'failed' : 'completed',
+        dispensing_time: new Date().toISOString()
+      };
+
+      if (failureReason) {
+        updateData.dispensing_failure_reason = failureReason;
+        if (failureCustomReason) {
+          updateData.dispensing_failure_custom_reason = failureCustomReason;
+        }
+      }
+
+      if (notes) {
+        updateData.notes = notes;
+      }
+
+      if (inspectionCheckResult) {
+        updateData.inspection_check_result = inspectionCheckResult;
+      }
+
+      const { error } = await supabase
+        .from('medication_workflow_records')
+        .update(updateData)
+        .eq('id', recordId);
+
+      if (error) throw error;
+
+      await fetchPrescriptionWorkflowRecords(normalizedPatientId, normalizedScheduledDate);
+    } catch (error) {
+      console.error('派藥失敗:', error);
+      throw error;
+    }
+  };
+
+  const checkPrescriptionInspectionRules = async (prescriptionId: string, patientId: number) => {
+    try {
+      const prescription = prescriptions.find(p => p.id === prescriptionId);
+      if (!prescription) {
+        throw new Error('找不到處方記錄');
+      }
+
+      const result = {
+        canDispense: true,
+        needsInspection: false,
+        inspectionItems: [] as string[],
+        warningMessages: [] as string[]
+      };
+
+      if (!prescription.inspection_item_types || prescription.inspection_item_types.length === 0) {
+        return result;
+      }
+
+      result.needsInspection = true;
+
+      for (const itemType of prescription.inspection_item_types) {
+        const latestRecord = await fetchLatestVitalSigns(patientId, itemType);
+
+        if (!latestRecord) {
+          result.canDispense = false;
+          result.warningMessages.push(`缺少${itemType}檢測記錄`);
+        }
+
+        result.inspectionItems.push(itemType);
       }
 
       return result;
@@ -552,7 +745,7 @@ const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
       throw error;
     }
   };
-  
+
   const fetchLatestVitalSigns = async (patientId: number, vitalSignType: string): Promise<db.HealthRecord | null> => {
     try {
       // 根據檢測項類型決定要查詢的記錄類型和字段名
@@ -603,10 +796,6 @@ const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       const result = data && data.length > 0 ? data[0] : null;
 
-      if (result) {
-      } else {
-      }
-
       return result;
     } catch (error) {
       console.error('[fetchLatestVitalSigns] 獲取最新監測記錄失敗:', error);
@@ -651,16 +840,53 @@ const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
   
   // 撤銷工作流程步驟
   const revertPrescriptionWorkflowStep = async (
-        .eq('院友id', patientId);
+    recordId: string,
+    step: 'preparation' | 'verification' | 'dispensing',
+    patientId?: number,
+    scheduledDate?: string
+  ) => {
+    const normalizedPatientId = patientId && !isNaN(patientId) && patientId > 0 ? patientId : null;
+    const normalizedScheduledDate = scheduledDate && scheduledDate.trim() !== '' ? scheduledDate.trim() : null;
 
-      if (error) {
-        throw error;
+    try {
+      const updateData: any = {};
+
+      if (step === 'preparation') {
+        updateData.preparation_status = 'pending';
+        updateData.preparation_staff_name = null;
+        updateData.preparation_time = null;
+        updateData.preparation_failure_reason = null;
+        updateData.preparation_failure_custom_reason = null;
+      } else if (step === 'verification') {
+        updateData.verification_status = 'pending';
+        updateData.verification_staff_name = null;
+        updateData.verification_time = null;
+        updateData.verification_failure_reason = null;
+        updateData.verification_failure_custom_reason = null;
+      } else if (step === 'dispensing') {
+        updateData.dispensing_status = 'pending';
+        updateData.dispensing_staff_name = null;
+        updateData.dispensing_time = null;
+        updateData.dispensing_failure_reason = null;
+        updateData.dispensing_failure_custom_reason = null;
+        updateData.notes = null;
+        updateData.inspection_check_result = null;
       }
 
-      // 重新載入資料以確保所有頁面同步
-      await refreshData();
+      const { error } = await supabase
+        .from('medication_workflow_records')
+        .update(updateData)
+        .eq('id', recordId);
+
+      if (error) throw error;
+
+      if (normalizedPatientId && normalizedScheduledDate) {
+        await fetchPrescriptionWorkflowRecords(normalizedPatientId, normalizedScheduledDate);
+      } else {
+        await loadPrescriptionWorkflowRecords();
+      }
     } catch (error) {
-      console.error('指派床位失敗:', error);
+      console.error('撤銷工作流程步驟失敗:', error);
       throw error;
     }
   };
@@ -1467,3 +1693,31 @@ const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
       recordDailyTemperatureGenerationCompletion,
       getOverdueDailySystemTasks,
       refreshData,
+      fetchPrescriptionWorkflowRecords: memoizedFetchPrescriptionWorkflowRecords,
+      loadPrescriptionWorkflowRecords,
+      createPrescriptionWorkflowRecord,
+      updatePrescriptionWorkflowRecord,
+      prepareMedication,
+      verifyMedication,
+      dispenseMedication,
+      revertPrescriptionWorkflowStep,
+      batchSetDispenseFailure,
+      checkPrescriptionInspectionRules,
+      hospitalOutreachRecords,
+      hospitalOutreachRecordHistory,
+      doctorVisitSchedule,
+      addHospitalOutreachRecord,
+      updateHospitalOutreachRecord,
+      deleteHospitalOutreachRecord,
+      deleteHospitalOutreachRecordHistory,
+      addDoctorVisitSchedule,
+      updateDoctorVisitSchedule,
+      deleteDoctorVisitSchedule
+    }}
+    >
+      {children}
+    </PatientContext.Provider>
+  );
+};
+
+export { PatientProvider, usePatients };

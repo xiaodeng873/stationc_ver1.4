@@ -44,49 +44,6 @@ interface AdvancedFilters {
   記錄類型: string;
   記錄人員: string;
   備註: string;
-  startDate: string;
-  endDate: string;
-  在住狀態: string;
-}
-
-const HealthAssessment: React.FC = () => {
-  const {
-    healthRecords,
-    patients,
-    loading,
-    deleteHealthRecord,
-    generateRandomTemperaturesForActivePatients,
-    recordDailyTemperatureGenerationCompletion,
-    checkEligiblePatientsForTemperature,
-    findDuplicateHealthRecords,
-    batchDeleteDuplicateRecords
-  } = usePatients();
-  const [showModal, setShowModal] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<any>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState<SortField>('記錄日期');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
-  const [showBatchModal, setShowBatchModal] = useState(false);
-  const [batchRecordType, setBatchRecordType] = useState<'生命表徵' | '血糖控制' | '體重控制'>('生命表徵');
-  const [debugInfo, setDebugInfo] = useState<any>(null);
-  const [showDeduplicateModal, setShowDeduplicateModal] = useState(false);
-  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateRecordGroup[]>([]);
-  const [showRecycleBin, setShowRecycleBin] = useState(false);
-  const [isAnalyzingDuplicates, setIsAnalyzingDuplicates] = useState(false);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
-  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
-    床號: '',
-    中文姓名: '',
-    記錄類型: '', // 修復：預設為空字串
-    記錄人員: '',
-    備註: '',
-    startDate: '',
-    endDate: '',
-    在住狀態: '在住'
-  });
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   // 添加調試函數來檢查數據載入
   const debugDataLoading = async () => {
@@ -121,10 +78,6 @@ const HealthAssessment: React.FC = () => {
       記錄類型: '', // 修復：清除時也設為空字串
       記錄人員: '',
       備註: '',
-      startDate: '',
-      endDate: '',
-      在住狀態: '在住'
-    });
   };
 
   const getUniqueOptions = (field: string) => {
@@ -179,11 +132,6 @@ const HealthAssessment: React.FC = () => {
     }
     
     if (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '全部' && patient?.在住狀態 !== advancedFilters.在住狀態) {
-      if (record.體重 != null) {
-          patientStatus: patient?.在住狀態,
-          filterStatus: advancedFilters.在住狀態
-        });
-      }
       return false;
     }
     if (advancedFilters.床號 && !patient?.床號.toLowerCase().includes(advancedFilters.床號.toLowerCase())) {
@@ -199,9 +147,6 @@ const HealthAssessment: React.FC = () => {
           filterType: advancedFilters.記錄類型,
           filterTypeTrimmed: advancedFilters.記錄類型.trim(),
           exactMatch: record.記錄類型.trim() === advancedFilters.記錄類型.trim(),
-          recordTypeBytes: Array.from(record.記錄類型).map(c => c.charCodeAt(0)),
-          filterTypeBytes: Array.from(advancedFilters.記錄類型).map(c => c.charCodeAt(0))
-        });
       }
       return false;
     }
@@ -242,48 +187,6 @@ const HealthAssessment: React.FC = () => {
     血糖控制: healthRecords.filter(r => r.記錄類型.trim() === '血糖控制').length,
     體重控制: healthRecords.filter(r => r.記錄類型.trim() === '體重控制').length,
     所有記錄類型: [...new Set(healthRecords.map(r => r.記錄類型))],
-    所有記錄類型詳細: [...new Set(healthRecords.map(r => `"${r.記錄類型}" (長度:${r.記錄類型.length}) [${Array.from(r.記錄類型).map(c => c.charCodeAt(0)).join(',')}]`))],
-    所有記錄類型修剪後: [...new Set(healthRecords.map(r => r.記錄類型.trim()))],
-    所有記錄的體重欄位檢查: healthRecords.map(r => ({
-      記錄id: r.記錄id, 
-      記錄類型: r.記錄類型, 
-      記錄類型修剪後: r.記錄類型.trim(),
-      體重: r.體重, 
-      體重類型: typeof r.體重,
-      體重是否為null: r.體重 === null,
-      體重是否為undefined: r.體重 === undefined,
-      院友id: r.院友id
-    })).slice(0, 10),
-    有體重數值的記錄: healthRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '').length,
-    有體重數值且記錄類型為體重控制: healthRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '' && r.記錄類型.trim() === '體重控制').length,
-    體重數值範例: healthRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '').slice(0, 5).map(r => ({ 
-      記錄id: r.記錄id, 
-      記錄類型: r.記錄類型, 
-      記錄類型修剪後: r.記錄類型.trim(),
-      體重: r.體重,
-      體重類型: typeof r.體重,
-      院友id: r.院友id 
-    })),
-    篩選後總數: filteredRecords.length,
-    篩選後有體重數值: filteredRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '').length,
-    當前篩選條件: {
-      在住狀態: advancedFilters.在住狀態,
-      記錄類型: advancedFilters.記錄類型,
-      hasAdvancedFilters: hasAdvancedFilters()
-    }
-  };
-  // 調試：檢查 advancedFilters 的詳細內容
-    advancedFilters: JSON.stringify(advancedFilters, null, 2),
-    hasAdvancedFilters: hasAdvancedFilters(),
-    在住狀態篩選: `"${advancedFilters.在住狀態}" (長度:${advancedFilters.在住狀態.length})`,
-    記錄類型篩選: `"${advancedFilters.記錄類型}" (長度:${advancedFilters.記錄類型.length})`,
-    所有非空篩選條件: Object.entries(advancedFilters).filter(([key, value]) => value !== ''),
-    第一筆記錄的院友在住狀態: healthRecords.length > 0 ? (() => {
-      const firstRecord = healthRecords[0];
-      const patient = patients.find(p => p.院友id === firstRecord.院友id);
-      return patient ? `"${patient.在住狀態}" (長度:${patient.在住狀態?.length || 0})` : '院友未找到';
-    })() : '無記錄'
-  });
 
   const sortedRecords = [...filteredRecords].sort((a, b) => {
     const patientA = patients.find(p => p.院友id === a.院友id);
@@ -525,8 +428,6 @@ const HealthAssessment: React.FC = () => {
       totalRecords: selectedRecords.length,
       uniquePatients,
       isLargeExport,
-      estimatedSize: `${(selectedRecords.length * 0.5 / 1024).toFixed(2)} MB`
-    });
     
     try {
       setIsExporting(true);
@@ -540,20 +441,6 @@ const HealthAssessment: React.FC = () => {
             中文姓氏: patient?.中文姓氏 || '',
             中文名字: patient?.中文名字 || '',
             中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
-            性別: patient?.性別 || '',
-            出生日期: patient?.出生日期 || '',
-            記錄日期: record.記錄日期,
-            記錄時間: record.記錄時間,
-            血壓收縮壓: record.血壓收縮壓,
-            血壓舒張壓: record.血壓舒張壓,
-            脈搏: record.脈搏,
-            體溫: record.體溫,
-            血含氧量: record.血含氧量,
-            呼吸頻率: record.呼吸頻率,
-            備註: record.備註,
-            記錄人員: record.記錄人員
-          };
-        });
 
         await exportVitalSignsToExcel(vitalSignData, patients);
       } else if (recordType === '血糖控制') {
@@ -565,15 +452,6 @@ const HealthAssessment: React.FC = () => {
             中文姓氏: patient?.中文姓氏 || '',
             中文名字: patient?.中文名字 || '',
             中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
-            性別: patient?.性別 || '',
-            出生日期: patient?.出生日期 || '',
-            記錄日期: record.記錄日期,
-            記錄時間: record.記錄時間,
-            血糖值: record.血糖值,
-            備註: record.備註,
-            記錄人員: record.記錄人員
-          };
-        });
 
         await exportBloodSugarToExcel(bloodSugarData, patients);
       } else if (recordType === '體重控制') {
@@ -586,15 +464,6 @@ const HealthAssessment: React.FC = () => {
             中文姓氏: patient?.中文姓氏 || '',
             中文名字: patient?.中文名字 || '',
             中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
-            性別: patient?.性別 || '',
-            出生日期: patient?.出生日期 || '',
-            記錄日期: record.記錄日期,
-            記錄時間: record.記錄時間,
-            體重: record.體重,
-            備註: record.備註,
-            記錄人員: record.記錄人員
-          };
-        });
 
         await exportBodyweightToExcel(bodyweightData, patients);
       } else {

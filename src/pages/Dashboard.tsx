@@ -173,18 +173,6 @@ const Dashboard: React.FC = () => {
   // 計算有逾期執核派藥流程的院友
   const patientsWithOverdueWorkflow = useMemo(() => {
     const result = getPatientsWithOverdueWorkflow(prescriptionWorkflowRecords, patients);
-      總工作流程記錄數: prescriptionWorkflowRecords.length,
-      總院友數: patients.length,
-      有逾期的院友數: result.length,
-      逾期院友列表: result.map(r => ({
-        院友ID: r.patient?.院友id,
-        院友: r.patient ? `${r.patient.床號} - ${r.patient.中文姓氏}${r.patient.中文名字}` : '未知',
-        逾期數量: r.overdueCount,
-        逾期日期: r.overdueDates,
-        最早逾期日期: r.earliestOverdueDate
-      })),
-      完整結果對象: result
-    });
     return result;
   }, [prescriptionWorkflowRecords, patients]);
 
