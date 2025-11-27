@@ -500,7 +500,7 @@ const Dashboard: React.FC = () => {
   const handleTaskCompleted = async (taskId: string, recordDateTime: Date) => {
     console.log('=== 任務完成處理開始 ===');
     console.log('記錄時間:', recordDateTime);
-    
+
     try {
       const task = patientHealthTasks.find(t => t.id === taskId);
       if (!task) {
@@ -508,9 +508,9 @@ const Dashboard: React.FC = () => {
       }
 
       console.log('找到的任務:', task);
-      
+
       let nextDueAt: string | null = null;
-      
+
       if (task.is_recurring) {
         console.log('這是循環任務，計算下次到期時間');
         const calculatedNextDueAt = calculateNextDueDate(task, recordDateTime);
@@ -522,7 +522,7 @@ const Dashboard: React.FC = () => {
           const endDateTime = new Date(`${task.end_date}T${task.end_time}:00`);
           console.log('結束時間:', endDateTime);
           console.log('記錄時間:', recordDateTime);
-          
+
           if (recordDateTime >= endDateTime) {
             console.log('非循環任務已完成，設為 null');
             nextDueAt = null;
@@ -537,31 +537,36 @@ const Dashboard: React.FC = () => {
           nextDueAt = null;
         }
       }
-      
+
       const updatedTask = {
         ...task,
         last_completed_at: recordDateTime.toISOString(),
         next_due_at: nextDueAt
       };
-      
+
       console.log('最終任務資料:', updatedTask);
-      
-      // 更新資料庫
-      await updatePatientHealthTask(updatedTask);
-      console.log('資料庫更新成功');
-      
-      // 重新載入資料以更新 UI
-      await refreshData();
-      console.log('資料重新載入完成');
-      
-    } catch (error) {
-      console.error('任務完成處理失敗:', error);
-      alert(`任務完成處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-    } finally {
-      // 關閉模態框
+
+      // 先關閉模態框，避免 refreshData 導致狀態重置
       setShowHealthRecordModal(false);
       setSelectedHealthRecordInitialData({});
       console.log('關閉 HealthRecordModal');
+
+      // 更新資料庫
+      await updatePatientHealthTask(updatedTask);
+      console.log('資料庫更新成功');
+
+      // 延遲重新載入資料，避免干擾模態框關閉
+      setTimeout(async () => {
+        await refreshData();
+        console.log('資料重新載入完成');
+      }, 100);
+
+    } catch (error) {
+      console.error('任務完成處理失敗:', error);
+      alert(`任務完成處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      // 發生錯誤時確保模態框關閉
+      setShowHealthRecordModal(false);
+      setSelectedHealthRecordInitialData({});
     }
   };
 
@@ -571,7 +576,7 @@ const Dashboard: React.FC = () => {
       if (!task) {
         throw new Error('未找到對應任務');
       }
-      
+
       const updatedTask = {
         ...task,
         last_completed_at: completionDate,
@@ -580,12 +585,20 @@ const Dashboard: React.FC = () => {
         tube_size: tubeSize || task.tube_size
       };
 
+      // 先關閉模態框
+      setShowDocumentTaskModal(false);
+      setSelectedDocumentTask(null);
+
+      // 執行資料庫更新
       await updatePatientHealthTask(updatedTask);
-      await refreshData();
+
+      // 延遲重新載入資料
+      setTimeout(async () => {
+        await refreshData();
+      }, 100);
     } catch (error) {
       console.error('文件任務完成處理失敗:', error);
       alert(`文件任務完成處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-    } finally {
       setShowDocumentTaskModal(false);
       setSelectedDocumentTask(null);
     }

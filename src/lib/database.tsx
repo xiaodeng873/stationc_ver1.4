@@ -1240,7 +1240,7 @@ export const createHealthRecord = async (record: Omit<HealthRecord, '記錄id'>)
   const { data, error } = await supabase
     .from('健康記錄主表')
     .insert([record])
-    .select()
+    .select('記錄id')
     .single();
 
   if (error) {
@@ -1248,23 +1248,21 @@ export const createHealthRecord = async (record: Omit<HealthRecord, '記錄id'>)
     throw error;
   }
 
-  return data;
+  return { ...record, ...data } as HealthRecord;
 };
 
 export const updateHealthRecord = async (record: HealthRecord): Promise<HealthRecord> => {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('健康記錄主表')
     .update(record)
-    .eq('記錄id', record.記錄id)
-    .select()
-    .single();
+    .eq('記錄id', record.記錄id);
 
   if (error) {
     console.error('Error updating health record:', error);
     throw error;
   }
 
-  return data;
+  return record;
 };
 
 export const deleteHealthRecord = async (recordId: number): Promise<void> => {
@@ -1651,19 +1649,17 @@ export const createPatientHealthTask = async (task: Omit<PatientHealthTask, 'id'
 };
 
 export const updatePatientHealthTask = async (task: PatientHealthTask): Promise<PatientHealthTask> => {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('patient_health_tasks')
     .update(task)
-    .eq('id', task.id)
-    .select()
-    .single();
+    .eq('id', task.id);
 
   if (error) {
     console.error('Error updating patient health task:', error);
     throw error;
   }
 
-  return data;
+  return task;
 };
 
 export const deletePatientHealthTask = async (taskId: string): Promise<void> => {
@@ -1823,19 +1819,17 @@ export const createRestraintAssessment = async (assessment: Omit<PatientRestrain
 };
 
 export const updateRestraintAssessment = async (assessment: PatientRestraintAssessment): Promise<PatientRestraintAssessment> => {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('patient_restraint_assessments')
     .update(assessment)
-    .eq('id', assessment.id)
-    .select()
-    .single();
+    .eq('id', assessment.id);
 
   if (error) {
     console.error('Error updating restraint assessment:', error);
     throw error;
   }
 
-  return data;
+  return assessment;
 };
 
 export const deleteRestraintAssessment = async (assessmentId: string): Promise<void> => {
@@ -1880,19 +1874,17 @@ export const createHealthAssessment = async (assessment: Omit<HealthAssessment, 
 };
 
 export const updateHealthAssessment = async (assessment: HealthAssessment): Promise<HealthAssessment> => {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('health_assessments')
     .update(assessment)
-    .eq('id', assessment.id)
-    .select()
-    .single();
+    .eq('id', assessment.id);
 
   if (error) {
     console.error('Error updating health assessment:', error);
     throw error;
   }
 
-  return data;
+  return assessment;
 };
 
 export const deleteHealthAssessment = async (assessmentId: string): Promise<void> => {
