@@ -498,39 +498,20 @@ const Dashboard: React.FC = () => {
   };
 
   const handleTaskCompleted = async (taskId: string, recordDateTime: Date) => {
-    console.log('=== 任務完成處理開始 ===', new Date().toISOString());
-    console.log('記錄時間:', recordDateTime);
-
-    // 先關閉模態框，立即給予用戶反饋
     setShowHealthRecordModal(false);
     setSelectedHealthRecordInitialData({});
-    console.log('模態框已關閉');
 
     try {
       const task = patientHealthTasks.find(t => t.id === taskId);
-      if (!task) {
-        throw new Error('未找到對應任務');
-      }
-
-      console.log('找到的任務:', task);
+      if (!task) throw new Error('未找到對應任務');
 
       let nextDueAt: string | null = null;
 
       if (task.is_recurring) {
-        const calculatedNextDueAt = calculateNextDueDate(task, recordDateTime);
-        nextDueAt = calculatedNextDueAt.toISOString();
-      } else {
-        if (task.end_date && task.end_time) {
-          const endDateTime = new Date(`${task.end_date}T${task.end_time}:00`);
-          if (recordDateTime >= endDateTime) {
-            nextDueAt = null;
-          } else {
-            const calculatedNextDueAt = calculateNextDueDate(task, recordDateTime);
-            nextDueAt = calculatedNextDueAt.toISOString();
-          }
-        } else {
-          nextDueAt = null;
-        }
+        nextDueAt = calculateNextDueDate(task, recordDateTime).toISOString();
+      } else if (task.end_date && task.end_time) {
+        const endDateTime = new Date(`${task.end_date}T${task.end_time}:00`);
+        nextDueAt = recordDateTime >= endDateTime ? null : calculateNextDueDate(task, recordDateTime).toISOString();
       }
 
       const updatedTask = {
@@ -539,34 +520,14 @@ const Dashboard: React.FC = () => {
         next_due_at: nextDueAt
       };
 
-      console.log('最終任務資料:', updatedTask);
-
-      // 樂觀更新 UI - 立即移除已完成的任務
-      const updatedTasks = patientHealthTasks.map(t =>
-        t.id === taskId ? updatedTask : t
-      ).filter(t => t.next_due_at !== null); // 移除已完成的非循環任務
-
-      // 使用 React 的批次更新優化
-      console.log('樂觀更新 UI...', new Date().toISOString());
-      // 使用輕量級刷新，只更新健康記錄和任務
-      console.log('更新資料庫...', new Date().toISOString());
-
-      // 同時執行數據庫更新和刷新
       await Promise.all([
         updatePatientHealthTask(updatedTask),
         refreshHealthData()
-      ]).catch(err => {
-        console.error('更新失敗:', err);
-        // 如果失敗，使用完整刷新
-        return refreshData();
-      });
-
-      console.log('任務完成處理結束', new Date().toISOString());
+      ]).catch(() => refreshData());
 
     } catch (error) {
       console.error('任務完成處理失敗:', error);
-      alert(`任務完成處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-      // 發生錯誤時使用輕量級刷新
+      alert(`任務完成失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
       await refreshHealthData().catch(() => refreshData());
     }
   };
@@ -594,16 +555,12 @@ const Dashboard: React.FC = () => {
       await Promise.all([
         updatePatientHealthTask(updatedTask),
         refreshHealthData()
-      ]).catch(err => {
-        console.error('更新失敗:', err);
-        return refreshData();
-      });
+      ]).catch(() => refreshData());
     } catch (error) {
-      console.error('文件任務完成處理失敗:', error);
-      alert(`文件任務完成處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      console.error('文件任務失敗:', error);
+      alert(`文件任務失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
       setShowDocumentTaskModal(false);
       setSelectedDocumentTask(null);
-      // 失敗時使用輕量級刷新
       await refreshHealthData().catch(() => refreshData());
     }
   };
