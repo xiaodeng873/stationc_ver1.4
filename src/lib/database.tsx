@@ -1202,38 +1202,21 @@ function handleSupabaseError(error: any, operation: string): void {
   console.error(`Error ${operation}:`, error);
 }
 
-export const getHealthRecords = async (): Promise<HealthRecord[]> => {
-  const pageSize = 1000;
-  let allRecords: HealthRecord[] = [];
-  let page = 0;
-  let hasMore = true;
+export const getHealthRecords = async (limit: number = 500): Promise<HealthRecord[]> => {
+  // 優化：只載入最近的記錄，預設500條，大幅提升載入速度
+  const { data, error } = await supabase
+    .from('健康記錄主表')
+    .select('*')
+    .order('記錄日期', { ascending: false })
+    .order('記錄時間', { ascending: false })
+    .limit(limit);
 
-  while (hasMore) {
-    const from = page * pageSize;
-    const to = from + pageSize - 1;
-
-    const { data, error } = await supabase
-      .from('健康記錄主表')
-      .select('*')
-      .order('記錄日期', { ascending: false })
-      .order('記錄時間', { ascending: false })
-      .range(from, to);
-
-    if (error) {
-      console.error('Error fetching health records:', error);
-      throw error;
-    }
-
-    if (data && data.length > 0) {
-      allRecords = [...allRecords, ...data];
-      hasMore = data.length === pageSize;
-      page++;
-    } else {
-      hasMore = false;
-    }
+  if (error) {
+    console.error('Error fetching health records:', error);
+    throw error;
   }
 
-  return allRecords;
+  return data || [];
 };
 
 export const createHealthRecord = async (record: Omit<HealthRecord, '記錄id'>): Promise<HealthRecord> => {

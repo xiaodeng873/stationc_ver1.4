@@ -377,30 +377,29 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     };
 
     try {
-      console.log('開始儲存健康記錄...', new Date().toISOString());
-
       if (record) {
-        // 編輯模式
+        // 編輯模式 - 等待完成後關閉
         await updateHealthRecord({
           記錄id: record.記錄id,
           ...recordData
         });
+        onClose();
       } else {
-        // 新增模式
-        const newRecord = await addHealthRecord(recordData);
-        console.log('健康記錄已儲存', new Date().toISOString());
+        // 新增模式 - 立即關閉模態框，後台完成操作
+        onClose();
 
-        // 傳遞實際記錄的日期時間給 onTaskCompleted
-        if (onTaskCompleted) {
-          const recordDateTime = new Date(`${formData.記錄日期}T${formData.記錄時間}`);
-          console.log('調用 onTaskCompleted...', new Date().toISOString());
-          onTaskCompleted(recordDateTime);
-        }
+        // 後台異步執行，不阻塞UI
+        addHealthRecord(recordData).then(newRecord => {
+          // 異步調用 onTaskCompleted
+          if (onTaskCompleted) {
+            const recordDateTime = new Date(`${formData.記錄日期}T${formData.記錄時間}`);
+            onTaskCompleted(recordDateTime);
+          }
+        }).catch(error => {
+          console.error('後台儲存失敗:', error);
+          // 静默失敗，不影響UI
+        });
       }
-
-      // 成功後關閉模態框
-      console.log('準備關閉模態框...', new Date().toISOString());
-      onClose();
     } catch (error) {
       console.error('儲存失敗:', error);
       alert(`儲存失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);

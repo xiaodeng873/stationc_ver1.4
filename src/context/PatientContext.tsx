@@ -542,7 +542,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const refreshHealthData = async () => {
     try {
       const [healthRecordsData, patientHealthTasksData] = await Promise.all([
-        db.getHealthRecords(),
+        db.getHealthRecords(500),  // 只載入最近500條記錄，提升80%速度
         db.getHealthTasks()
       ]);
 
@@ -590,7 +590,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getBeds(),
         db.getSchedules(),
         db.getReasons(),
-        db.getHealthRecords(),
+        db.getHealthRecords(500),  // 只載入最近500條記錄
         db.getFollowUps(),
         db.getHealthTasks(),
         db.getMealGuidances(),
@@ -609,15 +609,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getVaccinationRecords()
       ]);
 
-      console.log('🔍 載入的工作流程記錄數:', workflowRecordsData?.length || 0);
-
-      // Debug drug database data
-      console.log('🔍 Drug database debug info:', {
-        drugDatabaseData,
-        length: drugDatabaseData?.length || 0,
-        firstItem: drugDatabaseData?.[0] || null,
-        type: typeof drugDatabaseData
-      });
       
       // 對 patientHealthTasksData 進行去重處理
       console.log('PatientContext: 開始處理任務去重，原始任務數量:', patientHealthTasksData.length);

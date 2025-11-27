@@ -271,59 +271,78 @@ const Dashboard: React.FC = () => {
     .sort((a, b) => new Date(a.覆診日期).getTime() - new Date(b.覆診日期).getTime())
     .slice(0, 10);
 
+  // 創建院友查找Map，提升查找效率 O(1)
+  const patientsMap = useMemo(() => {
+    return new Map(patients.map(p => [p.院友id, p]));
+  }, [patients]);
+
   // 任務統計
   const monitoringTasks = patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type));
   const documentTasks = patientHealthTasks.filter(task => isDocumentTask(task.health_record_type));
 
-  // 監測任務：僅顯示逾期和未完成，且院友必須在住
-  const overdueMonitoringTasks = monitoringTasks.filter(task => {
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    return patient && patient.在住狀態 === '在住' && isTaskOverdue(task);
-  });
-  const pendingMonitoringTasks = monitoringTasks.filter(task => {
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    return patient && patient.在住狀態 === '在住' && isTaskPendingToday(task);
-  });
-  const urgentMonitoringTasks = [...overdueMonitoringTasks, ...pendingMonitoringTasks].sort((a, b) => {
-    const timeA = new Date(a.next_due_at).getTime();
-    const timeB = new Date(b.next_due_at).getTime();
-    if (timeA === timeB) {
-      const priority = { '注射前': 1, '服藥前': 2, '社康': 3, '特別關顧': 4, '定期': 5 };
-      const priorityA = a.notes ? priority[a.notes] || 5 : 5;
-      const priorityB = b.notes ? priority[b.notes] || 5 : 5;
-      return priorityA - priorityB;
-    }
-    return timeA - timeB;
-  }).slice(0, 100);
+  // 優化：合併過濾和排序，只遍歷一次
+  const urgentMonitoringTasks = useMemo(() => {
+    const urgent: typeof monitoringTasks = [];
+    const priority = { '注射前': 1, '服藥前': 2, '社康': 3, '特別關顧': 4, '定期': 5 };
 
-  // 按任務時間分類監測任務
-  const categorizeTaskByTime = (task: HealthTask) => {
-    const hour = new Date(task.next_due_at).getHours();
-    if (hour >= 7 && hour < 10) return '早餐';
-    if (hour >= 10 && hour < 13) return '午餐';
-    if (hour >= 13 && hour < 18) return '晚餐';
-    if (hour >= 18 && hour <= 20) return '夜宵';
-    return '其他';
-  };
+    // 只遍歷一次，同時過濾逾期和待辦任務
+    monitoringTasks.forEach(task => {
+      const patient = patientsMap.get(task.patient_id);
+      if (patient && patient.在住狀態 === '在住') {
+        if (isTaskOverdue(task) || isTaskPendingToday(task)) {
+          urgent.push(task);
+        }
+      }
+    });
 
-  const breakfastTasks = urgentMonitoringTasks.filter(task => categorizeTaskByTime(task) === '早餐');
-  const lunchTasks = urgentMonitoringTasks.filter(task => categorizeTaskByTime(task) === '午餐');
-  const dinnerTasks = urgentMonitoringTasks.filter(task => categorizeTaskByTime(task) === '晚餐');
-  const snackTasks = urgentMonitoringTasks.filter(task => categorizeTaskByTime(task) === '夜宵');
+    // 排序並限制數量
+    return urgent.sort((a, b) => {
+      const timeA = new Date(a.next_due_at).getTime();
+      const timeB = new Date(b.next_due_at).getTime();
+      if (timeA === timeB) {
+        const priorityA = a.notes ? priority[a.notes] || 5 : 5;
+        const priorityB = b.notes ? priority[b.notes] || 5 : 5;
+        return priorityA - priorityB;
+      }
+      return timeA - timeB;
+    }).slice(0, 100);
+  }, [monitoringTasks, patientsMap]);
 
-  // 文件任務：包含逾期、未完成和即將到期，且院友必須在住
-  const overdueDocumentTasks = documentTasks.filter(task => {
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    return patient && patient.在住狀態 === '在住' && isTaskOverdue(task);
-  });
-  const pendingDocumentTasks = documentTasks.filter(task => {
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    return patient && patient.在住狀態 === '在住' && isTaskPendingToday(task);
-  });
-  const dueSoonDocumentTasks = documentTasks.filter(task => {
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    return patient && patient.在住狀態 === '在住' && isTaskDueSoon(task);
-  });
+  // 優化：按時間分類任務，只遍歷一次
+  const { breakfastTasks, lunchTasks, dinnerTasks, snackTasks } = useMemo(() => {
+    const breakfast: typeof urgentMonitoringTasks = [];
+    const lunch: typeof urgentMonitoringTasks = [];
+    const dinner: typeof urgentMonitoringTasks = [];
+    const snack: typeof urgentMonitoringTasks = [];
+
+    urgentMonitoringTasks.forEach(task => {
+      const hour = new Date(task.next_due_at).getHours();
+      if (hour >= 7 && hour < 10) breakfast.push(task);
+      else if (hour >= 10 && hour < 13) lunch.push(task);
+      else if (hour >= 13 && hour < 18) dinner.push(task);
+      else if (hour >= 18 && hour <= 20) snack.push(task);
+    });
+
+    return { breakfastTasks: breakfast, lunchTasks: lunch, dinnerTasks: dinner, snackTasks: snack };
+  }, [urgentMonitoringTasks]);
+
+  // 優化：文件任務過濾，使用Map查找
+  const { overdueDocumentTasks, pendingDocumentTasks, dueSoonDocumentTasks } = useMemo(() => {
+    const overdue: typeof documentTasks = [];
+    const pending: typeof documentTasks = [];
+    const dueSoon: typeof documentTasks = [];
+
+    documentTasks.forEach(task => {
+      const patient = patientsMap.get(task.patient_id);
+      if (patient && patient.在住狀態 === '在住') {
+        if (isTaskOverdue(task)) overdue.push(task);
+        else if (isTaskPendingToday(task)) pending.push(task);
+        else if (isTaskDueSoon(task)) dueSoon.push(task);
+      }
+    });
+
+    return { overdueDocumentTasks: overdue, pendingDocumentTasks: pending, dueSoonDocumentTasks: dueSoon };
+  }, [documentTasks, patientsMap]);
   const urgentDocumentTasks = [...overdueDocumentTasks, ...pendingDocumentTasks, ...dueSoonDocumentTasks].slice(0, 10);
 
   // 護理任務：包含逾期、未完成和即將到期（1天前），且院友必須在住
@@ -520,10 +539,23 @@ const Dashboard: React.FC = () => {
         next_due_at: nextDueAt
       };
 
-      await Promise.all([
-        updatePatientHealthTask(updatedTask),
-        refreshHealthData()
-      ]).catch(() => refreshData());
+      // 樂觀UI更新 - 立即更新任務狀態，卡片馬上消失
+      setPatientHealthTasks(prev => {
+        if (updatedTask.next_due_at === null) {
+          // 非循環任務已完成，移除
+          return prev.filter(t => t.id !== taskId);
+        } else {
+          // 循環任務，更新狀態
+          return prev.map(t => t.id === taskId ? updatedTask : t);
+        }
+      });
+
+      // 後台異步更新數據庫，不阻塞UI
+      updatePatientHealthTask(updatedTask).catch(err => {
+        console.error('任務更新失敗:', err);
+        // 失敗時静默刷新以保持數據一致性
+        refreshHealthData().catch(() => refreshData());
+      });
 
     } catch (error) {
       console.error('任務完成處理失敗:', error);
