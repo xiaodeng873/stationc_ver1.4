@@ -32,6 +32,18 @@ export interface PrescriptionWorkflowRecord {
   meal_timing?: string;
 }
 
+// Create context
+const PatientContext = createContext<any>(null);
+
+// Custom hook to use the PatientContext
+export const usePatients = () => {
+  const context = useContext(PatientContext);
+  if (!context) {
+    throw new Error('usePatients must be used within a PatientProvider');
+  }
+  return context;
+};
+
 const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, authReady } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -1720,4 +1732,4 @@ const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
   );
 };
 
-export { PatientProvider, usePatients };
+export { PatientProvider };

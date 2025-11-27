@@ -44,15 +44,12 @@ interface AdvancedFilters {
   記錄類型: string;
   記錄人員: string;
   備註: string;
+  在住狀態: string;
+}
+
+const HealthAssessment = () => {
+  const { healthRecords, patients, addHealthRecord, updateHealthRecord, deleteHealthRecord, refreshData } = usePatients();
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
-  // 添加調試函數來檢查數據載入
-  const debugDataLoading = async () => {
-    try {
- CC
-    } catch (error) {
-      console.error('調試數據載入失敗:', error);
-    }
-  };
 
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingTemperature, setIsGeneratingTemperature] = useState(false);
@@ -75,9 +72,11 @@ interface AdvancedFilters {
     setAdvancedFilters({
       床號: '',
       中文姓名: '',
-      記錄類型: '', // 修復：清除時也設為空字串
+      記錄類型: '',
       記錄人員: '',
       備註: '',
+      在住狀態: '全部'
+    });
   };
 
   const getUniqueOptions = (field: string) => {
@@ -141,13 +140,6 @@ interface AdvancedFilters {
       return false;
     }
     if (advancedFilters.記錄類型 && advancedFilters.記錄類型 !== '' && record.記錄類型.trim() !== advancedFilters.記錄類型.trim()) {
-      if (record.體重 != null) {
-          recordType: record.記錄類型,
-          recordTypeTrimmed: record.記錄類型.trim(),
-          filterType: advancedFilters.記錄類型,
-          filterTypeTrimmed: advancedFilters.記錄類型.trim(),
-          exactMatch: record.記錄類型.trim() === advancedFilters.記錄類型.trim(),
-      }
       return false;
     }
     if (advancedFilters.記錄人員 && !record.記錄人員?.toLowerCase().includes(advancedFilters.記錄人員.toLowerCase())) {
@@ -179,14 +171,6 @@ interface AdvancedFilters {
     
     return matchesSearch;
   });
-
-  // 調試：統計各類型記錄數量
-  const recordTypeCounts = {
-    總記錄數: healthRecords.length,
-    生命表徵: healthRecords.filter(r => r.記錄類型.trim() === '生命表徵').length,
-    血糖控制: healthRecords.filter(r => r.記錄類型.trim() === '血糖控制').length,
-    體重控制: healthRecords.filter(r => r.記錄類型.trim() === '體重控制').length,
-    所有記錄類型: [...new Set(healthRecords.map(r => r.記錄類型))],
 
   const sortedRecords = [...filteredRecords].sort((a, b) => {
     const patientA = patients.find(p => p.院友id === a.院友id);
@@ -425,10 +409,6 @@ interface AdvancedFilters {
       }
     }
 
-      totalRecords: selectedRecords.length,
-      uniquePatients,
-      isLargeExport,
-    
     try {
       setIsExporting(true);
       
@@ -441,6 +421,18 @@ interface AdvancedFilters {
             中文姓氏: patient?.中文姓氏 || '',
             中文名字: patient?.中文名字 || '',
             中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
+            記錄日期: record.記錄日期,
+            記錄時間: record.記錄時間,
+            血壓收縮壓: record.血壓收縮壓,
+            血壓舒張壓: record.血壓舒張壓,
+            脈搏: record.脈搏,
+            體溫: record.體溫,
+            血含氧量: record.血含氧量,
+            呼吸頻率: record.呼吸頻率,
+            記錄人員: record.記錄人員,
+            備註: record.備註
+          };
+        });
 
         await exportVitalSignsToExcel(vitalSignData, patients);
       } else if (recordType === '血糖控制') {
@@ -452,6 +444,13 @@ interface AdvancedFilters {
             中文姓氏: patient?.中文姓氏 || '',
             中文名字: patient?.中文名字 || '',
             中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
+            記錄日期: record.記錄日期,
+            記錄時間: record.記錄時間,
+            血糖值: record.血糖值,
+            記錄人員: record.記錄人員,
+            備註: record.備註
+          };
+        });
 
         await exportBloodSugarToExcel(bloodSugarData, patients);
       } else if (recordType === '體重控制') {
