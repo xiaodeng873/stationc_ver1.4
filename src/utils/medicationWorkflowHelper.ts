@@ -43,13 +43,20 @@ export const generateStaffCodeMapping = (staffNames: string[]): StaffCodeMapping
   const availableCodes = getAvailableStaffCodes();
   const mapping: StaffCodeMapping = {};
 
+  console.log('[generateStaffCodeMapping] 輸入人員姓名數量:', staffNames.length);
+  console.log('[generateStaffCodeMapping] 去重後人員數量:', uniqueStaffNames.length);
+  console.log('[generateStaffCodeMapping] 可用代號數量:', availableCodes.length);
+
   uniqueStaffNames.forEach((name, index) => {
     if (index < availableCodes.length) {
       mapping[name] = availableCodes[index];
+      console.log(`  [映射] ${name} → ${availableCodes[index]}`);
     } else {
       console.warn(`  [警告] 人員 "${name}" 超出可用代號範圍 (index=${index})`);
     }
   });
+
+  console.log('[generateStaffCodeMapping] 生成映射完成，共', Object.keys(mapping).length, '個人員');
 
   return mapping;
 };
@@ -81,6 +88,14 @@ export const fetchWorkflowRecordsForMonth = async (
 
     const uniquePrescriptionIds = [...new Set(prescriptionIds)];
 
+    console.log('\n========== 執核派記錄查詢診斷 ==========');
+    console.log(`院友ID: ${patientId}`);
+    console.log(`查詢月份: ${yearMonth} (${startDate} ~ ${endDate})`);
+    console.log(`處方數量 (原始): ${prescriptionIds.length} 個`);
+    console.log(`處方數量 (去重): ${uniquePrescriptionIds.length} 個`);
+    console.log(`處方ID列表:`, uniquePrescriptionIds);
+    console.log(`處方ID類型檢查:`, uniquePrescriptionIds.map(id => `${id} (${typeof id})`));
+
     const { data, error } = await supabase
       .from('medication_workflow_records')
       .select('*')
@@ -96,6 +111,8 @@ export const fetchWorkflowRecordsForMonth = async (
       console.error('錯誤詳情:', JSON.stringify(error, null, 2));
       throw error;
     }
+
+    console.log(`✓ 查詢成功，返回 ${data?.length || 0} 條執核派記錄`);
 
     if (!data || data.length === 0) {
       console.warn('⚠️ 警告：查詢返回空結果！');
@@ -130,11 +147,16 @@ export const fetchWorkflowRecordsForMonth = async (
         }
       }
     } else {
+      console.log('採樣查詢結果 (前3條):');
       data.slice(0, 3).forEach((record, idx) => {
+        console.log(`  [${idx + 1}] 處方ID: ${record.prescription_id}, 日期: ${record.scheduled_date}, 時間: ${record.scheduled_time}`);
       });
 
       const recordPrescriptionIds = [...new Set(data.map(r => r.prescription_id))];
+      console.log(`查詢結果包含 ${recordPrescriptionIds.length} 個不同的處方ID:`, recordPrescriptionIds);
     }
+    console.log('========================================\n');
+
     return data || [];
   } catch (error) {
     console.error('❌ fetchWorkflowRecordsForMonth 發生錯誤:', error);
@@ -157,6 +179,7 @@ export const getWorkflowRecordForPrescriptionDateTimeSlot = (
 
   const normalizedTimeSlot = normalizeTime(timeSlot);
 
+  console.log('[getWorkflowRecord] 查找條件:', {
     prescriptionId,
     date,
     timeSlot,
@@ -172,6 +195,7 @@ export const getWorkflowRecordForPrescriptionDateTimeSlot = (
         normalizeTime(r.scheduled_time) === normalizedTimeSlot;
 
       if (matches) {
+        console.log('[getWorkflowRecord] 找到匹配記錄:', {
           recordId: r.id.substring(0, 8),
           prescription_id: r.prescription_id,
           scheduled_date: r.scheduled_date,
@@ -184,6 +208,7 @@ export const getWorkflowRecordForPrescriptionDateTimeSlot = (
   );
 
   if (!record) {
+    console.log('[getWorkflowRecord] 未找到記錄，檢查前3條記錄:',
       workflowRecords.slice(0, 3).map(r => ({
         prescription_id: r.prescription_id,
         scheduled_date: r.scheduled_date,
@@ -223,6 +248,12 @@ export const extractStaffNamesFromWorkflowRecords = (workflowRecords: WorkflowRe
       }
     }
   });
+
+  console.log('[extractStaffNamesFromWorkflowRecords] 統計:');
+  console.log(`  執藥: ${prepCompletedCount}/${prepCount} 已完成`);
+  console.log(`  核藥: ${verifyCompletedCount}/${verifyCount} 已完成`);
+  console.log(`  派藥: ${dispenseCompletedCount}/${dispenseCount} 已完成`);
+  console.log(`  提取到 ${staffNames.length} 個人員姓名 (含重複)`);
 
   return staffNames;
 };
@@ -275,6 +306,7 @@ export const formatWorkflowCellContent = (
   const prepStaffInMapping = prepStaffName ? (prepStaffName in staffCodeMapping) : false;
   const verifyStaffInMapping = verifyStaffName ? (verifyStaffName in staffCodeMapping) : false;
 
+  console.log('[formatWorkflowCellContent]', {
     recordId: workflowRecord.id.substring(0, 8),
     prepStatus: workflowRecord.preparation_status,
     verifyStatus: workflowRecord.verification_status,
@@ -335,6 +367,7 @@ export const formatDispenseCellContent = (
 
   const dispenseStaffInMapping = dispenseStaffName ? (dispenseStaffName in staffCodeMapping) : false;
 
+  console.log('[formatDispenseCellContent]', {
     recordId: workflowRecord.id.substring(0, 8),
     dispenseStatus: workflowRecord.dispensing_status,
     dispenseStaffOriginal: dispenseStaffName,

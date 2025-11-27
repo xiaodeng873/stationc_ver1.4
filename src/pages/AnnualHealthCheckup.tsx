@@ -347,12 +347,17 @@ const AnnualHealthCheckup: React.FC = () => {
     }
 
     try {
+      console.log('開始載入範本資料...');
       const templates = await getTemplatesMetadata();
+      console.log('載入的範本數量:', templates.length);
+
       const annualHealthCheckupTemplate = templates.find((t: any) => t.type === 'annual-health-checkup');
       if (!annualHealthCheckupTemplate) {
         alert('請先在範本管理中上傳「安老院住客體格檢驗報告書」範本');
         return;
       }
+
+      console.log('找到年度體檢範本:', annualHealthCheckupTemplate.name);
 
       const personalMedicationListTemplate = templates.find((t: any) => t.type === 'personal-medication-list');
       const includePersonalMedicationList = !!personalMedicationListTemplate;
@@ -360,6 +365,7 @@ const AnnualHealthCheckup: React.FC = () => {
       if (!personalMedicationListTemplate) {
         console.warn('未找到個人藥物記錄範本，將不包含個人藥物記錄工作表');
       } else {
+        console.log('找到個人藥物記錄範本:', personalMedicationListTemplate.name);
       }
 
       const exportData = selectedCheckups.map(checkup => {
@@ -389,7 +395,9 @@ const AnnualHealthCheckup: React.FC = () => {
         };
       });
 
+      console.log('準備匯出資料:', exportData.length, '筆記錄');
       exportData.forEach((data, index) => {
+        console.log(`院友 ${index + 1}: ${data.patient.中文姓氏}${data.patient.中文名字}, 處方數量: ${data.prescriptions.length}`, data.prescriptions);
       });
 
       await exportAnnualHealthCheckupsToExcel(

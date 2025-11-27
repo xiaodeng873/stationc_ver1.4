@@ -75,8 +75,14 @@ export const extractDiaperChangeTemplateFormat = async (templateFile: File): Pro
     throw new Error('找不到工作表');
   }
 
+  console.log(`Worker: ExcelJS 識別到的實際列數: ${worksheet.actualColumnCount}`);
+  console.log(`Worker: ExcelJS 識別到的實際行數: ${worksheet.actualRowCount}`);
+  console.log(`Worker: ExcelJS 識別到的維度: ${worksheet.dimensions}`);
+
   // 使用固定範圍 A1:AE140 來確保所有行都被處理
   const dimension = worksheet.dimension;
+  console.log(`Worker: ExcelJS 識別到的工作表範圍: ${dimension?.top},${dimension?.left} - ${dimension?.bottom},${dimension?.right}`);
+
   const extractedTemplate: ExtractedTemplate = {
     columnWidths: [],
     rowHeights: [],
@@ -94,6 +100,8 @@ export const extractDiaperChangeTemplateFormat = async (templateFile: File): Pro
   const actualMaxCol = 31; // AE欄 = 31
   const actualMaxRow = 140; // 固定140行
 
+  console.log(`Worker: 使用固定提取範圍: A1:AE140 (31 欄 x 140 行)`);
+
   // Extract column widths (A到AE = 1到31)
   extractedTemplate.columnWidths = []; // Clear to ensure fresh extraction
   
@@ -102,6 +110,8 @@ export const extractDiaperChangeTemplateFormat = async (templateFile: File): Pro
     if (width === null || width === undefined) width = 8.43;
     extractedTemplate.columnWidths.push(Math.round(width * 100) / 100);
   }
+  console.log(`Worker: 提取了 ${extractedTemplate.columnWidths.length} 欄的寬度`);
+
   // Extract row heights (1到140)
   extractedTemplate.rowHeights = []; // Clear to ensure fresh extraction
   for (let row = 1; row <= 140; row++) {
@@ -109,19 +119,24 @@ export const extractDiaperChangeTemplateFormat = async (templateFile: File): Pro
     if (height === null || height === undefined) height = 15;
     extractedTemplate.rowHeights.push(Math.round(height * 100) / 100); // Always extract up to 140 rows for consistency
   }
+  console.log(`Worker: 提取了 ${extractedTemplate.rowHeights.length} 行的高度`);
+
   // Extract merged cells
   if (worksheet.model && worksheet.model.merges) {
     worksheet.model.merges.forEach(merge => {
       extractedTemplate.mergedCells.push(merge);
     });
+    console.log(`Worker: 提取合併儲存格: ${extractedTemplate.mergedCells.length} 個`);
   }
   
   // Extract print settings
   if (worksheet.pageSetup) {
     extractedTemplate.printSettings = { ...worksheet.pageSetup };
+    console.log(`Worker: 提取列印設定:`, JSON.stringify(extractedTemplate.printSettings));
   }
 
   // Extract page breaks
+  console.log('提取分頁符...');
   try {
     const rowBreaks: number[] = [];
     const colBreaks: number[] = [];
@@ -152,6 +167,7 @@ export const extractDiaperChangeTemplateFormat = async (templateFile: File): Pro
     extractedTemplate.pageBreaks!.rowBreaks = [...new Set(rowBreaks)];
     extractedTemplate.pageBreaks!.colBreaks = [...new Set(colBreaks)];
     
+    console.log('Worker: 分頁符統計:', {
       rowBreaks: extractedTemplate.pageBreaks!.rowBreaks.length,
       colBreaks: extractedTemplate.pageBreaks!.colBreaks.length
     });
@@ -224,6 +240,12 @@ export const extractDiaperChangeTemplateFormat = async (templateFile: File): Pro
       }
     }
   }
+  console.log(`Worker: 提取了 ${extractedCellCount} 個儲存格的格式`);
+  console.log(`Worker: 包含數據的行範圍: ${Math.min(...rowsWithData)} - ${Math.max(...rowsWithData)}`);
+  console.log(`Worker: 包含數據的欄範圍: ${Math.min(...colsWithData)} - ${Math.max(...colsWithData)}`);
+  console.log(`Worker: 完成提取 ${extractedCellCount} 個儲存格的格式，涵蓋 ${rowsWithData.size} 行`);
+  console.log(`Worker: 包含數據的行範圍: ${Math.min(...rowsWithData)} - ${Math.max(...rowsWithData)}`);
+  
   return extractedTemplate;
 };
 
@@ -234,17 +256,26 @@ const applyDiaperChangeTemplateFormat = (
   patient: any,
   yearMonth: string
 ): void => {
+  console.log(`Worker: === 開始應用換片記錄範本格式: ${patient.中文姓氏}${patient.中文名字} ===`);
+
   // Step 1: Set column widths
+  console.log('第1步: 設定欄寬...');
   template.columnWidths.forEach((width, idx) => {
     const colNum = idx + 1;
     worksheet.getColumn(colNum).width = width;
   });
+  console.log(`設定了 ${template.columnWidths.length} 欄的寬度`);
+
   // Step 2: Set row heights
+  console.log('第2步: 設定行高...');
   template.rowHeights.forEach((height, idx) => {
     const rowNum = idx + 1;
     worksheet.getRow(rowNum).height = height;
   });
+  console.log(`設定了 ${template.rowHeights.length} 行的高度`);
+
   // Step 3: Apply cell styles and data
+  console.log('第3步: 應用儲存格樣式...');
   let appliedCells = 0;
   let problemCells = 0;
   
@@ -287,6 +318,7 @@ const applyDiaperChangeTemplateFormat = (
       
       // 特別關注第100行以後的儲存格
       if (rowNum >= 100) {
+        console.log(`✅ 成功應用第${rowNum}行儲存格 ${address}`);
       }
     } catch (error) {
       console.error(`❌ 應用儲存格 ${address} 樣式失敗:`, error);
@@ -296,6 +328,7 @@ const applyDiaperChangeTemplateFormat = (
       }
     }
   });
+  console.log(`成功應用了 ${appliedCells} 個儲存格的樣式`);
   if (problemCells > 0) {
     console.warn(`⚠️ 第100行以後有 ${problemCells} 個儲存格應用失敗`);
   }
@@ -310,6 +343,8 @@ const applyDiaperChangeTemplateFormat = (
       console.warn(`合併儲存格失敗: ${merge}`, e);
     }
   });
+  console.log(`成功合併了 ${mergedCount} 個儲存格範圍`);
+
   // Step 5: Apply page breaks
   if (template.pageBreaks) {
     try {
@@ -317,6 +352,7 @@ const applyDiaperChangeTemplateFormat = (
         template.pageBreaks.rowBreaks.forEach(rowNum => {
           try {
             worksheet.addPageBreak(rowNum, 0);
+            console.log(`添加行分頁符於第 ${rowNum} 行`);
           } catch (error) {
             console.warn(`添加行分頁符失敗 (第 ${rowNum} 行):`, error);
           }
@@ -327,6 +363,7 @@ const applyDiaperChangeTemplateFormat = (
         template.pageBreaks.colBreaks.forEach(colNum => {
           try {
             worksheet.addPageBreak(0, colNum);
+            console.log(`添加欄分頁符於第 ${colNum} 欄`);
           } catch (error) {
             console.warn(`添加欄分頁符失敗 (第 ${colNum} 欄):`, error);
           }
@@ -338,6 +375,7 @@ const applyDiaperChangeTemplateFormat = (
   }
 
   // Step 6: Apply images
+  console.log('應用圖片...');
   if (Array.isArray(template.images)) {
     template.images.forEach(img => {
       try {
@@ -346,6 +384,7 @@ const applyDiaperChangeTemplateFormat = (
           extension: img.extension as 'png' | 'jpeg' | 'gif'
         });
         worksheet.addImage(imageId, img.range);
+        console.log(`Worker: 應用圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${img.extension}`);
       } catch (error: any) {
         console.error(`應用圖片失敗 (範圍=${img.range}):`, error);
       }
@@ -353,13 +392,23 @@ const applyDiaperChangeTemplateFormat = (
   }
 
   // Step 7: Fill patient data according to mapping
+  console.log('第6步: 填充院友資料...');
+  
   // D3: 院友中文姓名
   worksheet.getCell('D3').value = `${patient.中文姓氏}${patient.中文名字}`;
+  console.log(`Worker: 填入 D3: 院友中文姓名 = ${patient.中文姓氏}${patient.中文名字}`);
+  
   // L3: 床號
   worksheet.getCell('L3').value = patient.床號;
+  console.log(`Worker: 填入 L3: 床號 = ${patient.床號}`);
+  
   // AB3: 月份/年份 (格式: XXXX年XX月)
   worksheet.getCell('AB3').value = yearMonth;
+  console.log(`Worker: 填入 AB3: 月份/年份 = ${yearMonth}`);
+
   // Step 8: Apply print settings and page breaks
+  console.log('第8步: 應用列印設定和分頁符...');
+  
   // 完全忽略範本中的所有分頁符，只設定我們需要的分頁符
   try {
     // 完全清除所有現有分頁符
@@ -404,7 +453,16 @@ const applyDiaperChangeTemplateFormat = (
     (worksheet as any).model.rowBreaks = [35, 70, 105];
     (worksheet as any).model.colBreaks = [];
     
+    console.log('✅ 換片記錄分頁符強制設定完成：只在第35、70、105行後分頁');
+    
     // 最終驗證
+    console.log('=== 最終分頁符驗證 ===');
+    console.log('實際 rowBreaks:', (worksheet as any).rowBreaks);
+    console.log('實際 colBreaks:', (worksheet as any).colBreaks);
+    console.log('model rowBreaks:', (worksheet as any).model?.rowBreaks);
+    console.log('model colBreaks:', (worksheet as any).model?.colBreaks);
+    console.log('=== 分頁符驗證完成 ===');
+    
   } catch (error) {
     console.error('❌ 強制設定分頁符失敗:', error);
   }
@@ -433,6 +491,7 @@ const applyDiaperChangeTemplateFormat = (
         ...template.printSettings,
         ...customSettings // 覆蓋範本設定
       };
+      console.log('Worker: 自訂列印設定應用成功');
     } catch (error: any) {
       console.warn('應用列印設定失敗:', error);
     }
@@ -456,6 +515,7 @@ const applyDiaperChangeTemplateFormat = (
     };
   }
   
+  console.log(`Worker: === 換片記錄範本格式應用完成: ${patient.中文姓氏}${patient.中文名字} ===`);
 };
 
 // 創建換片記錄工作簿
@@ -465,6 +525,8 @@ const createDiaperChangeWorkbook = async (
   const workbook = new ExcelJS.Workbook();
 
   for (const config of sheetsConfig) {
+    console.log(`Worker: 創建換片記錄工作表: ${config.name}`);
+    
     // 確保工作表名稱符合 Excel 限制
     let sheetName = config.name;
     if (sheetName.length > 31) {
@@ -486,6 +548,7 @@ const saveExcelFile = async (
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, filename);
+  console.log(`Worker: 換片記錄 Excel 檔案 ${filename} 保存成功`);
 };
 
 // 匯出換片記錄到 Excel
@@ -535,6 +598,8 @@ export const exportDiaperChangeToExcel = async (
     // 創建工作簿並匯出
     const workbook = await createDiaperChangeWorkbook(sheetsConfig);
     await saveExcelFile(workbook, finalFilename);
+    
+    console.log(`Worker: 換片記錄匯出完成: ${finalFilename}`);
     
   } catch (error: any) {
     console.error('匯出換片記錄失敗:', error);

@@ -109,12 +109,16 @@ export const extractRestraintConsentTemplateFormat = async (templateFile: File):
     if (width === null || width === undefined) width = 8.43;
     extractedTemplate.columnWidths.push(Math.round(width * 100) / 100);
   }
+  console.log(`提取欄寬: ${extractedTemplate.columnWidths.length} 個`);
+
   // Extract row heights (1 to 110)
   for (let row = 1; row <= 110; row++) {
     let height = worksheet.getRow(row).height;
     if (height === null || height === undefined) height = 15;
     extractedTemplate.rowHeights.push(Math.round(height * 100) / 100);
   }
+  console.log(`提取列高: ${extractedTemplate.rowHeights.length} 個`);
+
   // Extract merged cells
   if (worksheet.model && worksheet.model.merges) {
     worksheet.model.merges.forEach(merge => {
@@ -129,19 +133,26 @@ export const extractRestraintConsentTemplateFormat = async (templateFile: File):
         extractedTemplate.mergedCells.push(merge);
       }
     });
+    console.log(`提取合併儲存格: ${extractedTemplate.mergedCells.length} 個`);
   }
   
   // Extract print settings
   if (worksheet.pageSetup) {
     extractedTemplate.printSettings = { ...worksheet.pageSetup };
+    console.log(`提取列印設定:`, JSON.stringify(extractedTemplate.printSettings));
   }
 
   // Extract page breaks
+  console.log('提取分頁符...');
   try {
     // 完全忽略範本中的分頁符，只設定我們需要的分頁符
+    console.log('完全忽略範本分頁符，只設定第49行分頁符...');
+    
     // 只設定我們需要的分頁符：第49行後
     extractedTemplate.pageBreaks!.rowBreaks = [49];
     extractedTemplate.pageBreaks!.colBreaks = [];
+    
+    console.log('分頁符設定完成: 只在第49行後分頁');
     
   } catch (error) {
     console.error('提取分頁符失敗:', error);
@@ -149,6 +160,7 @@ export const extractRestraintConsentTemplateFormat = async (templateFile: File):
   }
 
   // Extract cell data (A1:X110)
+  console.log('開始提取儲存格資料 (A1:X110)...');
   let extractedCellCount = 0;
   let problemAreaCellCount = 0;
   for (let row = 1; row <= 110; row++) {
@@ -208,6 +220,7 @@ export const extractRestraintConsentTemplateFormat = async (templateFile: File):
         if (isProblemArea) {
           problemAreaCellCount++;
           if (problemAreaCellCount <= 10) {
+            console.log(`✅ 問題區域儲存格 ${address} (行${row},欄${col}) 提取成功:`, Object.keys(cellData));
           }
         }
       }
@@ -215,11 +228,17 @@ export const extractRestraintConsentTemplateFormat = async (templateFile: File):
   }
 
   // 診斷：檢查提取的儲存格資料
+  console.log('=== 範本提取診斷 ===');
+  console.log(`總提取儲存格數: ${extractedCellCount}`);
+  console.log(`問題區域 (P欄50行後) 儲存格數量: ${problemAreaCellCount}`);
+  
   // 檢查問題區域的儲存格
   const testCells = ['P51', 'Q50', 'R55', 'S60', 'X110'];
   testCells.forEach(address => {
     if (extractedTemplate.cellData[address]) {
+      console.log(`✅ ${address} 存在於範本資料中:`, Object.keys(extractedTemplate.cellData[address]));
     } else {
+      console.log(`❌ ${address} 不存在於範本資料中`);
     }
   });
   
@@ -232,6 +251,8 @@ export const extractRestraintConsentTemplateFormat = async (templateFile: File):
       columnStats[col] = (columnStats[col] || 0) + 1;
     }
   });
+  
+  console.log('各欄儲存格統計:', columnStats);
   
   // 檢查第 50 行後的儲存格數量
   const rowStats: { [range: string]: number } = {
@@ -251,7 +272,11 @@ export const extractRestraintConsentTemplateFormat = async (templateFile: File):
     }
   });
   
+  console.log('行範圍儲存格統計:', rowStats);
+  console.log('=== 範本提取診斷完成 ===');
+  
   // 提取圖片
+  console.log('提取圖片...');
   try {
     const images = (worksheet as any).getImages ? (worksheet as any).getImages() : [];
     if (!Array.isArray(images)) {
@@ -269,6 +294,7 @@ export const extractRestraintConsentTemplateFormat = async (templateFile: File):
               extension: media.extension,
               range: img.range
             });
+            console.log(`提取圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${media.extension}`);
           } else {
             console.warn(`圖片 ID=${img.imageId} 無有效 media 或 buffer`);
           }
@@ -285,6 +311,7 @@ export const extractRestraintConsentTemplateFormat = async (templateFile: File):
     extractedTemplate.images = [];
   }
 
+  console.log(`提取完成: ${extractedCellCount} 個儲存格有格式資料`);
   return extractedTemplate;
 };
 
@@ -321,12 +348,19 @@ const applyRestraintConsentTemplateFormat = (
   },
   assessment: RestraintConsentExportData
 ): void => {
+  console.log('=== 開始應用約束物品同意書範本格式 ===');
+  
   // 診斷：檢查範本資料完整性
+  console.log('=== 應用階段診斷 ===');
+  console.log(`範本 cellData 總數: ${Object.keys(template.cellData).length}`);
+  
   // 檢查問題區域的儲存格
   const testCells = ['P51', 'Q50', 'R55', 'S60', 'X110'];
   testCells.forEach(address => {
     if (template.cellData[address]) {
+      console.log(`✅ 應用階段 ${address} 存在:`, Object.keys(template.cellData[address]));
     } else {
+      console.log(`❌ 應用階段 ${address} 不存在`);
     }
   });
   
@@ -344,21 +378,31 @@ const applyRestraintConsentTemplateFormat = (
       }
     }
   });
+  console.log(`問題區域 (P欄50行後) 儲存格數量: ${problemAreaCells}`);
+  console.log('=== 應用階段診斷完成 ===');
+  
   // Step 1: Set column widths (A to X = 1 to 24)
+  console.log('第1步: 設置欄寬 (1-24)...');
   template.columnWidths.forEach((width, idx) => {
     if (idx < 24) {
       worksheet.getColumn(idx + 1).width = width;
     }
   });
+  console.log(`完成設置 ${Math.min(template.columnWidths.length, 24)} 個欄寬`);
+
   // Step 2: Set row heights (1 to 110)
+  console.log('第2步: 設置列高 (1-110)...');
   template.rowHeights.forEach((height, idx) => {
     if (idx < 110) {
       worksheet.getRow(idx + 1).height = height;
     }
   });
+  console.log(`完成設置 ${Math.min(template.rowHeights.length, 110)} 個列高`);
+
 
 
   // Step 3: Apply cell data (value, font, alignment, border, fill) for A1:X110
+  console.log('第3步: 開始應用儲存格格式 (A1:X110)...');
   let appliedCellCount = 0;
   let problemAreaAppliedCount = 0;
   Object.entries(template.cellData).forEach(([address, cellData]) => {
@@ -377,6 +421,7 @@ const applyRestraintConsentTemplateFormat = (
     try {
       // Apply value
       if (isProblemArea && problemAreaAppliedCount < 10) {
+        console.log(`🔍 處理問題區域儲存格 ${address}:`, {
           hasValue: cellData.value !== undefined,
           hasFont: !!cellData.font,
           hasBorder: !!cellData.border,
@@ -417,9 +462,11 @@ const applyRestraintConsentTemplateFormat = (
       if (isProblemArea) {
         problemAreaAppliedCount++;
         if (problemAreaAppliedCount <= 10) {
+          console.log(`✅ 問題區域儲存格 ${address} 應用成功:`, Object.keys(cellData));
         }
       }
       if (appliedCellCount % 500 === 0) {
+        console.log(`應用儲存格格式進度: ${appliedCellCount}`);
       }
     } catch (error) {
       console.error(`❌ 應用儲存格 ${address} 失敗:`, error);
@@ -428,7 +475,11 @@ const applyRestraintConsentTemplateFormat = (
       }
     }
   });
+  console.log(`完成應用 ${appliedCellCount} 個儲存格的格式`);
+  console.log(`問題區域成功應用: ${problemAreaAppliedCount} 個儲存格`);
+
   // Step 4: Merge cells
+  console.log('開始合併儲存格...');
   let mergedCount = 0;
   template.mergedCells.forEach((merge, index) => {
     try {
@@ -443,7 +494,12 @@ const applyRestraintConsentTemplateFormat = (
   const problemAreaMerges = template.mergedCells.filter(merge => {
     return merge.includes('P') || merge.includes('Q') || merge.includes('R') || merge.includes('S') || merge.includes('T') || merge.includes('U') || merge.includes('V') || merge.includes('W') || merge.includes('X');
   });
+  console.log(`涉及問題區域 (P-X欄) 的合併儲存格: ${problemAreaMerges.length} 個`, problemAreaMerges);
+  console.log(`完成合併 ${mergedCount} 個儲存格範圍`);
+
   // Step 5: Fill patient and assessment data
+  console.log('第5步: 填充院友和評估資料...');
+  
   // 院友基本資料
   worksheet.getCell('F4').value = `${patient.中文姓氏}${patient.中文名字}`;
   worksheet.getCell('F80').value = `${patient.中文姓氏}${patient.中文名字}`;
@@ -469,6 +525,8 @@ const applyRestraintConsentTemplateFormat = (
   }
 
   // Step 6: Fill risk factors data
+  console.log('第6步: 填充風險因素資料...');
+  
   if (assessment.risk_factors && typeof assessment.risk_factors === 'object') {
     // 精神及/或行為異常的情況
     worksheet.getCell('C11').value = getCheckboxSymbol(assessment.risk_factors['精神及/或行為異常的情況'] || false);
@@ -520,6 +578,8 @@ const applyRestraintConsentTemplateFormat = (
   }
 
   // Step 7: Fill alternatives data
+  console.log('第7步: 填充折衷辦法資料...');
+  
   if (assessment.alternatives && typeof assessment.alternatives === 'object') {
     // 折衷辦法選項 (C27-C37, T27-T37)
     const alternativeOptions = [
@@ -554,6 +614,8 @@ const applyRestraintConsentTemplateFormat = (
   }
 
   // Step 8: Fill suggested restraints data
+  console.log('第8步: 填充約束物品建議資料...');
+  
   if (assessment.suggested_restraints && typeof assessment.suggested_restraints === 'object') {
     // 約束衣 (rows 42-43)
     const restraintVest = assessment.suggested_restraints['約束衣'] || {};
@@ -702,6 +764,7 @@ const applyRestraintConsentTemplateFormat = (
   }
 
   // Step 9: Apply images
+  console.log('第9步: 應用圖片...');
   if (!Array.isArray(template.images)) {
     console.warn('template.images 不是陣列，初始化為空陣列');
     template.images = [];
@@ -713,23 +776,30 @@ const applyRestraintConsentTemplateFormat = (
         extension: img.extension as 'png' | 'jpeg' | 'gif'
       });
       worksheet.addImage(imageId, img.range);
+      console.log(`應用圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${img.extension}`);
     } catch (error) {
       console.error(`應用圖片失敗 (範圍=${img.range}):`, error);
     }
   });
 
   // Step 9: Apply print settings
+  console.log('第9步: 複製列印設定...');
   if (template.printSettings) {
     try {
+      console.log('將要應用的列印設定:', JSON.stringify(template.printSettings, null, 2));
       worksheet.pageSetup = { ...template.printSettings };
+      console.log('列印設定複製成功');
     } catch (error) {
       console.warn('複製列印設定失敗:', error);
     }
   }
   
   // Step 10: Apply page breaks
+  console.log('第10步: 應用分頁符...');
   try {
     // 完全忽略範本中的所有分頁符，只設定我們需要的分頁符
+    console.log('完全忽略範本分頁符，只設定第49行分頁符...');
+    
     // 完全清除任何現有的分頁符設定
     delete (worksheet as any).rowBreaks;
     delete (worksheet as any).colBreaks;
@@ -769,6 +839,12 @@ const applyRestraintConsentTemplateFormat = (
     (worksheet as any).model.colBreaks = [];
     
     // 最終驗證
+    console.log('=== 最終分頁符驗證 ===');
+    console.log('worksheet.rowBreaks:', (worksheet as any).rowBreaks);
+    console.log('worksheet.colBreaks:', (worksheet as any).colBreaks);
+    console.log('=== 分頁符驗證完成 ===');
+    
+    console.log('✅ 約束物品同意書分頁符設定完成：只在第49行後分頁');
   } catch (error) {
     console.error('❌ 應用分頁符失敗:', error);
   }
@@ -794,6 +870,7 @@ const saveExcelFile = async (
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, filename);
+  console.log(`約束物品同意書 Excel 檔案 ${filename} 保存成功`);
 };
 
 // 匯出約束物品同意書到 Excel
@@ -997,4 +1074,5 @@ const exportRestraintConsentsToExcelSimple = async (
   const finalFilename = filename || `約束物品同意書_${new Date().toISOString().split('T')[0]}.xlsx`;
   saveAs(blob, finalFilename);
   
+  console.log(`約束物品同意書 Excel 檔案 ${finalFilename} 匯出成功`);
 };

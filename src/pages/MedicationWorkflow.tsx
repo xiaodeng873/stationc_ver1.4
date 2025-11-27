@@ -113,6 +113,8 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         ? JSON.parse(record.inspection_check_result)
         : record.inspection_check_result;
 
+      console.log('[WorkflowCell] 解析檢測結果:', { recordId: record.id, result });
+
       // 如果是入院狀態，返回特殊標記
       if (result && result.isHospitalized) {
         return { isHospitalized: true };
@@ -139,6 +141,8 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
       const result = typeof record.inspection_check_result === 'string'
         ? JSON.parse(record.inspection_check_result)
         : record.inspection_check_result;
+
+      console.log('[WorkflowCell] 檢測不合格規則:', { recordId: record.id, blockedRules: result?.blockedRules });
 
       if (result && result.blockedRules && result.blockedRules.length > 0) {
         return result.blockedRules;
@@ -446,6 +450,10 @@ const MedicationWorkflow: React.FC = () => {
     }
 
     // 調試日誌：顯示週期計算詳情
+    console.log(`📅 週期計算: 輸入日期 ${dateStr} (星期${['日','一','二','三','四','五','六'][day]})`);
+    console.log(`   週日起始: ${week[0]}`);
+    console.log(`   週期範圍: ${week[0]} ~ ${week[6]}`);
+
     return week;
   };
 
@@ -500,6 +508,10 @@ const MedicationWorkflow: React.FC = () => {
   // 檢查當周工作流程記錄是否完整
   const checkWeekWorkflowCompleteness = async (patientIdNum: number, weekDates: string[]) => {
     try {
+      console.log('=== 檢查當周工作流程完整性 ===');
+      console.log('院友ID:', patientIdNum);
+      console.log('檢查週期:', weekDates[0], '至', weekDates[6]);
+
       // 查詢該院友的所有在服處方
       const activePrescriptionsForPatient = prescriptions.filter(p => {
         if (p.patient_id.toString() !== patientIdNum.toString() || p.status !== 'active') {
@@ -508,7 +520,10 @@ const MedicationWorkflow: React.FC = () => {
         return true;
       });
 
+      console.log('在服處方數量:', activePrescriptionsForPatient.length);
+
       if (activePrescriptionsForPatient.length === 0) {
+        console.log('此院友無在服處方，無需生成工作流程');
         return { complete: true, shouldGenerate: false };
       }
 
@@ -534,6 +549,9 @@ const MedicationWorkflow: React.FC = () => {
         });
       });
 
+      console.log('預期記錄數量:', expectedRecordsCount);
+      console.log('預期記錄明細:', expectedDetails);
+
       // 查詢當周實際存在的記錄數量
       const { data: existingRecords, error } = await supabase
         .from('medication_workflow_records')
@@ -548,15 +566,21 @@ const MedicationWorkflow: React.FC = () => {
       }
 
       const actualRecordsCount = existingRecords?.length || 0;
+      console.log('實際記錄數量:', actualRecordsCount);
+
       // 如果記錄數量差距過大，輸出詳細信息
       if (actualRecordsCount < expectedRecordsCount) {
         const existingByDate: { [date: string]: number } = {};
         existingRecords?.forEach(record => {
           existingByDate[record.scheduled_date] = (existingByDate[record.scheduled_date] || 0) + 1;
         });
+        console.log('實際記錄按日期分布:', existingByDate);
+        console.log('缺少記錄數:', expectedRecordsCount - actualRecordsCount);
       }
 
       const isComplete = actualRecordsCount >= expectedRecordsCount;
+      console.log('完整性檢查結果:', isComplete ? '完整' : '不完整');
+
       return { complete: isComplete, shouldGenerate: !isComplete && expectedRecordsCount > 0 };
     } catch (error) {
       console.error('檢查工作流程完整性失敗:', error);
@@ -568,6 +592,7 @@ const MedicationWorkflow: React.FC = () => {
   const autoGenerateWeekWorkflow = async (patientIdNum: number, weekDates: string[]) => {
     // 檢查是否正在生成，防止併發
     if (isGeneratingRef.current) {
+      console.log('⚠️ 已有生成任務進行中，跳過此次請求');
       return { success: false, message: '生成任務進行中', totalRecords: 0, failedDates: [] };
     }
 
@@ -575,12 +600,19 @@ const MedicationWorkflow: React.FC = () => {
       // 設置生成鎖定
       isGeneratingRef.current = true;
 
+      console.log('=== 開始自動生成當周工作流程 ===');
+      console.log('院友ID:', patientIdNum);
+      console.log('生成週期:', weekDates[0], '至', weekDates[6]);
+
       const startDate = weekDates[0];
       const endDate = weekDates[6];
 
       const result = await generateBatchWorkflowRecords(startDate, endDate, patientIdNum);
 
       if (result.success) {
+        console.log('✓ 自動生成完成:', result.message);
+        console.log('生成記錄數:', result.totalRecords);
+
         // 等待 500ms 確保 Supabase 數據一致性
         await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -596,6 +628,7 @@ const MedicationWorkflow: React.FC = () => {
 
         if (!error && data) {
           setAllWorkflowRecords(data);
+          console.log(`✅ 自動載入完成: ${data.length} 筆記錄`);
         } else {
           console.error('❌ 自動載入失敗:', error);
         }
@@ -619,6 +652,7 @@ const MedicationWorkflow: React.FC = () => {
 
         if (data) {
           setAllWorkflowRecords(data);
+          console.log(`✅ 部分成功載入: ${data.length} 筆記錄`);
         }
       }
 
@@ -670,17 +704,25 @@ const MedicationWorkflow: React.FC = () => {
 
       // 檢查是否正在生成
       if (isGeneratingRef.current) {
+        console.log('⚠️ 生成任務進行中，延後檢查');
         return;
       }
+
+      console.log('\n====================================');
+      console.log('自動檢測當周工作流程記錄');
+      console.log('====================================');
 
       const { complete, shouldGenerate } = await checkWeekWorkflowCompleteness(patientIdNum, weekDates);
 
       if (shouldGenerate) {
+        console.log('檢測到當周工作流程不完整，開始自動生成...');
         await autoGenerateWeekWorkflow(patientIdNum, weekDates);
       } else if (complete) {
+        console.log('當周工作流程記錄已完整，無需生成');
       }
 
       setAutoGenerationChecked(true);
+      console.log('====================================\n');
     };
 
     // 添加 300ms 防抖延遲，避免快速切換時重複觸發
@@ -704,10 +746,15 @@ const MedicationWorkflow: React.FC = () => {
   // 當 weekDates 或 patient 改變時，清空並重新載入一週記錄
   useEffect(() => {
     if (selectedPatientId && weekDates.length > 0) {
+      console.log('\n🔄 重新載入當周工作流程記錄');
+      console.log('院友ID:', selectedPatientId);
+      console.log('週期:', weekDates[0], '至', weekDates[6]);
+
       setAllWorkflowRecords([]);
       const patientIdNum = parseInt(selectedPatientId);
       if (!isNaN(patientIdNum)) {
         (async () => {
+          console.log('🔍 開始查詢 Supabase...');
           // 一次性載入整週的記錄（更高效）
           const { data, error } = await supabase
             .from('medication_workflow_records')
@@ -721,6 +768,8 @@ const MedicationWorkflow: React.FC = () => {
           if (error) {
             console.error('❌ 載入當周記錄失敗:', error);
           } else {
+            console.log(`✅ 成功載入當周記錄: ${data?.length || 0} 筆`);
+
             // 按日期統計記錄
             const byDate: Record<string, number> = {};
             const byPrescription: Record<string, number> = {};
@@ -729,14 +778,19 @@ const MedicationWorkflow: React.FC = () => {
               byPrescription[record.prescription_id] = (byPrescription[record.prescription_id] || 0) + 1;
             });
 
+            console.log('📊 按日期分布:');
             weekDates.forEach(date => {
               const count = byDate[date] || 0;
+              console.log(`  ${date}: ${count} 筆${count === 0 ? ' ⚠️' : ''}`);
             });
 
+            console.log('📊 按處方分布:');
             Object.entries(byPrescription).forEach(([prescId, count]) => {
+              console.log(`  ${prescId.substring(0, 8)}...: ${count} 筆`);
             });
 
             // 直接設置到 allWorkflowRecords，跳過 context
+            console.log(`📝 設置 allWorkflowRecords: ${data?.length || 0} 筆`);
             setAllWorkflowRecords(data || []);
           }
         })();
@@ -750,15 +804,28 @@ const MedicationWorkflow: React.FC = () => {
       setAllWorkflowRecords(prev => {
         const newRecords = prescriptionWorkflowRecords.filter(r => r.patient_id.toString() === selectedPatientId);
 
+        console.log(`\n🔄 ===  allWorkflowRecords 更新觸發 ===`);
+        console.log(`  Context 中的記錄總數: ${prescriptionWorkflowRecords.length}`);
+        console.log(`  篩選後的新記錄數: ${newRecords.length}`);
+        console.log(`  當前本地記錄數: ${prev.length}`);
+
         if (newRecords.length === 0) {
+          console.log('⚠️ Context 中沒有新記錄，保持現有記錄');
           return prev;
         }
 
         // 獲取這次更新涉及的所有日期
         const updatedDates = [...new Set(newRecords.map(r => r.scheduled_date))];
+        console.log(`📅 更新涉及的日期 (${updatedDates.length} 個):`, updatedDates);
+
         // 移除這些日期的舊記錄
         const filteredPrev = prev.filter(r => !updatedDates.includes(r.scheduled_date));
+        console.log(`  移除舊記錄後: ${prev.length} -> ${filteredPrev.length}`);
+
         const merged = [...filteredPrev, ...newRecords];
+        console.log(`📝 合併後記錄數: ${merged.length}`);
+        console.log(`  合併記錄的日期分布:`, [...new Set(merged.map(r => r.scheduled_date))]);
+
         return merged;
       });
     }
@@ -767,6 +834,9 @@ const MedicationWorkflow: React.FC = () => {
   // 獲取當前日期的工作流程記錄（用於一鍵操作等）
   // 重要：包含在服處方(status='active')和有效期內的停用處方(status='inactive')的記錄
   const currentDayWorkflowRecords = useMemo(() => {
+    console.log(`\n📋 開始篩選當天工作流程記錄 (日期: ${selectedDate}, 院友ID: ${selectedPatientId})`);
+    console.log(`📋 總工作流程記錄數: ${allWorkflowRecords.length}`);
+
     const filtered = allWorkflowRecords.filter(r => {
       // 1. 必須是當天的記錄
       if (r.scheduled_date !== selectedDate) return false;
@@ -777,11 +847,13 @@ const MedicationWorkflow: React.FC = () => {
       // 3. 檢查處方狀態
       const prescription = prescriptions.find(p => p.id === r.prescription_id);
       if (!prescription) {
+        console.log(`  ❌ 記錄 ${r.id} (時間: ${r.scheduled_time}): 找不到對應處方`);
         return false;
       }
 
       // 在服處方：正常包含
       if (prescription.status === 'active') {
+        console.log(`  ✅ ${prescription.medication_name} (時間: ${r.scheduled_time}): 通過檢查 - 在服處方 + 備藥方式: ${prescription.preparation_method}`);
         return true;
       }
 
@@ -792,21 +864,28 @@ const MedicationWorkflow: React.FC = () => {
         const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
 
         if (recordDate >= startDate && (!endDate || recordDate <= endDate)) {
+          console.log(`  ✅ ${prescription.medication_name} (時間: ${r.scheduled_time}): 通過檢查 - 停用處方但在有效期內 (${prescription.start_date} ~ ${prescription.end_date || '無結束日期'})`);
           return true;
         } else {
+          console.log(`  ❌ ${prescription.medication_name} (時間: ${r.scheduled_time}): 停用處方且不在有效期內`);
           return false;
         }
       }
 
       // 其他狀態（如 pending_change）：排除
+      console.log(`  ❌ ${prescription.medication_name} (時間: ${r.scheduled_time}): 處方狀態為 ${prescription.status}，非 active 或 inactive`);
       return false;
     });
+
+    console.log(`📋 當天工作流程記錄: ${filtered.length} 筆 (包含在服處方和有效期內的停用處方)`);
 
     // 特別標記提前備藥的記錄
     const advancedRecords = filtered.filter(r => {
       const prescription = prescriptions.find(p => p.id === r.prescription_id);
       return prescription?.preparation_method === 'advanced';
     });
+    console.log(`📋 其中提前備藥記錄: ${advancedRecords.length} 筆`);
+
     return filtered;
   }, [allWorkflowRecords, selectedDate, selectedPatientId, prescriptions]);
 
@@ -836,13 +915,18 @@ const MedicationWorkflow: React.FC = () => {
     allWorkflowRecords.forEach(record => {
       ids.add(record.prescription_id);
     });
+    console.log(`📋 當周工作流程記錄數: ${allWorkflowRecords.length}`);
+    console.log(`📋 涉及的處方ID數: ${ids.size}`);
     if (ids.size > 0) {
+      console.log(`📋 處方ID列表:`, Array.from(ids));
     }
     return ids;
   }, [allWorkflowRecords]);
 
   // 過濾處方：顯示在服處方 + 停用但在當周有工作流程記錄的處方
   const activePrescriptions = useMemo(() => {
+    console.log(`\n🔍 開始過濾處方 (院友ID: ${selectedPatientId}, 週期: ${weekDates[0]} ~ ${weekDates[6]})`);
+
     const filtered = prescriptions.filter(p => {
       // 1. 必須是當前選中的院友
       if (p.patient_id.toString() !== selectedPatientId) {
@@ -857,6 +941,7 @@ const MedicationWorkflow: React.FC = () => {
 
         // 處方必須在週結束日期之前或當天開始
         if (startDate > weekEnd) {
+          console.log(`  ❌ ${p.medication_name}: start_date(${p.start_date}) > weekEnd(${weekDates[6]})`);
           return false;
         }
 
@@ -864,6 +949,7 @@ const MedicationWorkflow: React.FC = () => {
         if (p.end_date) {
           const endDate = new Date(p.end_date);
           if (endDate < weekStart) {
+            console.log(`  ❌ ${p.medication_name}: end_date(${p.end_date}) < weekStart(${weekDates[0]})`);
             return false;
           }
         }
@@ -871,9 +957,11 @@ const MedicationWorkflow: React.FC = () => {
         // 必須在當周有工作流程記錄
         const hasRecords = weekPrescriptionIds.has(p.id);
         if (!hasRecords) {
+          console.log(`  ❌ ${p.medication_name}: 當周無工作流程記錄，跳過`);
           return false;
         }
 
+        console.log(`  ✅ ${p.medication_name} (active): 通過所有檢查 - 日期有效 + 有工作流程記錄`);
         return true;
       }
 
@@ -881,16 +969,20 @@ const MedicationWorkflow: React.FC = () => {
       if (p.status === 'inactive') {
         const hasRecords = weekPrescriptionIds.has(p.id);
         if (hasRecords) {
+          console.log(`  ✅ ${p.medication_name} (inactive): 停用處方但當周有工作流程記錄，顯示歷史記錄`);
           return true;
         } else {
+          console.log(`  ❌ ${p.medication_name} (inactive): 停用處方且當周無記錄，跳過`);
           return false;
         }
       }
 
       // 4. 其他狀態（pending_change等）暫不顯示
+      console.log(`  ❌ ${p.medication_name} (${p.status}): 狀態為 ${p.status}，跳過`);
       return false;
     });
 
+    console.log(`🔍 過濾結果: ${filtered.length} 個處方通過`);
     return filtered;
   }, [prescriptions, selectedPatientId, weekDates, weekPrescriptionIds]);
 
@@ -1013,17 +1105,28 @@ const MedicationWorkflow: React.FC = () => {
 
   // 檢查服藥時間點是否在入院期間
   const isInHospitalizationPeriod = (patientId: number, scheduledDate: string, scheduledTime: string): boolean => {
+    console.log('🔍 檢查入院期間:', { patientId, scheduledDate, scheduledTime });
+    console.log('📋 所有住院事件:', hospitalEpisodes);
+
     // 不限制狀態，檢查所有住院事件（active 和 completed 都要）
     const patientEpisodes = hospitalEpisodes.filter(ep => ep.patient_id === patientId);
+    console.log('👤 病人的所有住院事件:', patientEpisodes);
+
     if (patientEpisodes.length === 0) {
+      console.log('❌ 沒有住院事件');
       return false;
     }
 
     // 服藥時間點
     const medicationDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+    console.log('⏰ 服藥時間:', medicationDateTime.toISOString());
+
     // 檢查所有住院事件，看服藥時間是否落在任何一個入院期間
     for (const episode of patientEpisodes) {
+      console.log('📌 檢查住院事件:', episode);
+
       if (!episode.episode_events || episode.episode_events.length === 0) {
+        console.log('  ⚠️ 此事件沒有事件記錄，跳過');
         continue;
       }
 
@@ -1044,11 +1147,21 @@ const MedicationWorkflow: React.FC = () => {
           return dateA.getTime() - dateB.getTime(); // 按時間順序排序
         });
 
+      console.log('  🏥 入院事件:', admissionEvents);
+      console.log('  🚪 出院事件:', dischargeEvents);
+
       // 檢查每個入院事件
       for (const admission of admissionEvents) {
+        console.log('  🔍 入院事件原始資料:', admission);
+        console.log('  📅 event_date:', admission.event_date, '類型:', typeof admission.event_date);
+        console.log('  ⏰ event_time:', admission.event_time, '類型:', typeof admission.event_time);
+
         const admissionDateTime = new Date(`${admission.event_date}T${admission.event_time || '00:00:00'}`);
+        console.log('  🏥 入院時間:', admissionDateTime.toISOString(), 'isValid:', !isNaN(admissionDateTime.getTime()));
+
         // 如果服藥時間早於入院時間，跳過此入院事件
         if (medicationDateTime < admissionDateTime) {
+          console.log('  ❌ 服藥時間在此入院之前，跳過');
           continue;
         }
 
@@ -1059,21 +1172,32 @@ const MedicationWorkflow: React.FC = () => {
         });
 
         if (nextDischarge) {
+          console.log('  🔍 出院事件原始資料:', nextDischarge);
+          console.log('  📅 event_date:', nextDischarge.event_date, '類型:', typeof nextDischarge.event_date);
+          console.log('  ⏰ event_time:', nextDischarge.event_time, '類型:', typeof nextDischarge.event_time);
+
           const dischargeDateTime = new Date(`${nextDischarge.event_date}T${nextDischarge.event_time || '00:00:00'}`);
+          console.log('  🚪 對應出院時間:', dischargeDateTime.toISOString(), 'isValid:', !isNaN(dischargeDateTime.getTime()));
+
           // 檢查服藥時間是否在入院和出院之間
           if (medicationDateTime >= admissionDateTime && medicationDateTime < dischargeDateTime) {
+            console.log('  ✅ 服藥時間在此入院期間內！');
             return true;
           } else {
+            console.log('  ❌ 服藥時間不在此入院期間內');
           }
         } else {
           // 沒有對應的出院事件，表示仍在住院中
+          console.log('  📌 此入院尚未出院');
           if (medicationDateTime >= admissionDateTime) {
+            console.log('  ✅ 服藥時間在入院之後（尚未出院）！');
             return true;
           }
         }
       }
     }
 
+    console.log('❌ 服藥時間不在任何入院期間內');
     return false;
   };
 
@@ -1188,6 +1312,7 @@ const MedicationWorkflow: React.FC = () => {
     setOneClickProcessing(prev => ({ ...prev, preparation: true }));
 
     try {
+      console.log('=== 一鍵執藥開始 ===');
       // 找到所有待執藥的記錄（排除即時備藥）
       const pendingPreparationRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
@@ -1195,8 +1320,11 @@ const MedicationWorkflow: React.FC = () => {
       });
 
       if (pendingPreparationRecords.length === 0) {
+        console.log('沒有需要執藥的記錄');
         return;
       }
+
+      console.log(`找到 ${pendingPreparationRecords.length} 筆待執藥記錄`);
 
       // 並行處理所有執藥操作
       const results = await Promise.allSettled(
@@ -1207,6 +1335,8 @@ const MedicationWorkflow: React.FC = () => {
 
       const successCount = results.filter(r => r.status === 'fulfilled').length;
       const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`一鍵執藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
 
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
@@ -1234,6 +1364,7 @@ const MedicationWorkflow: React.FC = () => {
     setOneClickProcessing(prev => ({ ...prev, verification: true }));
 
     try {
+      console.log('=== 一鍵核藥開始 ===');
       // 找到所有待核藥且執藥已完成的記錄（排除即時備藥）
       const pendingVerificationRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
@@ -1243,8 +1374,11 @@ const MedicationWorkflow: React.FC = () => {
       });
 
       if (pendingVerificationRecords.length === 0) {
+        console.log('沒有需要核藥的記錄');
         return;
       }
+
+      console.log(`找到 ${pendingVerificationRecords.length} 筆待核藥記錄`);
 
       // 並行處理所有核藥操作
       const results = await Promise.allSettled(
@@ -1255,6 +1389,8 @@ const MedicationWorkflow: React.FC = () => {
 
       const successCount = results.filter(r => r.status === 'fulfilled').length;
       const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`一鍵核藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
 
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
@@ -1301,6 +1437,7 @@ const MedicationWorkflow: React.FC = () => {
     setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
 
     try {
+      console.log('=== 一鍵全程開始 ===');
       // 找到所有符合一鍵全程條件的當日即時備藥處方記錄（任何階段）
       const eligibleRecords = currentDayWorkflowRecords.filter(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
@@ -1309,8 +1446,11 @@ const MedicationWorkflow: React.FC = () => {
       });
 
       if (eligibleRecords.length === 0) {
+        console.log('沒有符合一鍵全程條件的記錄');
         return;
       }
+
+      console.log(`找到 ${eligibleRecords.length} 筆符合條件的記錄`);
 
       // 統計各階段數量
       let preparedCount = 0;
@@ -1381,6 +1521,8 @@ const MedicationWorkflow: React.FC = () => {
         }
       });
 
+      console.log(`一鍵全程完成: 成功 ${successCount} 筆, 入院 ${hospitalizedCount} 筆, 失敗 ${failCount} 筆`);
+
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
           console.error(`一鍵全程失敗 (記錄ID: ${eligibleRecords[index].id}):`, result.reason);
@@ -1404,16 +1546,28 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
+    console.log('=== 一鍵派藥過濾邏輯 ===');
+    console.log('當天工作流程記錄總數:', currentDayWorkflowRecords.length);
+
     // 找到所有可派藥的記錄（包含有檢測項要求的處方）
     const eligibleRecords = currentDayWorkflowRecords.filter(r => {
       const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
       if (!prescription) {
+        console.log(`❌ 記錄 ${r.id}: 找不到處方`);
         return false;
       }
 
+      console.log(`\n🔍 檢查記錄: ${prescription.medication_name} (${r.scheduled_time})`);
+      console.log(`  - 處方狀態: ${prescription.status}`);
+      console.log(`  - 派藥狀態: ${r.dispensing_status}`);
+      console.log(`  - 核藥狀態: ${r.verification_status}`);
+      console.log(`  - 給藥途徑: ${prescription.administration_route}`);
+      console.log(`  - 有效期: ${prescription.start_date} ~ ${prescription.end_date || '無結束日期'}`);
+
       // 檢查處方狀態：在服處方或有效期內的停用處方
       if (prescription.status === 'active') {
+        console.log(`  ✅ 在服處方`);
         // 在服處方：正常包含
       } else if (prescription.status === 'inactive') {
         // 停用處方：需要檢查記錄日期是否在處方有效期內
@@ -1421,35 +1575,50 @@ const MedicationWorkflow: React.FC = () => {
         const startDate = new Date(prescription.start_date);
         const endDate = prescription.end_date ? new Date(prescription.end_date) : null;
 
+        console.log(`  📅 停用處方日期檢查:`);
+        console.log(`     記錄日期: ${r.scheduled_date}`);
+        console.log(`     開始日期: ${prescription.start_date}`);
+        console.log(`     結束日期: ${prescription.end_date || '無'}`);
+
         // 如果記錄日期不在處方有效期內，跳過
         if (recordDate < startDate || (endDate && recordDate > endDate)) {
+          console.log(`  ❌ 停用處方且記錄日期不在有效期內`);
           return false;
         }
+        console.log(`  ✅ 停用處方但記錄日期在有效期內`);
       } else {
         // 其他狀態（如 pending_change）：跳過
+        console.log(`  ❌ 處方狀態為 ${prescription.status}，跳過`);
         return false;
       }
 
       // 排除注射類藥物
       if (prescription.administration_route === '注射') {
+        console.log(`  ❌ 注射類藥物，跳過`);
         return false;
       }
 
       // 包含所有待派藥的記錄（包括有檢測項要求的）
       const isEligible = r.dispensing_status === 'pending' && r.verification_status === 'completed';
       if (isEligible) {
+        console.log(`  ✅ 符合派藥條件`);
       } else {
+        console.log(`  ❌ 不符合派藥條件（派藥狀態: ${r.dispensing_status}, 核藥狀態: ${r.verification_status}）`);
       }
       return isEligible;
     });
 
+    console.log(`\n✅ 符合條件的記錄數: ${eligibleRecords.length}`);
     if (eligibleRecords.length > 0) {
+      console.log('符合條件的處方:');
       eligibleRecords.forEach(r => {
         const prescription = prescriptions.find(p => p.id === r.prescription_id);
+        console.log(`  - ${prescription?.medication_name} (${r.scheduled_time})`);
       });
     }
 
     if (eligibleRecords.length === 0) {
+      console.log('沒有可派藥的記錄');
       return;
     }
 
@@ -1469,6 +1638,9 @@ const MedicationWorkflow: React.FC = () => {
     }
 
     try {
+      console.log('=== 批量派藥開始 ===', selectedTimeSlots, `共 ${recordsToProcess.length} 筆記錄`);
+      console.log('接收到的檢測結果:', inspectionResults?.size || 0);
+
       // 並行處理所有派藥操作
       const results = await Promise.allSettled(
         recordsToProcess.map(async (record) => {
@@ -1504,8 +1676,18 @@ const MedicationWorkflow: React.FC = () => {
             return { type: 'hospitalized' };
           } else if (hasInspectionRules) {
             // 有檢測項要求：先檢查是否有用戶提供的檢測結果
+            console.log(`\n🔍 記錄 ${record.id} 有檢測項要求`);
+            console.log('  處方:', prescription.medication_name);
+            console.log('  檢測規則:', prescription.inspection_rules);
+            console.log('  inspectionResults 是否存在:', !!inspectionResults);
+            console.log('  inspectionResults 大小:', inspectionResults?.size);
+
             const userInspectionResult = inspectionResults?.get(record.id);
+            console.log('  找到用戶檢測結果:', !!userInspectionResult);
+
             if (userInspectionResult) {
+              console.log(`✅ 使用用戶提供的檢測結果 (記錄 ${record.id}):`, userInspectionResult);
+
               if (userInspectionResult.canDispense) {
                 // 檢測合格：正常派藥
                 await dispenseMedication(
@@ -1535,6 +1717,7 @@ const MedicationWorkflow: React.FC = () => {
               }
             } else {
               // 沒有用戶提供的檢測結果，使用自動檢測
+              console.log(`⚠️ 沒有找到用戶檢測結果，使用自動檢測`);
               const checkResult = await checkPrescriptionInspectionRules(
                 prescription.id,
                 patientIdNum
@@ -1581,6 +1764,8 @@ const MedicationWorkflow: React.FC = () => {
       const pausedCount = results.filter(r => r.status === 'fulfilled' && r.value.type === 'paused').length;
       const failCount = results.filter(r => r.status === 'rejected').length;
 
+      console.log(`批量派藥完成: 成功 ${successCount} 筆, 入院 ${hospitalizedCount} 筆, 暫停 ${pausedCount} 筆, 失敗 ${failCount} 筆`);
+
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
           console.error(`派藥失敗 (記錄ID: ${recordsToProcess[index].id}):`, result.reason);
@@ -1589,7 +1774,9 @@ const MedicationWorkflow: React.FC = () => {
 
       // 數據刷新已經在 dispenseMedication 內部完成
       // 這裡只需要給一點時間讓 React 狀態更新傳播到頁面
+      console.log('🔄 等待數據刷新傳播...');
       await new Promise(resolve => setTimeout(resolve, 200));
+      console.log('✅ 數據刷新完成');
     } catch (error) {
       console.error('批量派藥失敗:', error);
       throw error;
@@ -1766,6 +1953,10 @@ const MedicationWorkflow: React.FC = () => {
 
     setRefreshing(true);
     try {
+      console.log('🔄 刷新當週工作流程記錄...');
+      console.log('院友ID:', patientIdNum);
+      console.log('週期:', weekDates[0], '至', weekDates[6]);
+
       // 直接查詢 Supabase，載入整週的記錄
       const { data, error } = await supabase
         .from('medication_workflow_records')
@@ -1781,6 +1972,7 @@ const MedicationWorkflow: React.FC = () => {
         throw error;
       }
 
+      console.log(`✅ 刷新成功: 載入 ${data?.length || 0} 筆記錄`);
       // 直接更新 allWorkflowRecords
       setAllWorkflowRecords(data || []);
     } catch (error) {
@@ -1802,6 +1994,9 @@ const MedicationWorkflow: React.FC = () => {
 
     setGenerating(true);
     try {
+      console.log('=== 手動生成本週工作流程 ===');
+      console.log('生成前記錄數:', allWorkflowRecords.length);
+
       // 生成整週的工作流程（從週日到週六，共7天）
       const startDate = weekDates[0];
       const endDate = weekDates[6];
@@ -1809,6 +2004,9 @@ const MedicationWorkflow: React.FC = () => {
       const result = await generateBatchWorkflowRecords(startDate, endDate, patientIdNum);
 
       if (result.success) {
+        console.log('✓ 生成成功:', result.message);
+        console.log('生成記錄數:', result.totalRecords);
+
         // 等待 500ms 確保 Supabase 數據一致性
         await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -1819,6 +2017,8 @@ const MedicationWorkflow: React.FC = () => {
 
         while (retryCount < maxRetries && !loadedSuccessfully) {
           try {
+            console.log(`🔄 嘗試重新載入數據 (第 ${retryCount + 1} 次)...`);
+
             const { data, error } = await supabase
               .from('medication_workflow_records')
               .select('*')
@@ -1833,10 +2033,15 @@ const MedicationWorkflow: React.FC = () => {
               throw error;
             }
 
+            console.log(`✅ 查詢成功: 載入 ${data?.length || 0} 筆記錄`);
+
             // 驗證是否載入到新生成的記錄
             if (data && data.length > 0) {
               setAllWorkflowRecords(data);
               loadedSuccessfully = true;
+              console.log('✅ 數據已更新到界面');
+              console.log('更新後記錄數:', data.length);
+
               alert(`✅ 成功生成並載入 ${data.length} 筆工作流程記錄！`);
             } else if (result.totalRecords > 0) {
               // 生成了記錄但查詢不到，需要重試
@@ -1882,6 +2087,7 @@ const MedicationWorkflow: React.FC = () => {
 
         if (data) {
           setAllWorkflowRecords(data);
+          console.log(`✅ 部分成功: 載入 ${data.length} 筆記錄`);
         }
 
         alert(`⚠️ ${result.message}\n已載入 ${data?.length || 0} 筆記錄`);
@@ -1919,6 +2125,11 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
+    console.log('\n🔍 開始診斷工作流程顯示問題...');
+    console.log('當前選擇院友ID:', patientIdNum);
+    console.log('當前週期:', weekDates[0], '至', weekDates[6]);
+    console.log('本地記錄數量:', allWorkflowRecords.length);
+
     try {
       const result = await diagnoseWorkflowDisplayIssue(
         patientIdNum,
@@ -1927,6 +2138,15 @@ const MedicationWorkflow: React.FC = () => {
       );
 
       if (result) {
+        console.log('\n📊 診斷結果摘要:');
+        console.log('處方總數:', result.prescriptions.length);
+        console.log('  - 在服處方:', result.activePrescCount);
+        console.log('  - 停用處方:', result.inactivePrescCount);
+        console.log('數據庫記錄數:', result.actualTotal);
+        console.log('預期記錄數:', result.expectedTotal);
+        console.log('本地記錄數:', allWorkflowRecords.length);
+        console.log('匹配狀態:', result.isMatched ? '✅ 完全匹配' : '❌ 不匹配');
+
         if (allWorkflowRecords.length !== result.actualTotal) {
           console.warn('⚠️ 本地記錄與數據庫不同步！');
           console.warn(`本地: ${allWorkflowRecords.length} 筆, 數據庫: ${result.actualTotal} 筆`);

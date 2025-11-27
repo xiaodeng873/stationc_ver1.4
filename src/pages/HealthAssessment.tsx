@@ -44,12 +44,59 @@ interface AdvancedFilters {
   記錄類型: string;
   記錄人員: string;
   備註: string;
+  startDate: string;
+  endDate: string;
   在住狀態: string;
 }
 
-const HealthAssessment = () => {
-  const { healthRecords, patients, addHealthRecord, updateHealthRecord, deleteHealthRecord, refreshData } = usePatients();
+const HealthAssessment: React.FC = () => {
+  const {
+    healthRecords,
+    patients,
+    loading,
+    deleteHealthRecord,
+    generateRandomTemperaturesForActivePatients,
+    recordDailyTemperatureGenerationCompletion,
+    checkEligiblePatientsForTemperature,
+    findDuplicateHealthRecords,
+    batchDeleteDuplicateRecords
+  } = usePatients();
+  const [showModal, setShowModal] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState<SortField>('記錄日期');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchRecordType, setBatchRecordType] = useState<'生命表徵' | '血糖控制' | '體重控制'>('生命表徵');
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [showDeduplicateModal, setShowDeduplicateModal] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateRecordGroup[]>([]);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [isAnalyzingDuplicates, setIsAnalyzingDuplicates] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
+    床號: '',
+    中文姓名: '',
+    記錄類型: '', // 修復：預設為空字串
+    記錄人員: '',
+    備註: '',
+    startDate: '',
+    endDate: '',
+    在住狀態: '在住'
+  });
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+  // 添加調試函數來檢查數據載入
+  const debugDataLoading = async () => {
+    try {
+      console.log('開始調試數據載入...');
+ CC
+    } catch (error) {
+      console.error('調試數據載入失敗:', error);
+    }
+  };
 
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingTemperature, setIsGeneratingTemperature] = useState(false);
@@ -72,10 +119,12 @@ const HealthAssessment = () => {
     setAdvancedFilters({
       床號: '',
       中文姓名: '',
-      記錄類型: '',
+      記錄類型: '', // 修復：清除時也設為空字串
       記錄人員: '',
       備註: '',
-      在住狀態: '全部'
+      startDate: '',
+      endDate: '',
+      在住狀態: '在住'
     });
   };
 
@@ -123,6 +172,18 @@ const HealthAssessment = () => {
   const filteredRecords = healthRecords.filter(record => {
     const patient = patients.find(p => p.院友id === record.院友id);
     
+    // 調試：檢查所有有體重數值的記錄
+    if (record.體重 != null && record.體重 !== undefined) {
+      console.log('發現有體重數值的記錄:', {
+        記錄id: record.記錄id,
+        院友id: record.院友id,
+        記錄類型: `"${record.記錄類型}" (長度:${record.記錄類型.length})`,
+        記錄類型字節: Array.from(record.記錄類型).map(c => c.charCodeAt(0)),
+        體重: record.體重,
+        記錄日期: record.記錄日期,
+        patient: patient ? `${patient.中文姓氏}${patient.中文名字}` : 'Not found'
+      });
+    }
 
     // 確保院友存在
     if (!patient) {
@@ -131,6 +192,12 @@ const HealthAssessment = () => {
     }
     
     if (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '全部' && patient?.在住狀態 !== advancedFilters.在住狀態) {
+      if (record.體重 != null) {
+        console.log(`有體重數值的記錄 ${record.記錄id} 被在住狀態篩選過濾:`, {
+          patientStatus: patient?.在住狀態,
+          filterStatus: advancedFilters.在住狀態
+        });
+      }
       return false;
     }
     if (advancedFilters.床號 && !patient?.床號.toLowerCase().includes(advancedFilters.床號.toLowerCase())) {
@@ -140,6 +207,17 @@ const HealthAssessment = () => {
       return false;
     }
     if (advancedFilters.記錄類型 && advancedFilters.記錄類型 !== '' && record.記錄類型.trim() !== advancedFilters.記錄類型.trim()) {
+      if (record.體重 != null) {
+        console.log(`有體重數值的記錄 ${record.記錄id} 被記錄類型篩選過濾:`, {
+          recordType: record.記錄類型,
+          recordTypeTrimmed: record.記錄類型.trim(),
+          filterType: advancedFilters.記錄類型,
+          filterTypeTrimmed: advancedFilters.記錄類型.trim(),
+          exactMatch: record.記錄類型.trim() === advancedFilters.記錄類型.trim(),
+          recordTypeBytes: Array.from(record.記錄類型).map(c => c.charCodeAt(0)),
+          filterTypeBytes: Array.from(advancedFilters.記錄類型).map(c => c.charCodeAt(0))
+        });
+      }
       return false;
     }
     if (advancedFilters.記錄人員 && !record.記錄人員?.toLowerCase().includes(advancedFilters.記錄人員.toLowerCase())) {
@@ -170,6 +248,59 @@ const HealthAssessment = () => {
     }
     
     return matchesSearch;
+  });
+
+  // 調試：統計各類型記錄數量
+  const recordTypeCounts = {
+    總記錄數: healthRecords.length,
+    生命表徵: healthRecords.filter(r => r.記錄類型.trim() === '生命表徵').length,
+    血糖控制: healthRecords.filter(r => r.記錄類型.trim() === '血糖控制').length,
+    體重控制: healthRecords.filter(r => r.記錄類型.trim() === '體重控制').length,
+    所有記錄類型: [...new Set(healthRecords.map(r => r.記錄類型))],
+    所有記錄類型詳細: [...new Set(healthRecords.map(r => `"${r.記錄類型}" (長度:${r.記錄類型.length}) [${Array.from(r.記錄類型).map(c => c.charCodeAt(0)).join(',')}]`))],
+    所有記錄類型修剪後: [...new Set(healthRecords.map(r => r.記錄類型.trim()))],
+    所有記錄的體重欄位檢查: healthRecords.map(r => ({
+      記錄id: r.記錄id, 
+      記錄類型: r.記錄類型, 
+      記錄類型修剪後: r.記錄類型.trim(),
+      體重: r.體重, 
+      體重類型: typeof r.體重,
+      體重是否為null: r.體重 === null,
+      體重是否為undefined: r.體重 === undefined,
+      院友id: r.院友id
+    })).slice(0, 10),
+    有體重數值的記錄: healthRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '').length,
+    有體重數值且記錄類型為體重控制: healthRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '' && r.記錄類型.trim() === '體重控制').length,
+    體重數值範例: healthRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '').slice(0, 5).map(r => ({ 
+      記錄id: r.記錄id, 
+      記錄類型: r.記錄類型, 
+      記錄類型修剪後: r.記錄類型.trim(),
+      體重: r.體重,
+      體重類型: typeof r.體重,
+      院友id: r.院友id 
+    })),
+    篩選後總數: filteredRecords.length,
+    篩選後有體重數值: filteredRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '').length,
+    當前篩選條件: {
+      在住狀態: advancedFilters.在住狀態,
+      記錄類型: advancedFilters.記錄類型,
+      hasAdvancedFilters: hasAdvancedFilters()
+    }
+  };
+  console.log('記錄類型統計:', recordTypeCounts);
+
+  // 調試：檢查 advancedFilters 的詳細內容
+  console.log('詳細篩選條件分析:', {
+    advancedFilters: JSON.stringify(advancedFilters, null, 2),
+    hasAdvancedFilters: hasAdvancedFilters(),
+    在住狀態篩選: `"${advancedFilters.在住狀態}" (長度:${advancedFilters.在住狀態.length})`,
+    記錄類型篩選: `"${advancedFilters.記錄類型}" (長度:${advancedFilters.記錄類型.length})`,
+    所有非空篩選條件: Object.entries(advancedFilters).filter(([key, value]) => value !== ''),
+    第一筆記錄的院友在住狀態: healthRecords.length > 0 ? (() => {
+      const firstRecord = healthRecords[0];
+      const patient = patients.find(p => p.院友id === firstRecord.院友id);
+      return patient ? `"${patient.在住狀態}" (長度:${patient.在住狀態?.length || 0})` : '院友未找到';
+    })() : '無記錄'
   });
 
   const sortedRecords = [...filteredRecords].sort((a, b) => {
@@ -268,6 +399,7 @@ const HealthAssessment = () => {
   };
 
   const handleEdit = (record: any) => {
+    console.log('編輯監測記錄:', record);
     setSelectedRecord(record);
     setShowModal(true);
   };
@@ -318,10 +450,13 @@ const HealthAssessment = () => {
     const failedIds: number[] = [];
 
     try {
+      console.log(`[批量刪除] 開始刪除 ${deletingArray.length} 筆記錄`);
+
       for (const recordId of deletingArray) {
         try {
           await deleteHealthRecord(recordId);
           successCount++;
+          console.log(`[批量刪除] 成功刪除記錄 ${recordId}, 進度: ${successCount}/${deletingArray.length}`);
         } catch (deleteError) {
           failCount++;
           failedIds.push(recordId);
@@ -342,6 +477,7 @@ const HealthAssessment = () => {
         alert(`刪除完成：\n成功 ${successCount} 筆\n失敗 ${failCount} 筆\n\n失敗的記錄已保持選中狀態，您可以稍後重試。`);
       }
 
+      console.log(`[批量刪除] 完成，成功: ${successCount}, 失敗: ${failCount}`);
     } catch (error) {
       console.error('[批量刪除] 發生未預期的錯誤:', error);
       alert(`批量刪除過程中發生錯誤\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
@@ -409,10 +545,18 @@ const HealthAssessment = () => {
       }
     }
 
+    console.log(`🚀 準備匯出 ${recordType}:`, {
+      totalRecords: selectedRecords.length,
+      uniquePatients,
+      isLargeExport,
+      estimatedSize: `${(selectedRecords.length * 0.5 / 1024).toFixed(2)} MB`
+    });
+    
     try {
       setIsExporting(true);
       
       if (recordType === '生命表徵') {
+        console.log('📋 匯出生命表徵記錄...');
         const vitalSignData: VitalSignExportData[] = selectedRecords.map(record => {
           const patient = patients.find(p => p.院友id === record.院友id);
           return {
@@ -421,6 +565,8 @@ const HealthAssessment = () => {
             中文姓氏: patient?.中文姓氏 || '',
             中文名字: patient?.中文名字 || '',
             中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
+            性別: patient?.性別 || '',
+            出生日期: patient?.出生日期 || '',
             記錄日期: record.記錄日期,
             記錄時間: record.記錄時間,
             血壓收縮壓: record.血壓收縮壓,
@@ -429,13 +575,14 @@ const HealthAssessment = () => {
             體溫: record.體溫,
             血含氧量: record.血含氧量,
             呼吸頻率: record.呼吸頻率,
-            記錄人員: record.記錄人員,
-            備註: record.備註
+            備註: record.備註,
+            記錄人員: record.記錄人員
           };
         });
 
         await exportVitalSignsToExcel(vitalSignData, patients);
       } else if (recordType === '血糖控制') {
+        console.log('🩸 匯出血糖控制記錄...');
         const bloodSugarData: BloodSugarExportData[] = selectedRecords.map(record => {
           const patient = patients.find(p => p.院友id === record.院友id);
           return {
@@ -444,16 +591,19 @@ const HealthAssessment = () => {
             中文姓氏: patient?.中文姓氏 || '',
             中文名字: patient?.中文名字 || '',
             中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
+            性別: patient?.性別 || '',
+            出生日期: patient?.出生日期 || '',
             記錄日期: record.記錄日期,
             記錄時間: record.記錄時間,
             血糖值: record.血糖值,
-            記錄人員: record.記錄人員,
-            備註: record.備註
+            備註: record.備註,
+            記錄人員: record.記錄人員
           };
         });
 
         await exportBloodSugarToExcel(bloodSugarData, patients);
       } else if (recordType === '體重控制') {
+        console.log('⚖️ 匯出體重控制記錄...');
         const { exportBodyweightToExcel } = await import('../utils/bodyweightExcelGenerator');
         const bodyweightData = selectedRecords.map(record => {
           const patient = patients.find(p => p.院友id === record.院友id);
@@ -463,6 +613,15 @@ const HealthAssessment = () => {
             中文姓氏: patient?.中文姓氏 || '',
             中文名字: patient?.中文名字 || '',
             中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
+            性別: patient?.性別 || '',
+            出生日期: patient?.出生日期 || '',
+            記錄日期: record.記錄日期,
+            記錄時間: record.記錄時間,
+            體重: record.體重,
+            備註: record.備註,
+            記錄人員: record.記錄人員
+          };
+        });
 
         await exportBodyweightToExcel(bodyweightData, patients);
       } else {
@@ -471,6 +630,8 @@ const HealthAssessment = () => {
         alert(`不支援的記錄類型: ${recordType}`);
         return;
       }
+      
+      console.log(`✅ ${recordType}匯出完成`);
       
     } catch (error) {
       console.error('❌ 匯出失敗:', error);

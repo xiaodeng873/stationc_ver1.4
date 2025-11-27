@@ -107,6 +107,8 @@ const extractPersonalHygieneTemplateFormat = async (templateFile: File): Promise
   const maxCol = Math.max(dimension?.right || 38, 38); // AL = 38
   const maxRow = Math.max(dimension?.bottom || 40, 40);
 
+  console.log(`檢測到個人衛生記錄工作表範圍: ${maxCol} 欄 x ${maxRow} 行`);
+
   // Extract column widths (A to AL = 1 to 38)
   for (let col = 1; col <= maxCol; col++) {
     let width = worksheet.getColumn(col).width;
@@ -126,14 +128,17 @@ const extractPersonalHygieneTemplateFormat = async (templateFile: File): Promise
     worksheet.model.merges.forEach(merge => {
       extractedTemplate.mergedCells.push(merge);
     });
+    console.log(`提取合併儲存格: ${extractedTemplate.mergedCells.length} 個`);
   }
   
   // Extract print settings
   if (worksheet.pageSetup) {
     extractedTemplate.printSettings = { ...worksheet.pageSetup };
+    console.log(`提取列印設定:`, JSON.stringify(extractedTemplate.printSettings));
   }
 
   // Extract page breaks
+  console.log('提取分頁符...');
   try {
     const rowBreaks: number[] = [];
     const colBreaks: number[] = [];
@@ -164,6 +169,7 @@ const extractPersonalHygieneTemplateFormat = async (templateFile: File): Promise
     extractedTemplate.pageBreaks!.rowBreaks = [...new Set(rowBreaks)];
     extractedTemplate.pageBreaks!.colBreaks = [...new Set(colBreaks)];
     
+    console.log('分頁符統計:', {
       rowBreaks: extractedTemplate.pageBreaks!.rowBreaks.length,
       colBreaks: extractedTemplate.pageBreaks!.colBreaks.length
     });
@@ -174,6 +180,7 @@ const extractPersonalHygieneTemplateFormat = async (templateFile: File): Promise
   }
 
   // Extract cell data for entire worksheet
+  console.log(`開始提取儲存格資料 (1-${maxRow} 行, 1-${maxCol} 欄)...`);
   let extractedCellCount = 0;
   
   for (let row = 1; row <= maxRow; row++) {
@@ -230,6 +237,7 @@ const extractPersonalHygieneTemplateFormat = async (templateFile: File): Promise
   }
 
   // Extract images
+  console.log('提取圖片...');
   try {
     const images = (worksheet as any).getImages ? (worksheet as any).getImages() : [];
     if (!Array.isArray(images)) {
@@ -247,6 +255,7 @@ const extractPersonalHygieneTemplateFormat = async (templateFile: File): Promise
               extension: media.extension,
               range: img.range
             });
+            console.log(`提取圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${media.extension}`);
           }
         }
       });
@@ -256,6 +265,7 @@ const extractPersonalHygieneTemplateFormat = async (templateFile: File): Promise
     extractedTemplate.images = [];
   }
 
+  console.log(`個人衛生記錄範本格式提取完成: ${extractedCellCount} 個儲存格, ${extractedTemplate.images.length} 個圖片`);
   return extractedTemplate;
 };
 
@@ -280,14 +290,20 @@ const applyPersonalHygieneTemplateFormat = (
     secondMonth: string;
   }
 ): void => {
+  console.log(`=== 開始應用個人衛生記錄範本格式: ${patient.中文姓氏}${patient.中文名字} ===`);
+  
   // Step 1: Set column widths
   template.columnWidths.forEach((width, idx) => {
     worksheet.getColumn(idx + 1).width = width;
   });
+  console.log(`設定了 ${template.columnWidths.length} 個欄寬`);
+
   // Step 2: Set row heights
   template.rowHeights.forEach((height, idx) => {
     worksheet.getRow(idx + 1).height = height;
   });
+  console.log(`設定了 ${template.rowHeights.length} 個列高`);
+
   // Step 3: Apply cell data (value, font, alignment, border, fill)
   let appliedCells = 0;
   Object.entries(template.cellData).forEach(([address, cellData]) => {
@@ -329,6 +345,8 @@ const applyPersonalHygieneTemplateFormat = (
       console.warn(`應用儲存格 ${address} 樣式失敗:`, error);
     }
   });
+  console.log(`成功應用了 ${appliedCells} 個儲存格的樣式`);
+
   // Step 4: Merge cells
   let mergedCount = 0;
   template.mergedCells.forEach(merge => {
@@ -339,7 +357,10 @@ const applyPersonalHygieneTemplateFormat = (
       console.warn(`合併儲存格失敗: ${merge}`, e);
     }
   });
+  console.log(`成功合併了 ${mergedCount} 個儲存格範圍`);
+
   // Step 5: Apply images
+  console.log('應用圖片...');
   if (Array.isArray(template.images)) {
     template.images.forEach(img => {
       try {
@@ -348,6 +369,7 @@ const applyPersonalHygieneTemplateFormat = (
           extension: img.extension as 'png' | 'jpeg' | 'gif'
         });
         worksheet.addImage(imageId, img.range);
+        console.log(`應用圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${img.extension}`);
       } catch (error) {
         console.error(`應用圖片失敗 (範圍=${img.range}):`, error);
       }
@@ -355,6 +377,8 @@ const applyPersonalHygieneTemplateFormat = (
   }
 
   // Step 6: Fill patient data according to requirements
+  console.log('填充院友資料...');
+  
   // 解析月份資料
   const firstMonthMatch = months.firstMonth.match(/(\d{4})年(\d{2})月/);
   const secondMonthMatch = months.secondMonth.match(/(\d{4})年(\d{2})月/);
@@ -362,30 +386,45 @@ const applyPersonalHygieneTemplateFormat = (
   if (firstMonthMatch) {
     // A2: 第一個年份 (YYYY年)
     worksheet.getCell('A2').value = `${firstMonthMatch[1]}年`;
+    console.log(`填入 A2: 第一個年份 = ${firstMonthMatch[1]}年`);
+    
     // A3: 第一個月份 (XX月)
     worksheet.getCell('A3').value = `${firstMonthMatch[2]}月`;
+    console.log(`填入 A3: 第一個月份 = ${firstMonthMatch[2]}月`);
   }
   
   if (secondMonthMatch) {
     // T2: 第二個年份 (YYYY年)
     worksheet.getCell('T2').value = `${secondMonthMatch[1]}年`;
+    console.log(`填入 T2: 第二個年份 = ${secondMonthMatch[1]}年`);
+    
     // T3: 第二個月份 (XX月)
     worksheet.getCell('T3').value = `${secondMonthMatch[2]}月`;
+    console.log(`填入 T3: 第二個月份 = ${secondMonthMatch[2]}月`);
   }
   
   // D4: 院友中文姓名
   worksheet.getCell('D4').value = `${patient.中文姓氏}${patient.中文名字}`;
+  console.log(`填入 D4: 院友中文姓名 = ${patient.中文姓氏}${patient.中文名字}`);
+  
   // I4: 年齡
   if (patient.出生日期) {
     const age = calculateAge(patient.出生日期);
     worksheet.getCell('I4').value = `${age}歲`;
+    console.log(`填入 I4: 年齡 = ${age}歲`);
   }
   
   // N4: 性別
   worksheet.getCell('N4').value = patient.性別;
+  console.log(`填入 N4: 性別 = ${patient.性別}`);
+  
   // R4: 床號
   worksheet.getCell('R4').value = patient.床號;
+  console.log(`填入 R4: 床號 = ${patient.床號}`);
+
   // Step 7: Apply print settings and page breaks
+  console.log('應用列印設定和分頁符...');
+  
   try {
     // 完全清除所有現有分頁符
     delete (worksheet as any).rowBreaks;
@@ -427,10 +466,13 @@ const applyPersonalHygieneTemplateFormat = (
     (worksheet as any).model.colBreaks = [19];
     (worksheet as any).model.rowBreaks = [];
     
+    console.log('✅ 個人衛生記錄分頁符設定完成：在S與T欄之間分頁');
+    
   } catch (error) {
     console.error('❌ 設定分頁符失敗:', error);
   }
   
+  console.log(`=== 個人衛生記錄範本格式應用完成: ${patient.中文姓氏}${patient.中文名字} ===`);
 };
 
 // 創建個人衛生記錄工作簿
@@ -440,6 +482,8 @@ const createPersonalHygieneWorkbook = async (
   const workbook = new ExcelJS.Workbook();
 
   for (const config of sheetsConfig) {
+    console.log(`創建個人衛生記錄工作表: ${config.name}`);
+    
     // 確保工作表名稱符合 Excel 限制
     let sheetName = config.name;
     if (sheetName.length > 31) {
@@ -461,6 +505,7 @@ const saveExcelFile = async (
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, filename);
+  console.log(`個人衛生記錄 Excel 檔案 ${filename} 保存成功`);
 };
 
 // 匯出個人衛生記錄到 Excel
@@ -510,6 +555,8 @@ export const exportPersonalHygieneToExcel = async (
     // 創建工作簿並匯出
     const workbook = await createPersonalHygieneWorkbook(sheetsConfig);
     await saveExcelFile(workbook, finalFilename);
+    
+    console.log(`個人衛生記錄匯出完成: ${finalFilename}`);
     
   } catch (error) {
     console.error('匯出個人衛生記錄失敗:', error);

@@ -49,6 +49,8 @@ interface AnnualHealthCheckupExportData {
 }
 
 const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<ExtractedTemplate> => {
+  console.log('提取工作表格式:', worksheet.name);
+
   const extractedTemplate: ExtractedTemplate = {
     columnWidths: [],
     rowHeights: [],
@@ -62,6 +64,8 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
 
   const actualMaxCol = worksheet.columnCount || 20;
   const actualMaxRow = worksheet.rowCount || 50;
+
+  console.log(`提取範圍: ${actualMaxCol} 欄 x ${actualMaxRow} 行`);
 
   for (let col = 1; col <= actualMaxCol; col++) {
     let width = worksheet.getColumn(col).width;
@@ -177,13 +181,19 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
       }
     }
   }
+  console.log('提取了', extractedCellCount, '個儲存格的格式');
+
   return extractedTemplate;
 };
 
 export const extractAnnualHealthCheckupTemplateFormat = async (templateFile: File): Promise<AnnualHealthCheckupTemplateFormat> => {
+  console.log('開始提取年度體檢報告書範本格式...');
+
   const workbook = new ExcelJS.Workbook();
   const arrayBuffer = await templateFile.arrayBuffer();
   await workbook.xlsx.load(arrayBuffer);
+
+  console.log('工作簿包含', workbook.worksheets.length, '個工作表');
 
   if (workbook.worksheets.length < 5) {
     throw new Error('範本格式錯誤：需要至少5個工作表（P1-P5），但只找到 ' + workbook.worksheets.length + ' 個');
@@ -195,11 +205,20 @@ export const extractAnnualHealthCheckupTemplateFormat = async (templateFile: Fil
   const p4Sheet = workbook.worksheets[3];
   const p5Sheet = workbook.worksheets[4];
 
+  console.log('工作表名稱:');
+  console.log('  1.', p1Sheet.name, '(P1)');
+  console.log('  2.', p2Sheet.name, '(P2)');
+  console.log('  3.', p3Sheet.name, '(P3)');
+  console.log('  4.', p4Sheet.name, '(P4)');
+  console.log('  5.', p5Sheet.name, '(P5)');
+
   const p1Format = await extractSheetFormat(p1Sheet);
   const p2Format = await extractSheetFormat(p2Sheet);
   const p3Format = await extractSheetFormat(p3Sheet);
   const p4Format = await extractSheetFormat(p4Sheet);
   const p5Format = await extractSheetFormat(p5Sheet);
+
+  console.log('年度體檢報告書範本格式提取完成！');
 
   return {
     p1: p1Format,
@@ -303,6 +322,8 @@ const applyP1Template = (
   checkup: any,
   patient: any
 ): void => {
+  console.log('應用 P1 工作表範本...');
+
   applyTemplateFormat(worksheet, template);
 
   const chineseName = `${patient.中文姓氏 || ''}${patient.中文名字 || ''}`;
@@ -347,6 +368,7 @@ const applyP1Template = (
 
   worksheet.getCell('B35').value = checkup.mental_illness_record || '';
 
+  console.log('P1 工作表範本應用完成');
 };
 
 const applyP2Template = (
@@ -354,6 +376,8 @@ const applyP2Template = (
   template: ExtractedTemplate,
   checkup: any
 ): void => {
+  console.log('應用 P2 工作表範本...');
+
   applyTemplateFormat(worksheet, template);
 
   const bloodPressure = (checkup.blood_pressure_systolic && checkup.blood_pressure_diastolic)
@@ -376,6 +400,7 @@ const applyP2Template = (
   worksheet.getCell('C15').value = checkup.oral_dental_notes || '';
   worksheet.getCell('C16').value = checkup.physical_exam_others || '';
 
+  console.log('P2 工作表範本應用完成');
 };
 
 const applyStrikethroughToText = (
@@ -409,6 +434,8 @@ const applyP3Template = (
   template: ExtractedTemplate,
   checkup: any
 ): void => {
+  console.log('應用 P3 工作表範本...');
+
   applyTemplateFormat(worksheet, template);
 
   const visionOptions = ['正常', '不能閱讀報紙字體', '不能觀看電視', '只能見光影'];
@@ -512,6 +539,7 @@ const applyP3Template = (
     }
   });
 
+  console.log('P3 工作表範本應用完成');
 };
 
 const applyP4Template = (
@@ -519,6 +547,8 @@ const applyP4Template = (
   template: ExtractedTemplate,
   checkup: any
 ): void => {
+  console.log('應用 P4 工作表範本...');
+
   applyTemplateFormat(worksheet, template);
 
   if (checkup.recommendation === '低度照顧安老院') {
@@ -540,14 +570,18 @@ const applyP4Template = (
     right: { style: 'thin' }
   };
 
+  console.log('P4 工作表範本應用完成');
 };
 
 const applyP5Template = (
   worksheet: ExcelJS.Worksheet,
   template: ExtractedTemplate
 ): void => {
+  console.log('應用 P5 工作表範本（深層複製）...');
+
   applyTemplateFormat(worksheet, template);
 
+  console.log('P5 工作表範本應用完成');
 };
 
 export const exportAnnualHealthCheckupsToExcel = async (
@@ -557,6 +591,10 @@ export const exportAnnualHealthCheckupsToExcel = async (
   includePersonalMedicationList: boolean = true
 ): Promise<void> => {
   try {
+    console.log('開始匯出年度體檢報告書...');
+    console.log('匯出院友數量:', exportData.length);
+    console.log('是否包含個人藥物記錄:', includePersonalMedicationList);
+
     if (!annualHealthCheckupTemplate.extracted_format) {
       throw new Error('年度體檢範本格式無效');
     }
@@ -584,12 +622,15 @@ export const exportAnnualHealthCheckupsToExcel = async (
       const { checkup, patient, prescriptions } = data;
       const patientName = `${patient.中文姓氏 || ''}${patient.中文名字 || ''}`;
 
+      console.log(`\n處理院友: ${patient.床號} ${patientName}`);
+
       const workbook = new ExcelJS.Workbook();
 
       const p1Sheet = workbook.addWorksheet('P1');
       applyP1Template(p1Sheet, templateFormat.p1, checkup, patient);
 
       if (includePersonalMedicationList && personalMedFormat && prescriptions && prescriptions.length > 0) {
+        console.log('  建立個人藥物記錄工作表');
         const medListSheet = workbook.addWorksheet('個人藥物記錄');
         await applyPersonalMedicationListTemplate(medListSheet, personalMedFormat, patient, prescriptions, 'medication_name');
       }
@@ -615,7 +656,10 @@ export const exportAnnualHealthCheckupsToExcel = async (
 
       saveAs(blob, filename);
 
+      console.log(`  匯出完成: ${filename}`);
     }
+
+    console.log(`\n全部匯出完成，共 ${exportData.length} 個檔案`);
 
   } catch (error: any) {
     console.error('匯出年度體檢報告書失敗:', error);

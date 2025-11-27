@@ -21,6 +21,8 @@ interface ExtractedTemplate {
 type SortOption = 'medication_name' | 'prescription_date' | 'start_date' | 'medication_source';
 
 const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<ExtractedTemplate> => {
+  console.log('開始提取個人藥物記錄範本格式...');
+
   const extractedTemplate: ExtractedTemplate = {
     columnWidths: [],
     rowHeights: [],
@@ -68,6 +70,7 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
 
       // Debug: Log I column cells
       if (col === 9 && (row === 7 || row === 8)) {
+        console.log(`🔍 提取範本 ${address}:`, {
           value: cell.value,
           hasFont: !!cell.font,
           hasBorder: !!cell.border,
@@ -112,8 +115,11 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
     }
   }
 
+  console.log('提取了', extractedCellCount, '個儲存格的格式');
+
   // Debug: 檢查 I7 和 I8 是否被提取
   if (extractedTemplate.cellData['I7']) {
+    console.log('✅ I7 已提取:', {
       value: extractedTemplate.cellData['I7'].value,
       font: extractedTemplate.cellData['I7'].font,
       border: extractedTemplate.cellData['I7'].border,
@@ -124,6 +130,7 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
   }
 
   if (extractedTemplate.cellData['I8']) {
+    console.log('✅ I8 已提取:', {
       value: extractedTemplate.cellData['I8'].value,
       font: extractedTemplate.cellData['I8'].font,
       border: extractedTemplate.cellData['I8'].border,
@@ -137,16 +144,24 @@ const extractSheetFormat = async (worksheet: ExcelJS.Worksheet): Promise<Extract
 };
 
 export const extractPersonalMedicationListTemplateFormat = async (templateFile: File): Promise<ExtractedTemplate> => {
+  console.log('開始提取個人藥物記錄範本格式...');
+
   const workbook = new ExcelJS.Workbook();
   const arrayBuffer = await templateFile.arrayBuffer();
   await workbook.xlsx.load(arrayBuffer);
+
+  console.log('工作簿包含', workbook.worksheets.length, '個工作表');
 
   if (workbook.worksheets.length < 1) {
     throw new Error('範本格式錯誤：找不到工作表');
   }
 
   const worksheet = workbook.worksheets[0];
+  console.log('工作表名稱:', worksheet.name);
+
   const format = await extractSheetFormat(worksheet);
+  console.log('個人藥物記錄範本格式提取完成！');
+
   return format;
 };
 
@@ -156,6 +171,8 @@ const deepCopyRange = (
   sourceRow: number,
   targetRow: number
 ) => {
+  console.log('深層複製第', sourceRow, '列到第', targetRow, '列');
+
   if (sourceRow - 1 < template.rowHeights.length) {
     worksheet.getRow(targetRow).height = template.rowHeights[sourceRow - 1];
   }
@@ -310,6 +327,8 @@ export const applyPersonalMedicationListTemplate = async (
   prescriptions: any[],
   sortBy: SortOption = 'medication_name'
 ): Promise<void> => {
+  console.log('開始應用個人藥物記錄範本:', patient.中文姓氏 + patient.中文名字);
+
   template.columnWidths.forEach((width, idx) => {
     worksheet.getColumn(idx + 1).width = width;
   });
@@ -319,11 +338,14 @@ export const applyPersonalMedicationListTemplate = async (
   });
 
   // Debug: Check if I7 is in template.cellData
+  console.log('🔍 範本 cellData 包含的儲存格數量:', Object.keys(template.cellData).length);
   if (template.cellData['I7']) {
+    console.log('✅ template.cellData 包含 I7:', template.cellData['I7'].value);
   } else {
     console.warn('⚠️ template.cellData 不包含 I7！');
   }
   if (template.cellData['I8']) {
+    console.log('✅ template.cellData 包含 I8');
   } else {
     console.warn('⚠️ template.cellData 不包含 I8！');
   }
@@ -337,6 +359,7 @@ export const applyPersonalMedicationListTemplate = async (
 
     // Debug logging for A6 and I7
     if (address === 'A6' || address === 'I7') {
+      console.log(`📝 應用範本儲存格 ${address}:`, {
         value: cellData.value,
         hasFont: !!cellData.font,
         hasBorder: !!cellData.border,
@@ -391,6 +414,7 @@ export const applyPersonalMedicationListTemplate = async (
   worksheet.getCell('C5').value = reactions;
 
   // 記錄 A6 在填入日期前的狀態
+  console.log('🔍 填入日期前的 A6:', {
     value: worksheet.getCell('A6').value,
     isMerged: worksheet.getCell('A6').isMerged
   });
@@ -405,6 +429,7 @@ export const applyPersonalMedicationListTemplate = async (
   }
 
   // 記錄 A6 在填入日期後的狀態
+  console.log('🔍 填入日期後的 A6:', {
     value: worksheet.getCell('A6').value,
     isMerged: worksheet.getCell('A6').isMerged
   });
@@ -422,6 +447,7 @@ export const applyPersonalMedicationListTemplate = async (
 
   // 檢查 I7 的完整格式
   const i7Cell = worksheet.getCell('I7');
+  console.log('📊 I7 的完整格式:', {
     value: i7Cell.value,
     font: i7Cell.font,
     border: i7Cell.border,
@@ -437,6 +463,8 @@ export const applyPersonalMedicationListTemplate = async (
   worksheet.getCell('C5').font = { name: 'MingLiU' };
 
   const sortedPrescriptions = sortPrescriptions(prescriptions, sortBy);
+  console.log('處方排序完成，排序方式:', sortBy, '處方數量:', sortedPrescriptions.length);
+
   const itemsPerPage = 15;
   let currentPage = 1;
   let currentRow = 8;
@@ -510,6 +538,7 @@ export const applyPersonalMedicationListTemplate = async (
     } else if (index === 0) {
       // First prescription on first page: Row 8 already has template format applied
       // No need to deepCopyRange as template format is already in place
+      console.log('第一筆處方使用範本第 8 列的格式');
     }
 
     worksheet.getCell('A' + itemRow).value = (index + 1) + '.';
@@ -576,12 +605,14 @@ export const applyPersonalMedicationListTemplate = async (
 
     // Debug logging for first prescription
     if (index === 0) {
+      console.log('📊 第一筆處方的 I 欄資料:', {
         itemRow,
         last_modified_by: prescription.last_modified_by,
         created_by: prescription.created_by,
         finalValue: modifiedByValue,
         prescriptionId: prescription.id
       });
+      console.log('📊 I8 的完整格式:', {
         value: modifiedByCell.value,
         font: modifiedByCell.font,
         border: modifiedByCell.border,
@@ -598,6 +629,7 @@ export const applyPersonalMedicationListTemplate = async (
     };
   }
 
+  console.log('個人藥物記錄範本應用完成');
 };
 
 export const exportPersonalMedicationListToExcel = async (
@@ -607,6 +639,10 @@ export const exportPersonalMedicationListToExcel = async (
   filename?: string
 ): Promise<void> => {
   try {
+    console.log('開始匯出個人藥物記錄...');
+    console.log('選擇的院友數量:', selectedPatients.length);
+    console.log('排序方式:', sortBy);
+
     if (!template.extracted_format) {
       throw new Error('範本格式無效');
     }
@@ -616,16 +652,23 @@ export const exportPersonalMedicationListToExcel = async (
     const workbook = new ExcelJS.Workbook();
 
     for (const patient of selectedPatients) {
+      console.log(`處理院友: ${patient.床號} ${patient.中文姓氏}${patient.中文名字}`);
+
       const allPrescriptions = patient.prescriptions || [];
+      console.log(`  總處方數: ${allPrescriptions.length}`);
+
       const activePrescriptions = allPrescriptions.filter((p: any) =>
         p.status === 'active'
       );
+      console.log(`  在服處方數: ${activePrescriptions.length}`);
+
       if (activePrescriptions.length === 0) {
         console.warn(`  警告: 院友 ${patient.床號} ${patient.中文姓氏}${patient.中文名字} 沒有在服處方，跳過`);
         continue;
       }
 
       const sheetName = patient.床號 + patient.中文姓氏 + patient.中文名字;
+      console.log(`創建工作表: ${sheetName}`);
       const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
       await applyPersonalMedicationListTemplate(worksheet, templateFormat, patient, activePrescriptions, sortBy);
     }
@@ -643,6 +686,8 @@ export const exportPersonalMedicationListToExcel = async (
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, finalFilename);
 
+    console.log('個人藥物記錄匯出完成:', finalFilename);
+
   } catch (error: any) {
     console.error('匯出個人藥物記錄失敗:', error);
     throw error;
@@ -658,6 +703,10 @@ export const exportSelectedPersonalMedicationListToExcel = async (
   includeInactive: boolean = false
 ): Promise<void> => {
   try {
+    console.log('開始匯出選中的處方到個人藥物記錄...');
+    console.log('選中的處方數量:', selectedPrescriptionIds.length);
+    console.log('當前院友:', currentPatient.中文姓氏 + currentPatient.中文名字);
+
     if (!template.extracted_format) {
       throw new Error('範本格式無效');
     }
@@ -665,6 +714,8 @@ export const exportSelectedPersonalMedicationListToExcel = async (
     const templateFormat = template.extracted_format as ExtractedTemplate;
 
     const isExportAll = selectedPrescriptionIds.length === 0;
+    console.log('匯出模式:', isExportAll ? '全部匯出' : '選中匯出');
+
     let prescriptionsToExport: any[];
 
     if (isExportAll) {
@@ -674,11 +725,13 @@ export const exportSelectedPersonalMedicationListToExcel = async (
         if (p.status === 'inactive' && !includeInactive) return false;
         return true;
       });
+      console.log('全部匯出模式：共過濾出', prescriptionsToExport.length, '個處方');
     } else {
       prescriptionsToExport = allPrescriptions.filter(p =>
         selectedPrescriptionIds.includes(p.id) &&
         p.patient_id === currentPatient.院友id
       );
+      console.log('選中匯出模式：共過濾出', prescriptionsToExport.length, '個處方');
     }
 
     if (prescriptionsToExport.length === 0) {
@@ -687,6 +740,7 @@ export const exportSelectedPersonalMedicationListToExcel = async (
 
     const workbook = new ExcelJS.Workbook();
     const sheetName = currentPatient.床號 + currentPatient.中文姓氏 + currentPatient.中文名字;
+    console.log('創建工作表:', sheetName);
     const worksheet = workbook.addWorksheet(sheetName.substring(0, 31));
     await applyPersonalMedicationListTemplate(worksheet, templateFormat, currentPatient, prescriptionsToExport, sortBy);
 
@@ -695,6 +749,8 @@ export const exportSelectedPersonalMedicationListToExcel = async (
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, finalFilename);
+
+    console.log('選中處方的個人藥物記錄匯出完成:', finalFilename);
 
   } catch (error: any) {
     console.error('匯出選中處方失敗:', error);

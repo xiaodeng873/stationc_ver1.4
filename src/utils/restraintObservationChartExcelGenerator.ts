@@ -115,14 +115,17 @@ export const extractRestraintObservationTemplateFormat = async (templateFile: Fi
         extractedTemplate.mergedCells.push(merge);
       }
     });
+    console.log(`提取合併儲存格: ${extractedTemplate.mergedCells.length} 個`);
   }
   
   // Extract print settings
   if (worksheet.pageSetup) {
     extractedTemplate.printSettings = { ...worksheet.pageSetup };
+    console.log(`提取列印設定:`, JSON.stringify(extractedTemplate.printSettings));
   }
 
   // Extract page breaks
+  console.log('提取分頁符...');
   try {
     // 使用更直接的方法提取分頁符
     const pageBreaks = {
@@ -132,6 +135,8 @@ export const extractRestraintObservationTemplateFormat = async (templateFile: Fi
     
     // 從多個來源提取分頁符
     // 完全忽略範本中的所有分頁符，只設定我們需要的固定分頁符
+    console.log('完全忽略範本分頁符，只設定固定分頁符...');
+    
     // 徹底清除所有現有分頁符
     delete (worksheet as any).rowBreaks;
     delete (worksheet as any).colBreaks;
@@ -170,7 +175,16 @@ export const extractRestraintObservationTemplateFormat = async (templateFile: Fi
     (worksheet as any).model.rowBreaks = [54];
     (worksheet as any).model.colBreaks = [19];
     
+    console.log('✅ 分頁符強制設定完成：只在第54行後和第19欄後分頁');
+    
     // 最終驗證
+    console.log('=== 最終分頁符驗證 ===');
+    console.log('實際 rowBreaks:', (worksheet as any).rowBreaks);
+    console.log('實際 colBreaks:', (worksheet as any).colBreaks);
+    console.log('model rowBreaks:', (worksheet as any).model?.rowBreaks);
+    console.log('model colBreaks:', (worksheet as any).model?.colBreaks);
+    console.log('=== 分頁符驗證完成 ===');
+    
   } catch (error) {
     console.error('提取分頁符失敗:', error);
     // 即使提取失敗，也設定我們需要的分頁符
@@ -181,6 +195,7 @@ export const extractRestraintObservationTemplateFormat = async (templateFile: Fi
   }
 
   // Extract cell data (A1:AL108)
+  console.log('開始提取儲存格資料 (A1:AL108)...');
   extractedCellCount = 0;
   for (let row = 1; row <= 108; row++) {
     for (let col = 1; col <= 38; col++) {
@@ -237,11 +252,16 @@ export const extractRestraintObservationTemplateFormat = async (templateFile: Fi
 
 
   // 診斷：檢查提取的儲存格資料
+  console.log('=== 範本提取診斷 ===');
+  console.log(`總提取儲存格數: ${extractedCellCount}`);
+  
   // 檢查問題區域的儲存格
   const testCells = ['P51', 'Q50', 'R55', 'S60', 'AL108'];
   testCells.forEach(address => {
     if (extractedTemplate.cellData[address]) {
+      console.log(`✅ ${address} 存在於範本資料中:`, Object.keys(extractedTemplate.cellData[address]));
     } else {
+      console.log(`❌ ${address} 不存在於範本資料中`);
     }
   });
   
@@ -254,6 +274,8 @@ export const extractRestraintObservationTemplateFormat = async (templateFile: Fi
       columnStats[col] = (columnStats[col] || 0) + 1;
     }
   });
+  
+  console.log('各欄儲存格統計:', columnStats);
   
   // 檢查第 50 行後的儲存格數量
   const rowStats: { [range: string]: number } = {
@@ -273,6 +295,9 @@ export const extractRestraintObservationTemplateFormat = async (templateFile: Fi
     }
   });
   
+  console.log('行範圍儲存格統計:', rowStats);
+  console.log('=== 範本提取診斷完成 ===');
+  console.log(`提取完成: ${extractedCellCount} 個儲存格有格式資料`);
   return extractedTemplate;
 };
 
@@ -321,12 +346,19 @@ const applyRestraintObservationTemplateFormat = (
   startDate: string,
   endDate: string
 ): void => {
+  console.log('=== 開始應用約束物品觀察表範本格式 ===');
+  
   // 診斷：檢查範本資料完整性
+  console.log('=== 應用階段診斷 ===');
+  console.log(`範本 cellData 總數: ${Object.keys(template.cellData).length}`);
+  
   // 檢查問題區域的儲存格
   const testCells = ['P51', 'Q50', 'R55', 'S60', 'AL108'];
   testCells.forEach(address => {
     if (template.cellData[address]) {
+      console.log(`✅ 應用階段 ${address} 存在:`, Object.keys(template.cellData[address]));
     } else {
+      console.log(`❌ 應用階段 ${address} 不存在`);
     }
   });
   
@@ -344,19 +376,29 @@ const applyRestraintObservationTemplateFormat = (
       }
     }
   });
+  console.log(`問題區域 (P欄50行後) 儲存格數量: ${problemAreaCells}`);
+  console.log('=== 應用階段診斷完成 ===');
+  
   // Step 1: Set column widths (A to AL = 1 to 38)
+  console.log('第1步: 設置欄寬 (1-38)...');
   template.columnWidths.forEach((width, idx) => {
     if (idx < 38) {
       worksheet.getColumn(idx + 1).width = width;
     }
   });
+  console.log(`完成設置 ${Math.min(template.columnWidths.length, 38)} 個欄寬`);
+
   // Step 2: Set row heights (1 to 108)
+  console.log('第2步: 設置列高 (1-108)...');
   template.rowHeights.forEach((height, idx) => {
     if (idx < 108) {
       worksheet.getRow(idx + 1).height = height;
     }
   });
+  console.log(`完成設置 ${Math.min(template.rowHeights.length, 108)} 個列高`);
+
   // Step 2.5: Apply default thin borders to all cells in the range A1:AL108
+  console.log('第2.5步: 應用預設網格線 (A1:AL108)...');
   for (let row = 1; row <= 108; row++) {
     for (let col = 1; col <= 38; col++) { // AL is column 38
       const cell = worksheet.getCell(row, col);
@@ -368,7 +410,9 @@ const applyRestraintObservationTemplateFormat = (
       };
     }
   }
+  console.log('預設網格線應用完成 (4,104 個儲存格)');
   // Step 3: Apply cell data (value, font, alignment, border, fill) for A1:AL108
+  console.log('開始應用儲存格格式...');
   let appliedCellCount = 0;
   let problemAreaAppliedCount = 0;
   Object.entries(template.cellData).forEach(([address, cellData]) => {
@@ -419,9 +463,11 @@ const applyRestraintObservationTemplateFormat = (
       if (isProblemArea) {
         problemAreaAppliedCount++;
         if (problemAreaAppliedCount <= 5) {
+          console.log(`✅ 問題區域儲存格 ${address} 應用成功:`, Object.keys(cellData));
         }
       }
     if (appliedCellCount % 500 === 0) {
+      console.log(`應用儲存格格式進度: ${appliedCellCount}`);
     }
     } catch (error) {
       console.error(`❌ 應用儲存格 ${address} 失敗:`, error);
@@ -430,7 +476,11 @@ const applyRestraintObservationTemplateFormat = (
       }
     }
   });
+  console.log(`完成應用 ${appliedCellCount} 個儲存格的格式`);
+  console.log(`問題區域成功應用: ${problemAreaAppliedCount} 個儲存格`);
+
   // Step 4: Merge cells
+  console.log('開始合併儲存格...');
   let mergedCount = 0;
   template.mergedCells.forEach(merge => {
     try {
@@ -440,14 +490,24 @@ const applyRestraintObservationTemplateFormat = (
       console.warn(`合併儲存格失敗: ${merge}`, e);
     }
   });
+  console.log(`完成合併 ${mergedCount} 個儲存格範圍`);
+
   // Step 5: Fill patient and assessment data
+  console.log('第5步: 填充院友和評估資料...');
+  
   // A1: 標題與日期範圍
   const titleWithDateRange = `身體約束物品觀察記錄表 ( ${formatDateToChinese(startDate)} 至 ${formatDateToChinese(endDate)} )`;
   worksheet.getCell('A1').value = titleWithDateRange;
+  console.log(`設置標題: ${titleWithDateRange}`);
+  
   // J3: 院友姓名
   worksheet.getCell('J3').value = `${patient.中文姓氏}${patient.中文名字}`;
+  console.log(`設置院友姓名: ${patient.中文姓氏}${patient.中文名字}`);
+  
   // R3: 床號
   worksheet.getCell('R3').value = patient.床號;
+  console.log(`設置床號: ${patient.床號}`);
+  
   // 格式化 C25 的日期 - 使用開始日期的年份和月份
   const startDateObj = new Date(startDate);
   const c25DateFormatted = `${startDateObj.getFullYear()}年${(startDateObj.getMonth() + 1).toString().padStart(2, '0')}月          日`;
@@ -456,10 +516,13 @@ const applyRestraintObservationTemplateFormat = (
   worksheet.getCell('C25').value = c25DateFormatted;
 
   // Step 6: Fill restraint data based on assessment
+  console.log('第6步: 填充約束物品評估資料...');
+  
   if (assessment.suggested_restraints && typeof assessment.suggested_restraints === 'object') {
     // 約束衣 (rows 6-7)
     const restraintVest = assessment.suggested_restraints['約束衣'] || {};
     worksheet.getCell('B6').value = getCheckboxSymbol(restraintVest.checked || false);
+    console.log(`約束衣勾選狀態: ${restraintVest.checked ? '☑' : '☐'}`);
     if (restraintVest.checked) {
       // 使用情況
       worksheet.getCell('D6').value = getCheckboxSymbol(restraintVest.usageConditions === '坐在椅上');
@@ -476,6 +539,7 @@ const applyRestraintObservationTemplateFormat = (
       worksheet.getCell('Q6').value = getCheckboxSymbol(restraintVest.allDay || false);
       worksheet.getCell('Q7').value = getCheckboxSymbol(!!restraintVest.otherTime);
       worksheet.getCell('S7').value = restraintVest.otherTime || '';
+      console.log(`約束衣詳細設定已填充`);
     }
 
     // 約束腰帶 (rows 8-9)
@@ -582,9 +646,12 @@ const applyRestraintObservationTemplateFormat = (
     }
   }
     // 使用 ExcelJS 標準語法設定分頁符
+    console.log('使用標準 ExcelJS 語法設定分頁符...');
+    
     // 設定行分頁符：在第54行後分頁
     try {
       worksheet.getRow(54).addPageBreak();
+      console.log('✅ 行分頁符設定成功：第54行後分頁');
     } catch (error) {
       console.warn('❌ 行分頁符設定失敗:', error);
     }
@@ -592,12 +659,24 @@ const applyRestraintObservationTemplateFormat = (
     // 設定欄分頁符：在S欄後分頁
     try {
       worksheet.getColumn('S').addPageBreak();
+      console.log('✅ 欄分頁符設定成功：S欄後分頁');
     } catch (error) {
       console.warn('❌ 欄分頁符設定失敗:', error);
     }
     
     // 驗證分頁符設定
+    console.log('=== 分頁符設定驗證 ===');
+    console.log('worksheet.rowBreaks:', (worksheet as any).rowBreaks);
+    console.log('worksheet.colBreaks:', (worksheet as any).colBreaks);
+    console.log('model.rowBreaks:', (worksheet as any).model?.rowBreaks);
+    console.log('model.colBreaks:', (worksheet as any).model?.colBreaks);
+    
+    console.log('✅ 約束物品觀察表分頁符設定完成');
+  
+  console.log('=== 約束物品觀察表範本格式應用完成 ===');
+  
   // Step 11: 完全忽略範本分頁符，只設定指定位置的分頁符
+  console.log('第11步: 完全忽略範本分頁符，只設定指定位置的分頁符...');
   try {
     // 完全清除所有現有分頁符（包括從範本載入的）
     delete (worksheet as any).rowBreaks;
@@ -637,11 +716,20 @@ const applyRestraintObservationTemplateFormat = (
     (worksheet as any).model.rowBreaks = [54];
     (worksheet as any).model.colBreaks = [19];
     
+    console.log('✅ 分頁符強制設定完成：僅在第54行後和第19欄後分頁，使用適應頁面避免自動分頁');
+    
     // 驗證最終分頁符設定
+    console.log('=== 最終分頁符驗證 ===');
+    console.log('實際設定的 rowBreaks:', (worksheet as any).rowBreaks);
+    console.log('實際設定的 colBreaks:', (worksheet as any).colBreaks);
+    console.log('=== 分頁符驗證完成 ===');
+    
+    console.log('✅ 約束物品觀察表分頁符設定完成，已避免自動分頁');
   } catch (error) {
     console.error('❌ 強制設定分頁符失敗:', error);
   }
   
+  console.log('=== 約束物品觀察表範本格式應用完成 ===');
 };
 
 // 創建約束物品觀察表工作簿
@@ -675,6 +763,7 @@ const saveExcelFile = async (
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, filename);
+  console.log(`約束物品觀察表 Excel 檔案 ${filename} 保存成功`);
 };
 
 // 匯出約束物品觀察表到 Excel (帶日期範圍)
@@ -880,4 +969,5 @@ const exportRestraintObservationsToExcelSimple = async (
   const finalFilename = filename || `約束物品觀察表_${startDate}_${endDate}.xlsx`;
   saveAs(blob, finalFilename);
   
+  console.log(`約束物品觀察表 Excel 檔案 ${finalFilename} 匯出成功`);
 };

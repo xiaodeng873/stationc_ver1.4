@@ -90,6 +90,8 @@ const Dashboard: React.FC = () => {
 
   // 使用 useMemo 來確保任務去重邏輯只執行一次，避免重複處理
   const uniquePatientHealthTasks = useMemo(() => {
+    console.log('Dashboard: 開始處理任務去重，原始任務數量:', patientHealthTasks.length);
+
     // 創建一個 Map 來追蹤已見過的任務
     const seen = new Map<string, boolean>();
     const uniqueTasks: typeof patientHealthTasks = [];
@@ -100,9 +102,11 @@ const Dashboard: React.FC = () => {
         seen.set(task.id, true);
         uniqueTasks.push(task);
       } else {
+        console.log('Dashboard: 發現重複任務，已跳過:', task.id, task.health_record_type, task.patient_id);
       }
     });
 
+    console.log('Dashboard: 任務去重完成，唯一任務數量:', uniqueTasks.length);
     return uniqueTasks;
   }, [patientHealthTasks]);
 
@@ -122,7 +126,12 @@ const Dashboard: React.FC = () => {
   };
 
   const handleTaskClick = (task: HealthTask) => {
+    console.log('=== Dashboard handleTaskClick 開始 ===');
+    console.log('點擊的任務:', task);
+    
     const patient = patients.find(p => p.院友id === task.patient_id);
+    console.log('找到的院友:', patient);
+    
     const initialDataForModal = {
       patient: patient ? {
         院友id: patient.院友id,
@@ -136,8 +145,12 @@ const Dashboard: React.FC = () => {
       }
     };
     
+    console.log('準備傳遞給 HealthRecordModal 的數據:', initialDataForModal);
+    
     setSelectedHealthRecordInitialData(initialDataForModal);
     setShowHealthRecordModal(true);
+    console.log('設置 showHealthRecordModal 為 true');
+    console.log('=== Dashboard handleTaskClick 結束 ===');
   };
 
   // 計算欠缺任務的院友
@@ -173,6 +186,20 @@ const Dashboard: React.FC = () => {
   // 計算有逾期執核派藥流程的院友
   const patientsWithOverdueWorkflow = useMemo(() => {
     const result = getPatientsWithOverdueWorkflow(prescriptionWorkflowRecords, patients);
+    console.log('🔍 主面板逾期檢查:', {
+      總工作流程記錄數: prescriptionWorkflowRecords.length,
+      總院友數: patients.length,
+      有逾期的院友數: result.length,
+      逾期院友列表: result.map(r => ({
+        院友ID: r.patient?.院友id,
+        院友: r.patient ? `${r.patient.床號} - ${r.patient.中文姓氏}${r.patient.中文名字}` : '未知',
+        逾期數量: r.overdueCount,
+        逾期日期: r.overdueDates,
+        最早逾期日期: r.earliestOverdueDate
+      })),
+      完整結果對象: result
+    });
+    console.log('📊 是否顯示逾期提醒區塊:', result.length > 0);
     return result;
   }, [prescriptionWorkflowRecords, patients]);
 
@@ -471,27 +498,42 @@ const Dashboard: React.FC = () => {
   };
 
   const handleTaskCompleted = async (taskId: string, recordDateTime: Date) => {
+    console.log('=== 任務完成處理開始 ===');
+    console.log('記錄時間:', recordDateTime);
+    
     try {
       const task = patientHealthTasks.find(t => t.id === taskId);
       if (!task) {
         throw new Error('未找到對應任務');
       }
 
+      console.log('找到的任務:', task);
+      
       let nextDueAt: string | null = null;
       
       if (task.is_recurring) {
+        console.log('這是循環任務，計算下次到期時間');
         const calculatedNextDueAt = calculateNextDueDate(task, recordDateTime);
         nextDueAt = calculatedNextDueAt.toISOString();
+        console.log('計算出的下次到期時間:', nextDueAt);
       } else {
+        console.log('這是非循環任務，檢查是否已完成');
         if (task.end_date && task.end_time) {
           const endDateTime = new Date(`${task.end_date}T${task.end_time}:00`);
+          console.log('結束時間:', endDateTime);
+          console.log('記錄時間:', recordDateTime);
+          
           if (recordDateTime >= endDateTime) {
+            console.log('非循環任務已完成，設為 null');
             nextDueAt = null;
           } else {
+            console.log('非循環任務尚未完成，計算下次到期時間');
             const calculatedNextDueAt = calculateNextDueDate(task, recordDateTime);
             nextDueAt = calculatedNextDueAt.toISOString();
+            console.log('計算出的下次到期時間:', nextDueAt);
           }
         } else {
+          console.log('非循環任務無結束時間，標記為完成');
           nextDueAt = null;
         }
       }
@@ -502,10 +544,16 @@ const Dashboard: React.FC = () => {
         next_due_at: nextDueAt
       };
       
+      console.log('最終任務資料:', updatedTask);
+      
       // 更新資料庫
       await updatePatientHealthTask(updatedTask);
+      console.log('資料庫更新成功');
+      
       // 重新載入資料以更新 UI
       await refreshData();
+      console.log('資料重新載入完成');
+      
     } catch (error) {
       console.error('任務完成處理失敗:', error);
       alert(`任務完成處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
@@ -513,6 +561,7 @@ const Dashboard: React.FC = () => {
       // 關閉模態框
       setShowHealthRecordModal(false);
       setSelectedHealthRecordInitialData({});
+      console.log('關閉 HealthRecordModal');
     }
   };
 
@@ -1571,6 +1620,7 @@ const Dashboard: React.FC = () => {
         <HealthRecordModal
           initialData={selectedHealthRecordInitialData}
           onClose={() => {
+            console.log('關閉 HealthRecordModal');
             setShowHealthRecordModal(false);
             setSelectedHealthRecordInitialData({});
           }}

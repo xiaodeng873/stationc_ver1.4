@@ -203,10 +203,14 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const handleConfirm = async () => {
     if (selectedTimeSlots.size === 0) return;
 
+    console.log('=== 批量派藥確認開始 ===');
+
     // 找出所有選定時間點的記錄
     const selectedRecords = activeWorkflowRecords.filter(r =>
       selectedTimeSlots.has(r.scheduled_time)
     );
+
+    console.log('選定記錄總數:', selectedRecords.length);
 
     // 找出需要檢測的記錄
     const recordsNeedingInspection = selectedRecords.filter(record => {
@@ -214,17 +218,24 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       return prescription?.inspection_rules && prescription.inspection_rules.length > 0;
     });
 
+    console.log('需要檢測的記錄數:', recordsNeedingInspection.length);
+    console.log('無需檢測的記錄數:', selectedRecords.length - recordsNeedingInspection.length);
+
     // 保存要處理的所有記錄
     setRecordsToProcess(selectedRecords);
 
     if (recordsNeedingInspection.length > 0) {
       // 有檢測項要求，逐個打開檢測模態框
+      console.log('開始逐個檢測流程...');
       setCurrentInspectionRecords(recordsNeedingInspection);
       setCurrentInspectionIndex(0);
       setInspectionResults(new Map()); // 重置檢測結果
       setShowInspectionModal(true);
     } else {
       // 沒有檢測項要求，直接派藥
+      console.log('無需檢測，直接派藥');
+      console.log('  選定時間點:', Array.from(selectedTimeSlots));
+      console.log('  記錄詳情:', selectedRecords.map(r => ({
         id: r.id.substring(0, 8),
         prescription_id: r.prescription_id,
         scheduled_time: r.scheduled_time
@@ -232,6 +243,7 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       setIsProcessing(true);
       try {
         await onConfirm(Array.from(selectedTimeSlots), selectedRecords, new Map());
+        console.log('✅ 派藥成功，關閉對話框');
         onClose();
       } catch (error) {
         console.error('❌ 批量派藥失敗:', error);
@@ -246,7 +258,15 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
     const currentRecord = currentInspectionRecords[currentInspectionIndex];
     const prescription = prescriptions.find(p => p.id === currentRecord.prescription_id);
 
+    console.log('\n=== 📋 檢測結果處理 ===');
+    console.log(`  🔢 進度: 第 ${currentInspectionIndex + 1} / ${currentInspectionRecords.length} 筆`);
+    console.log(`  ⏰ 時間: ${currentRecord.scheduled_time}`);
+    console.log(`  💊 藥物: ${prescription?.medication_name || '未知'}`);
+    console.log(`  📝 記錄ID: ${currentRecord.id.substring(0, 8)}...`);
+    console.log(`  ✅ 可派藥: ${canDispense}`);
+    console.log(`  ❌ 失敗原因: ${failureReason || '無'}`);
     if (inspectionCheckResult?.usedVitalSignData) {
+      console.log(`  🩺 使用的監測數據:`, inspectionCheckResult.usedVitalSignData);
     }
 
     // 保存檢測結果
@@ -257,6 +277,9 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       inspectionCheckResult
     });
 
+    console.log('保存後的檢測結果 Map 大小:', newResults.size);
+    console.log('保存的內容:', Array.from(newResults.entries()));
+
     // 更新檢測結果狀態
     setInspectionResults(newResults);
 
@@ -266,11 +289,17 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
       const nextIndex = currentInspectionIndex + 1;
       const nextRecord = currentInspectionRecords[nextIndex];
       const nextPrescription = prescriptions.find(p => p.id === nextRecord.prescription_id);
+      console.log(`\n➡️ 繼續下一個檢測 (${nextIndex + 1} / ${currentInspectionRecords.length})`);
+      console.log(`  ⏰ 時間: ${nextRecord.scheduled_time}`);
+      console.log(`  💊 藥物: ${nextPrescription?.medication_name || '未知'}`);
       setCurrentInspectionIndex(nextIndex);
     } else {
       // 所有檢測完成，關閉檢測模態框並執行派藥
+      console.log('\n✅ ===  所有檢測完成，準備執行派藥 ===');
+      console.log(`  總檢測數: ${newResults.size} 筆`);
       newResults.forEach((result, recordId) => {
         const record = currentInspectionRecords.find(r => r.id === recordId);
+        console.log(`    - ${record?.scheduled_time}: ${result.canDispense ? '✅ 通過' : '❌ 不通過'}`);
       });
       setShowInspectionModal(false);
       // 使用 setTimeout 確保狀態更新和模態框關閉後再執行
@@ -283,7 +312,10 @@ const BatchDispenseConfirmModal: React.FC<BatchDispenseConfirmModalProps> = ({
   const proceedWithDispensing = async (finalResults: Map<string, any>) => {
     setIsProcessing(true);
     try {
+      console.log('=== 批量派藥：傳遞檢測結果 ===');
+      console.log('檢測結果數量:', finalResults.size);
       finalResults.forEach((result, recordId) => {
+        console.log(`  記錄 ${recordId}:`, result);
       });
       await onConfirm(Array.from(selectedTimeSlots), recordsToProcess, finalResults);
       onClose();

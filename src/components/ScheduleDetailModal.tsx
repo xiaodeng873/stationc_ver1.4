@@ -135,6 +135,7 @@ const ScheduleDetailModal: React.FC<ScheduleDetailModalProps> = ({
 
   const updatePatientReasons = async (細項id: number, selectedReasonIds: number[]) => {
     try {
+      console.log('嘗試更新看診原因，細項id:', 細項id, 'reasonIds:', selectedReasonIds);
       if (!selectedReasonIds || selectedReasonIds.length === 0) {
         console.warn('reasonIds 為空或無效:', selectedReasonIds);
       }
@@ -150,6 +151,8 @@ const ScheduleDetailModal: React.FC<ScheduleDetailModalProps> = ({
         備註: item.備註 || '',
         reasonIds: selectedReasonIds
       });
+      console.log('updateScheduleDetail 回傳:', result);
+      
       if (result.error) {
         console.error('更新失敗，錯誤:', result.error.message);
         throw new Error(result.error.message);
@@ -159,6 +162,7 @@ const ScheduleDetailModal: React.FC<ScheduleDetailModalProps> = ({
       if (onUpdate) {
         await onUpdate();
       }
+      console.log('看診原因更新完成');
     } catch (err) {
       console.error('更新看診原因失敗:', err);
       alert(`更新看診原因失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
@@ -174,6 +178,7 @@ const ScheduleDetailModal: React.FC<ScheduleDetailModalProps> = ({
       ? currentReasonIds.filter(id => id !== reasonId)
       : [...currentReasonIds, reasonId];
 
+    console.log('切換看診原因，細項id:', 細項id, '新 reasonIds:', newReasonIds);
     setPatientItems(prev => prev.map(prevItem => 
       prevItem.細項id === 細項id 
         ? { 
