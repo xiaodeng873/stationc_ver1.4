@@ -542,7 +542,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const refreshHealthData = async () => {
     try {
       const [healthRecordsData, patientHealthTasksData] = await Promise.all([
-        db.getHealthRecords(500),  // 只載入最近500條記錄，提升80%速度
+        db.getHealthRecords(),  // 載入全部記錄
         db.getHealthTasks()
       ]);
 
@@ -590,7 +590,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getBeds(),
         db.getSchedules(),
         db.getReasons(),
-        db.getHealthRecords(500),  // 只載入最近500條記錄
+        db.getHealthRecords(),  // 載入全部記錄
         db.getFollowUps(),
         db.getHealthTasks(),
         db.getMealGuidances(),

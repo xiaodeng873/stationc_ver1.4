@@ -1202,14 +1202,20 @@ function handleSupabaseError(error: any, operation: string): void {
   console.error(`Error ${operation}:`, error);
 }
 
-export const getHealthRecords = async (limit: number = 500): Promise<HealthRecord[]> => {
-  // 優化：只載入最近的記錄，預設500條，大幅提升載入速度
-  const { data, error } = await supabase
+export const getHealthRecords = async (limit?: number): Promise<HealthRecord[]> => {
+  // 預設載入全部記錄，可選擇性限制數量以提升速度
+  let query = supabase
     .from('健康記錄主表')
     .select('*')
     .order('記錄日期', { ascending: false })
-    .order('記錄時間', { ascending: false })
-    .limit(limit);
+    .order('記錄時間', { ascending: false });
+
+  // 只有明確指定 limit 時才限制數量
+  if (limit !== undefined) {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching health records:', error);
