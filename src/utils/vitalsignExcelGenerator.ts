@@ -102,13 +102,11 @@ export const extractVitalSignTemplateFormat = async (templateFile: File): Promis
         extractedTemplate.mergedCells.push(merge);
       }
     });
-    console.log(`提取表頭合併儲存格: ${extractedTemplate.mergedCells.join(', ') || '無'}`);
   }
 
   // 提取列印設定
   if (worksheet.pageSetup) {
     extractedTemplate.printSettings = { ...worksheet.pageSetup };
-    console.log(`提取列印設定:`, JSON.stringify(extractedTemplate.printSettings));
   }
 
   // 提取儲存格資料 (A1:P50，僅表頭)
@@ -165,7 +163,6 @@ export const extractVitalSignTemplateFormat = async (templateFile: File): Promis
   }
 
   // 提取圖片
-  console.log('提取圖片...');
   try {
     const images = (worksheet as any).getImages ? (worksheet as any).getImages() : [];
     if (!Array.isArray(images)) {
@@ -183,7 +180,6 @@ export const extractVitalSignTemplateFormat = async (templateFile: File): Promis
               extension: media.extension,
               range: img.range
             });
-            console.log(`提取圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${media.extension}`);
           } else {
             console.warn(`圖片 ID=${img.imageId} 無有效 media 或 buffer`);
           }
@@ -230,13 +226,10 @@ const applyVitalSignTemplateFormat = (
   records: VitalSignExportData[],
   pageNumber?: number
 ): void => {
-  console.log('=== 開始應用生命表徵範本格式 ===');
-
   // Step 1: 設置欄寬
   template.columnWidths.forEach((width, idx) => {
     if (idx < 16) {
       worksheet.getColumn(idx + 1).width = width;
-      console.log(`設置欄 ${idx + 1} 寬度: ${width}`);
     }
   });
 
@@ -244,7 +237,6 @@ const applyVitalSignTemplateFormat = (
   template.rowHeights.forEach((height, idx) => {
     if (idx < 5) {
       worksheet.getRow(idx + 1).height = height;
-      console.log(`設置表頭第 ${idx + 1} 行列高: ${height}`);
     }
   });
 
@@ -283,7 +275,6 @@ const applyVitalSignTemplateFormat = (
       if (cellData.numFmt) {
         cell.numFmt = cellData.numFmt;
       }
-      console.log(`應用表頭儲存格 ${address} 格式`);
     }
   });
 
@@ -294,7 +285,6 @@ const applyVitalSignTemplateFormat = (
       ...lm5Cell.border,
       right: { style: 'thin', color: { argb: 'FF000000' } }
     };
-    console.log(`設置 ${col}5 右邊框為黑色細邊框`);
   });
 
   // Step 5: 合併儲存格（表頭）
@@ -302,7 +292,6 @@ const applyVitalSignTemplateFormat = (
     template.mergedCells.forEach(merge => {
       try {
         worksheet.mergeCells(merge);
-        console.log(`應用表頭合併儲存格: ${merge}`);
       } catch (e) {
         console.warn(`合併儲存格失敗: ${merge}`, e);
       }
@@ -310,7 +299,6 @@ const applyVitalSignTemplateFormat = (
   }
 
   // Step 6: 應用圖片
-  console.log('第6步: 應用圖片...');
   if (!Array.isArray(template.images)) {
     console.warn('template.images 不是陣列，初始化為空陣列');
     template.images = [];
@@ -322,14 +310,12 @@ const applyVitalSignTemplateFormat = (
         extension: img.extension as 'png' | 'jpeg' | 'gif'
       });
       worksheet.addImage(imageId, img.range);
-      console.log(`應用圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${img.extension}`);
     } catch (error) {
       console.error(`應用圖片失敗 (範圍=${img.range}):`, error);
     }
   });
 
   // Step 7: 填充院友表頭資料
-  console.log('第7步: 填充院友表頭資料...');
   if (patient) {
     worksheet.getCell('B3').value = `${patient.中文姓氏}${patient.中文名字}` || '';
     worksheet.getCell('D3').value = patient.床號 || '';
@@ -341,28 +327,20 @@ const applyVitalSignTemplateFormat = (
     // 填充頁數到 M3
     if (pageNumber !== undefined) {
       worksheet.getCell('M3').value = String(pageNumber);
-      console.log(`填充頁數到 M3: ${pageNumber}`);
     }
-    console.log(`填充院友資料: 姓名=${patient.中文姓氏}${patient.中文名字}, 床號=${patient.床號}, 性別=${patient.性別}`);
   }
 
   // Step 8: 填充生命表徵記錄資料（從第6行開始）
-  console.log('第8步: 填充生命表徵記錄資料...');
   records.forEach((record, index) => {
     const rowIndex = 6 + index;
 
     // 設置資料行列高
     worksheet.getRow(rowIndex).height = 22;
-    console.log(`設置第${rowIndex}行列高: 22`);
-
     // 硬編碼合併儲存格
     try {
       worksheet.mergeCells(`C${rowIndex}:E${rowIndex}`);
-      console.log(`硬編碼合併 C${rowIndex}:E${rowIndex}`);
       worksheet.mergeCells(`F${rowIndex}:H${rowIndex}`);
-      console.log(`硬編碼合併 F${rowIndex}:H${rowIndex}`);
       worksheet.mergeCells(`L${rowIndex}:M${rowIndex}`);
-      console.log(`硬編碼合併 L${rowIndex}:M${rowIndex}`);
     } catch (error) {
       console.warn(`硬編碼合併儲存格失敗 (行=${rowIndex}):`, error);
     }
@@ -378,25 +356,20 @@ const applyVitalSignTemplateFormat = (
           bottom: { style: 'thin', color: { argb: 'FF000000' } },
           right: { style: 'thin', color: { argb: 'FF000000' } }
         };
-        console.log(`為第${rowIndex}行 ${col} 設置硬編碼黑色細邊框`);
       }
       if (col === 'A') {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        console.log(`為第${rowIndex}行 ${col} 設置日期時間置中對齊`);
       } else {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        console.log(`為第${rowIndex}行 ${col} 設置置中對齊`);
       }
     });
 
     // 填充資料，考慮硬編碼合併儲存格
     const getTargetCell = (col: string, row: number): string => {
       if (['F', 'G', 'H'].includes(col)) {
-        console.log(`欄 ${col}${row} 在 FGH 合併範圍內，寫入 F${row}`);
         return `F${row}`;
       }
       if (['L', 'M'].includes(col)) {
-        console.log(`欄 ${col}${row} 在 LM 合併範圍內，寫入 L${row}`);
         return `L${row}`;
       }
       return `${col}${row}`;
@@ -434,20 +407,15 @@ const applyVitalSignTemplateFormat = (
     // L: 備註 (LM 合併)
     worksheet.getCell(getTargetCell('L', rowIndex)).value = record.備註 || '';
 
-    console.log(`填充第${rowIndex}行資料完成`);
   });
 
   // Step 9: 設置動態列印範圍
-  console.log('第9步: 設置動態列印範圍...');
   const lastRow = 6 + records.length - 1;
   const printArea = `A1:M${lastRow}`;
   worksheet.pageSetup = {
     ...template.printSettings,
     printArea: printArea
   };
-  console.log(`設置列印範圍: ${printArea}`);
-
-  console.log('=== 生命表徵範本格式應用完成 ===');
 };
 
 // 創建生命表徵工作簿
@@ -458,7 +426,6 @@ const createVitalSignWorkbook = async (
 
   for (let i = 0; i < sheetsConfig.length; i++) {
     const config = sheetsConfig[i];
-    console.log(`創建生命表徵工作表: ${config.name}`);
     const worksheet = workbook.addWorksheet(config.name);
 
     applyVitalSignTemplateFormat(worksheet, config.template, config.patient, config.records, i + 1);
@@ -475,7 +442,6 @@ const saveExcelFile = async (
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, filename);
-  console.log(`生命表徵 Excel 檔案 ${filename} 保存成功`);
 };
 
 // 匯出生命表徵到 Excel
@@ -512,7 +478,6 @@ export const exportVitalSignsToExcel = async (
     }
 
     // 記錄範本格式詳細內容
-    console.log('範本格式詳解:', JSON.stringify({
       cellDataKeys: Object.keys(extractedFormat.cellData).slice(0, 10),
       columnWidths: extractedFormat.columnWidths,
       rowHeights: extractedFormat.rowHeights.slice(0, 10),
@@ -669,7 +634,6 @@ const exportVitalSignsToExcelSimple = async (
           ...cell.border,
           right: { style: 'thin', color: { argb: 'FF000000' } }
         };
-        console.log(`設置簡單匯出 ${cell.address} 右邊框為黑色細邊框`);
       }
     });
 
@@ -677,8 +641,6 @@ const exportVitalSignsToExcelSimple = async (
     worksheet.mergeCells('C5:E5');
     worksheet.mergeCells('F5:H5');
     worksheet.mergeCells('L5:M5');
-    console.log('簡單匯出設置表頭合併: C5:E5, F5:H5, L5:M5');
-
     // 資料行
     const sortedRecords = recordGroup.sort((a, b) =>
       new Date(`${a.記錄日期} ${a.記錄時間}`).getTime() -
@@ -689,14 +651,10 @@ const exportVitalSignsToExcelSimple = async (
       const rowIndex = 6 + index;
       const row = worksheet.getOrCreateRow(rowIndex);
       row.height = 22;
-      console.log(`設置簡單匯出第${rowIndex}行列高: 22`);
-
       // 硬編碼合併儲存格
       worksheet.mergeCells(`C${rowIndex}:E${rowIndex}`);
       worksheet.mergeCells(`F${rowIndex}:H${rowIndex}`);
       worksheet.mergeCells(`L${rowIndex}:M${rowIndex}`);
-      console.log(`簡單匯出硬編碼合併 C${rowIndex}:E${rowIndex}, F${rowIndex}:H${rowIndex}, L${rowIndex}:M${rowIndex}`);
-
       // 硬編碼邊框（A 到 M）並設置置中
       for (let col = 1; col <= 16; col++) {
         const cell = row.getCell(col);
@@ -710,10 +668,8 @@ const exportVitalSignsToExcelSimple = async (
         }
         if (col === 1) { // A 欄
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
-          console.log(`為第${rowIndex}行 A 欄設置日期時間置中對齊`);
         } else {
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
-          console.log(`為第${rowIndex}行 ${col} 設置置中對齊`);
         }
       }
 
@@ -762,7 +718,6 @@ const exportVitalSignsToExcelSimple = async (
     // 設置動態列印範圍
     const lastRow = 6 + sortedRecords.length - 1;
     worksheet.pageSetup.printArea = `A1:M${lastRow}`;
-    console.log(`簡單匯出設置列印範圍: A1:M${lastRow}`);
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -772,5 +727,4 @@ const exportVitalSignsToExcelSimple = async (
 
   const finalFilename = filename || `生命表徵觀察記錄表_${new Date().toISOString().slice(0, 10)}.xlsx`;
   saveAs(blob, finalFilename);
-  console.log(`生命表徵 Excel 檔案 ${finalFilename} 匯出成功`);
 };

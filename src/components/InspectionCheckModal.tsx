@@ -72,7 +72,6 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
 
   // 當 workflowRecord 變化時，重置檢測狀態
   useEffect(() => {
-    console.log('[InspectionCheckModal] workflowRecord 變化，重置檢測狀態');
     setCheckResult(null);
     setNewVitalSignData({});
     setUseNewData(false);
@@ -88,7 +87,6 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
       if (!prescription?.inspection_rules || prescription.inspection_rules.length === 0) {
         if (!hasNoRulesAndHandled) {
           setHasNoRulesAndHandled(true);
-          console.log('[InspectionCheckModal] 無檢測規則，批量模式:', isBatchMode);
           // 在批量模式下，仍然通過 onResult 回傳，但不自動關閉
           // 使用 setTimeout 確保狀態穩定後再回調
           setTimeout(() => {
@@ -110,8 +108,6 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             blockedRules: [],
             usedVitalSignData: {}
           };
-
-          console.log('[InspectionCheckModal] 院友入院中，批量模式:', isBatchMode);
 
           if (isBatchMode) {
             // 批量模式：通過 onResult 回傳，不直接寫入數據庫
@@ -159,7 +155,6 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
         }
 
         setLatestVitalSigns(latestData);
-        console.log('[InspectionCheckModal] 已載入最新監測記錄，等待用戶手動執行檢測');
       } catch (error) {
         console.error('載入最新監測記錄失敗:', error);
       } finally {
@@ -180,19 +175,14 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   // 執行檢測檢查
   const performInspectionCheck = async () => {
     if (isChecking || isSubmitting) {
-      console.log('[InspectionCheckModal] 正在處理中，忽略重複請求');
       return;
     }
 
     setIsChecking(true);
 
     try {
-      console.log('[InspectionCheckModal] 開始執行檢測檢查');
-
       // 如果用戶選擇使用新數據，先新增監測記錄
       if (useNewData && Object.keys(newVitalSignData).length > 0) {
-        console.log('[InspectionCheckModal] 準備保存新監測數據:', newVitalSignData);
-
         // 確定記錄類型：如果只有血糖值，使用血糖控制；否則使用生命表徵
         const hasBloodSugar = newVitalSignData.血糖值 !== undefined && newVitalSignData.血糖值 !== '';
         const hasVitalSigns = ['上壓', '下壓', '脈搏', '體溫', '血含氧量', '呼吸'].some(
@@ -212,7 +202,6 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             備註: '派藥前檢測',
             記錄人員: displayName || '系統'
           };
-          console.log('[InspectionCheckModal] 保存血糖控制記錄:', bloodSugarRecord);
           savePromises.push(addHealthRecord(bloodSugarRecord, true));
         }
 
@@ -232,23 +221,19 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             備註: '派藥前檢測',
             記錄人員: displayName || '系統'
           };
-          console.log('[InspectionCheckModal] 保存生命表徵記錄:', vitalSignsRecord);
           savePromises.push(addHealthRecord(vitalSignsRecord, true));
         }
 
         // 並行保存所有記錄，無需等待
         await Promise.all(savePromises);
-        console.log('[InspectionCheckModal] 健康記錄保存完成');
       }
 
       // 執行檢測規則檢查（不再傳遞 vitalSignDataToUse，因為數據已經保存到數據庫）
-      console.log('[InspectionCheckModal] 開始執行檢測規則檢查');
       const result = await checkPrescriptionInspectionRules(
         workflowRecord.prescription_id,
         workflowRecord.patient_id
       );
 
-      console.log('[InspectionCheckModal] 檢測結果:', result);
       setCheckResult(result);
     } catch (error) {
       console.error('[InspectionCheckModal] 檢測檢查失敗:', error);

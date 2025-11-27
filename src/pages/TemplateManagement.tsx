@@ -102,8 +102,6 @@ const TemplateManagement: React.FC = () => {
   };
 
   const extractTemplateFormatByType = async (file: File, type: TemplateType): Promise<any> => {
-    console.log(`開始提取 ${type} 範本格式...`);
-    
     try {
       switch (type) {
         case 'consent-form':
@@ -185,21 +183,17 @@ const TemplateManagement: React.FC = () => {
       setUploadProgress({ [uploadId]: 0 });
 
       // Step 1: Extract template format (skip for Word templates)
-      console.log('第1步: 提取範本格式...');
       setUploadProgress({ [uploadId]: 20 });
 
       let extractedFormat: any = {};
       if (selectedType === 'incident-report') {
         // Word 範本不需要提取格式，使用空物件
-        console.log('Word 範本，跳過格式提取');
         extractedFormat = {};
       } else {
         extractedFormat = await extractTemplateFormatByType(file, selectedType);
-        console.log('範本格式提取完成:', extractedFormat);
       }
 
       // Step 2: Upload file to storage
-      console.log('第2步: 上傳檔案到儲存空間...');
       setUploadProgress({ [uploadId]: 40 });
       
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -210,10 +204,7 @@ const TemplateManagement: React.FC = () => {
       if (!uploadedPath) {
         throw new Error('檔案上傳失敗');
       }
-      console.log('檔案上傳成功:', uploadedPath);
-
       // Step 3: Save metadata to database
-      console.log('第3步: 儲存範本元數據...');
       setUploadProgress({ [uploadId]: 80 });
       
       const templateName = `${templateTypes.find(t => t.value === selectedType)?.label || selectedType}_${timestamp}`;
@@ -232,8 +223,6 @@ const TemplateManagement: React.FC = () => {
       if (!savedMetadata) {
         throw new Error('儲存範本元數據失敗');
       }
-      console.log('範本元數據儲存成功:', savedMetadata);
-
       setUploadProgress({ [uploadId]: 100 });
       
       // Refresh templates list

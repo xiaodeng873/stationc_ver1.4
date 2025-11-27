@@ -170,8 +170,6 @@ const applyHealthRecordTemplateFormat = (
   records: HealthRecordExportData[],
   recordType: '生命表徵' | '血糖控制' | '體重控制'
 ): void => {
-  console.log(`=== 開始應用${recordType}範本格式 ===`);
-  
   // Step 1: Set column widths
   template.columnWidths.forEach((width, idx) => {
     if (idx < 16) {
@@ -231,7 +229,6 @@ const applyHealthRecordTemplateFormat = (
   });
 
   // Step 5: Fill patient header data
-  console.log('第5步: 填充院友表頭資料...');
   if (patient) {
     // 填充院友基本資訊到表頭 (假設表頭在前幾行)
     worksheet.getCell('B3').value = `${patient.中文姓氏}${patient.中文名字}` || '';
@@ -241,11 +238,9 @@ const applyHealthRecordTemplateFormat = (
       const age = calculateAge(patient.出生日期);
       worksheet.getCell('J3').value = `${age}歲`;
     }
-    console.log(`填充院友資料: 姓名=${patient.中文姓氏}${patient.中文名字}, 床號=${patient.床號}, 性別=${patient.性別}`);
   }
 
   // Step 6: Fill record data starting from row 6 (after header)
-  console.log('第6步: 填充監測記錄資料...');
   records.forEach((record, index) => {
     const rowIndex = 6 + index;
     
@@ -268,11 +263,9 @@ const applyHealthRecordTemplateFormat = (
       // 填充資料，考慮硬編碼合併儲存格
       const getTargetCell = (col: string, row: number): string => {
         if (['F', 'G', 'H'].includes(col)) {
-          console.log(`欄 ${col}${row} 在 FGH 合併範圍內，寫入 F${row}`);
           return `F${row}`;
         }
         if (['L', 'M'].includes(col)) {
-          console.log(`欄 ${col}${row} 在 LM 合併範圍內，寫入 L${row}`);
           return `L${row}`;
         }
         return `${col}${row}`;
@@ -318,9 +311,7 @@ const applyHealthRecordTemplateFormat = (
       // 硬編碼合併儲存格
       try {
         worksheet.mergeCells(`F${rowIndex}:H${rowIndex}`);
-        console.log(`硬編碼合併 F${rowIndex}:H${rowIndex}`);
         worksheet.mergeCells(`L${rowIndex}:M${rowIndex}`);
-        console.log(`硬編碼合併 L${rowIndex}:M${rowIndex}`);
       } catch (error) {
         console.warn(`硬編碼合併儲存格失敗 (行=${rowIndex}):`, error);
       }
@@ -336,7 +327,6 @@ const applyHealthRecordTemplateFormat = (
           right: { style: 'thin', color: { argb: 'FF000000' } }
         };
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        console.log(`為第${rowIndex}行 ${col} 設置硬編碼黑色細邊框和置中對齊`);
       });
 
       // A: 日期
@@ -384,11 +374,9 @@ const applyHealthRecordTemplateFormat = (
       worksheet.getCell(`E${rowIndex}`).value = record.記錄人員 || '';
     }
     
-    console.log(`填充第${rowIndex}行資料完成`);
   });
 
   // Step 7: Copy print settings from template
-  console.log('第7步: 複製列印設定...');
   if (template.printSettings) {
     try {
       worksheet.pageSetup = { ...template.printSettings };
@@ -397,7 +385,6 @@ const applyHealthRecordTemplateFormat = (
     }
   }
   
-  console.log(`=== ${recordType}範本格式應用完成 ===`);
 };
 
 // 計算年齡
@@ -418,13 +405,10 @@ const calculateAge = (birthDate: string): number => {
 const createHealthRecordWorkbook = async (
   sheetsConfig: SheetConfig[]
 ): Promise<ExcelJS.Workbook> => {
-  console.log(`🏗️ 開始創建工作簿，共 ${sheetsConfig.length} 個工作表`);
   const workbook = new ExcelJS.Workbook();
 
   for (let i = 0; i < sheetsConfig.length; i++) {
     const config = sheetsConfig[i];
-    console.log(`📊 創建工作表 ${i + 1}/${sheetsConfig.length}: ${config.name} (${config.records.length} 筆記錄)`);
-    
     try {
       // 創建工作表名稱，確保符合 Excel 限制
       let sheetName = config.name;
@@ -445,13 +429,11 @@ const createHealthRecordWorkbook = async (
         counter++;
       }
       
-      console.log(`📝 創建工作表: ${finalSheetName}`);
       const worksheet = workbook.addWorksheet(finalSheetName);
       
       // 深度複製範本以避免引用問題
       const templateCopy = JSON.parse(JSON.stringify(config.template));
       
-      console.log(`🎨 應用範本格式...`);
       applyHealthRecordTemplateFormat(
         worksheet, 
         templateCopy, 
@@ -459,8 +441,6 @@ const createHealthRecordWorkbook = async (
         config.records, 
         config.recordType
       );
-      
-      console.log(`✅ 工作表 ${finalSheetName} 創建完成`);
       
     } catch (error) {
       console.error(`❌ 創建工作表 ${config.name} 失敗:`, error);
@@ -472,7 +452,6 @@ const createHealthRecordWorkbook = async (
     }
   }
   
-  console.log(`🎉 工作簿創建完成，共 ${workbook.worksheets.length} 個工作表`);
   return workbook;
 };
 
@@ -484,7 +463,6 @@ const saveExcelFile = async (
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, filename);
-  console.log(`監測記錄 Excel 檔案 ${filename} 保存成功`);
 };
 
 // 匯出監測記錄到 Excel
@@ -495,7 +473,6 @@ export const exportHealthRecordsToExcel = async (
   filename?: string
 ): Promise<void> => {
   try {
-    console.log(`=== 開始匯出${recordType}記錄 ===`, {
       recordCount: records.length,
       patientCount: patients.length,
       recordType,
@@ -524,8 +501,6 @@ export const exportHealthRecordsToExcel = async (
     
     // Check if this is a large export that needs special handling
     const isLargeExport = records.length > 1000 || patients.length > 50;
-    console.log(`資料量評估: ${isLargeExport ? '大量' : '一般'} (${records.length} 筆記錄, ${patients.length} 位院友)`);
-    
     return new Promise((resolve, reject) => {
       let worker: Worker | null = null;
       
@@ -541,12 +516,10 @@ export const exportHealthRecordsToExcel = async (
       
       // Create worker
       try {
-        console.log('📤 創建 Web Worker...');
         worker = new Worker(
           new URL('../workers/healthRecordExportWorker.ts', import.meta.url),
           { type: 'module' }
         );
-        console.log('✅ Web Worker 創建成功');
       } catch (error) {
         clearTimeout(timeout);
         console.error('Failed to create worker:', error);
@@ -560,7 +533,6 @@ export const exportHealthRecordsToExcel = async (
           const { type, payload } = event.data;
           
           if (payload?.message) {
-            console.log(`📋 ${payload.message}`);
           }
 
           switch (type) {
@@ -571,30 +543,21 @@ export const exportHealthRecordsToExcel = async (
             case 'EXPORT_SUCCESS':
               try {
                 clearTimeout(timeout);
-                console.log('🎉 Worker 匯出成功，準備下載檔案...');
-                
                 if (!payload.buffer) {
                   throw new Error('Worker 返回的緩衝區為空');
                 }
-                
-                console.log(`📁 檔案緩衝區大小: ${(payload.buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
                 
                 // Create blob and download file
                 const blob = new Blob([payload.buffer], { 
                   type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
                 });
                 
-                console.log(`💾 最終檔案大小: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
-                
                 // Download immediately
                 saveAs(blob, payload.filename);
-                console.log(`🚀 ${recordType}記錄表下載開始: ${payload.filename}`);
-                
                 // Terminate worker after a short delay
                 setTimeout(() => {
                   if (worker) {
                     worker.terminate();
-                    console.log('🔚 Worker 已終止');
                   }
                 }, 1000);
                 
@@ -649,7 +612,6 @@ export const exportHealthRecordsToExcel = async (
       };
 
       // Send data to worker
-      console.log('📤 發送資料到 Worker...', {
         recordsCount: records.length,
         patientsCount: patients.length,
         hasTemplate: !!template?.extracted_format
@@ -834,15 +796,12 @@ const exportHealthRecordsToExcelSimple = async (
             ...cell.border,
             right: { style: 'thin', color: { argb: 'FF000000' } }
           };
-          console.log(`設置簡單匯出 ${cell.address} 右邊框為黑色細邊框`);
         }
       });
 
       // 合併表頭中的 FGH、LM
       worksheet.mergeCells('F5:H5');
       worksheet.mergeCells('L5:M5');
-      console.log('簡單匯出設置表頭合併: F5:H5, L5:M5');
-
       // 資料行
       const sortedRecords = recordGroup.sort((a, b) =>
         new Date(`${a.記錄日期} ${a.記錄時間}`).getTime() -
@@ -853,13 +812,9 @@ const exportHealthRecordsToExcelSimple = async (
         const rowIndex = 6 + index;
         const row = worksheet.getRow(rowIndex);
         row.height = 22;
-        console.log(`設置簡單匯出第${rowIndex}行列高: 22`);
-
         // 硬編碼合併儲存格
         worksheet.mergeCells(`F${rowIndex}:H${rowIndex}`);
         worksheet.mergeCells(`L${rowIndex}:M${rowIndex}`);
-        console.log(`簡單匯出硬編碼合併 F${rowIndex}:H${rowIndex}, L${rowIndex}:M${rowIndex}`);
-
         // 硬編碼邊框（A 到 M）並設置置中
         for (let col = 1; col <= 13; col++) {
           const cell = row.getCell(col);
@@ -870,7 +825,6 @@ const exportHealthRecordsToExcelSimple = async (
             right: { style: 'thin', color: { argb: 'FF000000' } }
           };
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
-          console.log(`為第${rowIndex}行 ${col} 設置置中對齊`);
         }
 
         let bloodPressure = '';
@@ -915,7 +869,6 @@ const exportHealthRecordsToExcelSimple = async (
       // 設置動態列印範圍
       const lastRow = 6 + sortedRecords.length - 1;
       worksheet.pageSetup.printArea = `A1:M${lastRow}`;
-      console.log(`簡單匯出設置列印範圍: A1:M${lastRow}`);
     } else if (recordType === '血糖控制') {
       headers = [...headers, '血糖值', '備註', '記錄人員'];
     } else if (recordType === '體重控制') {
@@ -1037,7 +990,6 @@ const exportHealthRecordsToExcelSimple = async (
   const finalFilename = filename || `${recordType}記錄表_${new Date().toISOString().split('T')[0]}.xlsx`;
   saveAs(blob, finalFilename);
   
-  console.log(`${recordType}記錄表 Excel 檔案 ${finalFilename} 匯出成功`);
 };
 
 // 簡單的體重記錄表匯出（當沒有範本時使用）
@@ -1143,8 +1095,6 @@ const exportBodyweightToExcelSimple = async (
     worksheet.mergeCells('C5:F5');
     worksheet.mergeCells('G5:H5');
     worksheet.mergeCells('I5:L5');
-    console.log('簡單匯出設置表頭合併: C5:F5, G5:H5, I5:L5');
-
     // 資料行
     const sortedRecords = recordGroup.sort((a, b) =>
       new Date(`${a.記錄日期} ${a.記錄時間}`).getTime() -
@@ -1155,14 +1105,10 @@ const exportBodyweightToExcelSimple = async (
       const rowIndex = 6 + index;
       const row = worksheet.getRow(rowIndex);
       row.height = 22;
-      console.log(`設置簡單匯出第${rowIndex}行列高: 22`);
-
       // 硬編碼合併儲存格
       worksheet.mergeCells(`C${rowIndex}:F${rowIndex}`);
       worksheet.mergeCells(`G${rowIndex}:H${rowIndex}`);
       worksheet.mergeCells(`I${rowIndex}:L${rowIndex}`);
-      console.log(`簡單匯出硬編碼合併 C${rowIndex}:F${rowIndex}, G${rowIndex}:H${rowIndex}, I${rowIndex}:L${rowIndex}`);
-
       // 硬編碼邊框（A 到 L）並設置置中
       for (let col = 1; col <= 12; col++) {
         const cell = row.getCell(col);
@@ -1173,7 +1119,6 @@ const exportBodyweightToExcelSimple = async (
           right: { style: 'thin', color: { argb: 'FF000000' } }
         };
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        console.log(`為第${rowIndex}行 ${col} 設置置中對齊`);
       }
 
       // 計算體重變化
@@ -1214,7 +1159,6 @@ const exportBodyweightToExcelSimple = async (
     // 設置動態列印範圍
     const lastRow = 6 + sortedRecords.length - 1;
     worksheet.pageSetup.printArea = `A1:L${lastRow}`;
-    console.log(`簡單匯出設置列印範圍: A1:L${lastRow}`);
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -1224,5 +1168,4 @@ const exportBodyweightToExcelSimple = async (
 
   const finalFilename = filename || `體重記錄表_${new Date().toISOString().slice(0, 10)}.xlsx`;
   saveAs(blob, finalFilename);
-  console.log(`體重記錄表 Excel 檔案 ${finalFilename} 匯出成功`);
 };

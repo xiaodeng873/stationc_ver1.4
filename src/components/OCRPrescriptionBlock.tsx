@@ -70,16 +70,11 @@ const OCRPrescriptionBlock: React.FC<OCRPrescriptionBlockProps> = ({ onOCRComple
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    console.log('File selected:', file);
-
     if (!file) {
-      console.log('No file selected');
       return;
     }
 
     const validation = validateImageFile(file);
-    console.log('File validation:', validation);
-
     if (!validation.valid) {
       onOCRError(validation.error || '無效的圖片檔案');
       e.target.value = '';
@@ -87,11 +82,8 @@ const OCRPrescriptionBlock: React.FC<OCRPrescriptionBlockProps> = ({ onOCRComple
     }
 
     setSelectedFile(file);
-    console.log('Reading file...');
-
     const reader = new FileReader();
     reader.onloadend = () => {
-      console.log('File read successfully');
       setImagePreview(reader.result as string);
     };
     reader.onerror = () => {
@@ -111,35 +103,24 @@ const OCRPrescriptionBlock: React.FC<OCRPrescriptionBlockProps> = ({ onOCRComple
   const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('File dropped');
-
     if (isProcessing) {
-      console.log('Processing in progress, ignoring drop');
       return;
     }
 
     const file = e.dataTransfer.files?.[0];
-    console.log('Dropped file:', file);
-
     if (!file) {
-      console.log('No file in drop');
       return;
     }
 
     const validation = validateImageFile(file);
-    console.log('Dropped file validation:', validation);
-
     if (!validation.valid) {
       onOCRError(validation.error || '無效的圖片檔案');
       return;
     }
 
     setSelectedFile(file);
-    console.log('Reading dropped file...');
-
     const reader = new FileReader();
     reader.onloadend = () => {
-      console.log('Dropped file read successfully');
       setImagePreview(reader.result as string);
     };
     reader.onerror = () => {
@@ -259,7 +240,6 @@ const OCRPrescriptionBlock: React.FC<OCRPrescriptionBlockProps> = ({ onOCRComple
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
                     onClick={(e) => {
-                      console.log('Label clicked');
                       if (imagePreview) {
                         e.preventDefault();
                       }

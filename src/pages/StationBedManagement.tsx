@@ -181,12 +181,6 @@ const StationBedManagement: React.FC = () => {
     });
     
     // 驗證計算正確性
-    console.log(`站點 ${stationId} 床位統計:`, {
-      totalBeds: stationBeds.length,
-      occupiedCount,
-      availableCount,
-      sum: occupiedCount + availableCount
-    });
     
     return {
       totalBeds: stationBeds.length,

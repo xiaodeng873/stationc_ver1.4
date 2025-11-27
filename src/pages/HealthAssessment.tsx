@@ -91,7 +91,6 @@ const HealthAssessment: React.FC = () => {
   // 添加調試函數來檢查數據載入
   const debugDataLoading = async () => {
     try {
-      console.log('開始調試數據載入...');
  CC
     } catch (error) {
       console.error('調試數據載入失敗:', error);
@@ -172,18 +171,6 @@ const HealthAssessment: React.FC = () => {
   const filteredRecords = healthRecords.filter(record => {
     const patient = patients.find(p => p.院友id === record.院友id);
     
-    // 調試：檢查所有有體重數值的記錄
-    if (record.體重 != null && record.體重 !== undefined) {
-      console.log('發現有體重數值的記錄:', {
-        記錄id: record.記錄id,
-        院友id: record.院友id,
-        記錄類型: `"${record.記錄類型}" (長度:${record.記錄類型.length})`,
-        記錄類型字節: Array.from(record.記錄類型).map(c => c.charCodeAt(0)),
-        體重: record.體重,
-        記錄日期: record.記錄日期,
-        patient: patient ? `${patient.中文姓氏}${patient.中文名字}` : 'Not found'
-      });
-    }
 
     // 確保院友存在
     if (!patient) {
@@ -193,7 +180,6 @@ const HealthAssessment: React.FC = () => {
     
     if (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '全部' && patient?.在住狀態 !== advancedFilters.在住狀態) {
       if (record.體重 != null) {
-        console.log(`有體重數值的記錄 ${record.記錄id} 被在住狀態篩選過濾:`, {
           patientStatus: patient?.在住狀態,
           filterStatus: advancedFilters.在住狀態
         });
@@ -208,7 +194,6 @@ const HealthAssessment: React.FC = () => {
     }
     if (advancedFilters.記錄類型 && advancedFilters.記錄類型 !== '' && record.記錄類型.trim() !== advancedFilters.記錄類型.trim()) {
       if (record.體重 != null) {
-        console.log(`有體重數值的記錄 ${record.記錄id} 被記錄類型篩選過濾:`, {
           recordType: record.記錄類型,
           recordTypeTrimmed: record.記錄類型.trim(),
           filterType: advancedFilters.記錄類型,
@@ -287,10 +272,7 @@ const HealthAssessment: React.FC = () => {
       hasAdvancedFilters: hasAdvancedFilters()
     }
   };
-  console.log('記錄類型統計:', recordTypeCounts);
-
   // 調試：檢查 advancedFilters 的詳細內容
-  console.log('詳細篩選條件分析:', {
     advancedFilters: JSON.stringify(advancedFilters, null, 2),
     hasAdvancedFilters: hasAdvancedFilters(),
     在住狀態篩選: `"${advancedFilters.在住狀態}" (長度:${advancedFilters.在住狀態.length})`,
@@ -399,7 +381,6 @@ const HealthAssessment: React.FC = () => {
   };
 
   const handleEdit = (record: any) => {
-    console.log('編輯監測記錄:', record);
     setSelectedRecord(record);
     setShowModal(true);
   };
@@ -450,13 +431,10 @@ const HealthAssessment: React.FC = () => {
     const failedIds: number[] = [];
 
     try {
-      console.log(`[批量刪除] 開始刪除 ${deletingArray.length} 筆記錄`);
-
       for (const recordId of deletingArray) {
         try {
           await deleteHealthRecord(recordId);
           successCount++;
-          console.log(`[批量刪除] 成功刪除記錄 ${recordId}, 進度: ${successCount}/${deletingArray.length}`);
         } catch (deleteError) {
           failCount++;
           failedIds.push(recordId);
@@ -477,7 +455,6 @@ const HealthAssessment: React.FC = () => {
         alert(`刪除完成：\n成功 ${successCount} 筆\n失敗 ${failCount} 筆\n\n失敗的記錄已保持選中狀態，您可以稍後重試。`);
       }
 
-      console.log(`[批量刪除] 完成，成功: ${successCount}, 失敗: ${failCount}`);
     } catch (error) {
       console.error('[批量刪除] 發生未預期的錯誤:', error);
       alert(`批量刪除過程中發生錯誤\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
@@ -545,7 +522,6 @@ const HealthAssessment: React.FC = () => {
       }
     }
 
-    console.log(`🚀 準備匯出 ${recordType}:`, {
       totalRecords: selectedRecords.length,
       uniquePatients,
       isLargeExport,
@@ -556,7 +532,6 @@ const HealthAssessment: React.FC = () => {
       setIsExporting(true);
       
       if (recordType === '生命表徵') {
-        console.log('📋 匯出生命表徵記錄...');
         const vitalSignData: VitalSignExportData[] = selectedRecords.map(record => {
           const patient = patients.find(p => p.院友id === record.院友id);
           return {
@@ -582,7 +557,6 @@ const HealthAssessment: React.FC = () => {
 
         await exportVitalSignsToExcel(vitalSignData, patients);
       } else if (recordType === '血糖控制') {
-        console.log('🩸 匯出血糖控制記錄...');
         const bloodSugarData: BloodSugarExportData[] = selectedRecords.map(record => {
           const patient = patients.find(p => p.院友id === record.院友id);
           return {
@@ -603,7 +577,6 @@ const HealthAssessment: React.FC = () => {
 
         await exportBloodSugarToExcel(bloodSugarData, patients);
       } else if (recordType === '體重控制') {
-        console.log('⚖️ 匯出體重控制記錄...');
         const { exportBodyweightToExcel } = await import('../utils/bodyweightExcelGenerator');
         const bodyweightData = selectedRecords.map(record => {
           const patient = patients.find(p => p.院友id === record.院友id);
@@ -630,8 +603,6 @@ const HealthAssessment: React.FC = () => {
         alert(`不支援的記錄類型: ${recordType}`);
         return;
       }
-      
-      console.log(`✅ ${recordType}匯出完成`);
       
     } catch (error) {
       console.error('❌ 匯出失敗:', error);

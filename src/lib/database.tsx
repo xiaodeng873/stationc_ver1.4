@@ -463,8 +463,6 @@ export const getPatients = async (): Promise<Patient[]> => {
 };
 
 export const createPatient = async (patient: Omit<Patient, '院友id'>): Promise<Patient> => {
-  console.log('[createPatient] 準備新增院友，資料內容:', JSON.stringify(patient, null, 2));
-
   if (!patient.床號) {
     console.warn('[createPatient] 床號欄位為空，設定為「待分配」');
     patient.床號 = '待分配';
@@ -494,7 +492,6 @@ export const createPatient = async (patient: Omit<Patient, '院友id'>): Promise
     throw error;
   }
 
-  console.log('[createPatient] 成功新增院友:', data.院友id);
   return data;
 };
 
@@ -921,7 +918,6 @@ export const getReasons = async (): Promise<ServiceReason[]> => {
 // Drug Database functions
 export async function getDrugDatabase() {
   try {
-    console.log('🔍 Fetching drug database from medication_drug_database...');
     const { data, error } = await supabase
       .from('medication_drug_database')
       .select('*')
@@ -932,7 +928,6 @@ export async function getDrugDatabase() {
       throw error;
     }
     
-    console.log('✅ Successfully fetched drug database:', {
       count: data?.length || 0,
       firstItem: data?.[0] || null
     });
@@ -946,7 +941,6 @@ export async function getDrugDatabase() {
 
 export async function createDrug(drug: any) {
   try {
-    console.log('🔍 Creating drug:', drug);
     const { data, error } = await supabase
       .from('medication_drug_database')
       .insert([drug])
@@ -958,7 +952,6 @@ export async function createDrug(drug: any) {
       throw error;
     }
     
-    console.log('✅ Successfully created drug:', data);
     return data;
   } catch (error) {
     console.error('❌ createDrug failed:', error);
@@ -968,7 +961,6 @@ export async function createDrug(drug: any) {
 
 export async function updateDrug(drug: any) {
   try {
-    console.log('🔍 Updating drug:', drug);
     const { data, error } = await supabase
       .from('medication_drug_database')
       .update(drug)
@@ -981,7 +973,6 @@ export async function updateDrug(drug: any) {
       throw error;
     }
     
-    console.log('✅ Successfully updated drug:', data);
     return data;
   } catch (error) {
     console.error('❌ updateDrug failed:', error);
@@ -991,7 +982,6 @@ export async function updateDrug(drug: any) {
 
 export async function deleteDrug(id: string) {
   try {
-    console.log('🔍 Deleting drug with id:', id);
     const { error } = await supabase
       .from('medication_drug_database')
       .delete()
@@ -1002,7 +992,6 @@ export async function deleteDrug(id: string) {
       throw error;
     }
     
-    console.log('✅ Successfully deleted drug');
   } catch (error) {
     console.error('❌ deleteDrug failed:', error);
     throw error;
@@ -1026,8 +1015,6 @@ async function getCurrentUserInfo(): Promise<string> {
 
     // Use email if available, otherwise use user ID
     const userIdentifier = user.email || user.id || '系統';
-    console.log('👤 Current user:', userIdentifier);
-
     return userIdentifier;
   } catch (error) {
     console.error('❌ Error getting current user:', error);
@@ -1038,7 +1025,6 @@ async function getCurrentUserInfo(): Promise<string> {
 // Prescription functions
 export async function getPrescriptions() {
   try {
-    console.log('🔍 Fetching prescriptions from new_medication_prescriptions...');
     const { data, error } = await supabase
       .from('new_medication_prescriptions')
       .select('*')
@@ -1049,7 +1035,6 @@ export async function getPrescriptions() {
       throw error;
     }
 
-    console.log('✅ Successfully fetched prescriptions:', {
       count: data?.length || 0
     });
 
@@ -1062,8 +1047,6 @@ export async function getPrescriptions() {
 
 export async function createPrescription(prescription: any) {
   try {
-    console.log('🔍 Creating prescription:', prescription);
-
     // Get current user info and add to prescription
     const currentUser = await getCurrentUserInfo();
     const prescriptionWithUser = {
@@ -1072,7 +1055,6 @@ export async function createPrescription(prescription: any) {
       last_modified_by: currentUser
     };
 
-    console.log('👤 Adding user tracking:', {
       created_by: currentUser,
       last_modified_by: currentUser
     });
@@ -1088,7 +1070,6 @@ export async function createPrescription(prescription: any) {
       throw error;
     }
 
-    console.log('✅ Successfully created prescription:', data);
     return data;
   } catch (error) {
     console.error('❌ createPrescription failed:', error);
@@ -1098,9 +1079,6 @@ export async function createPrescription(prescription: any) {
 
 export async function updatePrescription(prescription: any) {
   try {
-    console.log('🔍 Updating prescription - ALL FIELDS:', prescription);
-    console.log('🔍 Prescription keys:', Object.keys(prescription));
-
     // Check for Chinese field names
     const chineseFields = Object.keys(prescription).filter(key => /[\u4e00-\u9fa5]/.test(key));
     if (chineseFields.length > 0) {
@@ -1130,17 +1108,11 @@ export async function updatePrescription(prescription: any) {
       }
     });
 
-    console.log('✅ Filtered prescription (English fields only):', filteredPrescription);
-    console.log('✅ Filtered prescription keys:', Object.keys(filteredPrescription));
-
     const prescriptionWithUser = {
       ...filteredPrescription,
       last_modified_by: currentUser,
       updated_at: new Date().toISOString()
     };
-
-    console.log('👤 Updating last_modified_by:', currentUser);
-    console.log('📤 Final data being sent to Supabase:', prescriptionWithUser);
 
     const { data, error } = await supabase
       .from('new_medication_prescriptions')
@@ -1154,7 +1126,6 @@ export async function updatePrescription(prescription: any) {
       throw error;
     }
 
-    console.log('✅ Successfully updated prescription:', data);
     return data;
   } catch (error) {
     console.error('❌ updatePrescription failed:', error);
@@ -1164,10 +1135,7 @@ export async function updatePrescription(prescription: any) {
 
 export async function deletePrescription(id: string) {
   try {
-    console.log('🔍 Deleting prescription with id:', id);
-
     // 先刪除該處方的所有工作流程記錄
-    console.log('🔍 Deleting related workflow records for prescription:', id);
     const { error: workflowError } = await supabase
       .from('medication_workflow_records')
       .delete()
@@ -1177,8 +1145,6 @@ export async function deletePrescription(id: string) {
       console.error('❌ Error deleting workflow records:', workflowError);
       throw workflowError;
     }
-
-    console.log('✅ Successfully deleted workflow records');
 
     // 再刪除處方
     const { error } = await supabase
@@ -1191,7 +1157,6 @@ export async function deletePrescription(id: string) {
       throw error;
     }
 
-    console.log('✅ Successfully deleted prescription');
   } catch (error) {
     console.error('❌ deletePrescription failed:', error);
     throw error;
@@ -1315,7 +1280,6 @@ export const moveHealthRecordToRecycleBin = async (
     console.error('Error moving record to recycle bin:', insertError);
     console.warn('Recycle bin is not available. Record will be permanently deleted instead.');
     // 如果回收筒不可用，直接删除记录
-    console.log('Falling back to direct deletion for record:', record.記錄id);
   }
 
   // 从原表删除

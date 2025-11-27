@@ -78,8 +78,6 @@ export const extractPrintFormTemplateFormat = async (templateFile: File): Promis
   const maxCol = dimension?.right || 50;
   const maxRow = dimension?.bottom || 100;
 
-  console.log(`檢測到工作表範圍: ${maxCol} 欄 x ${maxRow} 行`);
-
   // Extract column widths
   for (let col = 1; col <= maxCol; col++) {
     let width = worksheet.getColumn(col).width;
@@ -99,17 +97,14 @@ export const extractPrintFormTemplateFormat = async (templateFile: File): Promis
     worksheet.model.merges.forEach(merge => {
       extractedTemplate.mergedCells.push(merge);
     });
-    console.log(`提取合併儲存格: ${extractedTemplate.mergedCells.length} 個`);
   }
   
   // Extract print settings
   if (worksheet.pageSetup) {
     extractedTemplate.printSettings = { ...worksheet.pageSetup };
-    console.log(`提取列印設定:`, JSON.stringify(extractedTemplate.printSettings));
   }
 
   // Extract page breaks
-  console.log('提取分頁符...');
   try {
     const rowBreaks: number[] = [];
     const colBreaks: number[] = [];
@@ -140,7 +135,6 @@ export const extractPrintFormTemplateFormat = async (templateFile: File): Promis
     extractedTemplate.pageBreaks!.rowBreaks = [...new Set(rowBreaks)];
     extractedTemplate.pageBreaks!.colBreaks = [...new Set(colBreaks)];
     
-    console.log('分頁符統計:', {
       rowBreaks: extractedTemplate.pageBreaks!.rowBreaks.length,
       colBreaks: extractedTemplate.pageBreaks!.colBreaks.length
     });
@@ -151,7 +145,6 @@ export const extractPrintFormTemplateFormat = async (templateFile: File): Promis
   }
 
   // Extract cell data for entire worksheet
-  console.log(`開始提取儲存格資料 (1-${maxRow} 行, 1-${maxCol} 欄)...`);
   let printFormExtractedCellCount = 0;
   
   for (let row = 1; row <= maxRow; row++) {
@@ -208,7 +201,6 @@ export const extractPrintFormTemplateFormat = async (templateFile: File): Promis
   }
 
   // Extract images
-  console.log('提取圖片...');
   try {
     const images = (worksheet as any).getImages ? (worksheet as any).getImages() : [];
     if (!Array.isArray(images)) {
@@ -226,7 +218,6 @@ export const extractPrintFormTemplateFormat = async (templateFile: File): Promis
               extension: media.extension,
               range: img.range
             });
-            console.log(`提取圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${media.extension}`);
           }
         }
       });
@@ -236,7 +227,6 @@ export const extractPrintFormTemplateFormat = async (templateFile: File): Promis
     extractedTemplate.images = [];
   }
 
-  console.log(`範本格式提取完成: ${printFormExtractedCellCount} 個儲存格, ${extractedTemplate.images.length} 個圖片`);
   return extractedTemplate;
 };
 
@@ -274,20 +264,14 @@ const applyPrintFormTemplateFormat = (
     社會福利?: any;
   }
 ): void => {
-  console.log(`=== 開始應用列印表格範本格式: ${patient.中文姓氏}${patient.中文名字} ===`);
-  
   // Step 1: Set column widths
   template.columnWidths.forEach((width, idx) => {
     worksheet.getColumn(idx + 1).width = width;
   });
-  console.log(`設定了 ${template.columnWidths.length} 個欄寬`);
-
   // Step 2: Set row heights
   template.rowHeights.forEach((height, idx) => {
     worksheet.getRow(idx + 1).height = height;
   });
-  console.log(`設定了 ${template.rowHeights.length} 個列高`);
-
   // Step 3: Apply cell data (value, font, alignment, border, fill)
   let appliedCells = 0;
   Object.entries(template.cellData).forEach(([address, cellData]) => {
@@ -329,8 +313,6 @@ const applyPrintFormTemplateFormat = (
       console.warn(`應用儲存格 ${address} 樣式失敗:`, error);
     }
   });
-  console.log(`成功應用了 ${appliedCells} 個儲存格的樣式`);
-
   // Step 4: Merge cells
   let mergedCount = 0;
   template.mergedCells.forEach(merge => {
@@ -341,10 +323,7 @@ const applyPrintFormTemplateFormat = (
       console.warn(`合併儲存格失敗: ${merge}`, e);
     }
   });
-  console.log(`成功合併了 ${mergedCount} 個儲存格範圍`);
-
   // Step 5: Apply images
-  console.log('應用圖片...');
   if (Array.isArray(template.images)) {
     template.images.forEach(img => {
       try {
@@ -353,7 +332,6 @@ const applyPrintFormTemplateFormat = (
           extension: img.extension as 'png' | 'jpeg' | 'gif'
         });
         worksheet.addImage(imageId, img.range);
-        console.log(`應用圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${img.extension}`);
       } catch (error) {
         console.error(`應用圖片失敗 (範圍=${img.range}):`, error);
       }
@@ -367,7 +345,6 @@ const applyPrintFormTemplateFormat = (
         template.pageBreaks.rowBreaks.forEach(rowNum => {
           try {
             worksheet.addPageBreak(rowNum, 0);
-            console.log(`添加行分頁符於第 ${rowNum} 行`);
           } catch (error) {
             console.warn(`添加行分頁符失敗 (第 ${rowNum} 行):`, error);
           }
@@ -378,7 +355,6 @@ const applyPrintFormTemplateFormat = (
         template.pageBreaks.colBreaks.forEach(colNum => {
           try {
             worksheet.addPageBreak(0, colNum);
-            console.log(`添加欄分頁符於第 ${colNum} 欄`);
           } catch (error) {
             console.warn(`添加欄分頁符失敗 (第 ${colNum} 欄):`, error);
           }
@@ -390,8 +366,6 @@ const applyPrintFormTemplateFormat = (
   }
 
   // Step 7: Fill patient data in common locations
-  console.log('填充院友資料...');
-  
   // 嘗試在常見位置填入院友資料
   const patientDataMappings = [
     // 常見的院友資料位置
@@ -430,7 +404,6 @@ const applyPrintFormTemplateFormat = (
             currentValue.includes('性別') || currentValue.includes('年齡') ||
             currentValue === '' || currentValue.trim() === ''))) {
         cell.value = mapping.value;
-        console.log(`填入 ${mapping.cell}: ${mapping.label} = ${mapping.value}`);
       }
     } catch (error) {
       console.warn(`填入 ${mapping.cell} 失敗:`, error);
@@ -441,13 +414,11 @@ const applyPrintFormTemplateFormat = (
   if (template.printSettings) {
     try {
       worksheet.pageSetup = { ...template.printSettings };
-      console.log('列印設定應用成功');
     } catch (error) {
       console.warn('應用列印設定失敗:', error);
     }
   }
   
-  console.log(`=== 列印表格範本格式應用完成: ${patient.中文姓氏}${patient.中文名字} ===`);
 };
 
 // 創建列印表格工作簿
@@ -457,8 +428,6 @@ const createPrintFormWorkbook = async (
   const workbook = new ExcelJS.Workbook();
 
   for (const config of sheetsConfig) {
-    console.log(`創建列印表格工作表: ${config.name}`);
-    
     // 確保工作表名稱符合 Excel 限制
     let sheetName = config.name;
     if (sheetName.length > 31) {
@@ -480,7 +449,6 @@ const saveExcelFile = async (
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, filename);
-  console.log(`列印表格 Excel 檔案 ${filename} 保存成功`);
 };
 
 // 匯出列印表格到 Excel
@@ -531,8 +499,6 @@ export const exportPrintFormsToExcel = async (
     // 創建工作簿並匯出
     const workbook = await createPrintFormWorkbook(sheetsConfig);
     await saveExcelFile(workbook, finalFilename);
-    
-    console.log(`列印表格匯出完成: ${finalFilename}`);
     
   } catch (error) {
     console.error('匯出列印表格失敗:', error);

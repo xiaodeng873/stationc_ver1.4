@@ -86,8 +86,6 @@ const extractBedLayoutTemplateFormat = async (templateFile: File): Promise<Extra
   const maxCol = dimension?.right || 50;
   const maxRow = dimension?.bottom || 100;
 
-  console.log(`檢測到床位表工作表範圍: ${maxCol} 欄 x ${maxRow} 行`);
-
   // Extract column widths
   for (let col = 1; col <= maxCol; col++) {
     let width = worksheet.getColumn(col).width;
@@ -107,17 +105,14 @@ const extractBedLayoutTemplateFormat = async (templateFile: File): Promise<Extra
     worksheet.model.merges.forEach(merge => {
       extractedTemplate.mergedCells.push(merge);
     });
-    console.log(`提取合併儲存格: ${extractedTemplate.mergedCells.length} 個`);
   }
   
   // Extract print settings
   if (worksheet.pageSetup) {
     extractedTemplate.printSettings = { ...worksheet.pageSetup };
-    console.log(`提取列印設定:`, JSON.stringify(extractedTemplate.printSettings));
   }
 
   // Extract page breaks
-  console.log('提取分頁符...');
   try {
     const rowBreaks: number[] = [];
     const colBreaks: number[] = [];
@@ -147,7 +142,6 @@ const extractBedLayoutTemplateFormat = async (templateFile: File): Promise<Extra
     extractedTemplate.pageBreaks!.rowBreaks = [...new Set(rowBreaks)];
     extractedTemplate.pageBreaks!.colBreaks = [...new Set(colBreaks)];
     
-    console.log('分頁符統計:', {
       rowBreaks: extractedTemplate.pageBreaks!.rowBreaks.length,
       colBreaks: extractedTemplate.pageBreaks!.colBreaks.length
     });
@@ -158,7 +152,6 @@ const extractBedLayoutTemplateFormat = async (templateFile: File): Promise<Extra
   }
 
   // Extract cell data for entire worksheet
-  console.log(`開始提取儲存格資料 (1-${maxRow} 行, 1-${maxCol} 欄)...`);
   let extractedCellCount = 0;
   
   for (let row = 1; row <= maxRow; row++) {
@@ -215,7 +208,6 @@ const extractBedLayoutTemplateFormat = async (templateFile: File): Promise<Extra
   }
 
   // Extract images
-  console.log('提取圖片...');
   try {
     const images = (worksheet as any).getImages ? (worksheet as any).getImages() : [];
     if (!Array.isArray(images)) {
@@ -233,7 +225,6 @@ const extractBedLayoutTemplateFormat = async (templateFile: File): Promise<Extra
               extension: media.extension,
               range: img.range
             });
-            console.log(`提取圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${media.extension}`);
           }
         }
       });
@@ -243,7 +234,6 @@ const extractBedLayoutTemplateFormat = async (templateFile: File): Promise<Extra
     extractedTemplate.images = [];
   }
 
-  console.log(`床位表範本格式提取完成: ${extractedCellCount} 個儲存格, ${extractedTemplate.images.length} 個圖片`);
   return extractedTemplate;
 };
 
@@ -272,20 +262,14 @@ const applyBedLayoutTemplateFormat = (
   },
   bedData: BedLayoutExportData[]
 ): void => {
-  console.log(`=== 開始應用床位表範本格式: ${station.name} ===`);
-  
   // Step 1: Set column widths
   template.columnWidths.forEach((width, idx) => {
     worksheet.getColumn(idx + 1).width = width;
   });
-  console.log(`設定了 ${template.columnWidths.length} 個欄寬`);
-
   // Step 2: Set row heights
   template.rowHeights.forEach((height, idx) => {
     worksheet.getRow(idx + 1).height = height;
   });
-  console.log(`設定了 ${template.rowHeights.length} 個列高`);
-
   // Step 3: Apply cell data (value, font, alignment, border, fill)
   let appliedCells = 0;
   Object.entries(template.cellData).forEach(([address, cellData]) => {
@@ -327,8 +311,6 @@ const applyBedLayoutTemplateFormat = (
       console.warn(`應用儲存格 ${address} 樣式失敗:`, error);
     }
   });
-  console.log(`成功應用了 ${appliedCells} 個儲存格的樣式`);
-
   // Step 4: Merge cells
   let mergedCount = 0;
   template.mergedCells.forEach(merge => {
@@ -339,10 +321,7 @@ const applyBedLayoutTemplateFormat = (
       console.warn(`合併儲存格失敗: ${merge}`, e);
     }
   });
-  console.log(`成功合併了 ${mergedCount} 個儲存格範圍`);
-
   // Step 5: Apply images
-  console.log('應用圖片...');
   if (Array.isArray(template.images)) {
     template.images.forEach(img => {
       try {
@@ -351,7 +330,6 @@ const applyBedLayoutTemplateFormat = (
           extension: img.extension as 'png' | 'jpeg' | 'gif'
         });
         worksheet.addImage(imageId, img.range);
-        console.log(`應用圖片: ID=${img.imageId}, 範圍=${img.range}, 格式=${img.extension}`);
       } catch (error) {
         console.error(`應用圖片失敗 (範圍=${img.range}):`, error);
       }
@@ -365,7 +343,6 @@ const applyBedLayoutTemplateFormat = (
         template.pageBreaks.rowBreaks.forEach(rowNum => {
           try {
             worksheet.addPageBreak(rowNum, 0);
-            console.log(`添加行分頁符於第 ${rowNum} 行`);
           } catch (error) {
             console.warn(`添加行分頁符失敗 (第 ${rowNum} 行):`, error);
           }
@@ -376,7 +353,6 @@ const applyBedLayoutTemplateFormat = (
         template.pageBreaks.colBreaks.forEach(colNum => {
           try {
             worksheet.addPageBreak(0, colNum);
-            console.log(`添加欄分頁符於第 ${colNum} 欄`);
           } catch (error) {
             console.warn(`添加欄分頁符失敗 (第 ${colNum} 欄):`, error);
           }
@@ -388,8 +364,6 @@ const applyBedLayoutTemplateFormat = (
   }
 
   // Step 7: 使用具體的床位映射填充院友姓名
-  console.log('使用具體床位映射填充院友姓名...');
-  
   // 床位到儲存格的映射表
   const bedToExcelMapping: { [bedNumber: string]: string } = {
     'C202-1': 'C3', 'C202-2': 'C4',
@@ -430,7 +404,6 @@ const applyBedLayoutTemplateFormat = (
     if (targetCell && bed.院友姓名) {
       try {
         worksheet.getCell(targetCell).value = bed.院友姓名;
-        console.log(`填入 ${targetCell}: ${bed.床號} = ${bed.院友姓名}`);
       } catch (error) {
         console.warn(`填入 ${targetCell} 失敗:`, error);
       }
@@ -438,7 +411,6 @@ const applyBedLayoutTemplateFormat = (
       // 空置床位，填入空字串
       try {
         worksheet.getCell(targetCell).value = '';
-        console.log(`填入 ${targetCell}: ${bed.床號} = 空置`);
       } catch (error) {
         console.warn(`填入 ${targetCell} 失敗:`, error);
       }
@@ -449,8 +421,6 @@ const applyBedLayoutTemplateFormat = (
   
   // Step 8: 填充統計資料（僅針對C站）
   if (station.name === 'C站') {
-    console.log('填充C站統計資料...');
-    
     // 計算統計數據
     const occupiedBeds = bedData.filter(bed => bed.院友姓名);
     const availableBeds = bedData.filter(bed => !bed.院友姓名);
@@ -479,7 +449,6 @@ const applyBedLayoutTemplateFormat = (
     statisticsMappings.forEach(mapping => {
       try {
         worksheet.getCell(mapping.cell).value = mapping.value;
-        console.log(`填入統計 ${mapping.cell}: ${mapping.label} = ${mapping.value}`);
       } catch (error) {
         console.warn(`填入統計 ${mapping.cell} 失敗:`, error);
       }
@@ -490,7 +459,6 @@ const applyBedLayoutTemplateFormat = (
       const today = new Date();
       const printDate = `${today.getFullYear()}年${(today.getMonth() + 1).toString().padStart(2, '0')}月${today.getDate().toString().padStart(2, '0')}日`;
       worksheet.getCell('Q28').value = printDate;
-      console.log(`填入列印日期 Q28: ${printDate}`);
     } catch (error) {
       console.warn('填入列印日期失敗:', error);
     }
@@ -500,13 +468,11 @@ const applyBedLayoutTemplateFormat = (
   if (template.printSettings) {
     try {
       worksheet.pageSetup = { ...template.printSettings };
-      console.log('列印設定應用成功');
     } catch (error) {
       console.warn('應用列印設定失敗:', error);
     }
   }
   
-  console.log(`=== 床位表範本格式應用完成: ${station.name} ===`);
 };
 
 // 創建床位表工作簿
@@ -516,8 +482,6 @@ const createBedLayoutWorkbook = async (
   const workbook = new ExcelJS.Workbook();
 
   for (const config of sheetsConfig) {
-    console.log(`創建床位表工作表: ${config.name}`);
-    
     // 確保工作表名稱符合 Excel 限制
     let sheetName = config.name;
     if (sheetName.length > 31) {
@@ -539,7 +503,6 @@ const saveExcelFile = async (
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, filename);
-  console.log(`床位表 Excel 檔案 ${filename} 保存成功`);
 };
 
 // 匯出床位表到 Excel
@@ -615,8 +578,6 @@ export const exportBedLayoutToExcel = async (
     // 創建工作簿並匯出
     const workbook = await createBedLayoutWorkbook(sheetsConfig);
     await saveExcelFile(workbook, finalFilename);
-    
-    console.log(`床位表匯出完成: ${finalFilename}`);
     
   } catch (error) {
     console.error('匯出床位表失敗:', error);
@@ -766,5 +727,4 @@ const exportBedLayoutToExcelSimple = async (
   const finalFilename = filename || `床位表_${new Date().toISOString().split('T')[0]}.xlsx`;
   saveAs(blob, finalFilename);
   
-  console.log(`床位表 Excel 檔案 ${finalFilename} 匯出成功`);
 };
