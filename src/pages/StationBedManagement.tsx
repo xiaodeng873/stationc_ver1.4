@@ -18,7 +18,7 @@ import {
   Download,
   QrCode
 } from 'lucide-react';
-import QRCode from 'qrcode';
+import * as QRCode from 'qrcode';
 import { usePatients } from '../context/PatientContext';
 import StationModal from '../components/StationModal';
 import BedModal from '../components/BedModal';

@@ -40,7 +40,7 @@ export default defineConfig({
     reportCompressedSize: false
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js'],
+    include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js', 'qrcode'],
     exclude: []
   },
   worker: {
