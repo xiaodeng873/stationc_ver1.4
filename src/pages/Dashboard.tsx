@@ -63,7 +63,7 @@ interface HealthRecord {
 }
 
 const Dashboard: React.FC = () => {
-  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, prescriptionWorkflowRecords, annualHealthCheckups, loading, updatePatientHealthTask, refreshData } = usePatients();
+  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, setPatientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, prescriptionWorkflowRecords, annualHealthCheckups, loading, updatePatientHealthTask, refreshData } = usePatients();
   const [showHealthRecordModal, setShowHealthRecordModal] = useState(false);
   const [selectedHealthRecordInitialData, setSelectedHealthRecordInitialData] = useState<any>({});
   const [showDocumentTaskModal, setShowDocumentTaskModal] = useState(false);
@@ -560,9 +560,29 @@ const Dashboard: React.FC = () => {
         next_due_at: nextDueAt
       };
 
-      // 先更新數據庫，然後完整刷新
-      await updatePatientHealthTask(updatedTask);
-      await refreshData();
+      // 樂觀更新：立即更新 UI，卡片瞬間消失
+      setPatientHealthTasks(prev => {
+        if (updatedTask.next_due_at === null) {
+          // 非循環任務已完成，從列表移除
+          return prev.filter(t => t.id !== taskId);
+        } else {
+          // 循環任務，更新狀態
+          return prev.map(t => t.id === taskId ? updatedTask : t);
+        }
+      });
+
+      // 後台異步更新資料庫，不阻塞 UI
+      updatePatientHealthTask(updatedTask)
+        .then(() => {
+          // 成功後靜默刷新，確保數據一致性
+          return refreshData();
+        })
+        .catch(err => {
+          console.error('任務更新失敗，回滾:', err);
+          alert(`任務更新失敗: ${err.message}`);
+          // 失敗時刷新恢復真實數據
+          return refreshData();
+        });
 
     } catch (error) {
       console.error('任務完成處理失敗:', error);
@@ -582,18 +602,38 @@ const Dashboard: React.FC = () => {
       const updatedTask = {
         ...task,
         last_completed_at: completionDate,
-        next_due_at: new Date(nextDueDate).toISOString(),
+        next_due_at: nextDueDate ? new Date(nextDueDate).toISOString() : null,
         tube_type: tubeType || task.tube_type,
         tube_size: tubeSize || task.tube_size
       };
 
-      // 先關閉模態框
+      // 立即關閉模態框
       setShowDocumentTaskModal(false);
       setSelectedDocumentTask(null);
 
-      // 更新資料庫然後刷新
-      await updatePatientHealthTask(updatedTask);
-      await refreshData();
+      // 樂觀更新：卡片瞬間消失
+      setPatientHealthTasks(prev => {
+        if (updatedTask.next_due_at === null) {
+          // 任務已完成，從列表移除
+          return prev.filter(t => t.id !== taskId);
+        } else {
+          // 更新任務狀態
+          return prev.map(t => t.id === taskId ? updatedTask : t);
+        }
+      });
+
+      // 後台異步更新資料庫，不阻塞 UI
+      updatePatientHealthTask(updatedTask)
+        .then(() => {
+          // 成功後靜默刷新
+          return refreshData();
+        })
+        .catch(err => {
+          console.error('文件任務更新失敗:', err);
+          alert(`文件任務失敗: ${err.message}`);
+          // 失敗時刷新恢復真實數據
+          return refreshData();
+        });
     } catch (error) {
       console.error('文件任務失敗:', error);
       alert(`文件任務失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);

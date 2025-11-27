@@ -163,6 +163,7 @@ interface PatientContextType {
   addPatientHealthTask: (task: Omit<db.PatientHealthTask, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   updatePatientHealthTask: (task: db.PatientHealthTask) => Promise<void>;
   deletePatientHealthTask: (id: string) => Promise<void>;
+  setPatientHealthTasks: React.Dispatch<React.SetStateAction<db.PatientHealthTask[]>>;
   addPatientRestraintAssessment: (assessment: Omit<db.PatientRestraintAssessment, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   updatePatientRestraintAssessment: (assessment: db.PatientRestraintAssessment) => Promise<void>;
   deletePatientRestraintAssessment: (id: string) => Promise<void>;
@@ -2151,7 +2152,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const updatePatientHealthTask = async (task: db.PatientHealthTask) => {
     try {
       await db.updatePatientHealthTask(task);
-      await refreshData();
+      // 移除自動刷新，讓調用者決定何時刷新，避免雙重刷新並支持樂觀更新
     } catch (error) {
       console.error('Error updating patient health task:', error);
       throw error;
@@ -2654,6 +2655,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       addPatientHealthTask,
       updatePatientHealthTask,
       deletePatientHealthTask,
+      setPatientHealthTasks,
       addPatientRestraintAssessment,
       updatePatientRestraintAssessment,
       deletePatientRestraintAssessment,
