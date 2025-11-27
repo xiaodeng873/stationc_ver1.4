@@ -564,28 +564,20 @@ const Dashboard: React.FC = () => {
         next_due_at: nextDueAt
       };
 
-      // 樂觀UI更新 - 立即更新任務狀態，卡片馬上消失
-      setPatientHealthTasks(prev => {
-        if (updatedTask.next_due_at === null) {
-          // 非循環任務已完成，移除
-          return prev.filter(t => t.id !== taskId);
-        } else {
-          // 循環任務，更新狀態
-          return prev.map(t => t.id === taskId ? updatedTask : t);
-        }
-      });
-
-      // 後台異步更新數據庫，不阻塞UI
-      updatePatientHealthTask(updatedTask).catch(err => {
-        console.error('任務更新失敗:', err);
-        // 失敗時静默刷新以保持數據一致性
-        refreshHealthData().catch(() => refreshData());
-      });
+      // 先更新數據庫，然後立即刷新 - 使用輕量級refreshHealthData
+      await updatePatientHealthTask(updatedTask);
+      // 輕量級刷新，只更新任務和健康記錄
+      await refreshHealthData();
 
     } catch (error) {
       console.error('任務完成處理失敗:', error);
       alert(`任務完成失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-      await refreshHealthData().catch(() => refreshData());
+      // 失敗時嘗試刷新
+      try {
+        await refreshHealthData();
+      } catch (refreshError) {
+        await refreshData();
+      }
     }
   };
 
