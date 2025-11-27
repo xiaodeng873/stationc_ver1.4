@@ -276,9 +276,15 @@ const Dashboard: React.FC = () => {
     return new Map(patients.map(p => [p.院友id, p]));
   }, [patients]);
 
-  // 任務統計
-  const monitoringTasks = patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type));
-  const documentTasks = patientHealthTasks.filter(task => isDocumentTask(task.health_record_type));
+  // 任務統計 - 使用useMemo緩存
+  const monitoringTasks = useMemo(() =>
+    patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)),
+    [patientHealthTasks]
+  );
+  const documentTasks = useMemo(() =>
+    patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)),
+    [patientHealthTasks]
+  );
 
   // 優化：合併過濾和排序，只遍歷一次
   const urgentMonitoringTasks = useMemo(() => {
@@ -345,15 +351,18 @@ const Dashboard: React.FC = () => {
   }, [documentTasks, patientsMap]);
   const urgentDocumentTasks = [...overdueDocumentTasks, ...pendingDocumentTasks, ...dueSoonDocumentTasks].slice(0, 10);
 
-  // 護理任務：包含逾期、未完成和即將到期（1天前），且院友必須在住
-  const nursingTasks = patientHealthTasks.filter(task => {
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    return patient && patient.在住狀態 === '在住' && isNursingTask(task.health_record_type);
-  });
-  const overdueNursingTasks = nursingTasks.filter(task => isTaskOverdue(task));
-  const pendingNursingTasks = nursingTasks.filter(task => isTaskPendingToday(task));
+  // 優化：護理任務過濾，使用Map查找
+  const nursingTasks = useMemo(() =>
+    patientHealthTasks.filter(task => {
+      const patient = patientsMap.get(task.patient_id);
+      return patient && patient.在住狀態 === '在住' && isNursingTask(task.health_record_type);
+    }),
+    [patientHealthTasks, patientsMap]
+  );
+  const overdueNursingTasks = useMemo(() => nursingTasks.filter(task => isTaskOverdue(task)), [nursingTasks]);
+  const pendingNursingTasks = useMemo(() => nursingTasks.filter(task => isTaskPendingToday(task)), [nursingTasks]);
   
-  const dueSoonNursingTasks = nursingTasks.filter(task => {
+  const dueSoonNursingTasks = useMemo(() => nursingTasks.filter(task => {
     const now = new Date();
     const dueDate = new Date(task.next_due_at);
     const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -368,30 +377,36 @@ const Dashboard: React.FC = () => {
       return lastCompletedDate < dueDateOnly;
     }
     return false;
-  });
+  }), [nursingTasks]);
   
   const urgentNursingTasks = [...overdueNursingTasks, ...pendingNursingTasks, ...dueSoonNursingTasks].slice(0, 10);
 
-  // 約束物品評估：包含逾期和即將到期（2週內），且院友必須在住
-  const overdueRestraintAssessments = patientRestraintAssessments.filter(assessment => {
-    const patient = patients.find(p => p.院友id === assessment.patient_id);
-    return patient && patient.在住狀態 === '在住' && isRestraintAssessmentOverdue(assessment);
-  });
-  const dueSoonRestraintAssessments = patientRestraintAssessments.filter(assessment => {
-    const patient = patients.find(p => p.院友id === assessment.patient_id);
-    return patient && patient.在住狀態 === '在住' && isRestraintAssessmentDueSoon(assessment);
-  });
+  // 優化：約束物品評估，使用Map查找
+  const { overdueRestraintAssessments, dueSoonRestraintAssessments } = useMemo(() => {
+    const overdue = patientRestraintAssessments.filter(assessment => {
+      const patient = patientsMap.get(assessment.patient_id);
+      return patient && patient.在住狀態 === '在住' && isRestraintAssessmentOverdue(assessment);
+    });
+    const dueSoon = patientRestraintAssessments.filter(assessment => {
+      const patient = patientsMap.get(assessment.patient_id);
+      return patient && patient.在住狀態 === '在住' && isRestraintAssessmentDueSoon(assessment);
+    });
+    return { overdueRestraintAssessments: overdue, dueSoonRestraintAssessments: dueSoon };
+  }, [patientRestraintAssessments, patientsMap]);
   const urgentRestraintAssessments = [...overdueRestraintAssessments, ...dueSoonRestraintAssessments];
 
-  // 健康評估：包含逾期和即將到期（1個月內），且院友必須在住
-  const overdueHealthAssessments = healthAssessments.filter(assessment => {
-    const patient = patients.find(p => p.院友id === assessment.patient_id);
-    return patient && patient.在住狀態 === '在住' && isHealthAssessmentOverdue(assessment);
-  });
-  const dueSoonHealthAssessments = healthAssessments.filter(assessment => {
-    const patient = patients.find(p => p.院友id === assessment.patient_id);
-    return patient && patient.在住狀態 === '在住' && isHealthAssessmentDueSoon(assessment);
-  });
+  // 優化：健康評估，使用Map查找
+  const { overdueHealthAssessments, dueSoonHealthAssessments } = useMemo(() => {
+    const overdue = healthAssessments.filter(assessment => {
+      const patient = patientsMap.get(assessment.patient_id);
+      return patient && patient.在住狀態 === '在住' && isHealthAssessmentOverdue(assessment);
+    });
+    const dueSoon = healthAssessments.filter(assessment => {
+      const patient = patientsMap.get(assessment.patient_id);
+      return patient && patient.在住狀態 === '在住' && isHealthAssessmentDueSoon(assessment);
+    });
+    return { overdueHealthAssessments: overdue, dueSoonHealthAssessments: dueSoon };
+  }, [healthAssessments, patientsMap]);
   const urgentHealthAssessments = [...overdueHealthAssessments, ...dueSoonHealthAssessments];
 
   // 年度體檢：包含逾期和即將到期（14天內），且院友必須在住
@@ -410,14 +425,18 @@ const Dashboard: React.FC = () => {
     return daysDiff <= 14 && daysDiff > 0;
   };
 
-  const overdueAnnualCheckups = annualHealthCheckups.filter(checkup => {
-    const patient = patients.find(p => p.院友id === checkup.patient_id);
-    return patient && patient.在住狀態 === '在住' && isAnnualCheckupOverdue(checkup);
-  });
-  const dueSoonAnnualCheckups = annualHealthCheckups.filter(checkup => {
-    const patient = patients.find(p => p.院友id === checkup.patient_id);
-    return patient && patient.在住狀態 === '在住' && isAnnualCheckupDueSoon(checkup);
-  });
+  // 優化：年度體檢，使用Map查找
+  const { overdueAnnualCheckups, dueSoonAnnualCheckups } = useMemo(() => {
+    const overdue = annualHealthCheckups.filter(checkup => {
+      const patient = patientsMap.get(checkup.patient_id);
+      return patient && patient.在住狀態 === '在住' && isAnnualCheckupOverdue(checkup);
+    });
+    const dueSoon = annualHealthCheckups.filter(checkup => {
+      const patient = patientsMap.get(checkup.patient_id);
+      return patient && patient.在住狀態 === '在住' && isAnnualCheckupDueSoon(checkup);
+    });
+    return { overdueAnnualCheckups: overdue, dueSoonAnnualCheckups: dueSoon };
+  }, [annualHealthCheckups, patientsMap]);
   const urgentAnnualCheckups = [...overdueAnnualCheckups, ...dueSoonAnnualCheckups];
 
   // 合併文件任務、約束物品評估、健康評估和年度體檢（排除任務管理中的年度體檢任務）

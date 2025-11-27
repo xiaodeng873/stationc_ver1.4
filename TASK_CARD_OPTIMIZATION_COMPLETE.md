@@ -504,3 +504,33 @@ ON patient_health_tasks(next_due_at);
 **功能狀態**: ✅ 100%正常運作
 
 🎉 **優化大功告成!**
+
+---
+
+## 修復記錄
+
+### React Hooks 規則修復
+
+**問題**: 初始優化後出現 "Rendered more hooks than during the previous render" 錯誤
+
+**原因**:
+- `monitoringTasks` 和 `documentTasks` 在 useMemo 之外計算
+- 後續的 useMemo 依賴它們,造成 hooks 數量不一致
+
+**解決方案**:
+1. 將所有過濾邏輯都包裹在 useMemo 中
+2. 確保 hooks 的呼叫順序和數量恆定
+3. 所有使用 `patients.find` 的地方改用 `patientsMap.get`
+
+**修復的地方**:
+- ✅ `monitoringTasks` - 包裹在 useMemo
+- ✅ `documentTasks` - 包裹在 useMemo
+- ✅ `nursingTasks` - 包裹在 useMemo
+- ✅ `overdueRestraintAssessments` - 合併到 useMemo
+- ✅ `dueSoonRestraintAssessments` - 合併到 useMemo
+- ✅ `overdueHealthAssessments` - 合併到 useMemo
+- ✅ `dueSoonHealthAssessments` - 合併到 useMemo
+- ✅ `overdueAnnualCheckups` - 合併到 useMemo
+- ✅ `dueSoonAnnualCheckups` - 合併到 useMemo
+
+**最終狀態**: ✅ 所有 hooks 規則問題已修復,應用正常運行
