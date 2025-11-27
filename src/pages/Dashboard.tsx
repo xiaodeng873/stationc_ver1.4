@@ -63,7 +63,7 @@ interface HealthRecord {
 }
 
 const Dashboard: React.FC = () => {
-  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, prescriptionWorkflowRecords, annualHealthCheckups, loading, updatePatientHealthTask, refreshData, refreshHealthData } = usePatients();
+  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, prescriptionWorkflowRecords, annualHealthCheckups, loading, updatePatientHealthTask, refreshData } = usePatients();
   const [showHealthRecordModal, setShowHealthRecordModal] = useState(false);
   const [selectedHealthRecordInitialData, setSelectedHealthRecordInitialData] = useState<any>({});
   const [showDocumentTaskModal, setShowDocumentTaskModal] = useState(false);
@@ -560,20 +560,15 @@ const Dashboard: React.FC = () => {
         next_due_at: nextDueAt
       };
 
-      // 先更新數據庫，然後立即刷新 - 使用輕量級refreshHealthData
+      // 先更新數據庫，然後完整刷新
       await updatePatientHealthTask(updatedTask);
-      // 輕量級刷新，只更新任務和健康記錄
-      await refreshHealthData();
+      await refreshData();
 
     } catch (error) {
       console.error('任務完成處理失敗:', error);
       alert(`任務完成失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-      // 失敗時嘗試刷新
-      try {
-        await refreshHealthData();
-      } catch (refreshError) {
-        await refreshData();
-      }
+      // 失敗時刷新
+      await refreshData();
     }
   };
 
@@ -596,17 +591,15 @@ const Dashboard: React.FC = () => {
       setShowDocumentTaskModal(false);
       setSelectedDocumentTask(null);
 
-      // 同時執行資料庫更新和刷新
-      await Promise.all([
-        updatePatientHealthTask(updatedTask),
-        refreshHealthData()
-      ]).catch(() => refreshData());
+      // 更新資料庫然後刷新
+      await updatePatientHealthTask(updatedTask);
+      await refreshData();
     } catch (error) {
       console.error('文件任務失敗:', error);
       alert(`文件任務失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
       setShowDocumentTaskModal(false);
       setSelectedDocumentTask(null);
-      await refreshHealthData().catch(() => refreshData());
+      await refreshData();
     }
   };
 
