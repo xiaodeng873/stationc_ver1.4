@@ -101,6 +101,8 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   console.log('解析後的預設日期時間:', { defaultRecordDate, defaultRecordTime });
 
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [formData, setFormData] = useState({
     院友id: initialPatientId,
     記錄類型: record?.記錄類型 || initialRecordTypeForDefaults,
@@ -321,6 +323,13 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 防止重複提交
+    if (isSubmitting) {
+      console.log('正在提交中，忽略重複請求');
+      return;
+    }
+
     const errors = validateForm();
     if (errors.length > 0) {
       alert(errors.join('\n'));
@@ -346,6 +355,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
   // 獨立的儲存邏輯
   const saveRecord = async () => {
+    // 設置提交狀態
+    setIsSubmitting(true);
+
     const recordData = {
       院友id: parseInt(formData.院友id),
       記錄日期: formData.記錄日期,
@@ -365,6 +377,8 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     };
 
     try {
+      console.log('開始儲存健康記錄...', new Date().toISOString());
+
       if (record) {
         // 編輯模式
         await updateHealthRecord({
@@ -373,16 +387,25 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
         });
       } else {
         // 新增模式
-        await addHealthRecord(recordData);
+        const newRecord = await addHealthRecord(recordData);
+        console.log('健康記錄已儲存', new Date().toISOString());
+
         // 傳遞實際記錄的日期時間給 onTaskCompleted
         if (onTaskCompleted) {
           const recordDateTime = new Date(`${formData.記錄日期}T${formData.記錄時間}`);
+          console.log('調用 onTaskCompleted...', new Date().toISOString());
           onTaskCompleted(recordDateTime);
         }
       }
+
+      // 成功後關閉模態框
+      console.log('準備關閉模態框...', new Date().toISOString());
       onClose();
     } catch (error) {
+      console.error('儲存失敗:', error);
       alert(`儲存失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      // 失敗時重置提交狀態
+      setIsSubmitting(false);
     }
   };
 

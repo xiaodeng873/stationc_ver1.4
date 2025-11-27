@@ -203,6 +203,7 @@ interface PatientContextType {
     remarks?: string;
   }) => Promise<void>;
   refreshData: () => Promise<void>;
+  refreshHealthData: () => Promise<void>;
   
   // 新增的處方工作流程相關函數
   fetchPrescriptionWorkflowRecords: (patientId?: number, date?: string) => Promise<PrescriptionWorkflowRecord[]>;
@@ -537,6 +538,36 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
+  // 輕量級刷新，只重新載入關鍵數據
+  const refreshHealthData = async () => {
+    try {
+      console.log('刷新健康相關數據...');
+      const [
+        healthRecordsData,
+        patientHealthTasksData
+      ] = await Promise.all([
+        db.getHealthRecords(),
+        db.getHealthTasks()
+      ]);
+
+      // 去重處理
+      const uniqueTasksMap = new Map<string, any>();
+      patientHealthTasksData.forEach(task => {
+        if (!uniqueTasksMap.has(task.id)) {
+          uniqueTasksMap.set(task.id, task);
+        }
+      });
+      const uniquePatientHealthTasksData = Array.from(uniqueTasksMap.values());
+
+      setHealthRecords(healthRecordsData);
+      setPatientHealthTasks(uniquePatientHealthTasksData);
+      console.log('健康數據刷新完成');
+    } catch (error) {
+      console.error('刷新健康數據失敗:', error);
+      throw error;
+    }
+  };
+
   const refreshData = async () => {
     try {
       console.log('Refreshing all data...');
@@ -697,6 +728,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       setSchedules(schedulesWithDetails);
       console.log('All data refresh completed');
+      setLoading(false);
     } catch (error) {
       console.error('Error refreshing data:', error);
       throw error;
@@ -2683,6 +2715,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       recordDailyTemperatureGenerationCompletion,
       getOverdueDailySystemTasks,
       refreshData,
+      refreshHealthData,
       fetchPrescriptionWorkflowRecords: memoizedFetchPrescriptionWorkflowRecords,
       createPrescriptionWorkflowRecord,
       updatePrescriptionWorkflowRecord,
