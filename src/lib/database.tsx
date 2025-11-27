@@ -1204,25 +1204,53 @@ function handleSupabaseError(error: any, operation: string): void {
 
 export const getHealthRecords = async (limit?: number): Promise<HealthRecord[]> => {
   // 預設載入全部記錄，可選擇性限制數量以提升速度
-  let query = supabase
-    .from('健康記錄主表')
-    .select('*')
-    .order('記錄日期', { ascending: false })
-    .order('記錄時間', { ascending: false });
+  // Supabase 預設限制 1000 條，需要手動分頁載入所有記錄
+  const pageSize = 1000;
+  let allRecords: HealthRecord[] = [];
+  let page = 0;
+  let hasMore = true;
 
-  // 只有明確指定 limit 時才限制數量
+  // 如果指定了 limit，直接查詢不分頁
   if (limit !== undefined) {
-    query = query.limit(limit);
+    const { data, error } = await supabase
+      .from('健康記錄主表')
+      .select('*')
+      .order('記錄日期', { ascending: false })
+      .order('記錄時間', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching health records:', error);
+      throw error;
+    }
+
+    return data || [];
   }
 
-  const { data, error } = await query;
+  // 沒有指定 limit，分頁載入全部記錄
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('健康記錄主表')
+      .select('*')
+      .order('記錄日期', { ascending: false })
+      .order('記錄時間', { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
 
-  if (error) {
-    console.error('Error fetching health records:', error);
-    throw error;
+    if (error) {
+      console.error('Error fetching health records:', error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allRecords = [...allRecords, ...data];
+      page++;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
   }
 
-  return data || [];
+  return allRecords;
 };
 
 export const createHealthRecord = async (record: Omit<HealthRecord, '記錄id'>): Promise<HealthRecord> => {

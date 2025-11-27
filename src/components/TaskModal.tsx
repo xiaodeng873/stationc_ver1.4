@@ -10,7 +10,7 @@ interface TaskModalProps {
 }
 
 const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
-  const { patients, addPatientHealthTask, updatePatientHealthTask } = usePatients();
+  const { patients, addPatientHealthTask, updatePatientHealthTask, refreshData } = usePatients();
 
   // 香港時區輔助函數
   const getHongKongDate = () => {
@@ -186,7 +186,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose }) => {
       } else {
         await addPatientHealthTask(taskData);
       }
-      
+
+      // 統一在完成後刷新數據
+      await refreshData();
       onClose();
     } catch (error) {
       console.error('儲存任務失敗:', error);
