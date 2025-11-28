@@ -168,7 +168,7 @@ export interface MealGuidance {
   updated_at: string;
 }
 
-export type HealthTaskType = '生命表徵' | '血糖控制' | '體重控制' | '約束物品同意書' | '年度體檢' | '尿導管更換' | '鼻胃飼管更換' | '傷口換症' | '藥物自存同意書' | '晚晴計劃' | '氧氣喉管清洗/更換';
+export type HealthTaskType = '生命表徵' | '血糖控制' | '體重控制' | '約束物品同意書' | '年度體檢' | '導尿管更換' | '鼻胃飼管更換' | '傷口換症' | '藥物自存同意書' | '晚晴計劃' | '氧氣喉管清洗/更換';
 export type FrequencyUnit = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface PatientHealthTask {
