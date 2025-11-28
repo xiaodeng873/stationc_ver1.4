@@ -77,7 +77,7 @@ const DocumentTaskModal: React.FC<DocumentTaskModalProps> = ({
 
   // 判斷是否為護理任務
   const isNursingTask = (taskType: string): boolean => {
-    return taskType === '尿導管更換' || taskType === '鼻胃飼管更換' || taskType === '傷口換症';
+    return taskType === '導尿管更換' || taskType === '鼻胃飼管更換' || taskType === '傷口換症';
   };
 
   // 獲取任務標題
