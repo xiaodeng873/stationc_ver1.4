@@ -91,7 +91,7 @@ const DocumentTaskModal: React.FC<DocumentTaskModalProps> = ({
   // 獲取日期標籤
   const getDateLabel = (taskType: string): string => {
     switch (taskType) {
-      case '尿導管更換':
+      case '導尿管更換':
         return '尿導管更換日期';
       case '鼻胃飼管更換':
         return '鼻胃飼管更換日期';
