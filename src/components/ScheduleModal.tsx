@@ -32,18 +32,19 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ schedule, onClose }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (schedule) {
+      // 只傳送資料庫中實際存在的欄位
       updateSchedule({
-        ...schedule,
-        ...formData
+        排程id: schedule.排程id,
+        到診日期: formData.到診日期
       });
     } else {
       addSchedule({
-        ...formData
+        到診日期: formData.到診日期
       });
     }
-    
+
     onClose();
   };
 
