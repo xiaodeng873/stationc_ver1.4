@@ -90,7 +90,7 @@ const NotesCard: React.FC = () => {
             className="btn-primary text-sm"
           >
             <Plus className="h-4 w-4 mr-1" />
-            新增
+            
           </button>
         </div>
 
