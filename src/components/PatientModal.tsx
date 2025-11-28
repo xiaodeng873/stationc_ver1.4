@@ -13,6 +13,9 @@ interface PatientModalProps {
 const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
   const { addPatient, updatePatient, stations, beds } = usePatients();
 
+  // 獲取當天日期作為預設入住日期
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+
   const [formData, setFormData] = useState({
     床號: patient?.床號 || '',
     station_id: patient?.station_id || '',
@@ -29,7 +32,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
     感染控制: patient?.感染控制 || [],
     出生日期: patient?.出生日期 || '',
     院友相片: patient?.院友相片 || '',
-    入住日期: patient?.入住日期 || '',
+    入住日期: patient?.入住日期 || getTodayDate(), // 新增時預設為當天
     退住日期: patient?.退住日期 || '',
     護理等級: patient?.護理等級 || '',
     入住類型: patient?.入住類型 || '',

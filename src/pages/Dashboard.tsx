@@ -12,6 +12,8 @@ import DocumentTaskModal from '../components/DocumentTaskModal';
 import RestraintAssessmentModal from '../components/RestraintAssessmentModal';
 import HealthAssessmentModal from '../components/HealthAssessmentModal';
 import AnnualHealthCheckupModal from '../components/AnnualHealthCheckupModal';
+import MissingRequirementsCard from '../components/MissingRequirementsCard';
+import PatientModal from '../components/PatientModal';
 
 // 定義任務和病人的接口
 interface Patient {
@@ -87,6 +89,8 @@ const Dashboard: React.FC = () => {
   const [showDailyTaskModal, setShowDailyTaskModal] = useState(false);
   const [selectedOverdueDate, setSelectedOverdueDate] = useState<string>('');
   const [isGeneratingTemperature, setIsGeneratingTemperature] = useState(false);
+  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [selectedPatientForEdit, setSelectedPatientForEdit] = useState<any>(null);
 
   // 使用 useMemo 來確保任務去重邏輯只執行一次，避免重複處理
   const uniquePatientHealthTasks = useMemo(() => {
@@ -182,6 +186,18 @@ const Dashboard: React.FC = () => {
     const activePatients = patients.filter(p => p.在住狀態 === '在住');
     return activePatients.filter(patient => !mealGuidances.some(guidance => guidance.patient_id === patient.院友id));
   }, [patients, mealGuidances]);
+
+  // 計算死亡但缺少死亡日期的院友
+  const missingDeathDate = useMemo(() => {
+    return patients.filter(p =>
+      p.在住狀態 === '已退住' &&
+      p.discharge_reason === '死亡' &&
+      (!p.death_date || p.death_date === '')
+    ).map(patient => ({
+      patient,
+      missingInfo: '死亡日期'
+    }));
+  }, [patients]);
 
   // 計算有逾期執核派藥流程的院友
   const patientsWithOverdueWorkflow = useMemo(() => {
@@ -532,9 +548,16 @@ const Dashboard: React.FC = () => {
       patient_id: patient.院友id,
       meal_combination: '正飯+正餸'
     };
-    
+
     setPrefilledMealData(prefilledData);
     setShowMealGuidanceModal(true);
+  };
+
+  const handleEditPatientForDeathDate = (patient: any) => {
+    // 找到完整的院友資料
+    const fullPatient = patients.find(p => p.院友id === patient.院友id);
+    setSelectedPatientForEdit(fullPatient);
+    setShowPatientModal(true);
   };
 
   const handleTaskCompleted = async (taskId: string, recordDateTime: Date) => {
@@ -749,110 +772,15 @@ const Dashboard: React.FC = () => {
 
       {/* Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-3">
-        {/* 任務配置注意事項 */}
-        {(missingTasks.length > 0 || missingMealGuidance.length > 0) && (
-          <div className="lg:col-span-4 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-red-900 flex items-center">
-                <AlertTriangle className="h-5 w-5 mr-2 text-red-600" />
-                任務配置注意事項
-              </h2>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 欠缺任務卡片 */}
-              {missingTasks.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-md font-medium text-red-900 flex items-center">
-                      <X className="h-4 w-4 mr-2" />
-                      欠缺必要任務 ({missingTasks.length} 位院友)
-                    </h3>
-                  </div>
-                  <div className="space-y-2">
-                    {missingTasks.slice(0, 5).map((item, index) => (
-                      <div key={index} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium text-red-800">
-                            {item.patient.床號} {item.patient.中文姓氏}{item.patient.中文名字}
-                          </span>
-                          <span className="text-red-600">
-                            欠缺: {item.missingTaskTypes.join(', ')}
-                          </span>
-                        </div>
-                        <div className="flex space-x-1">
-                          {item.missingTaskTypes.map(taskType => (
-                            <button
-                              key={taskType}
-                              onClick={() => handleCreateMissingTask(item.patient, taskType as '年度體檢' | '生命表徵')}
-                              className="text-xs bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
-                              title={`新增${taskType}任務`}
-                            >
-                              +{taskType}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    {missingTasks.length > 5 && (
-                      <div className="text-xs text-red-600 text-center">
-                        還有 {missingTasks.length - 5} 位院友...
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-red-200">
-                    <p className="text-xs text-red-700">
-                      每位在住院友都應該有年度體檢和生命表徵任務
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* 欠缺餐膳指引卡片 */}
-              {missingMealGuidance.length > 0 && (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-md font-medium text-orange-900 flex items-center">
-                      <Utensils className="h-4 w-4 mr-2" />
-                      欠缺餐膳指引 ({missingMealGuidance.length} 位院友)
-                    </h3>
-                  </div>
-                  <div className="space-y-2">
-                    {missingMealGuidance.slice(0, 5).map((patient, index) => (
-                      <div key={index} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium text-orange-800">
-                            {patient.床號} {patient.中文姓氏}{patient.中文名字}
-                          </span>
-                          <span className="text-orange-600">
-                            尚未設定餐膳指引
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleAddMealGuidance(patient)}
-                          className="text-xs bg-orange-600 text-white px-2 py-1 rounded hover:bg-orange-700"
-                          title="新增餐膳指引"
-                        >
-                          +餐膳指引
-                        </button>
-                      </div>
-                    ))}
-                    {missingMealGuidance.length > 5 && (
-                      <div className="text-xs text-orange-600 text-center">
-                        還有 {missingMealGuidance.length - 5} 位院友...
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-orange-200">
-                    <p className="text-xs text-orange-700">
-                      每位在住院友都應該有餐膳指引
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {/* 欠缺必要項目綜合提醒 */}
+        <MissingRequirementsCard
+          missingTasks={missingTasks}
+          missingMealGuidance={missingMealGuidance}
+          missingDeathDate={missingDeathDate}
+          onCreateTask={handleCreateMissingTask}
+          onAddMealGuidance={handleAddMealGuidance}
+          onEditPatient={handleEditPatientForDeathDate}
+        />
 
         {/* 待變更處方提醒 */}
         {(() => {
@@ -1780,6 +1708,17 @@ const Dashboard: React.FC = () => {
           }}
           onSave={refreshData}
           prefilledPatientId={prefilledAnnualCheckupPatientId}
+        />
+      )}
+
+      {showPatientModal && (
+        <PatientModal
+          patient={selectedPatientForEdit}
+          onClose={() => {
+            setShowPatientModal(false);
+            setSelectedPatientForEdit(null);
+            refreshData();
+          }}
         />
       )}
     </div>
