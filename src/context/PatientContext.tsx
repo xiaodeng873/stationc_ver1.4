@@ -719,17 +719,30 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const addPatient = async (patient: Omit<db.Patient, '院友id'>) => {
     try {
       console.log('Adding patient:', patient);
-      const { 中文姓氏, 中文名字, 床號, ...rest } = patient;
+      const { 中文姓氏, 中文名字, 英文姓氏, 英文名字, 床號, ...rest } = patient;
       if (!中文姓氏 || !中文名字) {
         throw new Error('中文姓氏和中文名字為必填欄位');
       }
       const 中文姓名 = `${中文姓氏}${中文名字}`;
+
+      // 合成英文姓名
+      let 英文姓名 = '';
+      if (英文姓氏 && 英文名字) {
+        英文姓名 = `${英文姓氏}, ${英文名字}`;
+      } else if (英文姓氏) {
+        英文姓名 = 英文姓氏;
+      } else if (英文名字) {
+        英文姓名 = 英文名字;
+      }
 
       const patientWithFullName: Omit<db.Patient, '院友id'> = {
         ...rest,
         中文姓氏,
         中文名字,
         中文姓名,
+        英文姓氏,
+        英文名字,
+        英文姓名,
         床號: 床號 || '待分配'
       };
       console.log('Generated patient with full name:', patientWithFullName);
