@@ -3673,4 +3673,96 @@ export const deleteVaccinationRecord = async (recordId: string): Promise<void> =
   }
 };
 
+// Patient Notes types and functions
+export interface PatientNote {
+  id: string;
+  patient_id?: number;
+  note_date: string;
+  content: string;
+  is_completed: boolean;
+  completed_at?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+export const getPatientNotes = async (): Promise<PatientNote[]> => {
+  const { data, error } = await supabase
+    .from('patient_notes')
+    .select('*')
+    .order('is_completed', { ascending: true })
+    .order('note_date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching patient notes:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createPatientNote = async (note: Omit<PatientNote, 'id' | 'created_at' | 'updated_at'>): Promise<PatientNote> => {
+  const { data, error } = await supabase
+    .from('patient_notes')
+    .insert([note])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating patient note:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const updatePatientNote = async (note: PatientNote): Promise<PatientNote> => {
+  const { id, created_at, updated_at, ...updateData } = note;
+
+  const { data, error } = await supabase
+    .from('patient_notes')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating patient note:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deletePatientNote = async (noteId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('patient_notes')
+    .delete()
+    .eq('id', noteId);
+
+  if (error) {
+    console.error('Error deleting patient note:', error);
+    throw error;
+  }
+};
+
+export const completePatientNote = async (noteId: string): Promise<PatientNote> => {
+  const { data, error } = await supabase
+    .from('patient_notes')
+    .update({
+      is_completed: true,
+      completed_at: new Date().toISOString()
+    })
+    .eq('id', noteId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error completing patient note:', error);
+    throw error;
+  }
+
+  return data;
+};
+
 export default DrugModal;
