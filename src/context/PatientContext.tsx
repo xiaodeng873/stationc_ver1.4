@@ -735,8 +735,15 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         英文姓名 = 英文名字;
       }
 
+      // 清理日期欄位：空字串轉為 null
+      const cleanedRest: any = { ...rest };
+      if (cleanedRest.退住日期 === '') cleanedRest.退住日期 = null;
+      if (cleanedRest.death_date === '') cleanedRest.death_date = null;
+      if (cleanedRest.入住日期 === '') cleanedRest.入住日期 = null;
+      if (cleanedRest.出生日期 === '') cleanedRest.出生日期 = null;
+
       const patientWithFullName: Omit<db.Patient, '院友id'> = {
-        ...rest,
+        ...cleanedRest,
         中文姓氏,
         中文名字,
         中文姓名,
