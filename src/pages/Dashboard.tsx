@@ -914,7 +914,10 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         )}
-        {/* 監測任務 */}
+
+      {/* 原有的監測任務、待辦事項、近期覆診 4 欄布局 */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
+        {/* 監測任務 - 佔 2 欄 */}
         <div className="card p-6 lg:p-4 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 section-title">監測任務</h2>
@@ -1442,6 +1445,7 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
 
       {/* 任務模態框 */}
       {showTaskModal && (

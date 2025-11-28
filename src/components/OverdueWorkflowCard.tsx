@@ -53,6 +53,7 @@ const OverdueWorkflowCard: React.FC<OverdueWorkflowCardProps> = ({
       <div className="space-y-2">
         {displayItems.map((item) => {
           const dateEntries = Object.entries(item.dates).sort();
+          const earliestDate = dateEntries[0]?.[0] || '';
           const dateCount = dateEntries.length;
 
           return (
@@ -64,35 +65,19 @@ const OverdueWorkflowCard: React.FC<OverdueWorkflowCardProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-1">
-                    <Clock className="h-4 w-4 text-amber-600" />
                     <span className="font-medium text-amber-900">
                       {item.patient.床號} {item.patient.中文姓氏}{item.patient.中文名字}
                     </span>
                   </div>
-                  <div className="text-sm text-amber-700">
-                    {item.overdueCount} 個逾期 · {dateCount} 個日期
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {dateEntries.map(([date, count]) => (
-                      <span
-                        key={date}
-                        className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded"
-                      >
-                        {date.slice(5)}({count})
-                      </span>
-                    ))}
+                  <div className="flex items-center space-x-2 text-sm text-amber-700">
+                    <Clock className="h-4 w-4 text-amber-600" />
+                    <span>{item.overdueCount} 個逾期流程</span>
+                    {earliestDate && (
+                      <span className="text-xs">· 最早 {earliestDate}</span>
+                    )}
                   </div>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleViewDetails(item.patient.院友id);
-                  }}
-                  className="ml-3 text-sm bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700 transition-colors flex items-center space-x-1"
-                >
-                  <span>查看詳情</span>
-                  <ArrowRight className="h-3 w-3" />
-                </button>
+                <ArrowRight className="h-5 w-5 text-amber-600" />
               </div>
             </div>
           );
