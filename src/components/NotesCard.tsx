@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { StickyNote, Plus, Check, Trash2, ChevronDown, ChevronUp, User, Calendar } from 'lucide-react';
+import { StickyNote, Plus, Check, Trash2, ChevronDown, ChevronUp, User, Calendar, Edit } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import NoteModal from './NoteModal';
 
@@ -7,6 +7,7 @@ const NotesCard: React.FC = () => {
   const { patients, patientNotes, completePatientNote, deletePatientNote } = usePatients();
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [editingNote, setEditingNote] = useState<any>(null);
 
   const { uncompletedNotes, completedNotes } = useMemo(() => {
     const uncompleted = patientNotes
@@ -141,6 +142,13 @@ const NotesCard: React.FC = () => {
                     </p>
                     <div className="flex items-center space-x-2">
                       <button
+                        onClick={() => setEditingNote(note)}
+                        className="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        編輯
+                      </button>
+                      <button
                         onClick={() => handleComplete(note.id)}
                         className="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 flex items-center"
                       >
@@ -217,6 +225,13 @@ const NotesCard: React.FC = () => {
 
       {showNoteModal && (
         <NoteModal onClose={() => setShowNoteModal(false)} />
+      )}
+
+      {editingNote && (
+        <NoteModal
+          note={editingNote}
+          onClose={() => setEditingNote(null)}
+        />
       )}
     </>
   );

@@ -193,8 +193,10 @@ const PrescriptionManagement: React.FC = () => {
           setActiveTab(tabFromUrl as 'active' | 'pending_change' | 'inactive');
         }
 
-        // 清除 URL 參數
-        setSearchParams({});
+        // 延遲清除 URL 參數，確保狀態已更新
+        setTimeout(() => {
+          setSearchParams({});
+        }, 100);
       }
     }
   }, [searchParams, patientPrescriptionSummaries, setSearchParams]);

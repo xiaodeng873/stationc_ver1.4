@@ -5,10 +5,13 @@ import PatientAutocomplete from './PatientAutocomplete';
 
 interface NoteModalProps {
   onClose: () => void;
+  note?: any;
 }
 
-const NoteModal: React.FC<NoteModalProps> = ({ onClose }) => {
-  const { patients, addPatientNote } = usePatients();
+const NoteModal: React.FC<NoteModalProps> = ({ onClose, note }) => {
+  const { patients, addPatientNote, updatePatientNote } = usePatients();
+
+  const isEditMode = !!note;
 
   const getHongKongDate = () => {
     const now = new Date();
@@ -16,9 +19,9 @@ const NoteModal: React.FC<NoteModalProps> = ({ onClose }) => {
     return hongKongTime.toISOString().split('T')[0];
   };
 
-  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
-  const [noteDate, setNoteDate] = useState(getHongKongDate());
-  const [content, setContent] = useState('');
+  const [selectedPatientId, setSelectedPatientId] = useState<string>(note?.patient_id?.toString() || '');
+  const [noteDate, setNoteDate] = useState(note?.note_date || getHongKongDate());
+  const [content, setContent] = useState(note?.content || '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -51,12 +54,21 @@ const NoteModal: React.FC<NoteModalProps> = ({ onClose }) => {
     setIsSubmitting(true);
 
     try {
-      await addPatientNote({
-        patient_id: selectedPatientId ? parseInt(selectedPatientId) : undefined,
-        note_date: noteDate,
-        content: content.trim(),
-        is_completed: false
-      });
+      if (isEditMode) {
+        await updatePatientNote({
+          ...note,
+          patient_id: selectedPatientId ? parseInt(selectedPatientId) : undefined,
+          note_date: noteDate,
+          content: content.trim()
+        });
+      } else {
+        await addPatientNote({
+          patient_id: selectedPatientId ? parseInt(selectedPatientId) : undefined,
+          note_date: noteDate,
+          content: content.trim(),
+          is_completed: false
+        });
+      }
 
       onClose();
     } catch (error) {
@@ -76,7 +88,7 @@ const NoteModal: React.FC<NoteModalProps> = ({ onClose }) => {
               <div className="p-2 rounded-lg bg-blue-100">
                 <StickyNote className="h-6 w-6 text-blue-600" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">新增便條</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{isEditMode ? '編輯便條' : '新增便條'}</h2>
             </div>
             <button
               onClick={onClose}
@@ -170,7 +182,7 @@ const NoteModal: React.FC<NoteModalProps> = ({ onClose }) => {
               className="btn-primary flex-1"
               disabled={isSubmitting}
             >
-              {isSubmitting ? '儲存中...' : '儲存便條'}
+              {isSubmitting ? '儲存中...' : (isEditMode ? '更新便條' : '儲存便條')}
             </button>
           </div>
         </form>
