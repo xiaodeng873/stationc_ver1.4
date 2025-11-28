@@ -30,7 +30,7 @@ const PendingPrescriptionCard: React.FC<PendingPrescriptionCardProps> = ({
   if (pendingPrescriptions.length === 0) return null;
 
   const handleViewDetails = (patientId: number) => {
-    navigate(`/prescription-management?patientId=${patientId}`);
+    navigate(`/prescription-management?patient=${patientId}&tab=pending_change`);
   };
 
   return (

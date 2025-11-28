@@ -25,6 +25,7 @@ const OverdueWorkflowCard: React.FC<OverdueWorkflowCardProps> = ({
 }) => {
   const navigate = useNavigate();
   const [showAll, setShowAll] = useState(false);
+  const [expandedPatients, setExpandedPatients] = useState<Set<number>>(new Set());
 
   const displayItems = showAll ? overdueWorkflows : overdueWorkflows.slice(0, 2);
 
@@ -32,6 +33,24 @@ const OverdueWorkflowCard: React.FC<OverdueWorkflowCardProps> = ({
 
   const handleViewDetails = (patientId: number) => {
     navigate(`/medication-workflow?patientId=${patientId}`);
+  };
+
+  const togglePatientExpand = (patientId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedPatients(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(patientId)) {
+        newSet.delete(patientId);
+      } else {
+        newSet.add(patientId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDateClick = (patientId: number, date: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/medication-workflow?patientId=${patientId}&date=${date}`);
   };
 
   return (
@@ -53,32 +72,64 @@ const OverdueWorkflowCard: React.FC<OverdueWorkflowCardProps> = ({
       <div className="space-y-2">
         {displayItems.map((item) => {
           const dateEntries = Object.entries(item.dates).sort();
-          const earliestDate = dateEntries[0]?.[0] || '';
           const dateCount = dateEntries.length;
+          const isExpanded = expandedPatients.has(item.patient.院友id);
 
           return (
             <div
               key={item.patient.院友id}
-              className="p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
-              onClick={() => handleViewDetails(item.patient.院友id)}
+              className="bg-amber-50 border border-amber-200 rounded-lg transition-colors"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <span className="font-medium text-amber-900">
-                      {item.patient.床號} {item.patient.中文姓氏}{item.patient.中文名字}
-                    </span>
+              <div
+                className="p-3 hover:bg-amber-100 cursor-pointer"
+                onClick={() => handleViewDetails(item.patient.院友id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="font-medium text-amber-900">
+                        {item.patient.床號} {item.patient.中文姓氏}{item.patient.中文名字}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm text-amber-700">
+                      <Clock className="h-4 w-4 text-amber-600" />
+                      <span>{item.overdueCount} 個逾期流程 · {dateCount} 個日期</span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2 text-sm text-amber-700">
-                    <Clock className="h-4 w-4 text-amber-600" />
-                    <span>{item.overdueCount} 個逾期流程</span>
-                    {earliestDate && (
-                      <span className="text-xs">· 最早 {earliestDate}</span>
-                    )}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => togglePatientExpand(item.patient.院友id, e)}
+                      className="p-1 hover:bg-amber-200 rounded transition-colors"
+                      title={isExpanded ? "摺疊日期" : "展開日期"}
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="h-5 w-5 text-amber-600" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-amber-600" />
+                      )}
+                    </button>
+                    <ArrowRight className="h-5 w-5 text-amber-600" />
                   </div>
                 </div>
-                <ArrowRight className="h-5 w-5 text-amber-600" />
               </div>
+
+              {isExpanded && (
+                <div className="px-3 pb-3 space-y-1">
+                  <div className="text-xs text-amber-600 font-medium mb-2">逾期日期列表：</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {dateEntries.map(([date, count]) => (
+                      <button
+                        key={date}
+                        onClick={(e) => handleDateClick(item.patient.院友id, date, e)}
+                        className="text-left px-3 py-2 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded text-sm text-amber-900 transition-colors"
+                      >
+                        <div className="font-medium">{date}</div>
+                        <div className="text-xs text-amber-700">{count} 個流程</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

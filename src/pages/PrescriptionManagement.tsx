@@ -173,9 +173,11 @@ const PrescriptionManagement: React.FC = () => {
     };
   }, [currentPatient, activeTab, selectedRoute]);
 
-  // 處理 URL 參數，自動選中院友
+  // 處理 URL 參數，自動選中院友和小分頁
   React.useEffect(() => {
     const patientIdFromUrl = searchParams.get('patient');
+    const tabFromUrl = searchParams.get('tab');
+
     if (patientIdFromUrl && patientPrescriptionSummaries.length > 0) {
       const patientIndex = patientPrescriptionSummaries.findIndex(
         summary => summary.patient.院友id.toString() === patientIdFromUrl
@@ -185,6 +187,12 @@ const PrescriptionManagement: React.FC = () => {
           ...prev,
           selectedPatientId: patientIdFromUrl
         }));
+
+        // 如果有 tab 參數，切換到指定的小分頁
+        if (tabFromUrl && ['active', 'pending_change', 'inactive'].includes(tabFromUrl)) {
+          setActiveTab(tabFromUrl as 'active' | 'pending_change' | 'inactive');
+        }
+
         // 清除 URL 參數
         setSearchParams({});
       }
