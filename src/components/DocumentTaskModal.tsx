@@ -92,7 +92,7 @@ const DocumentTaskModal: React.FC<DocumentTaskModalProps> = ({
   const getDateLabel = (taskType: string): string => {
     switch (taskType) {
       case '導尿管更換':
-        return '尿導管更換日期';
+        return '導尿管更換日期';
       case '鼻胃飼管更換':
         return '鼻胃飼管更換日期';
       case '傷口換症':
@@ -108,7 +108,7 @@ const DocumentTaskModal: React.FC<DocumentTaskModalProps> = ({
 
   // 判斷是否需要喉管設定
   const needsTubeSettings = (taskType: string): boolean => {
-    return taskType === '尿導管更換' || taskType === '鼻胃飼管更換';
+    return taskType === '導尿管更換' || taskType === '鼻胃飼管更換';
   };
 
   // 驗證表單
@@ -158,7 +158,7 @@ const DocumentTaskModal: React.FC<DocumentTaskModalProps> = ({
   const getTaskTypeColor = (type: string) => {
     switch (type) {
       case '年度體檢': return 'text-yellow-600';
-      case '尿導管更換': return 'text-blue-600';
+      case '導尿管更換': return 'text-blue-600';
       case '鼻胃飼管更換': return 'text-green-600';
       case '傷口換症': return 'text-red-600';
       case '晚晴計劃': return 'text-pink-600';
@@ -220,7 +220,7 @@ const DocumentTaskModal: React.FC<DocumentTaskModalProps> = ({
             />
           </div>
 
-          {/* 喉管設定 - 僅針對尿導管和鼻胃飼管更換 */}
+          {/* 喉管設定 - 僅針對導尿管和鼻胃飼管更換 */}
           {needsTubeSettings(task.health_record_type) && (
             <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h4 className="text-sm font-medium text-blue-900">喉管設定</h4>
