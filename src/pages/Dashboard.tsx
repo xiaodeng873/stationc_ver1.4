@@ -13,7 +13,11 @@ import RestraintAssessmentModal from '../components/RestraintAssessmentModal';
 import HealthAssessmentModal from '../components/HealthAssessmentModal';
 import AnnualHealthCheckupModal from '../components/AnnualHealthCheckupModal';
 import MissingRequirementsCard from '../components/MissingRequirementsCard';
+import NotesCard from '../components/NotesCard';
+import OverdueWorkflowCard from '../components/OverdueWorkflowCard';
+import PendingPrescriptionCard from '../components/PendingPrescriptionCard';
 import PatientModal from '../components/PatientModal';
+import VaccinationRecordModal from '../components/VaccinationRecordModal';
 
 // 定義任務和病人的接口
 interface Patient {
@@ -65,7 +69,7 @@ interface HealthRecord {
 }
 
 const Dashboard: React.FC = () => {
-  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, setPatientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, prescriptionWorkflowRecords, annualHealthCheckups, loading, updatePatientHealthTask, refreshData } = usePatients();
+  const { patients, schedules, prescriptions, followUpAppointments, patientHealthTasks, setPatientHealthTasks, healthRecords, patientRestraintAssessments, healthAssessments, mealGuidances, prescriptionWorkflowRecords, annualHealthCheckups, vaccinationRecords, loading, updatePatientHealthTask, refreshData } = usePatients();
   const [showHealthRecordModal, setShowHealthRecordModal] = useState(false);
   const [selectedHealthRecordInitialData, setSelectedHealthRecordInitialData] = useState<any>({});
   const [showDocumentTaskModal, setShowDocumentTaskModal] = useState(false);
@@ -91,6 +95,8 @@ const Dashboard: React.FC = () => {
   const [isGeneratingTemperature, setIsGeneratingTemperature] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [selectedPatientForEdit, setSelectedPatientForEdit] = useState<any>(null);
+  const [showVaccinationModal, setShowVaccinationModal] = useState(false);
+  const [selectedPatientForVaccination, setSelectedPatientForVaccination] = useState<any>(null);
 
   // 使用 useMemo 來確保任務去重邏輯只執行一次，避免重複處理
   const uniquePatientHealthTasks = useMemo(() => {
@@ -199,25 +205,50 @@ const Dashboard: React.FC = () => {
     }));
   }, [patients]);
 
-  // 計算有逾期執核派藥流程的院友
-  const patientsWithOverdueWorkflow = useMemo(() => {
+  // 計算欠缺疫苗記錄的院友（檢查所有院友）
+  const missingVaccination = useMemo(() => {
+    return patients.filter(patient =>
+      !vaccinationRecords.some(record => record.patient_id === patient.院友id)
+    ).map(patient => ({
+      patient,
+      missingInfo: '疫苗記錄'
+    }));
+  }, [patients, vaccinationRecords]);
+
+  // 計算有逾期執核派藥流程的院友（精簡版）
+  const overdueWorkflows = useMemo(() => {
     const result = getPatientsWithOverdueWorkflow(prescriptionWorkflowRecords, patients);
-    console.log('🔍 主面板逾期檢查:', {
-      總工作流程記錄數: prescriptionWorkflowRecords.length,
-      總院友數: patients.length,
-      有逾期的院友數: result.length,
-      逾期院友列表: result.map(r => ({
-        院友ID: r.patient?.院友id,
-        院友: r.patient ? `${r.patient.床號} - ${r.patient.中文姓氏}${r.patient.中文名字}` : '未知',
-        逾期數量: r.overdueCount,
-        逾期日期: r.overdueDates,
-        最早逾期日期: r.earliestOverdueDate
-      })),
-      完整結果對象: result
+    return result.map(({ patient, overdueCount, overdueDates }) => {
+      const dates: { [date: string]: number } = {};
+      overdueDates.forEach(date => {
+        const count = prescriptionWorkflowRecords.filter(r =>
+          r.patient_id === patient.院友id &&
+          r.scheduled_date === date &&
+          (r.preparation_status === 'pending' || r.verification_status === 'pending' || r.dispensing_status === 'pending')
+        ).length;
+        dates[date] = count;
+      });
+      return {
+        patient,
+        overdueCount,
+        dates
+      };
     });
-    console.log('📊 是否顯示逾期提醒區塊:', result.length > 0);
-    return result;
   }, [prescriptionWorkflowRecords, patients]);
+
+  // 計算待變更處方（精簡版）
+  const pendingPrescriptions = useMemo(() => {
+    const result = patients
+      .filter(p => p.在住狀態 === '在住')
+      .map(patient => {
+        const count = prescriptions.filter(pr =>
+          pr.patient_id === patient.院友id && pr.status === 'pending_change'
+        ).length;
+        return { patient, count };
+      })
+      .filter(item => item.count > 0);
+    return result;
+  }, [patients, prescriptions]);
 
   // 處理文件或護理任務點擊
   const handleDocumentTaskClick = (task: HealthTask) => {
@@ -560,6 +591,11 @@ const Dashboard: React.FC = () => {
     setShowPatientModal(true);
   };
 
+  const handleAddVaccinationRecord = (patient: any) => {
+    setSelectedPatientForVaccination(patient);
+    setShowVaccinationModal(true);
+  };
+
   const handleTaskCompleted = async (taskId: string, recordDateTime: Date) => {
     setShowHealthRecordModal(false);
     setSelectedHealthRecordInitialData({});
@@ -770,203 +806,40 @@ const Dashboard: React.FC = () => {
         })}
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-3">
-        {/* 欠缺必要項目綜合提醒 */}
-        <MissingRequirementsCard
-          missingTasks={missingTasks}
-          missingMealGuidance={missingMealGuidance}
-          missingDeathDate={missingDeathDate}
-          onCreateTask={handleCreateMissingTask}
-          onAddMealGuidance={handleAddMealGuidance}
-          onEditPatient={handleEditPatientForDeathDate}
-        />
 
-        {/* 待變更處方提醒 */}
-        {(() => {
-          const patientsWithPendingPrescriptions = patients.filter(patient => {
-            if (patient.在住狀態 !== '在住') return false;
-            return prescriptions.some(prescription =>
-              prescription.patient_id === patient.院友id &&
-              prescription.status === 'pending_change'
-            );
-          });
+      {/* 4 欄布局：便條、欠缺、逾期、待變更 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        {/* 第 1 欄 - 便條 */}
+        <div className="col-span-1">
+          <NotesCard />
+        </div>
 
-          return patientsWithPendingPrescriptions.length > 0 && (
-            <div className="lg:col-span-5 mb-6">
-              <div className="card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 rounded-lg bg-yellow-100">
-                      <Pill className="h-6 w-6 text-yellow-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-900">待變更處方提醒</h2>
-                      <p className="text-sm text-gray-600">
-                        {patientsWithPendingPrescriptions.length} 位院友有待變更的處方需要處理
-                      </p>
-                    </div>
-                  </div>
-                </div>
+        {/* 第 2 欄 - 欠缺必要項目 */}
+        <div className="col-span-1">
+          <MissingRequirementsCard
+            missingTasks={missingTasks}
+            missingMealGuidance={missingMealGuidance}
+            missingDeathDate={missingDeathDate}
+            missingVaccination={missingVaccination}
+            onCreateTask={handleCreateMissingTask}
+            onAddMealGuidance={handleAddMealGuidance}
+            onEditPatient={handleEditPatientForDeathDate}
+            onAddVaccinationRecord={handleAddVaccinationRecord}
+          />
+        </div>
 
-                <div className="space-y-3">
-                  {patientsWithPendingPrescriptions.slice(0, 5).map(patient => {
-                    const pendingPrescriptions = prescriptions.filter(p =>
-                      p.patient_id === patient.院友id && p.status === 'pending_change'
-                    );
+        {/* 第 3 欄 - 執核派藥逾期提醒 */}
+        <div className="col-span-1">
+          <OverdueWorkflowCard overdueWorkflows={overdueWorkflows} />
+        </div>
 
-                    return (
-                      <div key={patient.院友id} className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
-                            {patient.院友相片 ? (
-                              <img
-                                src={patient.院友相片}
-                                alt={patient.中文姓名}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <User className="h-5 w-5 text-blue-600" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {patient.床號} - {patient.中文姓氏}{patient.中文名字}
-                            </div>
-                            <div className="text-sm text-yellow-700">
-                              {pendingPrescriptions.length} 個待變更處方：
-                              {pendingPrescriptions.slice(0, 2).map(p => p.medication_name).join('、')}
-                              {pendingPrescriptions.length > 2 && '...'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            {pendingPrescriptions.length} 個待變更
-                          </span>
-                          <Link
-                            to="/prescriptions"
-                            className="text-yellow-600 hover:text-yellow-700 p-1 rounded"
-                            title="前往處理"
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                          </Link>
-                        </div>
-                      </div>
-                    );
-                  })}
+        {/* 第 4 欄 - 待變更處方提醒 */}
+        <div className="col-span-1">
+          <PendingPrescriptionCard pendingPrescriptions={pendingPrescriptions} />
+        </div>
+      </div>
 
-                  {patientsWithPendingPrescriptions.length > 5 && (
-                    <div className="text-center pt-2">
-                      <Link
-                        to="/prescriptions"
-                        className="text-sm text-yellow-600 hover:text-yellow-700 font-medium"
-                      >
-                        查看全部 {patientsWithPendingPrescriptions.length} 位院友的待變更處方
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* 執核派藥逾期提醒 */}
-        {patientsWithOverdueWorkflow.length > 0 && (
-          <div className="lg:col-span-5 mb-6">
-            <div className="card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-red-100">
-                    <AlertTriangle className="h-6 w-6 text-red-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">執核派藥逾期提醒</h2>
-                    <p className="text-sm text-gray-600">
-                      {patientsWithOverdueWorkflow.length} 位院友有逾期未完成的執核派藥流程
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {patientsWithOverdueWorkflow.slice(0, 5).map(({ patient, overdueCount, overdueRecords, overdueDates, earliestOverdueDate }) => {
-                  return (
-                    <div key={patient.院友id} className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
-                            {patient.院友相片 ? (
-                              <img
-                                src={patient.院友相片}
-                                alt={patient.中文姓名}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <User className="h-5 w-5 text-blue-600" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {patient.床號} - {patient.中文姓氏}{patient.中文名字}
-                            </div>
-                            <div className="text-sm text-red-700">
-                              {overdueCount} 個逾期流程 • {overdueDates.length} 個日期有遺漏
-                            </div>
-                          </div>
-                        </div>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          {overdueCount} 個逾期
-                        </span>
-                      </div>
-
-                      {/* 顯示逾期的日期列表 */}
-                      <div className="ml-13 space-y-1">
-                        <div className="text-xs text-red-600 font-medium mb-1">逾期日期：</div>
-                        <div className="flex flex-wrap gap-2">
-                          {overdueDates.slice(0, 5).map(date => {
-                            const dateRecords = overdueRecords.filter(r => r.scheduled_date === date);
-                            return (
-                              <Link
-                                key={date}
-                                to={`/medication-workflow?patientId=${patient.院友id}&date=${date}`}
-                                className="inline-flex items-center px-2 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-xs transition-colors"
-                                title={`前往查看 ${date} 的 ${dateRecords.length} 個逾期流程`}
-                              >
-                                <Calendar className="h-3 w-3 mr-1" />
-                                {new Date(date).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })}
-                                <span className="ml-1 text-red-600">({dateRecords.length})</span>
-                              </Link>
-                            );
-                          })}
-                          {overdueDates.length > 5 && (
-                            <span className="inline-flex items-center px-2 py-1 text-red-600 text-xs">
-                              還有 {overdueDates.length - 5} 個日期...
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {patientsWithOverdueWorkflow.length > 5 && (
-                  <div className="text-center pt-2">
-                    <Link
-                      to="/medication-workflow"
-                      className="text-sm text-red-600 hover:text-red-700 font-medium"
-                    >
-                      查看全部 {patientsWithOverdueWorkflow.length} 位院友的逾期流程
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 每日任務補填模態框 */}
+      {/* 每日任務補填模態框 */}
         {showDailyTaskModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-md w-full p-6">
@@ -1569,7 +1442,6 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
-      </div>
 
       {/* 任務模態框 */}
       {showTaskModal && (
@@ -1718,6 +1590,16 @@ const Dashboard: React.FC = () => {
             setShowPatientModal(false);
             setSelectedPatientForEdit(null);
             refreshData();
+          }}
+        />
+      )}
+
+      {showVaccinationModal && (
+        <VaccinationRecordModal
+          patientId={selectedPatientForVaccination?.院友id}
+          onClose={() => {
+            setShowVaccinationModal(false);
+            setSelectedPatientForVaccination(null);
           }}
         />
       )}
