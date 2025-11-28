@@ -12,6 +12,6 @@
 */
 
 -- Add new values to the health_task_type enum
-ALTER TYPE health_task_type ADD VALUE IF NOT EXISTS '尿導管更換';
+ALTER TYPE health_task_type ADD VALUE IF NOT EXISTS '導取管更換';
 ALTER TYPE health_task_type ADD VALUE IF NOT EXISTS '鼻胃飼管更換';
 ALTER TYPE health_task_type ADD VALUE IF NOT EXISTS '傷口換症';
