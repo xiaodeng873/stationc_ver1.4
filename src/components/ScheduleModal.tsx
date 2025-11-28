@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Calendar } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 
@@ -11,7 +11,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ schedule, onClose }) => {
   const { addSchedule, updateSchedule } = usePatients();
 
   // 香港時區輔助函數
-  const getHongKongDate = () => { 
+  const getHongKongDate = () => {
     const now = new Date();
     const hongKongTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)); // GMT+8
     return hongKongTime.toISOString().split('T')[0];
@@ -20,6 +20,15 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ schedule, onClose }) => {
   const [formData, setFormData] = useState({
     到診日期: schedule?.到診日期 || getHongKongDate()
   });
+
+  // 當 schedule 改變時更新 formData
+  useEffect(() => {
+    if (schedule) {
+      setFormData({
+        到診日期: schedule.到診日期 || getHongKongDate()
+      });
+    }
+  }, [schedule]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
