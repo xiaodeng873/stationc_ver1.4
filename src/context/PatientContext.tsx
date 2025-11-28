@@ -735,12 +735,20 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         英文姓名 = 英文名字;
       }
 
-      // 清理日期欄位：空字串轉為 null
+      // 清理所有空字串欄位：轉為 null
       const cleanedRest: any = { ...rest };
+
+      // 清理日期欄位
       if (cleanedRest.退住日期 === '') cleanedRest.退住日期 = null;
       if (cleanedRest.death_date === '') cleanedRest.death_date = null;
       if (cleanedRest.入住日期 === '') cleanedRest.入住日期 = null;
       if (cleanedRest.出生日期 === '') cleanedRest.出生日期 = null;
+
+      // 清理文本欄位
+      if (cleanedRest.discharge_reason === '') cleanedRest.discharge_reason = null;
+      if (cleanedRest.transfer_facility_name === '') cleanedRest.transfer_facility_name = null;
+      if (cleanedRest.院友相片 === '') cleanedRest.院友相片 = null;
+      if (cleanedRest.身份證號碼 === '') cleanedRest.身份證號碼 = null;
 
       const patientWithFullName: Omit<db.Patient, '院友id'> = {
         ...cleanedRest,
@@ -773,32 +781,47 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         }
       }
 
-      await db.updatePatient(patient);
+      // 清理所有空字串欄位：轉為 null
+      const cleanedPatient: any = { ...patient };
+
+      // 清理日期欄位
+      if (cleanedPatient.退住日期 === '') cleanedPatient.退住日期 = null;
+      if (cleanedPatient.death_date === '') cleanedPatient.death_date = null;
+      if (cleanedPatient.入住日期 === '') cleanedPatient.入住日期 = null;
+      if (cleanedPatient.出生日期 === '') cleanedPatient.出生日期 = null;
+
+      // 清理文本欄位
+      if (cleanedPatient.discharge_reason === '') cleanedPatient.discharge_reason = null;
+      if (cleanedPatient.transfer_facility_name === '') cleanedPatient.transfer_facility_name = null;
+      if (cleanedPatient.院友相片 === '') cleanedPatient.院友相片 = null;
+      if (cleanedPatient.身份證號碼 === '') cleanedPatient.身份證號碼 = null;
+
+      await db.updatePatient(cleanedPatient);
 
       // 當院友狀態更新時，檢查是否需要更新 is_hospitalized 狀態
       // 如果有 active 的住院事件，設為 true；否則設為 false
       const activeEpisode = hospitalEpisodes.find(episode =>
-        episode.patient_id === patient.院友id && episode.status === 'active'
+        episode.patient_id === cleanedPatient.院友id && episode.status === 'active'
       );
 
-      if (activeEpisode && !patient.is_hospitalized) {
+      if (activeEpisode && !cleanedPatient.is_hospitalized) {
         // 有 active 住院事件但 is_hospitalized 為 false，需要更新
         await db.updatePatient({
-          ...patient,
+          ...cleanedPatient,
           is_hospitalized: true
         });
-      } else if (!activeEpisode && patient.is_hospitalized) {
+      } else if (!activeEpisode && cleanedPatient.is_hospitalized) {
         // 沒有 active 住院事件但 is_hospitalized 為 true，需要更新
         await db.updatePatient({
-          ...patient,
+          ...cleanedPatient,
           is_hospitalized: false
         });
       }
 
       // 如果院友退住，刪除健康任務
       // 資料庫觸發器會自動處理床位釋放
-      if (patient.在住狀態 === '已退住') {
-        const patientTasks = patientHealthTasks.filter(task => task.patient_id === patient.院友id);
+      if (cleanedPatient.在住狀態 === '已退住') {
+        const patientTasks = patientHealthTasks.filter(task => task.patient_id === cleanedPatient.院友id);
         for (const task of patientTasks) {
           await db.deletePatientHealthTask(task.id);
         }
