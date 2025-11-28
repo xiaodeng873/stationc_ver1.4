@@ -2,7 +2,7 @@
   # Add nursing task types to health_task_type enum
 
   1. Enum Updates
-    - Add '尿導管更換' (Urinary catheter replacement)
+    - Add '導尿管更換' (Urinary catheter replacement)
     - Add '鼻胃飼管更換' (Nasogastric tube replacement) 
     - Add '傷口換症' (Wound dressing change)
 
