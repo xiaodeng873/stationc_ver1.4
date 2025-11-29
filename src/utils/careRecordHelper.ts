@@ -6,12 +6,12 @@ export const TIME_SLOTS = [
 ];
 
 export const DIAPER_CHANGE_SLOTS = [
-  '7AM-10AM',
-  '11AM-2PM',
-  '3PM-6PM',
-  '7PM-10PM',
-  '11PM-2AM',
-  '3AM-6AM'
+  { time: '7AM-10AM', label: '早班' },
+  { time: '11AM-2PM', label: '午班' },
+  { time: '3PM-6PM', label: '黃昏班' },
+  { time: '7PM-10PM', label: '晚班' },
+  { time: '11PM-2AM', label: '深夜班' },
+  { time: '3AM-6AM', label: '凌晨班' }
 ];
 
 export const generateWeekDates = (startDate: Date): Date[] => {

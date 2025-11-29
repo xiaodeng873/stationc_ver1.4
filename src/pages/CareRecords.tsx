@@ -131,6 +131,37 @@ const CareRecords: React.FC = () => {
     setWeekStartDate(getWeekStartDate());
   };
 
+  const goToPreviousPatient = () => {
+    const currentIndex = sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId);
+    if (currentIndex > 0) {
+      setSelectedPatientId(sortedActivePatients[currentIndex - 1].院友id.toString());
+    } else if (sortedActivePatients.length > 0) {
+      setSelectedPatientId(sortedActivePatients[sortedActivePatients.length - 1].院友id.toString());
+    }
+  };
+
+  const goToNextPatient = () => {
+    const currentIndex = sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId);
+    if (currentIndex < sortedActivePatients.length - 1 && currentIndex !== -1) {
+      setSelectedPatientId(sortedActivePatients[currentIndex + 1].院友id.toString());
+    } else if (sortedActivePatients.length > 0) {
+      setSelectedPatientId(sortedActivePatients[0].院友id.toString());
+    }
+  };
+
+  const calculateAge = (birthDate: string) => {
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+
+    return age;
+  };
+
   const handleCellClick = (date: string, timeSlot: string, existingRecord?: any) => {
     if (!selectedPatient) return;
 
@@ -231,7 +262,7 @@ const CareRecords: React.FC = () => {
                   const record = patientPatrolRounds.find(
                     r => r.record_date === date && r.time_slot === timeSlot
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient.院友id, date, timeSlot, admissionRecords);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeSlot, admissionRecords);
                   const overdue = !record && !inHospital && isOverdue(date, timeSlot);
 
                   return (
@@ -302,7 +333,8 @@ const CareRecords: React.FC = () => {
                   const record = patientDiaperChanges.find(
                     r => r.record_date === date && r.time_slot === slot.time
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient.院友id, date, slot.time.split('-')[0], admissionRecords);
+                  const timeStr = slot.time.split('-')[0];
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeStr, admissionRecords);
 
                   return (
                     <td
@@ -377,7 +409,7 @@ const CareRecords: React.FC = () => {
                   const record = patientRestraintObservations.find(
                     r => r.observation_date === date && r.time_slot === timeSlot
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient.院友id, date, timeSlot, admissionRecords);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeSlot, admissionRecords);
                   const overdue = !record && !inHospital && isOverdue(date, timeSlot);
 
                   return (
@@ -458,7 +490,7 @@ const CareRecords: React.FC = () => {
                   const record = patientPositionChanges.find(
                     r => r.record_date === date && r.time_slot === timeSlot
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient.院友id, date, timeSlot, admissionRecords);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeSlot, admissionRecords);
                   const expectedPosition = getPositionSequence(index);
 
                   return (
@@ -520,60 +552,91 @@ const CareRecords: React.FC = () => {
         </h1>
       </div>
 
-      <div className="card">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
-          <div className="space-y-2">
+      <div className="card p-4">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1 space-y-2">
             <label className="text-sm font-medium text-gray-700">選擇院友</label>
-            <PatientAutocomplete
-              patients={sortedActivePatients}
-              selectedPatientId={selectedPatientId}
-              onSelect={(id) => setSelectedPatientId(id)}
-              placeholder="搜尋院友..."
-            />
-            {selectedPatient && (
-              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                <span>床號: <strong>{selectedPatient.床號}</strong></span>
-                <span>姓名: <strong>{selectedPatient.姓名}</strong></span>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={goToPreviousPatient}
+                disabled={sortedActivePatients.length <= 1}
+                className="btn-secondary flex items-center space-x-1 px-3 py-2 flex-shrink-0"
+                title="上一位院友"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>上一位</span>
+              </button>
+              <div className="flex-1 min-w-0">
+                <PatientAutocomplete
+                  value={selectedPatientId}
+                  onChange={setSelectedPatientId}
+                  placeholder="搜尋院友..."
+                  showResidencyFilter={true}
+                  defaultResidencyStatus="在住"
+                />
+              </div>
+              <button
+                onClick={goToNextPatient}
+                disabled={sortedActivePatients.length <= 1}
+                className="btn-secondary flex items-center space-x-1 px-3 py-2 flex-shrink-0"
+                title="下一位院友"
+              >
+                <span>下一位</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            {sortedActivePatients.length > 0 && (
+              <div className="text-sm text-gray-600 text-center lg:text-left">
+                第 {sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId) + 1} / {sortedActivePatients.length} 位院友
+                {selectedPatient && (
+                  <span className="ml-2 text-blue-600">
+                    (床號: {selectedPatient.床號})
+                  </span>
+                )}
               </div>
             )}
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">選擇週期</label>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={handlePreviousWeek}
-                className="btn-secondary flex items-center space-x-1"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span>上週</span>
-              </button>
-              <button
-                onClick={handleCurrentWeek}
-                className="btn-primary flex-1"
-              >
-                本週
-              </button>
-              <button
-                onClick={handleNextWeek}
-                className="btn-secondary flex items-center space-x-1"
-              >
-                <span>下週</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
+          {selectedPatient && (
+            <div className="lg:w-80 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-4">
+              <label className="text-sm font-medium text-gray-700 block mb-2">院友資訊</label>
+              <div className="flex items-start space-x-3">
+                {selectedPatient.院友相片 ? (
+                  <img
+                    src={selectedPatient.院友相片}
+                    alt={selectedPatient.中文姓名}
+                    className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                    <User className="h-10 w-10 text-gray-400" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="font-semibold text-gray-900">
+                    {selectedPatient.中文姓名} ({selectedPatient.性別})
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {selectedPatient.出生日期 && (
+                      <div>{calculateAge(selectedPatient.出生日期)}歲</div>
+                    )}
+                    {selectedPatient.出生日期 && (
+                      <div>{new Date(selectedPatient.出生日期).toLocaleDateString('zh-TW')}</div>
+                    )}
+                    <div>{selectedPatient.身份證號碼}</div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-sm text-gray-600 text-center">
-              {formatDate(weekDates[0])} - {formatDate(weekDates[6])}
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
       {selectedPatientId && (
         <>
           <div className="card">
-            <div className="border-b border-gray-200">
-              <div className="flex space-x-1 p-2 overflow-x-auto">
+            <div className="flex flex-wrap lg:flex-nowrap items-start justify-between gap-4 p-4 border-b border-gray-200">
+              <div className="flex flex-wrap gap-1 flex-1 min-w-0">
                 <button
                   onClick={() => setActiveTab('patrol')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
@@ -640,6 +703,34 @@ const CareRecords: React.FC = () => {
                   <GraduationCap className="h-4 w-4" />
                   <span>如廁訓練</span>
                 </button>
+              </div>
+
+              <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handlePreviousWeek}
+                    className="btn-secondary flex items-center space-x-1 px-3 py-2"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span>上週</span>
+                  </button>
+                  <button
+                    onClick={handleCurrentWeek}
+                    className="btn-primary px-4 py-2"
+                  >
+                    本週
+                  </button>
+                  <button
+                    onClick={handleNextWeek}
+                    className="btn-secondary flex items-center space-x-1 px-3 py-2"
+                  >
+                    <span>下週</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="text-sm text-gray-600">
+                  📅 {formatDate(weekDates[0])} - {formatDate(weekDates[6])}
+                </div>
               </div>
             </div>
 
