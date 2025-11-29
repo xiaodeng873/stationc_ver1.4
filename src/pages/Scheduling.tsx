@@ -344,7 +344,7 @@ const Scheduling: React.FC = () => {
       {dueItems.length > 0 && (
         <div className="card p-0 overflow-hidden">
           <div className="bg-red-500 text-white">
-            <div className="px-4 py-2 border-b border-red-200">
+            <div className="px-4 py-2 border-b border-red-50">
               <div className="flex items-center space-x-2">
                 <AlertCircle className="h-5 w-5" />
                 <span className="font-semibold">
