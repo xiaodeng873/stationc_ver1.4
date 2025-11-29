@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* iPad 橫向模式：整體按比例縮放 */
+@media (min-width: 1024px) and (max-width: 1366px) and (orientation: landscape) {
+  html {
+    zoom: 0.85;
+  }
+}
