@@ -1,48 +1,61 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, RotateCcw } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { X, User, RotateCcw, Trash2 } from 'lucide-react';
+import type { Patient, PositionChangeRecord } from '../lib/database';
 import { getPositionSequence } from '../utils/careRecordHelper';
 
 interface PositionChangeModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (data: {
-    position: '左' | '平' | '右';
-    recorder: string;
-  }) => void;
-  patientName: string;
-  scheduledTime: string;
+  patient: Patient;
   date: string;
+  timeSlot: string;
+  staffName: string;
+  existingRecord?: PositionChangeRecord | null;
+  onClose: () => void;
+  onSubmit: (data: Omit<PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>) => void;
+  onDelete?: (recordId: string) => void;
 }
 
 const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
-  isOpen,
+  patient,
+  date,
+  timeSlot,
+  staffName,
+  existingRecord,
   onClose,
-  onConfirm,
-  patientName,
-  scheduledTime,
-  date
+  onSubmit,
+  onDelete
 }) => {
-  const { displayName, user } = useAuth();
   const [position, setPosition] = useState<'左' | '平' | '右'>('左');
   const [recorder, setRecorder] = useState('');
 
   useEffect(() => {
-    if (isOpen) {
-      const suggestedPosition = getPositionSequence(scheduledTime);
+    if (existingRecord) {
+      setPosition(existingRecord.position);
+      setRecorder(existingRecord.staff_name || '');
+    } else {
+      const suggestedPosition = getPositionSequence(timeSlot);
       setPosition(suggestedPosition);
-      setRecorder(displayName || user?.email || '');
+      setRecorder(staffName);
     }
-  }, [isOpen, scheduledTime, displayName, user]);
-
-  if (!isOpen) return null;
+  }, [existingRecord, timeSlot, staffName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirm({
+
+    const data: Omit<PositionChangeRecord, 'id' | 'created_at' | 'updated_at'> = {
+      patient_id: patient.院友id,
+      record_date: date,
+      time_slot: timeSlot,
       position,
-      recorder
-    });
+      staff_name: recorder
+    };
+
+    onSubmit(data);
+  };
+
+  const handleDelete = () => {
+    if (existingRecord && onDelete && window.confirm('確定要刪除此轉身記錄嗎？')) {
+      onDelete(existingRecord.id);
+    }
   };
 
   const getPositionButtonClass = (pos: '左' | '平' | '右') => {
@@ -57,7 +70,9 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">轉身記錄</h2>
+          <h2 className="text-xl font-semibold text-gray-900">
+            {existingRecord ? '查看/編輯轉身記錄' : '新增轉身記錄'}
+          </h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -73,7 +88,7 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
             </label>
             <input
               type="text"
-              value={patientName}
+              value={patient.中文姓名}
               disabled
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
             />
@@ -97,7 +112,7 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
             </label>
             <input
               type="text"
-              value={scheduledTime}
+              value={timeSlot}
               disabled
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
             />
@@ -142,9 +157,11 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
                 右
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              系統已根據時段自動選擇建議位置，您可以手動調整
-            </p>
+            {!existingRecord && (
+              <p className="text-xs text-gray-500 mt-2">
+                系統已根據時段自動選擇建議位置，您可以手動調整
+              </p>
+            )}
           </div>
 
           <div>
@@ -161,20 +178,32 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
             />
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              確認轉身
-            </button>
+          <div className="flex justify-between items-center pt-4">
+            {existingRecord && onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center space-x-1"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>刪除</span>
+              </button>
+            )}
+            <div className="flex justify-end space-x-3 ml-auto">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                {existingRecord ? '更新記錄' : '確認轉身'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

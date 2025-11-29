@@ -1,59 +1,74 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, User, FileText } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { X, Clock, User, FileText, Trash2 } from 'lucide-react';
+import type { Patient, PatrolRound } from '../lib/database';
 import { addRandomOffset } from '../utils/careRecordHelper';
 
 interface PatrolRoundModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (data: {
-    patrol_time: string;
-    recorder: string;
-    notes?: string;
-  }) => void;
-  patientName: string;
-  scheduledTime: string;
+  patient: Patient;
   date: string;
+  timeSlot: string;
+  staffName: string;
+  existingRecord?: PatrolRound | null;
+  onClose: () => void;
+  onSubmit: (data: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'>) => void;
+  onDelete?: (recordId: string) => void;
 }
 
 const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
-  isOpen,
+  patient,
+  date,
+  timeSlot,
+  staffName,
+  existingRecord,
   onClose,
-  onConfirm,
-  patientName,
-  scheduledTime,
-  date
+  onSubmit,
+  onDelete
 }) => {
-  const { displayName, user } = useAuth();
   const [patrolTime, setPatrolTime] = useState('');
   const [recorder, setRecorder] = useState('');
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    if (isOpen) {
-      const randomTime = addRandomOffset(scheduledTime);
+    if (existingRecord) {
+      setPatrolTime(existingRecord.patrol_time || '');
+      setRecorder(existingRecord.staff_name || '');
+      setNotes(existingRecord.notes || '');
+    } else {
+      const randomTime = addRandomOffset(timeSlot);
       setPatrolTime(randomTime);
-      setRecorder(displayName || user?.email || '');
+      setRecorder(staffName);
       setNotes('');
     }
-  }, [isOpen, scheduledTime, displayName, user]);
-
-  if (!isOpen) return null;
+  }, [existingRecord, timeSlot, staffName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirm({
+
+    const data: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'> = {
+      patient_id: patient.院友id,
+      record_date: date,
+      time_slot: timeSlot,
       patrol_time: patrolTime,
-      recorder,
+      staff_name: recorder,
       notes: notes.trim() || undefined
-    });
+    };
+
+    onSubmit(data);
+  };
+
+  const handleDelete = () => {
+    if (existingRecord && onDelete && window.confirm('確定要刪除此巡房記錄嗎？')) {
+      onDelete(existingRecord.id);
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">巡房記錄</h2>
+          <h2 className="text-xl font-semibold text-gray-900">
+            {existingRecord ? '查看/編輯巡房記錄' : '新增巡房記錄'}
+          </h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -69,7 +84,7 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
             </label>
             <input
               type="text"
-              value={patientName}
+              value={patient.中文姓名}
               disabled
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
             />
@@ -93,7 +108,7 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
             </label>
             <input
               type="text"
-              value={scheduledTime}
+              value={timeSlot}
               disabled
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
             />
@@ -141,20 +156,32 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
             />
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              確認巡房
-            </button>
+          <div className="flex justify-between items-center pt-4">
+            {existingRecord && onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center space-x-1"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>刪除</span>
+              </button>
+            )}
+            <div className="flex justify-end space-x-3 ml-auto">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                {existingRecord ? '更新記錄' : '確認巡房'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

@@ -274,7 +274,7 @@ const CareRecords: React.FC = () => {
                         overdue ? 'bg-red-50 hover:bg-red-100' :
                         'hover:bg-blue-50'
                       }`}
-                      onClick={() => !record && !inHospital && handleCellClick(date, timeSlot)}
+                      onClick={() => !inHospital && handleCellClick(date, timeSlot, record)}
                     >
                       {inHospital ? (
                         <span className="text-gray-500">入院</span>
@@ -501,7 +501,7 @@ const CareRecords: React.FC = () => {
                         record ? 'bg-purple-50 hover:bg-purple-100' :
                         'hover:bg-blue-50'
                       }`}
-                      onClick={() => !record && !inHospital && handleCellClick(date, timeSlot)}
+                      onClick={() => !inHospital && handleCellClick(date, timeSlot, record)}
                     >
                       {inHospital ? (
                         <span className="text-gray-500">入院</span>
@@ -752,8 +752,10 @@ const CareRecords: React.FC = () => {
           date={modalDate}
           timeSlot={modalTimeSlot}
           staffName={displayName}
+          existingRecord={modalExistingRecord}
           onClose={() => setShowPatrolModal(false)}
           onSubmit={handlePatrolSubmit}
+          onDelete={(id) => deletePatrolRound(id).then(() => setShowPatrolModal(false))}
         />
       )}
 
@@ -787,8 +789,10 @@ const CareRecords: React.FC = () => {
           date={modalDate}
           timeSlot={modalTimeSlot}
           staffName={displayName}
+          existingRecord={modalExistingRecord}
           onClose={() => setShowPositionModal(false)}
           onSubmit={handlePositionSubmit}
+          onDelete={(id) => deletePositionChangeRecord(id).then(() => setShowPositionModal(false))}
         />
       )}
     </div>
