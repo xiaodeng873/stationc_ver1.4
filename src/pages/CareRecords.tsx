@@ -3,18 +3,18 @@ import {
   ClipboardCheck,
   ChevronLeft,
   ChevronRight,
-  Search,
-  Calendar,
-  Users,
+  RefreshCw,
+  Settings,
+  User,
   Baby,
   Shield,
   RotateCcw,
   Droplets,
-  GraduationCap,
-  AlertCircle
+  GraduationCap
 } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
+import PatientAutocomplete from '../components/PatientAutocomplete';
 import PatrolRoundModal from '../components/PatrolRoundModal';
 import DiaperChangeModal from '../components/DiaperChangeModal';
 import RestraintObservationModal from '../components/RestraintObservationModal';
@@ -25,9 +25,6 @@ import {
   generateWeekDates,
   getWeekStartDate,
   formatDate,
-  filterPatientsByNursingLevel,
-  filterPatientsWithRestraints,
-  filterBedriddenPatients,
   isInHospital,
   isOverdue,
   getPositionSequence
@@ -59,592 +56,648 @@ const CareRecords: React.FC = () => {
     admissionRecords
   } = usePatients();
 
+  const { user } = useAuth();
+  const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || '未知';
+
   const [activeTab, setActiveTab] = useState<TabType>('patrol');
   const [weekStartDate, setWeekStartDate] = useState(getWeekStartDate());
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
 
   const [showPatrolModal, setShowPatrolModal] = useState(false);
   const [showDiaperModal, setShowDiaperModal] = useState(false);
   const [showRestraintModal, setShowRestraintModal] = useState(false);
   const [showPositionModal, setShowPositionModal] = useState(false);
 
-  const [modalPatient, setModalPatient] = useState<Patient | null>(null);
   const [modalDate, setModalDate] = useState('');
   const [modalTimeSlot, setModalTimeSlot] = useState('');
   const [modalExistingRecord, setModalExistingRecord] = useState<any>(null);
 
   const weekDates = useMemo(() => generateWeekDates(weekStartDate), [weekStartDate]);
 
-  const filteredPatients = useMemo(() => {
-    let filtered = patients.filter(p => p.在住狀態 === '在住');
+  const sortedActivePatients = useMemo(() => {
+    return patients
+      .filter(p => p.在住狀態 === '在住')
+      .sort((a, b) => a.床號.localeCompare(b.床號, 'zh-Hant', { numeric: true }));
+  }, [patients]);
 
-    switch (activeTab) {
-      case 'patrol':
-        break;
-      case 'diaper':
-        filtered = filterPatientsByNursingLevel(filtered, '全護理');
-        break;
-      case 'restraint':
-        filtered = filterPatientsWithRestraints(filtered, patientRestraintAssessments);
-        break;
-      case 'position':
-        filtered = filterBedriddenPatients(filtered, healthAssessments);
-        break;
-      default:
-        break;
+  useEffect(() => {
+    if (!selectedPatientId && sortedActivePatients.length > 0) {
+      setSelectedPatientId(sortedActivePatients[0].院友id.toString());
     }
+  }, [selectedPatientId, sortedActivePatients]);
 
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.中文姓名?.toLowerCase().includes(term) ||
-        p.床號?.toLowerCase().includes(term)
-      );
-    }
+  const selectedPatient = useMemo(() => {
+    const patientIdNum = parseInt(selectedPatientId);
+    return patients.find(p => p.院友id === patientIdNum);
+  }, [selectedPatientId, patients]);
 
-    return filtered.sort((a, b) => {
-      const bedA = a.床號 || '';
-      const bedB = b.床號 || '';
-      return bedA.localeCompare(bedB, 'zh-TW', { numeric: true });
-    });
-  }, [patients, activeTab, searchTerm, patientRestraintAssessments, healthAssessments]);
+  const patientPatrolRounds = useMemo(() => {
+    if (!selectedPatientId) return [];
+    const patientIdNum = parseInt(selectedPatientId);
+    return patrolRounds.filter(r => r.patient_id === patientIdNum);
+  }, [selectedPatientId, patrolRounds]);
 
-  const getPatrolRoundRecord = (patientId: number, date: string, scheduledTime: string): PatrolRound | undefined => {
-    return patrolRounds.find(r =>
-      r.patient_id === patientId &&
-      r.patrol_date === date &&
-      r.scheduled_time === scheduledTime
-    );
-  };
+  const patientDiaperChanges = useMemo(() => {
+    if (!selectedPatientId) return [];
+    const patientIdNum = parseInt(selectedPatientId);
+    return diaperChangeRecords.filter(r => r.patient_id === patientIdNum);
+  }, [selectedPatientId, diaperChangeRecords]);
 
-  const getDiaperChangeRecord = (patientId: number, date: string, timeSlot: string): DiaperChangeRecord | undefined => {
-    return diaperChangeRecords.find(r =>
-      r.patient_id === patientId &&
-      r.change_date === date &&
-      r.time_slot === timeSlot
-    );
-  };
+  const patientRestraintObservations = useMemo(() => {
+    if (!selectedPatientId) return [];
+    const patientIdNum = parseInt(selectedPatientId);
+    return restraintObservationRecords.filter(r => r.patient_id === patientIdNum);
+  }, [selectedPatientId, restraintObservationRecords]);
 
-  const getRestraintObservationRecord = (patientId: number, date: string, scheduledTime: string): RestraintObservationRecord | undefined => {
-    return restraintObservationRecords.find(r =>
-      r.patient_id === patientId &&
-      r.observation_date === date &&
-      r.scheduled_time === scheduledTime
-    );
-  };
-
-  const getPositionChangeRecord = (patientId: number, date: string, scheduledTime: string): PositionChangeRecord | undefined => {
-    return positionChangeRecords.find(r =>
-      r.patient_id === patientId &&
-      r.change_date === date &&
-      r.scheduled_time === scheduledTime
-    );
-  };
+  const patientPositionChanges = useMemo(() => {
+    if (!selectedPatientId) return [];
+    const patientIdNum = parseInt(selectedPatientId);
+    return positionChangeRecords.filter(r => r.patient_id === patientIdNum);
+  }, [selectedPatientId, positionChangeRecords]);
 
   const handlePreviousWeek = () => {
-    const newDate = new Date(weekStartDate);
-    newDate.setDate(newDate.getDate() - 7);
-    setWeekStartDate(newDate);
+    const prevWeek = new Date(weekStartDate);
+    prevWeek.setDate(prevWeek.getDate() - 7);
+    setWeekStartDate(prevWeek);
   };
 
   const handleNextWeek = () => {
-    const newDate = new Date(weekStartDate);
-    newDate.setDate(newDate.getDate() + 7);
-    setWeekStartDate(newDate);
+    const nextWeek = new Date(weekStartDate);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    setWeekStartDate(nextWeek);
   };
 
-  const handleThisWeek = () => {
+  const handleCurrentWeek = () => {
     setWeekStartDate(getWeekStartDate());
   };
 
-  const handlePatrolClick = (patient: Patient, date: Date, scheduledTime: string) => {
-    const dateStr = formatDate(date);
-    const existingRecord = getPatrolRoundRecord(patient.院友id, dateStr, scheduledTime);
+  const handleCellClick = (date: string, timeSlot: string, existingRecord?: any) => {
+    if (!selectedPatient) return;
 
-    if (existingRecord) {
-      if (confirm('此記錄已存在，是否要刪除？')) {
-        deletePatrolRound(existingRecord.id);
-      }
-    } else {
-      setModalPatient(patient);
-      setModalDate(dateStr);
-      setModalTimeSlot(scheduledTime);
-      setShowPatrolModal(true);
-    }
-  };
-
-  const handlePatrolConfirm = async (data: { patrol_time: string; recorder: string; notes?: string }) => {
-    if (!modalPatient) return;
-
-    await createPatrolRound({
-      patient_id: modalPatient.院友id,
-      patrol_date: modalDate,
-      patrol_time: data.patrol_time,
-      scheduled_time: modalTimeSlot,
-      recorder: data.recorder,
-      notes: data.notes
-    });
-
-    setShowPatrolModal(false);
-    setModalPatient(null);
-  };
-
-  const handleDiaperClick = (patient: Patient, date: Date, timeSlot: string) => {
-    const dateStr = formatDate(date);
-    const existingRecord = getDiaperChangeRecord(patient.院友id, dateStr, timeSlot);
-
-    setModalPatient(patient);
-    setModalDate(dateStr);
+    setModalDate(date);
     setModalTimeSlot(timeSlot);
     setModalExistingRecord(existingRecord || null);
-    setShowDiaperModal(true);
-  };
 
-  const handleDiaperConfirm = async (data: any) => {
-    if (!modalPatient) return;
-
-    if (modalExistingRecord) {
-      await updateDiaperChangeRecord({
-        ...modalExistingRecord,
-        ...data
-      });
-    } else {
-      await createDiaperChangeRecord({
-        patient_id: modalPatient.院友id,
-        change_date: modalDate,
-        time_slot: modalTimeSlot,
-        ...data
-      });
+    switch (activeTab) {
+      case 'patrol':
+        setShowPatrolModal(true);
+        break;
+      case 'diaper':
+        setShowDiaperModal(true);
+        break;
+      case 'restraint':
+        setShowRestraintModal(true);
+        break;
+      case 'position':
+        setShowPositionModal(true);
+        break;
     }
-
-    setShowDiaperModal(false);
-    setModalPatient(null);
-    setModalExistingRecord(null);
   };
 
-  const handleRestraintClick = (patient: Patient, date: Date, scheduledTime: string) => {
-    const dateStr = formatDate(date);
-    const existingRecord = getRestraintObservationRecord(patient.院友id, dateStr, scheduledTime);
-
-    setModalPatient(patient);
-    setModalDate(dateStr);
-    setModalTimeSlot(scheduledTime);
-    setModalExistingRecord(existingRecord || null);
-    setShowRestraintModal(true);
-  };
-
-  const handleRestraintConfirm = async (data: any) => {
-    if (!modalPatient) return;
-
-    if (modalExistingRecord) {
-      await updateRestraintObservationRecord({
-        ...modalExistingRecord,
-        ...data
-      });
-    } else {
-      await createRestraintObservationRecord({
-        patient_id: modalPatient.院友id,
-        observation_date: modalDate,
-        observation_time: data.observation_time,
-        scheduled_time: modalTimeSlot,
-        observation_status: data.observation_status,
-        recorder: data.recorder,
-        notes: data.notes
-      });
+  const handlePatrolSubmit = async (data: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await createPatrolRound(data);
+      setShowPatrolModal(false);
+    } catch (error) {
+      console.error('創建巡房記錄失敗:', error);
     }
-
-    setShowRestraintModal(false);
-    setModalPatient(null);
-    setModalExistingRecord(null);
   };
 
-  const handlePositionClick = (patient: Patient, date: Date, scheduledTime: string) => {
-    const dateStr = formatDate(date);
-    const existingRecord = getPositionChangeRecord(patient.院友id, dateStr, scheduledTime);
-
-    if (existingRecord) {
-      if (confirm('此記錄已存在，是否要刪除？')) {
-        deletePositionChangeRecord(existingRecord.id);
+  const handleDiaperSubmit = async (data: Omit<DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      if (modalExistingRecord) {
+        await updateDiaperChangeRecord({ ...modalExistingRecord, ...data });
+      } else {
+        await createDiaperChangeRecord(data);
       }
-    } else {
-      setModalPatient(patient);
-      setModalDate(dateStr);
-      setModalTimeSlot(scheduledTime);
-      setShowPositionModal(true);
+      setShowDiaperModal(false);
+    } catch (error) {
+      console.error('保存換片記錄失敗:', error);
     }
   };
 
-  const handlePositionConfirm = async (data: { position: '左' | '平' | '右'; recorder: string }) => {
-    if (!modalPatient) return;
+  const handleRestraintSubmit = async (data: Omit<RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      if (modalExistingRecord) {
+        await updateRestraintObservationRecord({ ...modalExistingRecord, ...data });
+      } else {
+        await createRestraintObservationRecord(data);
+      }
+      setShowRestraintModal(false);
+    } catch (error) {
+      console.error('保存約束觀察記錄失敗:', error);
+    }
+  };
 
-    await createPositionChangeRecord({
-      patient_id: modalPatient.院友id,
-      change_date: modalDate,
-      scheduled_time: modalTimeSlot,
-      position: data.position,
-      recorder: data.recorder
-    });
+  const handlePositionSubmit = async (data: Omit<PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await createPositionChangeRecord(data);
+      setShowPositionModal(false);
+    } catch (error) {
+      console.error('創建轉身記錄失敗:', error);
+    }
+  };
 
-    setShowPositionModal(false);
-    setModalPatient(null);
+  const renderPatrolTable = () => {
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">
+                時段
+              </th>
+              {weekDates.map((date) => {
+                const d = new Date(date);
+                const month = d.getMonth() + 1;
+                const dayOfMonth = d.getDate();
+                const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+                const weekday = weekdays[d.getDay()];
+                return (
+                  <th key={date} className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">
+                    {month}/{dayOfMonth}<br/>({weekday})
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {TIME_SLOTS.map((timeSlot) => (
+              <tr key={timeSlot} className="hover:bg-gray-50">
+                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border">
+                  {timeSlot}
+                </td>
+                {weekDates.map((date) => {
+                  const record = patientPatrolRounds.find(
+                    r => r.record_date === date && r.time_slot === timeSlot
+                  );
+                  const inHospital = selectedPatient && isInHospital(selectedPatient.院友id, date, timeSlot, admissionRecords);
+                  const overdue = !record && !inHospital && isOverdue(date, timeSlot);
+
+                  return (
+                    <td
+                      key={date}
+                      className={`px-2 py-3 text-center text-sm border cursor-pointer ${
+                        inHospital ? 'bg-gray-100' :
+                        record ? 'bg-green-50 hover:bg-green-100' :
+                        overdue ? 'bg-red-50 hover:bg-red-100' :
+                        'hover:bg-blue-50'
+                      }`}
+                      onClick={() => !record && !inHospital && handleCellClick(date, timeSlot)}
+                    >
+                      {inHospital ? (
+                        <span className="text-gray-500">入院</span>
+                      ) : record ? (
+                        <div>
+                          <div className="text-green-600 font-bold">✓</div>
+                          <div className="text-xs text-gray-600">{record.staff_name}</div>
+                        </div>
+                      ) : overdue ? (
+                        <span className="text-red-600 text-xs">逾期</span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">待巡</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderDiaperTable = () => {
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">
+                時段
+              </th>
+              {weekDates.map((date) => {
+                const d = new Date(date);
+                const month = d.getMonth() + 1;
+                const dayOfMonth = d.getDate();
+                const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+                const weekday = weekdays[d.getDay()];
+                return (
+                  <th key={date} className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">
+                    {month}/{dayOfMonth}<br/>({weekday})
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {DIAPER_CHANGE_SLOTS.map((slot) => (
+              <tr key={slot.time} className="hover:bg-gray-50">
+                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border">
+                  <div>{slot.label}</div>
+                  <div className="text-xs text-gray-500">{slot.time}</div>
+                </td>
+                {weekDates.map((date) => {
+                  const record = patientDiaperChanges.find(
+                    r => r.record_date === date && r.time_slot === slot.time
+                  );
+                  const inHospital = selectedPatient && isInHospital(selectedPatient.院友id, date, slot.time.split('-')[0], admissionRecords);
+
+                  return (
+                    <td
+                      key={date}
+                      className={`px-2 py-3 text-center text-sm border cursor-pointer ${
+                        inHospital ? 'bg-gray-100' :
+                        record ? 'bg-blue-50 hover:bg-blue-100' :
+                        'hover:bg-blue-50'
+                      }`}
+                      onClick={() => !inHospital && handleCellClick(date, slot.time, record)}
+                    >
+                      {inHospital ? (
+                        <span className="text-gray-500">入院</span>
+                      ) : record ? (
+                        <div className="space-y-1">
+                          <div className="font-medium text-gray-900">
+                            {record.urine_status && '尿'}
+                            {record.urine_status && record.stool_status && '/'}
+                            {record.stool_status && '便'}
+                          </div>
+                          {record.urine_status && (
+                            <div className="text-xs text-gray-600">{record.urine_status}</div>
+                          )}
+                          {record.stool_status && (
+                            <div className="text-xs text-gray-600">{record.stool_status}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">待記錄</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderRestraintTable = () => {
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">
+                時段
+              </th>
+              {weekDates.map((date) => {
+                const d = new Date(date);
+                const month = d.getMonth() + 1;
+                const dayOfMonth = d.getDate();
+                const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+                const weekday = weekdays[d.getDay()];
+                return (
+                  <th key={date} className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">
+                    {month}/{dayOfMonth}<br/>({weekday})
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {TIME_SLOTS.map((timeSlot) => (
+              <tr key={timeSlot} className="hover:bg-gray-50">
+                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border">
+                  {timeSlot}
+                </td>
+                {weekDates.map((date) => {
+                  const record = patientRestraintObservations.find(
+                    r => r.observation_date === date && r.time_slot === timeSlot
+                  );
+                  const inHospital = selectedPatient && isInHospital(selectedPatient.院友id, date, timeSlot, admissionRecords);
+                  const overdue = !record && !inHospital && isOverdue(date, timeSlot);
+
+                  return (
+                    <td
+                      key={date}
+                      className={`px-2 py-3 text-center text-sm border cursor-pointer ${
+                        inHospital ? 'bg-gray-100' :
+                        record ? (
+                          record.status === 'normal' ? 'bg-green-50 hover:bg-green-100' :
+                          record.status === 'abnormal' ? 'bg-red-50 hover:bg-red-100' :
+                          'bg-orange-50 hover:bg-orange-100'
+                        ) :
+                        overdue ? 'bg-red-50 hover:bg-red-100' :
+                        'hover:bg-blue-50'
+                      }`}
+                      onClick={() => !inHospital && handleCellClick(date, timeSlot, record)}
+                    >
+                      {inHospital ? (
+                        <span className="text-gray-500">入院</span>
+                      ) : record ? (
+                        <div>
+                          <div className={`font-bold ${
+                            record.status === 'normal' ? 'text-green-600' :
+                            record.status === 'abnormal' ? 'text-red-600' :
+                            'text-orange-600'
+                          }`}>
+                            {record.status === 'normal' ? '🟢N' :
+                             record.status === 'abnormal' ? '🔴P' : '🟠S'}
+                          </div>
+                          <div className="text-xs text-gray-600">{record.staff_name}</div>
+                        </div>
+                      ) : overdue ? (
+                        <span className="text-red-600 text-xs">逾期</span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">待觀察</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderPositionTable = () => {
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border">
+                時段
+              </th>
+              {weekDates.map((date) => {
+                const d = new Date(date);
+                const month = d.getMonth() + 1;
+                const dayOfMonth = d.getDate();
+                const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+                const weekday = weekdays[d.getDay()];
+                return (
+                  <th key={date} className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border">
+                    {month}/{dayOfMonth}<br/>({weekday})
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {TIME_SLOTS.map((timeSlot, index) => (
+              <tr key={timeSlot} className="hover:bg-gray-50">
+                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border">
+                  {timeSlot}
+                </td>
+                {weekDates.map((date) => {
+                  const record = patientPositionChanges.find(
+                    r => r.record_date === date && r.time_slot === timeSlot
+                  );
+                  const inHospital = selectedPatient && isInHospital(selectedPatient.院友id, date, timeSlot, admissionRecords);
+                  const expectedPosition = getPositionSequence(index);
+
+                  return (
+                    <td
+                      key={date}
+                      className={`px-2 py-3 text-center text-sm border cursor-pointer ${
+                        inHospital ? 'bg-gray-100' :
+                        record ? 'bg-purple-50 hover:bg-purple-100' :
+                        'hover:bg-blue-50'
+                      }`}
+                      onClick={() => !record && !inHospital && handleCellClick(date, timeSlot)}
+                    >
+                      {inHospital ? (
+                        <span className="text-gray-500">入院</span>
+                      ) : record ? (
+                        <div>
+                          <div className="font-medium text-purple-600">{record.position}</div>
+                          <div className="text-xs text-gray-600">{record.staff_name}</div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">[{expectedPosition}]</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderPlaceholder = (tabName: string) => {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center text-gray-500">
+          <p className="text-lg">{tabName}功能開發中</p>
+          <p className="text-sm mt-2">敬請期待</p>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">載入中...</p>
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  const tabs = [
-    { id: 'patrol' as TabType, name: '巡房記錄', icon: ClipboardCheck },
-    { id: 'diaper' as TabType, name: '換片記錄', icon: Baby },
-    { id: 'intake_output' as TabType, name: '出入量記錄', icon: Droplets },
-    { id: 'restraint' as TabType, name: '約束物品觀察', icon: Shield },
-    { id: 'position' as TabType, name: '轉身記錄', icon: RotateCcw },
-    { id: 'toilet_training' as TabType, name: '如廁訓練記錄', icon: GraduationCap }
-  ];
-
-  const renderCellButton = (
-    patient: Patient,
-    date: Date,
-    timeSlot: string,
-    onClick: () => void
-  ) => {
-    const dateStr = formatDate(date);
-    const inHospital = isInHospital(patient, dateStr, timeSlot, admissionRecords);
-
-    let record: any = null;
-    let hasRecord = false;
-    let buttonClass = 'w-full h-10 rounded text-xs font-medium transition-colors ';
-    let displayText = '';
-    let isOverdueStatus = false;
-
-    if (inHospital) {
-      buttonClass += 'bg-gray-200 text-gray-400 cursor-not-allowed';
-      displayText = '入院';
-      return (
-        <button
-          disabled
-          className={buttonClass}
-          title="院友入院中，無法操作"
-        >
-          {displayText}
-        </button>
-      );
-    }
-
-    if (activeTab === 'patrol') {
-      record = getPatrolRoundRecord(patient.院友id, dateStr, timeSlot);
-      hasRecord = !!record;
-      if (hasRecord) {
-        buttonClass += 'bg-green-500 text-white hover:bg-green-600';
-        displayText = '✓';
-      } else {
-        const scheduledDateTime = new Date(`${dateStr}T${timeSlot}:00`);
-        isOverdueStatus = isOverdue(scheduledDateTime, new Date());
-        if (isOverdueStatus) {
-          buttonClass += 'bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300';
-          displayText = '逾期';
-        } else {
-          buttonClass += 'bg-gray-100 text-gray-600 hover:bg-gray-200';
-          displayText = '待巡房';
-        }
-      }
-    } else if (activeTab === 'diaper') {
-      record = getDiaperChangeRecord(patient.院友id, dateStr, timeSlot);
-      hasRecord = !!record;
-      if (hasRecord) {
-        buttonClass += 'bg-green-500 text-white hover:bg-green-600';
-        const types = [];
-        if (record.has_urine) types.push('尿');
-        if (record.has_stool) types.push('便');
-        if (record.has_none) types.push('無');
-        displayText = types.join('/');
-      } else {
-        buttonClass += 'bg-gray-100 text-gray-600 hover:bg-gray-200';
-        displayText = '待記錄';
-      }
-    } else if (activeTab === 'restraint') {
-      record = getRestraintObservationRecord(patient.院友id, dateStr, timeSlot);
-      hasRecord = !!record;
-      if (hasRecord) {
-        if (record.observation_status === 'N') {
-          buttonClass += 'bg-green-500 text-white hover:bg-green-600';
-          displayText = 'N';
-        } else if (record.observation_status === 'P') {
-          buttonClass += 'bg-red-500 text-white hover:bg-red-600';
-          displayText = 'P';
-        } else {
-          buttonClass += 'bg-orange-500 text-white hover:bg-orange-600';
-          displayText = 'S';
-        }
-      } else {
-        const scheduledDateTime = new Date(`${dateStr}T${timeSlot}:00`);
-        isOverdueStatus = isOverdue(scheduledDateTime, new Date());
-        if (isOverdueStatus) {
-          buttonClass += 'bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300';
-          displayText = '逾期';
-        } else {
-          buttonClass += 'bg-gray-100 text-gray-600 hover:bg-gray-200';
-          displayText = '待觀察';
-        }
-      }
-    } else if (activeTab === 'position') {
-      record = getPositionChangeRecord(patient.院友id, dateStr, timeSlot);
-      hasRecord = !!record;
-      if (hasRecord) {
-        buttonClass += 'bg-green-500 text-white hover:bg-green-600';
-        displayText = record.position;
-      } else {
-        buttonClass += 'bg-gray-100 text-gray-600 hover:bg-gray-200';
-        const suggestedPos = getPositionSequence(timeSlot);
-        displayText = suggestedPos;
-      }
-    }
-
-    return (
-      <button
-        onClick={onClick}
-        className={buttonClass}
-        title={hasRecord ? '點擊修改或刪除' : '點擊新增記錄'}
-      >
-        {displayText}
-      </button>
-    );
-  };
-
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-3">
-            <ClipboardCheck className="w-8 h-8 text-blue-600" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">巡房記錄</h1>
-              <p className="text-sm text-gray-600 mt-1">護理記錄管理系統</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-b border-gray-200 mb-6">
-          <div className="flex space-x-1 overflow-x-auto">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {(activeTab === 'intake_output' || activeTab === 'toilet_training') ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <AlertCircle className="w-16 h-16 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">功能開發中</h3>
-            <p className="text-gray-600">此功能尚在開發中，敬請期待</p>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={handlePreviousWeek}
-                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="上一週"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <div className="flex items-center space-x-2">
-                  <Calendar className="w-5 h-5 text-gray-600" />
-                  <span className="text-lg font-medium text-gray-900">
-                    {formatDate(weekDates[0])} ~ {formatDate(weekDates[6])}
-                  </span>
-                </div>
-                <button
-                  onClick={handleNextWeek}
-                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="下一週"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={handleThisWeek}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                >
-                  本週
-                </button>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="搜尋院友或床號"
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg">
-                  <Users className="w-5 h-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-900">{filteredPatients.length}</span>
-                  <span className="text-sm text-gray-600">位院友</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
-                      院友
-                    </th>
-                    {weekDates.map((date, index) => (
-                      <th key={index} colSpan={activeTab === 'diaper' ? DIAPER_CHANGE_SLOTS.length : TIME_SLOTS.length} className="px-2 py-3 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">
-                        <div>{date.toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit', weekday: 'short' })}</div>
-                      </th>
-                    ))}
-                  </tr>
-                  <tr className="bg-gray-100">
-                    <th className="sticky left-0 z-10 bg-gray-100 px-4 py-2 text-left text-xs text-gray-600 border-r border-gray-200">
-                      床號 / 姓名
-                    </th>
-                    {weekDates.map((date, dateIndex) => (
-                      <React.Fragment key={dateIndex}>
-                        {(activeTab === 'diaper' ? DIAPER_CHANGE_SLOTS : TIME_SLOTS).map((slot, slotIndex) => (
-                          <th key={`${dateIndex}-${slotIndex}`} className="px-1 py-2 text-xs text-gray-600 border-r border-gray-200 min-w-[60px]">
-                            {slot}
-                          </th>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPatients.map((patient) => (
-                    <tr key={patient.院友id} className="border-b border-gray-200 hover:bg-gray-50">
-                      <td className="sticky left-0 z-10 bg-white px-4 py-3 border-r border-gray-200">
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900">{patient.床號}</div>
-                          <div className="text-gray-600">{patient.中文姓名}</div>
-                        </div>
-                      </td>
-                      {weekDates.map((date, dateIndex) => (
-                        <React.Fragment key={dateIndex}>
-                          {(activeTab === 'diaper' ? DIAPER_CHANGE_SLOTS : TIME_SLOTS).map((slot, slotIndex) => (
-                            <td key={`${dateIndex}-${slotIndex}`} className="px-1 py-2 border-r border-gray-200">
-                              {renderCellButton(
-                                patient,
-                                date,
-                                slot,
-                                () => {
-                                  if (activeTab === 'patrol') {
-                                    handlePatrolClick(patient, date, slot);
-                                  } else if (activeTab === 'diaper') {
-                                    handleDiaperClick(patient, date, slot);
-                                  } else if (activeTab === 'restraint') {
-                                    handleRestraintClick(patient, date, slot);
-                                  } else if (activeTab === 'position') {
-                                    handlePositionClick(patient, date, slot);
-                                  }
-                                }
-                              )}
-                            </td>
-                          ))}
-                        </React.Fragment>
-                      ))}
-                    </tr>
-                  ))}
-                  {filteredPatients.length === 0 && (
-                    <tr>
-                      <td colSpan={1 + weekDates.length * (activeTab === 'diaper' ? DIAPER_CHANGE_SLOTS.length : TIME_SLOTS.length)} className="px-4 py-8 text-center text-gray-500">
-                        無符合條件的院友
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold flex items-center space-x-2">
+          <ClipboardCheck className="h-8 w-8 text-blue-600" />
+          <span>護理記錄</span>
+        </h1>
       </div>
 
-      {showPatrolModal && modalPatient && (
+      <div className="card">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">選擇院友</label>
+            <PatientAutocomplete
+              patients={sortedActivePatients}
+              selectedPatientId={selectedPatientId}
+              onSelect={(id) => setSelectedPatientId(id)}
+              placeholder="搜尋院友..."
+            />
+            {selectedPatient && (
+              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                <span>床號: <strong>{selectedPatient.床號}</strong></span>
+                <span>姓名: <strong>{selectedPatient.姓名}</strong></span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">選擇週期</label>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handlePreviousWeek}
+                className="btn-secondary flex items-center space-x-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>上週</span>
+              </button>
+              <button
+                onClick={handleCurrentWeek}
+                className="btn-primary flex-1"
+              >
+                本週
+              </button>
+              <button
+                onClick={handleNextWeek}
+                className="btn-secondary flex items-center space-x-1"
+              >
+                <span>下週</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="text-sm text-gray-600 text-center">
+              {formatDate(weekDates[0])} - {formatDate(weekDates[6])}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {selectedPatientId && (
+        <>
+          <div className="card">
+            <div className="border-b border-gray-200">
+              <div className="flex space-x-1 p-2 overflow-x-auto">
+                <button
+                  onClick={() => setActiveTab('patrol')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
+                    activeTab === 'patrol'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <ClipboardCheck className="h-4 w-4" />
+                  <span>巡房記錄</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('diaper')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
+                    activeTab === 'diaper'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Baby className="h-4 w-4" />
+                  <span>換片記錄</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('intake_output')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
+                    activeTab === 'intake_output'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Droplets className="h-4 w-4" />
+                  <span>出入量記錄</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('restraint')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
+                    activeTab === 'restraint'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Shield className="h-4 w-4" />
+                  <span>約束觀察</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('position')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
+                    activeTab === 'position'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  <span>轉身記錄</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('toilet_training')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
+                    activeTab === 'toilet_training'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <GraduationCap className="h-4 w-4" />
+                  <span>如廁訓練</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4">
+              {activeTab === 'patrol' && renderPatrolTable()}
+              {activeTab === 'diaper' && renderDiaperTable()}
+              {activeTab === 'intake_output' && renderPlaceholder('出入量記錄')}
+              {activeTab === 'restraint' && renderRestraintTable()}
+              {activeTab === 'position' && renderPositionTable()}
+              {activeTab === 'toilet_training' && renderPlaceholder('如廁訓練記錄')}
+            </div>
+          </div>
+        </>
+      )}
+
+      {showPatrolModal && selectedPatient && (
         <PatrolRoundModal
-          isOpen={showPatrolModal}
-          onClose={() => {
-            setShowPatrolModal(false);
-            setModalPatient(null);
-          }}
-          onConfirm={handlePatrolConfirm}
-          patientName={modalPatient.中文姓名}
-          scheduledTime={modalTimeSlot}
+          patient={selectedPatient}
           date={modalDate}
-        />
-      )}
-
-      {showDiaperModal && modalPatient && (
-        <DiaperChangeModal
-          isOpen={showDiaperModal}
-          onClose={() => {
-            setShowDiaperModal(false);
-            setModalPatient(null);
-            setModalExistingRecord(null);
-          }}
-          onConfirm={handleDiaperConfirm}
-          patientName={modalPatient.中文姓名}
           timeSlot={modalTimeSlot}
-          date={modalDate}
-          existingRecord={modalExistingRecord}
+          staffName={displayName}
+          onClose={() => setShowPatrolModal(false)}
+          onSubmit={handlePatrolSubmit}
         />
       )}
 
-      {showRestraintModal && modalPatient && (
+      {showDiaperModal && selectedPatient && (
+        <DiaperChangeModal
+          patient={selectedPatient}
+          date={modalDate}
+          timeSlot={modalTimeSlot}
+          staffName={displayName}
+          existingRecord={modalExistingRecord}
+          onClose={() => setShowDiaperModal(false)}
+          onSubmit={handleDiaperSubmit}
+        />
+      )}
+
+      {showRestraintModal && selectedPatient && (
         <RestraintObservationModal
-          isOpen={showRestraintModal}
-          onClose={() => {
-            setShowRestraintModal(false);
-            setModalPatient(null);
-            setModalExistingRecord(null);
-          }}
-          onConfirm={handleRestraintConfirm}
-          patientName={modalPatient.中文姓名}
-          scheduledTime={modalTimeSlot}
+          patient={selectedPatient}
           date={modalDate}
+          timeSlot={modalTimeSlot}
+          staffName={displayName}
           existingRecord={modalExistingRecord}
+          onClose={() => setShowRestraintModal(false)}
+          onSubmit={handleRestraintSubmit}
         />
       )}
 
-      {showPositionModal && modalPatient && (
+      {showPositionModal && selectedPatient && (
         <PositionChangeModal
-          isOpen={showPositionModal}
-          onClose={() => {
-            setShowPositionModal(false);
-            setModalPatient(null);
-          }}
-          onConfirm={handlePositionConfirm}
-          patientName={modalPatient.中文姓名}
-          scheduledTime={modalTimeSlot}
+          patient={selectedPatient}
           date={modalDate}
+          timeSlot={modalTimeSlot}
+          staffName={displayName}
+          onClose={() => setShowPositionModal(false)}
+          onSubmit={handlePositionSubmit}
         />
       )}
     </div>

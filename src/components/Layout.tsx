@@ -50,7 +50,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
     { name: '健康評估', href: '/health-assessments', icon: UserSearch },
     { name: '餐膳指引', href: '/meal-guidance', icon: Utensils },
     { name: '院友日誌', href: '/patient-logs', icon: BookOpen },
-    { name: '巡房記錄', href: '/care-records', icon: ClipboardCheck },
+    { name: '護理記錄', href: '/care-records', icon: ClipboardCheck },
     { name: '約束物品', href: '/restraint', icon: Shield },
     { name: '意外事件報告', href: '/incident-reports', icon: AlertTriangle },
     { name: '診斷記錄', href: '/diagnosis-records', icon: FileText },
