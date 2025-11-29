@@ -4,7 +4,15 @@
 
 /* iPad 橫向模式：整體按比例縮放 (包含 iPad mini 6) */
 @media (min-width: 980px) and (max-width: 1366px) and (orientation: landscape) {
-  html {
-    zoom: 0.85;
+  body {
+    transform: scale(0.85);
+    transform-origin: top left;
+    width: 117.647%; /* 100 / 0.85 = 117.647 */
+    height: 117.647%;
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
   }
 }
