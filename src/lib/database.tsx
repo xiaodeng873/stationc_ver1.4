@@ -360,6 +360,60 @@ export interface VaccinationRecord {
   created_by?: string;
 }
 
+// Care Records types
+export interface PatrolRound {
+  id: string;
+  patient_id: number;
+  patrol_date: string;
+  patrol_time: string;
+  scheduled_time: string;
+  recorder: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiaperChangeRecord {
+  id: string;
+  patient_id: number;
+  change_date: string;
+  time_slot: string;
+  has_urine: boolean;
+  has_stool: boolean;
+  has_none: boolean;
+  urine_amount?: string;
+  stool_color?: string;
+  stool_texture?: string;
+  stool_amount?: string;
+  recorder: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RestraintObservationRecord {
+  id: string;
+  patient_id: number;
+  observation_date: string;
+  observation_time: string;
+  scheduled_time: string;
+  observation_status: 'N' | 'P' | 'S';
+  recorder: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PositionChangeRecord {
+  id: string;
+  patient_id: number;
+  change_date: string;
+  scheduled_time: string;
+  position: '左' | '平' | '右';
+  recorder: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Drug Database types
 export interface DrugData {
   id: string;
@@ -3763,6 +3817,214 @@ export const completePatientNote = async (noteId: string): Promise<PatientNote> 
   }
 
   return data;
+};
+
+// Patrol Rounds functions
+export const getPatrolRounds = async (): Promise<PatrolRound[]> => {
+  const { data, error } = await supabase
+    .from('patrol_rounds')
+    .select('*')
+    .order('patrol_date', { ascending: false })
+    .order('scheduled_time', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching patrol rounds:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createPatrolRound = async (round: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'>): Promise<PatrolRound> => {
+  const { data, error } = await supabase
+    .from('patrol_rounds')
+    .insert([round])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating patrol round:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deletePatrolRound = async (roundId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('patrol_rounds')
+    .delete()
+    .eq('id', roundId);
+
+  if (error) {
+    console.error('Error deleting patrol round:', error);
+    throw error;
+  }
+};
+
+// Diaper Change Records functions
+export const getDiaperChangeRecords = async (): Promise<DiaperChangeRecord[]> => {
+  const { data, error } = await supabase
+    .from('diaper_change_records')
+    .select('*')
+    .order('change_date', { ascending: false })
+    .order('time_slot', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching diaper change records:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createDiaperChangeRecord = async (record: Omit<DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>): Promise<DiaperChangeRecord> => {
+  const { data, error } = await supabase
+    .from('diaper_change_records')
+    .insert([record])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating diaper change record:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const updateDiaperChangeRecord = async (record: DiaperChangeRecord): Promise<DiaperChangeRecord> => {
+  const { id, created_at, updated_at, ...updateData } = record;
+
+  const { data, error } = await supabase
+    .from('diaper_change_records')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating diaper change record:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deleteDiaperChangeRecord = async (recordId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('diaper_change_records')
+    .delete()
+    .eq('id', recordId);
+
+  if (error) {
+    console.error('Error deleting diaper change record:', error);
+    throw error;
+  }
+};
+
+// Restraint Observation Records functions
+export const getRestraintObservationRecords = async (): Promise<RestraintObservationRecord[]> => {
+  const { data, error } = await supabase
+    .from('restraint_observation_records')
+    .select('*')
+    .order('observation_date', { ascending: false })
+    .order('scheduled_time', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching restraint observation records:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createRestraintObservationRecord = async (record: Omit<RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>): Promise<RestraintObservationRecord> => {
+  const { data, error } = await supabase
+    .from('restraint_observation_records')
+    .insert([record])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating restraint observation record:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const updateRestraintObservationRecord = async (record: RestraintObservationRecord): Promise<RestraintObservationRecord> => {
+  const { id, created_at, updated_at, ...updateData } = record;
+
+  const { data, error } = await supabase
+    .from('restraint_observation_records')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating restraint observation record:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deleteRestraintObservationRecord = async (recordId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('restraint_observation_records')
+    .delete()
+    .eq('id', recordId);
+
+  if (error) {
+    console.error('Error deleting restraint observation record:', error);
+    throw error;
+  }
+};
+
+// Position Change Records functions
+export const getPositionChangeRecords = async (): Promise<PositionChangeRecord[]> => {
+  const { data, error} = await supabase
+    .from('position_change_records')
+    .select('*')
+    .order('change_date', { ascending: false })
+    .order('scheduled_time', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching position change records:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const createPositionChangeRecord = async (record: Omit<PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>): Promise<PositionChangeRecord> => {
+  const { data, error } = await supabase
+    .from('position_change_records')
+    .insert([record])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating position change record:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deletePositionChangeRecord = async (recordId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('position_change_records')
+    .delete()
+    .eq('id', recordId);
+
+  if (error) {
+    console.error('Error deleting position change record:', error);
+    throw error;
+  }
 };
 
 export default DrugModal;
