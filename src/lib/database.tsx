@@ -1663,10 +1663,12 @@ export const createFollowUp = async (appointment: Omit<FollowUpAppointment, '覆
 };
 
 export const updateFollowUp = async (appointment: FollowUpAppointment): Promise<FollowUpAppointment> => {
+  const { 覆診id, 創建時間, 更新時間, ...updateData } = appointment;
+
   const { data, error } = await supabase
     .from('覆診安排主表')
-    .update(appointment)
-    .eq('覆診id', appointment.覆診id)
+    .update(updateData)
+    .eq('覆診id', 覆診id)
     .select()
     .single();
 
