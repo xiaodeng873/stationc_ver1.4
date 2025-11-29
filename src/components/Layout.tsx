@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Users, FileText, BarChart3, Menu, X, Home, LogOut, User, Clock, BicepsFlexed, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Settings, Ambulance, Activity, Hospital, Bed, Stethoscope, Database, Bandage, UserSearch, Pill, AlertTriangle, Syringe, ScanLine } from 'lucide-react';
+import { Users, FileText, BarChart3, Menu, X, Home, LogOut, User, Clock, BicepsFlexed, CalendarCheck, CheckSquare, Utensils, BookOpen, Shield, Printer, Settings, Ambulance, Activity, Hospital, Bed, Stethoscope, Database, Bandage, UserSearch, Pill, AlertTriangle, Syringe, ScanLine, ClipboardCheck } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { useAuth } from '../context/AuthContext';
 
@@ -50,6 +50,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
     { name: '健康評估', href: '/health-assessments', icon: UserSearch },
     { name: '餐膳指引', href: '/meal-guidance', icon: Utensils },
     { name: '院友日誌', href: '/patient-logs', icon: BookOpen },
+    { name: '巡房記錄', href: '/care-records', icon: ClipboardCheck },
     { name: '約束物品', href: '/restraint', icon: Shield },
     { name: '意外事件報告', href: '/incident-reports', icon: AlertTriangle },
     { name: '診斷記錄', href: '/diagnosis-records', icon: FileText },

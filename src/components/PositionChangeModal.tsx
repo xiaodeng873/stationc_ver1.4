@@ -1,0 +1,185 @@
+import React, { useState, useEffect } from 'react';
+import { X, User, RotateCcw } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { getPositionSequence } from '../utils/careRecordHelper';
+
+interface PositionChangeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (data: {
+    position: '左' | '平' | '右';
+    recorder: string;
+  }) => void;
+  patientName: string;
+  scheduledTime: string;
+  date: string;
+}
+
+const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  patientName,
+  scheduledTime,
+  date
+}) => {
+  const { displayName, user } = useAuth();
+  const [position, setPosition] = useState<'左' | '平' | '右'>('左');
+  const [recorder, setRecorder] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      const suggestedPosition = getPositionSequence(scheduledTime);
+      setPosition(suggestedPosition);
+      setRecorder(displayName || user?.email || '');
+    }
+  }, [isOpen, scheduledTime, displayName, user]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onConfirm({
+      position,
+      recorder
+    });
+  };
+
+  const getPositionButtonClass = (pos: '左' | '平' | '右') => {
+    const baseClass = "flex-1 py-4 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center";
+    if (position === pos) {
+      return `${baseClass} bg-blue-600 text-white shadow-lg`;
+    }
+    return `${baseClass} bg-gray-100 text-gray-700 hover:bg-gray-200`;
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">轉身記錄</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              院友姓名
+            </label>
+            <input
+              type="text"
+              value={patientName}
+              disabled
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              轉身日期
+            </label>
+            <input
+              type="text"
+              value={date}
+              disabled
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              預定時段
+            </label>
+            <input
+              type="text"
+              value={scheduledTime}
+              disabled
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+            />
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start space-x-2">
+              <RotateCcw className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-blue-900">轉身順序提示</p>
+                <p className="text-sm text-blue-700 mt-1">
+                  左 → 平 → 右 → 左（循環）
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-3">
+              轉身位置 *
+            </label>
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => setPosition('左')}
+                className={getPositionButtonClass('左')}
+              >
+                左
+              </button>
+              <button
+                type="button"
+                onClick={() => setPosition('平')}
+                className={getPositionButtonClass('平')}
+              >
+                平
+              </button>
+              <button
+                type="button"
+                onClick={() => setPosition('右')}
+                className={getPositionButtonClass('右')}
+              >
+                右
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              系統已根據時段自動選擇建議位置，您可以手動調整
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              <User className="w-4 h-4 inline mr-1" />
+              記錄者 *
+            </label>
+            <input
+              type="text"
+              value={recorder}
+              onChange={(e) => setRecorder(e.target.value)}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              確認轉身
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default PositionChangeModal;

@@ -99,6 +99,11 @@ interface PatientContextType {
   diagnosisRecords: db.DiagnosisRecord[];
   vaccinationRecords: db.VaccinationRecord[];
   patientNotes: db.PatientNote[];
+  patrolRounds: db.PatrolRound[];
+  diaperChangeRecords: db.DiaperChangeRecord[];
+  restraintObservationRecords: db.RestraintObservationRecord[];
+  positionChangeRecords: db.PositionChangeRecord[];
+  admissionRecords: db.PatientAdmissionRecord[];
   loading: boolean;
   
   // 新增的處方工作流程相關屬性
@@ -190,6 +195,16 @@ interface PatientContextType {
   updatePatientNote: (note: db.PatientNote) => Promise<void>;
   deletePatientNote: (id: string) => Promise<void>;
   completePatientNote: (id: string) => Promise<void>;
+  createPatrolRound: (round: Omit<db.PatrolRound, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  deletePatrolRound: (id: string) => Promise<void>;
+  createDiaperChangeRecord: (record: Omit<db.DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  updateDiaperChangeRecord: (record: db.DiaperChangeRecord) => Promise<void>;
+  deleteDiaperChangeRecord: (id: string) => Promise<void>;
+  createRestraintObservationRecord: (record: Omit<db.RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  updateRestraintObservationRecord: (record: db.RestraintObservationRecord) => Promise<void>;
+  deleteRestraintObservationRecord: (id: string) => Promise<void>;
+  createPositionChangeRecord: (record: Omit<db.PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  deletePositionChangeRecord: (id: string) => Promise<void>;
   addPatientAdmissionRecord: (record: Omit<db.PatientAdmissionRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   updatePatientAdmissionRecord: (record: db.PatientAdmissionRecord) => Promise<void>;
   deletePatientAdmissionRecord: (id: string) => Promise<void>;
@@ -269,6 +284,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const [diagnosisRecords, setDiagnosisRecords] = useState<db.DiagnosisRecord[]>([]);
   const [vaccinationRecords, setVaccinationRecords] = useState<db.VaccinationRecord[]>([]);
   const [patientNotes, setPatientNotes] = useState<db.PatientNote[]>([]);
+  const [patrolRounds, setPatrolRounds] = useState<db.PatrolRound[]>([]);
+  const [diaperChangeRecords, setDiaperChangeRecords] = useState<db.DiaperChangeRecord[]>([]);
+  const [restraintObservationRecords, setRestraintObservationRecords] = useState<db.RestraintObservationRecord[]>([]);
+  const [positionChangeRecords, setPositionChangeRecords] = useState<db.PositionChangeRecord[]>([]);
   const [patientAdmissionRecords, setPatientAdmissionRecords] = useState<db.PatientAdmissionRecord[]>([]);
   const [hospitalEpisodes, setHospitalEpisodes] = useState<any[]>([]);
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -591,7 +610,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         incidentReportsData,
         diagnosisRecordsData,
         vaccinationRecordsData,
-        patientNotesData
+        patientNotesData,
+        patrolRoundsData,
+        diaperChangeRecordsData,
+        restraintObservationRecordsData,
+        positionChangeRecordsData
       ] = await Promise.all([
         db.getPatients(),
         db.getStations(),
@@ -615,7 +638,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getIncidentReports(),
         db.getDiagnosisRecords(),
         db.getVaccinationRecords(),
-        db.getPatientNotes()
+        db.getPatientNotes(),
+        db.getPatrolRounds(),
+        db.getDiaperChangeRecords(),
+        db.getRestraintObservationRecords(),
+        db.getPositionChangeRecords()
       ]);
 
       
@@ -688,6 +715,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       setDiagnosisRecords(diagnosisRecordsData || []);
       setVaccinationRecords(vaccinationRecordsData || []);
       setPatientNotes(patientNotesData || []);
+      setPatrolRounds(patrolRoundsData || []);
+      setDiaperChangeRecords(diaperChangeRecordsData || []);
+      setRestraintObservationRecords(restraintObservationRecordsData || []);
+      setPositionChangeRecords(positionChangeRecordsData || []);
 
       // 載入每日系統任務
       try {
@@ -2476,6 +2507,107 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
+  // Care Records functions
+  const createPatrolRound = async (round: Omit<db.PatrolRound, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPatrolRound(round);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating patrol round:', error);
+      throw error;
+    }
+  };
+
+  const deletePatrolRound = async (id: string) => {
+    try {
+      await db.deletePatrolRound(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patrol round:', error);
+      throw error;
+    }
+  };
+
+  const createDiaperChangeRecord = async (record: Omit<db.DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createDiaperChangeRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating diaper change record:', error);
+      throw error;
+    }
+  };
+
+  const updateDiaperChangeRecord = async (record: db.DiaperChangeRecord) => {
+    try {
+      await db.updateDiaperChangeRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating diaper change record:', error);
+      throw error;
+    }
+  };
+
+  const deleteDiaperChangeRecord = async (id: string) => {
+    try {
+      await db.deleteDiaperChangeRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting diaper change record:', error);
+      throw error;
+    }
+  };
+
+  const createRestraintObservationRecord = async (record: Omit<db.RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createRestraintObservationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating restraint observation record:', error);
+      throw error;
+    }
+  };
+
+  const updateRestraintObservationRecord = async (record: db.RestraintObservationRecord) => {
+    try {
+      await db.updateRestraintObservationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating restraint observation record:', error);
+      throw error;
+    }
+  };
+
+  const deleteRestraintObservationRecord = async (id: string) => {
+    try {
+      await db.deleteRestraintObservationRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting restraint observation record:', error);
+      throw error;
+    }
+  };
+
+  const createPositionChangeRecord = async (record: Omit<db.PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPositionChangeRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating position change record:', error);
+      throw error;
+    }
+  };
+
+  const deletePositionChangeRecord = async (id: string) => {
+    try {
+      await db.deletePositionChangeRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting position change record:', error);
+      throw error;
+    }
+  };
+
   // Patient admission record functions
   const addPatientAdmissionRecord = async (record: Omit<db.PatientAdmissionRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -2778,6 +2910,21 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       updatePatientNote,
       deletePatientNote,
       completePatientNote,
+      patrolRounds,
+      diaperChangeRecords,
+      restraintObservationRecords,
+      positionChangeRecords,
+      admissionRecords: patientAdmissionRecords,
+      createPatrolRound,
+      deletePatrolRound,
+      createDiaperChangeRecord,
+      updateDiaperChangeRecord,
+      deleteDiaperChangeRecord,
+      createRestraintObservationRecord,
+      updateRestraintObservationRecord,
+      deleteRestraintObservationRecord,
+      createPositionChangeRecord,
+      deletePositionChangeRecord,
       addPatientAdmissionRecord,
       updatePatientAdmissionRecord,
       deletePatientAdmissionRecord,
