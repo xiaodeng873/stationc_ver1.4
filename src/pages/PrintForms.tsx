@@ -94,23 +94,34 @@ const PrintForms: React.FC = () => {
 
   const loadRestraintUsers = async () => {
     try {
-      // 查詢最近的約束評估記錄，找出有使用約束物品的院友
+      // 查詢所有約束評估記錄
       const { data, error } = await supabase
         .from('patient_restraint_assessments')
-        .select('patient_id, suggested_restraints')
+        .select('patient_id, suggested_restraints, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // 過濾出有實際使用約束物品的院友（suggested_restraints 不為空）
-      const userIds = new Set<number>();
+      // 為每個院友只保留最新的評估記錄
+      const latestAssessments = new Map<number, any>();
       data?.forEach(assessment => {
+        if (!latestAssessments.has(assessment.patient_id)) {
+          latestAssessments.set(assessment.patient_id, assessment);
+        }
+      });
+
+      // 過濾出有實際使用約束物品的院友
+      const userIds = new Set<number>();
+      latestAssessments.forEach((assessment) => {
         if (assessment.suggested_restraints &&
-            typeof assessment.suggested_restraints === 'object' &&
-            Object.keys(assessment.suggested_restraints).length > 0) {
-          // 檢查是否有任何約束物品被勾選
+            typeof assessment.suggested_restraints === 'object') {
+          // 檢查是否有任何約束物品被勾選（值為 true）
           const restraints = assessment.suggested_restraints;
-          const hasActiveRestraints = Object.values(restraints).some(value => value === true);
+          const hasActiveRestraints = Object.entries(restraints).some(([key, value]) => {
+            // 過濾掉 _other 這類的附註欄位，只檢查實際的約束物品
+            return !key.endsWith('_other') && value === true;
+          });
+
           if (hasActiveRestraints) {
             userIds.add(assessment.patient_id);
           }
@@ -118,6 +129,7 @@ const PrintForms: React.FC = () => {
       });
 
       setRestraintUserIds(userIds);
+      console.log('使用約束物品的院友數量:', userIds.size);
     } catch (error) {
       console.error('載入約束物品使用者失敗:', error);
     }

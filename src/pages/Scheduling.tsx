@@ -342,26 +342,17 @@ const Scheduling: React.FC = () => {
 
       {/* 到期提醒區域 */}
       {dueItems.length > 0 && (
-        <div className="card p-0 overflow-hidden">
-          <div className="bg-red-500 text-white">
-            <div className="px-4 py-2 border-b border-red-400">
-              <div className="flex items-center space-x-2">
-                <AlertCircle className="h-5 w-5" />
-                <span className="font-semibold">
-                  即將到期提醒：{dueItems.filter(item => item.type === 'annual_health_checkup').length} 個年度體檢、
-                  {dueItems.filter(item => item.type === 'restraint_assessment').length} 個約束評估
-                </span>
-              </div>
-            </div>
-            <div className="divide-y divide-red-400">
+        <div className="card p-0 overflow-hidden border border-red-200">
+          <div className="bg-red-100/80 backdrop-blur-sm">
+            <div className="divide-y divide-red-200">
               {dueItems.map((item, index) => {
                 // 每行顯示兩個提醒
                 if (index % 2 === 0) {
                   const nextItem = dueItems[index + 1];
                   return (
-                    <div key={index} className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-red-400">
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-red-200">
                       <div
-                        className="px-4 py-3 hover:bg-red-600 cursor-pointer transition-colors text-sm"
+                        className="px-4 py-3 hover:bg-red-200/60 cursor-pointer transition-colors text-sm text-red-800"
                         onClick={() => {
                           // TODO: 點擊可快速創建該院友的排程
                           console.log('創建排程:', item);
@@ -371,7 +362,7 @@ const Scheduling: React.FC = () => {
                       </div>
                       {nextItem && (
                         <div
-                          className="px-4 py-3 hover:bg-red-600 cursor-pointer transition-colors text-sm"
+                          className="px-4 py-3 hover:bg-red-200/60 cursor-pointer transition-colors text-sm text-red-800"
                           onClick={() => {
                             // TODO: 點擊可快速創建該院友的排程
                             console.log('創建排程:', nextItem);
