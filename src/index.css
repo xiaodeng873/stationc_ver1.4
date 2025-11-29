@@ -185,4 +185,156 @@
     font-size: 0.65rem;
     line-height: 0.875rem;
   }
+
+  /* ===== 第一組卡片：欠缺必要項目、執核派藥逾期、待變更處方 ===== */
+
+  /* 通用卡片 p-6 縮小 */
+  .card.p-6 {
+    padding: 0.75rem !important;
+  }
+
+  /* 卡片標題區域的圖標容器 */
+  .card .p-2.rounded-lg {
+    padding: 0.375rem;
+  }
+
+  /* 卡片標題區域的圖標 */
+  .card .p-2.rounded-lg .lucide {
+    height: 1rem;
+    width: 1rem;
+  }
+
+  /* 卡片主標題 */
+  .card h2.text-lg {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  /* 卡片副標題 */
+  .card p.text-sm.text-gray-600 {
+    font-size: 0.65rem;
+    line-height: 0.875rem;
+  }
+
+  /* space-y-2 間距縮小 */
+  .card .space-y-2 {
+    row-gap: 0.375rem !important;
+  }
+
+  /* 列表項目內邊距 */
+  .card .space-y-2 > div.p-3 {
+    padding: 0.375rem;
+    column-gap: 0.375rem;
+  }
+
+  /* 列表項目圖標 */
+  .card .space-y-2 > div .lucide {
+    height: 0.75rem;
+    width: 0.75rem;
+  }
+
+  /* 列表項目文字 - font-medium */
+  .card .space-y-2 > div span.font-medium {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  /* 列表項目文字 - text-sm */
+  .card .space-y-2 > div span.text-sm,
+  .card .space-y-2 > div .text-sm {
+    font-size: 0.65rem;
+    line-height: 0.875rem;
+  }
+
+  /* 列表項目按鈕 */
+  .card .space-y-2 > div button.text-xs {
+    font-size: 9px;
+    padding: 0.125rem 0.25rem;
+  }
+
+  /* 展開/收起按鈕 */
+  .card button.p-3.border-2 {
+    padding: 0.5rem;
+    font-size: 0.65rem;
+  }
+
+  .card button.p-3.border-2 .lucide {
+    height: 0.75rem;
+    width: 0.75rem;
+  }
+
+  /* 執核派藥逾期卡片 - 展開/收起小按鈕 */
+  .card button.p-1 {
+    padding: 0.125rem;
+  }
+
+  .card button.p-1 .lucide {
+    height: 0.875rem;
+    width: 0.875rem;
+  }
+
+  /* 執核派藥逾期卡片 - 日期網格 */
+  .card .grid.grid-cols-2.gap-2 {
+    gap: 0.375rem;
+  }
+
+  .card .grid.grid-cols-2.gap-2 button {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.65rem;
+  }
+
+  .card .grid.grid-cols-2.gap-2 button .font-medium {
+    font-size: 0.65rem;
+  }
+
+  .card .grid.grid-cols-2.gap-2 button .text-xs {
+    font-size: 9px;
+  }
+
+  /* 執核派藥逾期卡片 - px-3 pb-3 區域 */
+  .card .px-3.pb-3 {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .card .px-3.pb-3 .text-xs {
+    font-size: 9px;
+  }
+
+  /* 待變更處方卡片 - space-x-1 按鈕組 */
+  .card .flex.space-x-1 {
+    column-gap: 0.25rem;
+  }
+
+  /* ArrowRight 圖標縮小 */
+  .card .lucide-arrow-right {
+    height: 0.75rem;
+    width: 0.75rem;
+  }
+
+  /* space-x-3 間距縮小 */
+  .card .flex.items-center.space-x-3 {
+    column-gap: 0.5rem;
+  }
+
+  /* 確保 mb-4 在 iPad 橫向模式下變小 */
+  .card .mb-4 {
+    margin-bottom: 0.5rem;
+  }
+
+  /* 空狀態圖標和文字 */
+  .card .text-center.py-8 {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .card .text-center .h-12.w-12 {
+    height: 2rem;
+    width: 2rem;
+  }
+
+  .card .text-center .mb-3 {
+    margin-bottom: 0.5rem;
+  }
 }
