@@ -2468,9 +2468,9 @@ const MedicationWorkflow: React.FC = () => {
               </div>
 
               {filteredPrescriptions.length > 0 ? (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)]">
                 <table className="min-w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         行號
