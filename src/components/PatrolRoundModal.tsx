@@ -31,7 +31,7 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
   useEffect(() => {
     if (existingRecord) {
       setPatrolTime(existingRecord.patrol_time || '');
-      setRecorder(existingRecord.staff_name || '');
+      setRecorder(existingRecord.recorder || '');
       setNotes(existingRecord.notes || '');
     } else {
       const randomTime = addRandomOffset(timeSlot);
@@ -46,10 +46,10 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
 
     const data: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'> = {
       patient_id: patient.院友id,
-      record_date: date,
-      time_slot: timeSlot,
+      patrol_date: date,
+      scheduled_time: timeSlot,
       patrol_time: patrolTime,
-      staff_name: recorder,
+      recorder: recorder,
       notes: notes.trim() || undefined
     };
 

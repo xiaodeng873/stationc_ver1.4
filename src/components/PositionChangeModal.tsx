@@ -30,7 +30,7 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
   useEffect(() => {
     if (existingRecord) {
       setPosition(existingRecord.position);
-      setRecorder(existingRecord.staff_name || '');
+      setRecorder(existingRecord.recorder || '');
     } else {
       const suggestedPosition = getPositionSequence(timeSlot);
       setPosition(suggestedPosition);
@@ -43,10 +43,10 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
 
     const data: Omit<PositionChangeRecord, 'id' | 'created_at' | 'updated_at'> = {
       patient_id: patient.院友id,
-      record_date: date,
-      time_slot: timeSlot,
+      change_date: date,
+      scheduled_time: timeSlot,
       position,
-      staff_name: recorder
+      recorder: recorder
     };
 
     onSubmit(data);

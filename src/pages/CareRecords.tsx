@@ -260,7 +260,7 @@ const CareRecords: React.FC = () => {
                 </td>
                 {weekDates.map((date) => {
                   const record = patientPatrolRounds.find(
-                    r => r.record_date === date && r.time_slot === timeSlot
+                    r => r.patrol_date === date && r.scheduled_time === timeSlot
                   );
                   const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeSlot, admissionRecords);
                   const overdue = !record && !inHospital && isOverdue(date, timeSlot);
@@ -331,7 +331,7 @@ const CareRecords: React.FC = () => {
                 </td>
                 {weekDates.map((date) => {
                   const record = patientDiaperChanges.find(
-                    r => r.record_date === date && r.time_slot === slot.time
+                    r => r.change_date === date && r.time_slot === slot.time
                   );
                   const timeStr = slot.time.split('-')[0];
                   const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeStr, admissionRecords);
@@ -407,7 +407,7 @@ const CareRecords: React.FC = () => {
                 </td>
                 {weekDates.map((date) => {
                   const record = patientRestraintObservations.find(
-                    r => r.observation_date === date && r.time_slot === timeSlot
+                    r => r.observation_date === date && r.scheduled_time === timeSlot
                   );
                   const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeSlot, admissionRecords);
                   const overdue = !record && !inHospital && isOverdue(date, timeSlot);
@@ -488,7 +488,7 @@ const CareRecords: React.FC = () => {
                 </td>
                 {weekDates.map((date) => {
                   const record = patientPositionChanges.find(
-                    r => r.record_date === date && r.time_slot === timeSlot
+                    r => r.change_date === date && r.scheduled_time === timeSlot
                   );
                   const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeSlot, admissionRecords);
                   const expectedPosition = getPositionSequence(index);
@@ -768,6 +768,7 @@ const CareRecords: React.FC = () => {
           existingRecord={modalExistingRecord}
           onClose={() => setShowDiaperModal(false)}
           onSubmit={handleDiaperSubmit}
+          onDelete={(id) => deleteDiaperChangeRecord(id).then(() => setShowDiaperModal(false))}
         />
       )}
 
@@ -778,8 +779,10 @@ const CareRecords: React.FC = () => {
           timeSlot={modalTimeSlot}
           staffName={displayName}
           existingRecord={modalExistingRecord}
+          restraintAssessments={patientRestraintAssessments}
           onClose={() => setShowRestraintModal(false)}
           onSubmit={handleRestraintSubmit}
+          onDelete={(id) => deleteRestraintObservationRecord(id).then(() => setShowRestraintModal(false))}
         />
       )}
 
