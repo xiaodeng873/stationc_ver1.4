@@ -40,7 +40,7 @@ interface AdvancedFilters {
 }
 
 const PrintForms: React.FC = () => {
-  const { patients, loading } = usePatients();
+  const { patients, loading, patientRestraintAssessments } = usePatients();
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [restraintUserIds, setRestraintUserIds] = useState<Set<number>>(new Set());
@@ -89,47 +89,40 @@ const PrintForms: React.FC = () => {
 
   React.useEffect(() => {
     loadTemplates();
-    loadRestraintUsers();
   }, []);
 
-  const loadRestraintUsers = async () => {
-    try {
-      // 查詢所有約束評估記錄
-      const { data, error } = await supabase
-        .from('patient_restraint_assessments')
-        .select('patient_id, suggested_restraints, created_at')
-        .order('created_at', { ascending: false });
+  // 當約束評估資料變化時，更新使用約束物品的院友列表
+  React.useEffect(() => {
+    if (patientRestraintAssessments.length > 0) {
+      loadRestraintUsers();
+    }
+  }, [patientRestraintAssessments]);
 
-      if (error) throw error;
+  const loadRestraintUsers = () => {
+    try {
+      // 從 Context 獲取所有約束評估記錄
+      // 約束物品管理頁面中有記錄的院友，就是有約束評估記錄的院友
+      const userIds = new Set<number>();
 
       // 為每個院友只保留最新的評估記錄
       const latestAssessments = new Map<number, any>();
-      data?.forEach(assessment => {
+      const sortedAssessments = [...patientRestraintAssessments].sort((a, b) => {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      sortedAssessments.forEach(assessment => {
         if (!latestAssessments.has(assessment.patient_id)) {
           latestAssessments.set(assessment.patient_id, assessment);
         }
       });
 
-      // 過濾出有實際使用約束物品的院友
-      const userIds = new Set<number>();
+      // 所有有約束評估記錄的院友都加入列表
       latestAssessments.forEach((assessment) => {
-        if (assessment.suggested_restraints &&
-            typeof assessment.suggested_restraints === 'object') {
-          // 檢查是否有任何約束物品被勾選（值為 true）
-          const restraints = assessment.suggested_restraints;
-          const hasActiveRestraints = Object.entries(restraints).some(([key, value]) => {
-            // 過濾掉 _other 這類的附註欄位，只檢查實際的約束物品
-            return !key.endsWith('_other') && value === true;
-          });
-
-          if (hasActiveRestraints) {
-            userIds.add(assessment.patient_id);
-          }
-        }
+        userIds.add(assessment.patient_id);
       });
 
       setRestraintUserIds(userIds);
-      console.log('使用約束物品的院友數量:', userIds.size);
+      console.log('約束物品管理中的院友數量:', userIds.size, '總評估記錄數:', patientRestraintAssessments.length);
     } catch (error) {
       console.error('載入約束物品使用者失敗:', error);
     }
