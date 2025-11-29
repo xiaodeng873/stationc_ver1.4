@@ -17,3 +17,5 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 # Bolt.new 在發布時會自動將 .env 中的 Supabase 配置替換為其內建資料庫
 # 為了防止這個問題,本專案已在 src/config/supabase.config.ts 中硬編碼正確的配置
 # 即使 .env 被修改,應用程式仍會使用正確的 Supabase 連線資訊
+
+當我要求修改CSS或UI布局時，要先給我布局圖
