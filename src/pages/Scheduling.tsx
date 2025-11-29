@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Calendar, Plus, Edit3, Trash2, Download, Users, Settings, User, Search, Filter, X } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Calendar, Plus, Edit3, Trash2, Download, Users, Settings, User, Search, Filter, X, AlertCircle } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { exportCombinedScheduleToExcel } from '../utils/combinedScheduleExcelGenerator';
 import ScheduleModal from '../components/ScheduleModal';
@@ -7,6 +7,8 @@ import PatientSelectModal from '../components/PatientSelectModal';
 import ScheduleDetailModal from '../components/ScheduleDetailModal';
 import { getReasonBadgeClass, getReasonIcon } from '../utils/reasonColors';
 import { getFormattedEnglishName } from '../utils/nameFormatter';
+import { checkAnnualHealthCheckupDue, checkRestraintAssessmentDue, DueItem } from '../utils/scheduleDueChecker';
+import { supabase } from '../lib/supabase';
 
 const Scheduling: React.FC = () => {
   const { schedules, deleteSchedule, patients, loading, refreshData } = usePatients();
@@ -19,6 +21,7 @@ const Scheduling: React.FC = () => {
   const [dateFilter, setDateFilter] = useState('');
   const [reasonFilter, setReasonFilter] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [dueItems, setDueItems] = useState<DueItem[]>([]);
 
   // 創建院友ID到院友資料的映射
   const patientMap = useMemo(() => {
@@ -36,6 +39,70 @@ const Scheduling: React.FC = () => {
     });
     return map;
   }, [patients]);
+
+  // 載入並計算到期項目
+  useEffect(() => {
+    if (loading || !patients || patients.length === 0) {
+      return;
+    }
+    loadDueItems();
+  }, [patients, schedules, loading]);
+
+  const loadDueItems = async () => {
+    try {
+      const allDueItems: DueItem[] = [];
+      const reminderDays = 14; // 14 天前開始提醒
+
+      // 獲取所有年度體檢記錄
+      const { data: checkups } = await supabase
+        .from('annual_health_checkups')
+        .select('patient_id, checkup_date')
+        .order('checkup_date', { ascending: false });
+
+      // 獲取所有約束評估記錄
+      const { data: assessments } = await supabase
+        .from('patient_restraint_assessments')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      // 為每位院友檢查到期項目
+      for (const patient of patients) {
+        if (patient.在住狀態 !== '在住') {
+          continue; // 只檢查在住院友
+        }
+
+        // 檢查年度體檢
+        const lastCheckup = checkups?.find(c => c.patient_id === patient.院友id);
+        const healthCheckupDue = checkAnnualHealthCheckupDue(
+          patient,
+          lastCheckup?.checkup_date || null,
+          schedules,
+          reminderDays
+        );
+        if (healthCheckupDue && !healthCheckupDue.isScheduled) {
+          allDueItems.push(healthCheckupDue);
+        }
+
+        // 檢查約束評估
+        const lastAssessment = assessments?.find(a => a.patient_id === patient.院友id);
+        const restraintDue = checkRestraintAssessmentDue(
+          patient,
+          lastAssessment || null,
+          schedules,
+          reminderDays
+        );
+        if (restraintDue && !restraintDue.isScheduled) {
+          allDueItems.push(restraintDue);
+        }
+      }
+
+      // 按到期日排序（最緊急的在前）
+      allDueItems.sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+      setDueItems(allDueItems);
+    } catch (error) {
+      console.error('載入到期項目失敗:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -272,6 +339,57 @@ const Scheduling: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* 到期提醒區域 */}
+      {dueItems.length > 0 && (
+        <div className="card p-0 overflow-hidden">
+          <div className="bg-red-500 text-white">
+            <div className="px-4 py-2 border-b border-red-400">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5" />
+                <span className="font-semibold">
+                  即將到期提醒：{dueItems.filter(item => item.type === 'annual_health_checkup').length} 個年度體檢、
+                  {dueItems.filter(item => item.type === 'restraint_assessment').length} 個約束評估
+                </span>
+              </div>
+            </div>
+            <div className="divide-y divide-red-400">
+              {dueItems.map((item, index) => {
+                // 每行顯示兩個提醒
+                if (index % 2 === 0) {
+                  const nextItem = dueItems[index + 1];
+                  return (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-red-400">
+                      <div
+                        className="px-4 py-3 hover:bg-red-600 cursor-pointer transition-colors text-sm"
+                        onClick={() => {
+                          // TODO: 點擊可快速創建該院友的排程
+                          console.log('創建排程:', item);
+                        }}
+                      >
+                        {item.displayText}
+                      </div>
+                      {nextItem && (
+                        <div
+                          className="px-4 py-3 hover:bg-red-600 cursor-pointer transition-colors text-sm"
+                          onClick={() => {
+                            // TODO: 點擊可快速創建該院友的排程
+                            console.log('創建排程:', nextItem);
+                          }}
+                        >
+                          {nextItem.displayText}
+                        </div>
+                      )}
+                      {!nextItem && <div className="hidden md:block"></div>}
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6">
         {filteredSchedules.length > 0 ? (

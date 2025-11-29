@@ -19,9 +19,10 @@ import { Link } from 'react-router-dom';
 import { usePatients } from '../context/PatientContext';
 import PatientTooltip from '../components/PatientTooltip';
 import { getFormattedEnglishName } from '../utils/nameFormatter';
-import { 
+import {
   getTemplatesMetadata
 } from '../lib/database';
+import { supabase } from '../lib/supabase';
 import { exportPrintFormsToExcel } from '../utils/printFormExcelGenerator';
 import { exportDiaperChangeToExcel } from '../utils/diaperChangeExcelGenerator';
 
@@ -42,6 +43,7 @@ const PrintForms: React.FC = () => {
   const { patients, loading } = usePatients();
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [restraintUserIds, setRestraintUserIds] = useState<Set<number>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [sortField, setSortField] = useState<SortField>('床號');
@@ -87,16 +89,50 @@ const PrintForms: React.FC = () => {
 
   React.useEffect(() => {
     loadTemplates();
+    loadRestraintUsers();
   }, []);
+
+  const loadRestraintUsers = async () => {
+    try {
+      // 查詢最近的約束評估記錄，找出有使用約束物品的院友
+      const { data, error } = await supabase
+        .from('patient_restraint_assessments')
+        .select('patient_id, suggested_restraints')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // 過濾出有實際使用約束物品的院友（suggested_restraints 不為空）
+      const userIds = new Set<number>();
+      data?.forEach(assessment => {
+        if (assessment.suggested_restraints &&
+            typeof assessment.suggested_restraints === 'object' &&
+            Object.keys(assessment.suggested_restraints).length > 0) {
+          // 檢查是否有任何約束物品被勾選
+          const restraints = assessment.suggested_restraints;
+          const hasActiveRestraints = Object.values(restraints).some(value => value === true);
+          if (hasActiveRestraints) {
+            userIds.add(assessment.patient_id);
+          }
+        }
+      });
+
+      setRestraintUserIds(userIds);
+    } catch (error) {
+      console.error('載入約束物品使用者失敗:', error);
+    }
+  };
 
   const loadTemplates = async () => {
     try {
       const data = await getTemplatesMetadata();
       // 只顯示列印表格相關範本
-      const printFormTemplates = data.filter(t => 
-        t.type === 'diaper-change-record' || 
-        t.type === 'personal-hygiene-record' || 
-        t.type === 'admission-layout'
+      const printFormTemplates = data.filter(t =>
+        t.type === 'diaper-change-record' ||
+        t.type === 'personal-hygiene-record' ||
+        t.type === 'admission-layout' ||
+        t.type === 'station-bed-layout' ||
+        t.type === 'restraint-observation'
       );
       setTemplates(printFormTemplates);
     } catch (error) {
@@ -111,6 +147,13 @@ const PrintForms: React.FC = () => {
 
   // Patient filtering logic
   const filteredPatients = patients.filter(patient => {
+    // 如果選擇約束物品觀察表，只顯示使用約束物品的院友
+    if (selectedTemplate?.type === 'restraint-observation') {
+      if (!restraintUserIds.has(patient.院友id)) {
+        return false;
+      }
+    }
+
     // Advanced filters
     if (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '全部' && patient.在住狀態 !== advancedFilters.在住狀態) {
       return false;
@@ -291,6 +334,13 @@ const PrintForms: React.FC = () => {
       return;
     }
 
+    // 床位表不需要選擇院友
+    if (selectedTemplate.type === 'station-bed-layout') {
+      await handleBedLayoutExport();
+      return;
+    }
+
+    // 約束觀察表需要檢查是否有選擇院友
     if (selectedRows.size === 0) {
       alert('請先選擇要匯出的院友');
       return;
@@ -301,14 +351,44 @@ const PrintForms: React.FC = () => {
       setShowYearMonthModal(true);
     } else if (selectedTemplate.type === 'personal-hygiene-record') {
       setShowPersonalHygieneMonthModal(true);
+    } else if (selectedTemplate.type === 'restraint-observation') {
+      await handleRestraintObservationExport();
     } else {
       await handleDirectExport();
     }
   };
 
+  const handleBedLayoutExport = async () => {
+    try {
+      setIsExporting(true);
+      const { exportBedLayoutToExcel } = await import('../utils/bedLayoutExcelGenerator');
+      await exportBedLayoutToExcel(selectedTemplate);
+    } catch (error) {
+      console.error('匯出床位表失敗:', error);
+      alert('匯出床位表失敗，請重試');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleRestraintObservationExport = async () => {
+    const selectedPatients = sortedPatients.filter(p => selectedRows.has(p.院友id));
+
+    try {
+      setIsExporting(true);
+      const { exportRestraintObservationToExcel } = await import('../utils/restraintObservationChartExcelGenerator');
+      await exportRestraintObservationToExcel(selectedPatients, selectedTemplate);
+    } catch (error) {
+      console.error('匯出約束觀察表失敗:', error);
+      alert('匯出約束觀察表失敗，請重試');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleDirectExport = async () => {
     const selectedPatients = sortedPatients.filter(p => selectedRows.has(p.院友id));
-    
+
     try {
       setIsExporting(true);
       await exportPrintFormsToExcel(selectedPatients, selectedTemplate);
@@ -424,7 +504,8 @@ const PrintForms: React.FC = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">列印表格</h1>
           <div className="flex items-center space-x-2">
-            {selectedRows.size > 0 && selectedTemplate && (
+            {((selectedRows.size > 0 && selectedTemplate && selectedTemplate.type !== 'station-bed-layout') ||
+              (selectedTemplate?.type === 'station-bed-layout')) && (
               <button
                 onClick={handleExportSelected}
                 disabled={isExporting}
@@ -438,7 +519,11 @@ const PrintForms: React.FC = () => {
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    <span>生成表格 ({selectedRows.size})</span>
+                    <span>
+                      {selectedTemplate?.type === 'station-bed-layout' && '生成床位表'}
+                      {selectedTemplate?.type === 'restraint-observation' && `生成觀察表 (${selectedRows.size})`}
+                      {selectedTemplate?.type !== 'station-bed-layout' && selectedTemplate?.type !== 'restraint-observation' && `生成表格 (${selectedRows.size})`}
+                    </span>
                   </>
                 )}
               </button>
@@ -478,7 +563,9 @@ const PrintForms: React.FC = () => {
                   {template.type === 'diaper-change-record' && '換片記錄'}
                   {template.type === 'personal-hygiene-record' && '個人衛生記錄'}
                   {template.type === 'admission-layout' && '入住排版'}
-                  {!['diaper-change-record', 'personal-hygiene-record', 'admission-layout'].includes(template.type) && template.name}
+                  {template.type === 'station-bed-layout' && '床位表'}
+                  {template.type === 'restraint-observation' && '約束物品觀察表'}
+                  {!['diaper-change-record', 'personal-hygiene-record', 'admission-layout', 'station-bed-layout', 'restraint-observation'].includes(template.type) && template.name}
                 </option>
               ))}
             </select>
@@ -506,6 +593,21 @@ const PrintForms: React.FC = () => {
                     </>
                   )}
                 </div>
+                {/* 特殊範本提示 */}
+                {selectedTemplate.type === 'station-bed-layout' && (
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="text-sm text-yellow-800">
+                      <strong>提示：</strong>床位表無需選擇院友，將匯出所有站點的床位配置
+                    </p>
+                  </div>
+                )}
+                {selectedTemplate.type === 'restraint-observation' && (
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="text-sm text-yellow-800">
+                      <strong>提示：</strong>僅顯示目前使用約束物品的院友（共 {restraintUserIds.size} 位）
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -528,6 +630,7 @@ const PrintForms: React.FC = () => {
       </div>
 
       {/* Patient Selection */}
+      {selectedTemplate?.type !== 'station-bed-layout' && (
       <div className="sticky top-16 bg-white z-20 shadow-sm">
         <div className="card p-4">
           <div className="space-y-4">
@@ -690,9 +793,10 @@ const PrintForms: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Selection Controls */}
-      {totalItems > 0 && (
+      {selectedTemplate?.type !== 'station-bed-layout' && totalItems > 0 && (
         <div className="sticky top-40 bg-white z-10 shadow-sm">
           <div className="card p-4">
             <div className="flex items-center justify-between">
@@ -719,6 +823,7 @@ const PrintForms: React.FC = () => {
       )}
 
       {/* Patient List */}
+      {selectedTemplate?.type !== 'station-bed-layout' && (
       <div className="card overflow-hidden">
         {paginatedPatients.length > 0 ? (
           <div className="overflow-x-auto">
@@ -841,9 +946,10 @@ const PrintForms: React.FC = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Pagination Controls */}
-      {totalItems > 0 && (
+      {selectedTemplate?.type !== 'station-bed-layout' && totalItems > 0 && (
         <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 shadow-lg z-10">
           <div className="flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0">
             <div className="flex items-center space-x-2">
