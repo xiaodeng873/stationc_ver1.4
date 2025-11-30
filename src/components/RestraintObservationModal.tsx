@@ -30,7 +30,7 @@ const RestraintObservationModal: React.FC<RestraintObservationModalProps> = ({
   const [observationStatus, setObservationStatus] = useState<'N' | 'P' | 'S'>('N');
   const [recorder, setRecorder] = useState('');
   const [notes, setNotes] = useState('');
-  const [usedRestraints, setUsedRestraints] = useState<Record<string, boolean>>({});
+  const [selectedRestraints, setSelectedRestraints] = useState<string[]>([]);
 
   // 獲取最新的約束評估
   const latestAssessment = useMemo(() => {
@@ -90,19 +90,30 @@ const RestraintObservationModal: React.FC<RestraintObservationModalProps> = ({
       setObservationStatus(existingRecord.observation_status);
       setRecorder(existingRecord.recorder);
       setNotes(existingRecord.notes || '');
-      setUsedRestraints(existingRecord.used_restraints || {});
+      // 從 used_restraints 轉換為字串陣列
+      const restraintList = existingRecord.used_restraints
+        ? Object.keys(existingRecord.used_restraints).filter(key => existingRecord.used_restraints[key])
+        : [];
+      setSelectedRestraints(restraintList);
     } else {
       const randomTime = addRandomOffset(timeSlot);
       setObservationTime(randomTime);
       setObservationStatus('N');
       setRecorder(staffName);
       setNotes('');
-      setUsedRestraints({});
+      // 預設選中所有建議的約束物品
+      setSelectedRestraints(suggestedRestraints);
     }
-  }, [existingRecord, timeSlot, staffName]);
+  }, [existingRecord, timeSlot, staffName, suggestedRestraints]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 將選中的約束物品轉換為 object 格式
+    const usedRestraintsObj: Record<string, boolean> = {};
+    selectedRestraints.forEach(item => {
+      usedRestraintsObj[item] = true;
+    });
 
     const data: Omit<RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'> = {
       patient_id: patient.院友id,
@@ -112,7 +123,7 @@ const RestraintObservationModal: React.FC<RestraintObservationModalProps> = ({
       observation_status: observationStatus,
       recorder: recorder,
       notes: notes.trim() || undefined,
-      used_restraints: Object.keys(usedRestraints).length > 0 ? usedRestraints : undefined
+      used_restraints: selectedRestraints.length > 0 ? usedRestraintsObj : undefined
     };
 
     onSubmit(data);
@@ -200,38 +211,11 @@ const RestraintObservationModal: React.FC<RestraintObservationModalProps> = ({
             />
           </div>
 
-          {/* 約束物品建議 */}
-          {suggestedRestraints.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start space-x-2">
-                <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-blue-900 mb-2">院友約束物品建議</p>
-                  <div className="flex flex-wrap gap-2">
-                    {suggestedRestraints.map((item, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
-                      >
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                  {latestAssessment?.other_restraint_notes && (
-                    <p className="text-sm text-blue-700 mt-2">
-                      備註：{latestAssessment.other_restraint_notes}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 使用的約束物品選擇 */}
+          {/* 院友約束物品建議 - 可複選 */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-3">
               <Shield className="w-4 h-4 inline mr-1" />
-              使用的約束物品
+              院友約束物品建議
             </label>
             {!latestAssessment ? (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
@@ -249,96 +233,32 @@ const RestraintObservationModal: React.FC<RestraintObservationModalProps> = ({
               </div>
             ) : (
               <>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                  <p className="text-sm text-blue-900">
-                    <Info className="w-4 h-4 inline mr-1" />
-                    建議使用：{suggestedRestraints.join('、')}
-                  </p>
-                </div>
+                {latestAssessment?.other_restraint_notes && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                    <p className="text-sm text-blue-700">
+                      <Info className="w-4 h-4 inline mr-1" />
+                      備註：{latestAssessment.other_restraint_notes}
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
-                  {latestAssessment.suggested_restraints?.bed_rail && (
-                    <label className="flex items-center space-x-2 p-3 border border-blue-400 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer">
+                  {suggestedRestraints.map((item) => (
+                    <label key={item} className="flex items-center space-x-2 p-3 border border-blue-400 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={usedRestraints['bed_rail'] || false}
-                        onChange={(e) => setUsedRestraints({...usedRestraints, bed_rail: e.target.checked})}
+                        checked={selectedRestraints.includes(item)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRestraints([...selectedRestraints, item]);
+                          } else {
+                            setSelectedRestraints(selectedRestraints.filter(r => r !== item));
+                          }
+                        }}
                         className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                       />
-                      <span className="text-sm text-gray-700">床欄</span>
+                      <span className="text-sm text-gray-700">{item}</span>
                     </label>
-                  )}
-
-                  {latestAssessment.suggested_restraints?.wheelchair_belt && (
-                    <label className="flex items-center space-x-2 p-3 border border-blue-400 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={usedRestraints['wheelchair_belt'] || false}
-                        onChange={(e) => setUsedRestraints({...usedRestraints, wheelchair_belt: e.target.checked})}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">輪椅安全帶</span>
-                    </label>
-                  )}
-
-                  {latestAssessment.suggested_restraints?.wheelchair_table && (
-                    <label className="flex items-center space-x-2 p-3 border border-blue-400 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={usedRestraints['wheelchair_table'] || false}
-                        onChange={(e) => setUsedRestraints({...usedRestraints, wheelchair_table: e.target.checked})}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">輪椅餐桌板</span>
-                    </label>
-                  )}
-
-                  {latestAssessment.suggested_restraints?.vest && (
-                    <label className="flex items-center space-x-2 p-3 border border-blue-400 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={usedRestraints['vest'] || false}
-                        onChange={(e) => setUsedRestraints({...usedRestraints, vest: e.target.checked})}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">約束背心</span>
-                    </label>
-                  )}
-
-                  {latestAssessment.suggested_restraints?.wrist_restraint && (
-                    <label className="flex items-center space-x-2 p-3 border border-blue-400 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={usedRestraints['wrist_restraint'] || false}
-                        onChange={(e) => setUsedRestraints({...usedRestraints, wrist_restraint: e.target.checked})}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">手部約束帶</span>
-                    </label>
-                  )}
-
-                  {latestAssessment.suggested_restraints?.ankle_restraint && (
-                    <label className="flex items-center space-x-2 p-3 border border-blue-400 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={usedRestraints['ankle_restraint'] || false}
-                        onChange={(e) => setUsedRestraints({...usedRestraints, ankle_restraint: e.target.checked})}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">腳部約束帶</span>
-                    </label>
-                  )}
-
-                  {latestAssessment.suggested_restraints?.mitt && (
-                    <label className="flex items-center space-x-2 p-3 border border-blue-400 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={usedRestraints['mitt'] || false}
-                        onChange={(e) => setUsedRestraints({...usedRestraints, mitt: e.target.checked})}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">手套</span>
-                    </label>
-                  )}
+                  ))}
                 </div>
               </>
             )}

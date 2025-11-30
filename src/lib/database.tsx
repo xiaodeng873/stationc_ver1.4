@@ -4065,7 +4065,7 @@ export const getDiaperChangeRecordsInDateRange = async (startDate: string, endDa
     .gte('change_date', startDate)
     .lte('change_date', endDate)
     .order('change_date', { ascending: false })
-    .order('scheduled_time', { ascending: false });
+    .order('time_slot', { ascending: false });
 
   if (error) {
     console.error('Error fetching diaper change records in date range:', error);

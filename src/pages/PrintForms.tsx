@@ -40,7 +40,7 @@ interface AdvancedFilters {
 }
 
 const PrintForms: React.FC = () => {
-  const { patients, loading, patientRestraintAssessments } = usePatients();
+  const { patients, loading, patientRestraintAssessments, stations, beds } = usePatients();
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [restraintUserIds, setRestraintUserIds] = useState<Set<number>>(new Set());
@@ -367,7 +367,8 @@ const PrintForms: React.FC = () => {
     try {
       setIsExporting(true);
       const { exportBedLayoutToExcel } = await import('../utils/bedLayoutExcelGenerator');
-      await exportBedLayoutToExcel(selectedTemplate);
+      // 導出所有站點的床位表
+      await exportBedLayoutToExcel(stations, beds, patients);
     } catch (error) {
       console.error('匯出床位表失敗:', error);
       alert('匯出床位表失敗，請重試');
