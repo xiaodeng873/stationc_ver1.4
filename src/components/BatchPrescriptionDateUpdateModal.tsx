@@ -59,9 +59,7 @@ const BatchPrescriptionDateUpdateModal: React.FC<BatchPrescriptionDateUpdateModa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    console.log('開始批量更新處方日期，選中處方數量:', selectedPrescriptions.length);
-    
+
     if (!newPrescriptionDate) {
       alert('請選擇新的處方日期');
       return;
@@ -113,7 +111,6 @@ ${prescriptionsByPatient.map(group =>
             updateData.medication_source = newMedicationSource;
           }
 
-          console.log('更新處方:', prescription.id, updateData);
           await updatePrescription(updateData);
           successCount++;
         } catch (error) {
@@ -122,8 +119,6 @@ ${prescriptionsByPatient.map(group =>
           errors.push(`${prescription.medication_name}: ${error instanceof Error ? error.message : '未知錯誤'}`);
         }
       }
-
-      console.log(`批量更新完成: 成功 ${successCount} 個，失敗 ${errorCount} 個`);
 
       if (errorCount === 0) {
         alert(`成功更新 ${successCount} 個處方的${updateFields.join('和')}`);

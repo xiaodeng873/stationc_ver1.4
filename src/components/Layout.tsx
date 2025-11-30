@@ -202,7 +202,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                   <button
                     onClick={() => {
-                      console.log('Logout clicked'); // Debug log
                       onSignOut();
                       setShowUserMenu(false);
                     }}

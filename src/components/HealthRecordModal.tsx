@@ -16,18 +16,17 @@ interface HealthRecordModalProps {
 }
 
 const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialData, onClose, onTaskCompleted }) => {
-  console.log('=== HealthRecordModal 接收到的 initialData ===');
-  console.log('record:', record);
-  console.log('initialData:', initialData);
-  console.log('initialData.patient:', initialData?.patient);
-  console.log('initialData.task:', initialData?.task);
+
+
+
+
 
   const { addHealthRecord, updateHealthRecord, patients, hospitalEpisodes } = usePatients();
   const { displayName } = useAuth();
 
   // 香港時區輔助函數 (移到組件內部，確保其作用域)
   const getHongKongDateTime = (dateString?: string) => {
-    console.log('getHongKongDateTime 輸入:', dateString);
+
     const date = dateString ? new Date(dateString) : new Date();
     // 使用 toLocaleString 直接獲取香港時區的時間
     const hongKongTime = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Hong_Kong"}));
@@ -41,7 +40,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       date: `${year}-${month}-${day}`,
       time: `${hours}:${minutes}`,
     };
-    console.log('getHongKongDateTime 輸出:', result);
+
     return result;
   };
 
@@ -75,31 +74,17 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     
     // 使用住院事件狀態作為主要判斷依據，is_hospitalized 作為備用
     const isHospitalized = hasActiveEpisode || patient?.is_hospitalized || false;
-    
-    console.log('🏥 檢查院友入院狀態:', {
-      patientId,
-      foundPatient: !!patient,
-      patientName: patient ? `${patient.中文姓氏}${patient.中文名字}` : 'Not found',
-      isHospitalizedField: patient?.is_hospitalized,
-      hasActiveEpisode,
-      finalIsHospitalized: isHospitalized,
-      bedNumber: patient?.床號,
-      residencyStatus: patient?.在住狀態
-    });
-    
+
     return isHospitalized;
   };
   
   const initialIsPatientHospitalized = checkPatientHospitalized(initialPatientId);
 
   // 初始化表單數據
-  console.log('準備解析 next_due_at:', initialData?.task?.next_due_at);
+
   const { date: defaultRecordDate, time: defaultRecordTime } = record 
     ? { date: record.記錄日期, time: record.記錄時間 }
     : getHongKongDateTime(initialData?.task?.next_due_at);
-
-  console.log('解析後的預設日期時間:', { defaultRecordDate, defaultRecordTime });
-
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -133,25 +118,13 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
   // 當院友選擇改變時，自動檢查是否入院中並更新表單
   React.useEffect(() => {
-    console.log('院友選擇變更 useEffect 觸發:', {
-      patientId: formData.院友id,
-      isRecord: !!record,
-      currentIsPatientHospitalized,
-      currentIsAbsent: formData.isAbsent,
-      currentAbsenceReason: formData.absenceReason
-    });
-    
+
     if (formData.院友id && !record) { // 只在新增模式下自動設定
       const isHospitalized = currentIsPatientHospitalized;
-      console.log('新增模式自動設定檢查:', {
-        isHospitalized,
-        currentIsAbsent: formData.isAbsent,
-        shouldAutoSet: isHospitalized && !formData.isAbsent
-      });
-      
+
       if (isHospitalized && !formData.isAbsent) {
         // 如果院友入院中且尚未設定為無法量度，自動設定
-        console.log('自動設定入院無法量度');
+
         setFormData(prev => ({
           ...prev,
           isAbsent: true,
@@ -169,7 +142,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
         }));
       } else if (!isHospitalized && formData.isAbsent && formData.absenceReason === '入院') {
         // 如果院友不再入院中且當前設定為入院無法量度，自動清除
-        console.log('自動清除入院無法量度設定');
+
         setFormData(prev => ({
           ...prev,
           isAbsent: false,
@@ -206,14 +179,13 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       }
     }
   }, [record]);
-  console.log('初始化的 formData:', formData);
 
   // 針對體重控制任務，將記錄時間預設為 00:00
   // 使用 useEffect 確保在記錄類型改變時觸發
   React.useEffect(() => {
-    console.log('useEffect 檢查記錄類型:', formData.記錄類型);
+
     if (formData.記錄類型 === '體重控制') {
-      console.log('設定體重控制時間為 00:00');
+
       setFormData(prev => ({ ...prev, 記錄時間: '00:00' }));
     }
   }, [formData.記錄類型]);
@@ -326,7 +298,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
     // 防止重複提交
     if (isSubmitting) {
-      console.log('正在提交中，忽略重複請求');
+
       return;
     }
 

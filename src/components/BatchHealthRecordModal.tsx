@@ -61,18 +61,7 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
     
     // 使用住院事件狀態作為主要判斷依據，is_hospitalized 作為備用
     const isHospitalized = hasActiveEpisode || patient?.is_hospitalized || false;
-    
-    console.log('🏥 批量模式檢查院友入院狀態:', {
-      patientId,
-      foundPatient: !!patient,
-      patientName: patient ? `${patient.中文姓氏}${patient.中文名字}` : 'Not found',
-      isHospitalizedField: patient?.is_hospitalized,
-      hasActiveEpisode,
-      finalIsHospitalized: isHospitalized,
-      bedNumber: patient?.床號,
-      residencyStatus: patient?.在住狀態
-    });
-    
+
     return isHospitalized;
   };
   
@@ -137,33 +126,32 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
     let newRecordDate = getHongKongDate(); // 預設為當前日期
 
     if (autoSelectPrevious && lastRecord?.院友id) {
-      console.log('選擇上一筆院友:', lastRecord.院友id);
+
       newPatientId = lastRecord.院友id;
       newRecordDate = lastRecord.記錄日期; // 複製上一筆的記錄日期
     } else if (autoSelectNextBed && sortedPatients.length > 0) {
-      console.log('自動選擇下一位院友，當前 sortedPatients:', sortedPatients.map(p => ({ 院友id: p.院友id, 床號: p.床號 })));
       if (lastRecord?.院友id) {
         // 查找上一筆記錄的院友在 sortedPatients 中的索引
         const currentIndex = sortedPatients.findIndex(p => p.院友id === lastRecord.院友id);
-        console.log('上一筆院友ID:', lastRecord.院友id, '找到的索引:', currentIndex);
+
         // 如果找到有效索引，選擇下一個院友（循環到第一個）
         if (currentIndex >= 0) {
           const nextIndex = (currentIndex + 1) % sortedPatients.length;
           newPatientId = sortedPatients[nextIndex].院友id;
-          console.log('選擇下一位院友:', sortedPatients[nextIndex].院友id, '床號:', sortedPatients[nextIndex].床號);
+
         } else {
           // 如果未找到（無效院友ID），選擇第一個院友並記錄錯誤
           newPatientId = sortedPatients[0].院友id;
-          console.warn('警告：上一筆院友ID', lastRecord.院友id, '不在 sortedPatients 中，選擇第一個院友:', newPatientId);
+
         }
       } else {
         // 如果上一筆記錄沒有院友ID，選擇第一個院友
         newPatientId = sortedPatients[0].院友id;
-        console.log('上一筆無院友ID，選擇第一個院友:', newPatientId);
+
       }
       newRecordDate = lastRecord?.記錄日期 || newRecordDate; // 保留上一筆的記錄日期
     } else {
-      console.log('無自動選擇，設置空院友ID');
+
     }
 
     const newRecord: BatchRecord = {
@@ -175,7 +163,7 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
       記錄人員: '',
       isAbsent: false
     };
-    console.log('新增記錄:', newRecord);
+
     setRecords([...records, newRecord]);
   };
 
@@ -190,17 +178,12 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
     // 當院友ID改變時，檢查是否入院中並自動設定
     if (field === '院友id') {
       const isHospitalized = checkPatientHospitalized(value);
-      console.log('批量模式院友ID變更:', {
-        newPatientId: value,
-        isHospitalized,
-        recordId: id
-      });
-      
+
       setRecords(records.map(record => {
         if (record.id === id) {
           if (isHospitalized) {
             // 院友入院中，自動設定為無法量度
-            console.log('批量模式自動設定入院無法量度');
+
             return {
               ...record,
               [field]: value,
@@ -219,7 +202,7 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
             };
           } else {
             // 院友不在入院中，清除自動設定的入院狀態
-            console.log('批量模式清除入院設定');
+
             const updatedRecord = { ...record, [field]: value };
             if (record.isAbsent && record.absenceReason === '入院') {
               updatedRecord.isAbsent = false;
@@ -378,9 +361,8 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
             記錄人員: record.記錄人員 || null
           };
 
-          console.log(`批量上傳第 ${i + 1} 筆記錄:`, recordData);
           await addHealthRecord(recordData);
-          console.log(`第 ${i + 1} 筆記錄儲存成功`);
+
           successCount++;
         } catch (error) {
           failedCount++;

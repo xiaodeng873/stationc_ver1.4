@@ -43,8 +43,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
   };
 
   const [formData, setFormData] = useState(() => {
-    console.log('初始化表單資料，episode:', episode);
-    console.log('Episode 完整資料:', JSON.stringify(episode, null, 2));
+
     return {
       patient_id: episode?.patient_id?.toString() || defaultPatientId || '',
       episode_start_date: episode?.episode_start_date || getHongKongDate(),
@@ -62,14 +61,13 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
   });
 
   const [events, setEvents] = useState<EpisodeEvent[]>(() => {
-    console.log('初始化事件資料，episode?.episode_events:', episode?.episode_events);
-    console.log('Episode events 完整資料:', JSON.stringify(episode?.episode_events, null, 2));
+
     
     if (episode?.episode_events && Array.isArray(episode.episode_events) && episode.episode_events.length > 0) {
       const processedEvents = episode.episode_events
         .sort((a: any, b: any) => (a.event_order || 0) - (b.event_order || 0))
         .map((event: any, index: number) => {
-          console.log(`處理事件 ${index}:`, event);
+
           return {
             id: event.id || `temp-${Date.now()}-${Math.random()}`,
             event_type: event.event_type,
@@ -81,11 +79,11 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
             remarks: event.remarks || ''
           };
         });
-      console.log('處理後的事件:', processedEvents);
+
       return processedEvents;
     } else {
       // 新建住院事件時，預設添加一個入院事件
-      console.log('新建住院事件，創建預設入院事件');
+
       return [{
         id: `temp-${Date.now()}`,
         event_type: 'admission',
@@ -102,7 +100,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
   // 當 episode 資料變更時，重新載入表單資料
   useEffect(() => {
     if (episode) {
-      console.log('Episode 資料變更，重新載入表單資料:', episode);
+
       setFormData({
         patient_id: episode.patient_id?.toString() || '',
         episode_start_date: episode.episode_start_date || getHongKongDate(),
@@ -132,7 +130,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
             hospital_bed_number: event.hospital_bed_number || '',
             remarks: event.remarks || ''
           }));
-        console.log('重新載入的事件資料:', processedEvents);
+
         setEvents(processedEvents);
       }
     }
@@ -330,9 +328,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
         })
       };
 
-      console.log('提交住院事件資料:', submitData);
-      console.log('Patient ID 類型:', typeof submitData.patient_id);
-      console.log('Events:', submitData.events);
+
 
       if (episode) {
         await updateHospitalEpisode({ ...submitData, id: episode.id });
