@@ -28,7 +28,6 @@ import {
   getWeekStartDate,
   formatDate,
   isInHospital,
-  isOverdue,
   getPositionSequence
 } from '../utils/careRecordHelper';
 import type { Patient, PatrolRound, DiaperChangeRecord, RestraintObservationRecord, PositionChangeRecord, PatientCareTab } from '../lib/database';
@@ -371,7 +370,6 @@ const CareRecords: React.FC = () => {
                     }
                   );
                   const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords);
-                  const overdue = !record && !inHospital && isOverdue(dateString, timeSlot);
 
                   return (
                     <td
@@ -379,7 +377,6 @@ const CareRecords: React.FC = () => {
                       className={`px-2 py-3 text-center text-sm border cursor-pointer ${
                         inHospital ? 'bg-gray-100' :
                         record ? 'bg-green-50 hover:bg-green-100' :
-                        overdue ? 'bg-red-50 hover:bg-red-100' :
                         'hover:bg-blue-50'
                       }`}
                       onClick={() => !inHospital && handleCellClick(dateString, timeSlot, record)}
@@ -391,8 +388,6 @@ const CareRecords: React.FC = () => {
                           <div className="text-green-600 font-bold">✓</div>
                           <div className="text-xs text-gray-600">{record.recorder}</div>
                         </div>
-                      ) : overdue ? (
-                        <span className="text-red-600 text-xs">逾期</span>
                       ) : (
                         <span className="text-gray-400 text-xs">待巡</span>
                       )}
@@ -524,7 +519,6 @@ const CareRecords: React.FC = () => {
                     r => r.observation_date === dateString && r.scheduled_time === timeSlot
                   );
                   const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords);
-                  const overdue = !record && !inHospital && isOverdue(dateString, timeSlot);
 
                   return (
                     <td
@@ -536,7 +530,6 @@ const CareRecords: React.FC = () => {
                           record.observation_status === 'P' ? 'bg-red-50 hover:bg-red-100' :
                           'bg-orange-50 hover:bg-orange-100'
                         ) :
-                        overdue ? 'bg-red-50 hover:bg-red-100' :
                         'hover:bg-blue-50'
                       }`}
                       onClick={() => !inHospital && handleCellClick(dateString, timeSlot, record)}
@@ -555,8 +548,6 @@ const CareRecords: React.FC = () => {
                           </div>
                           <div className="text-xs text-gray-600">{record.recorder}</div>
                         </div>
-                      ) : overdue ? (
-                        <span className="text-red-600 text-xs">逾期</span>
                       ) : (
                         <span className="text-gray-400 text-xs">待觀察</span>
                       )}
@@ -877,6 +868,7 @@ const CareRecords: React.FC = () => {
 
       {showPatrolModal && selectedPatient && (
         <PatrolRoundModal
+          key={`patrol-${modalDate}-${modalTimeSlot}-${modalExistingRecord?.id || 'new'}-${Date.now()}`}
           patient={selectedPatient}
           date={modalDate}
           timeSlot={modalTimeSlot}
@@ -890,6 +882,7 @@ const CareRecords: React.FC = () => {
 
       {showDiaperModal && selectedPatient && (
         <DiaperChangeModal
+          key={`diaper-${modalDate}-${modalTimeSlot}-${modalExistingRecord?.id || 'new'}-${Date.now()}`}
           patient={selectedPatient}
           date={modalDate}
           timeSlot={modalTimeSlot}
@@ -903,6 +896,7 @@ const CareRecords: React.FC = () => {
 
       {showRestraintModal && selectedPatient && (
         <RestraintObservationModal
+          key={`restraint-${modalDate}-${modalTimeSlot}-${modalExistingRecord?.id || 'new'}-${Date.now()}`}
           patient={selectedPatient}
           date={modalDate}
           timeSlot={modalTimeSlot}
@@ -917,6 +911,7 @@ const CareRecords: React.FC = () => {
 
       {showPositionModal && selectedPatient && (
         <PositionChangeModal
+          key={`position-${modalDate}-${modalTimeSlot}-${modalExistingRecord?.id || 'new'}-${Date.now()}`}
           patient={selectedPatient}
           date={modalDate}
           timeSlot={modalTimeSlot}
