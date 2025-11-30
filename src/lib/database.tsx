@@ -3875,6 +3875,24 @@ export const deletePatrolRound = async (roundId: string): Promise<void> => {
   }
 };
 
+export const updatePatrolRound = async (round: PatrolRound): Promise<PatrolRound> => {
+  const { id, created_at, updated_at, ...updateData } = round;
+
+  const { data, error } = await supabase
+    .from('patrol_rounds')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating patrol round:', error);
+    throw error;
+  }
+
+  return data;
+};
+
 // Diaper Change Records functions
 export const getDiaperChangeRecords = async (): Promise<DiaperChangeRecord[]> => {
   const { data, error } = await supabase

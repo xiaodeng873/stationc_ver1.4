@@ -310,13 +310,17 @@ const CareRecords: React.FC = () => {
 
   const handlePatrolSubmit = async (data: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      await db.createPatrolRound(data);
+      if (modalExistingRecord) {
+        await db.updatePatrolRound({ ...modalExistingRecord, ...data });
+      } else {
+        await db.createPatrolRound(data);
+      }
       setShowPatrolModal(false);
       setModalExistingRecord(null);
       // 重新加載當前週數據
       await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1]);
     } catch (error) {
-      console.error('❌ 創建巡房記錄失敗:', error);
+      console.error('❌ 巡房記錄操作失敗:', error);
     }
   };
 
@@ -908,7 +912,12 @@ const CareRecords: React.FC = () => {
           existingRecord={modalExistingRecord}
           onClose={() => { setShowPatrolModal(false); setModalExistingRecord(null); }}
           onSubmit={handlePatrolSubmit}
-          onDelete={(id) => deletePatrolRound(id).then(() => setShowPatrolModal(false))}
+          onDelete={async (id) => {
+            await db.deletePatrolRound(id);
+            setShowPatrolModal(false);
+            setModalExistingRecord(null);
+            loadAllRecords();
+          }}
         />
       )}
 
@@ -922,7 +931,12 @@ const CareRecords: React.FC = () => {
           existingRecord={modalExistingRecord}
           onClose={() => { setShowDiaperModal(false); setModalExistingRecord(null); }}
           onSubmit={handleDiaperSubmit}
-          onDelete={(id) => deleteDiaperChangeRecord(id).then(() => setShowDiaperModal(false))}
+          onDelete={async (id) => {
+            await db.deleteDiaperChangeRecord(id);
+            setShowDiaperModal(false);
+            setModalExistingRecord(null);
+            loadAllRecords();
+          }}
         />
       )}
 
@@ -937,7 +951,12 @@ const CareRecords: React.FC = () => {
           restraintAssessments={patientRestraintAssessments}
           onClose={() => { setShowRestraintModal(false); setModalExistingRecord(null); }}
           onSubmit={handleRestraintSubmit}
-          onDelete={(id) => deleteRestraintObservationRecord(id).then(() => setShowRestraintModal(false))}
+          onDelete={async (id) => {
+            await db.deleteRestraintObservationRecord(id);
+            setShowRestraintModal(false);
+            setModalExistingRecord(null);
+            loadAllRecords();
+          }}
         />
       )}
 
@@ -951,7 +970,12 @@ const CareRecords: React.FC = () => {
           existingRecord={modalExistingRecord}
           onClose={() => { setShowPositionModal(false); setModalExistingRecord(null); }}
           onSubmit={handlePositionSubmit}
-          onDelete={(id) => deletePositionChangeRecord(id).then(() => setShowPositionModal(false))}
+          onDelete={async (id) => {
+            await db.deletePositionChangeRecord(id);
+            setShowPositionModal(false);
+            setModalExistingRecord(null);
+            loadAllRecords();
+          }}
         />
       )}
     </div>
