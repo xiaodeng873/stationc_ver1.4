@@ -49,16 +49,35 @@ const RestraintObservationModal: React.FC<RestraintObservationModalProps> = ({
     const items: string[] = [];
 
     if (typeof restraints === 'object') {
-      // 檢查各種可能的約束物品
-      if (restraints.bed_rail) items.push('床欄');
-      if (restraints.wheelchair_belt) items.push('輪椅安全帶');
-      if (restraints.wheelchair_table) items.push('輪椅餐桌板');
-      if (restraints.vest) items.push('約束背心');
-      if (restraints.wrist_restraint) items.push('手部約束帶');
-      if (restraints.ankle_restraint) items.push('腳部約束帶');
-      if (restraints.mitt) items.push('手套');
+      // 遍歷所有約束物品並檢查 checked 欄位
+      Object.entries(restraints).forEach(([key, value]: [string, any]) => {
+        // 檢查是否有 checked 欄位且為 true
+        if (typeof value === 'object' && value !== null && value.checked === true) {
+          // 將約束物品名稱添加到列表（使用鍵名作為顯示名稱）
+          items.push(key);
+        }
+        // 也支持舊版本的布林值格式
+        else if (typeof value === 'boolean' && value === true) {
+          // 英文鍵名對照表
+          const nameMap: Record<string, string> = {
+            'bed_rail': '床欄',
+            'wheelchair_belt': '輪椅安全帶',
+            'wheelchair_table': '輪椅餐桌板',
+            'vest': '約束背心',
+            'wrist_restraint': '手部約束帶',
+            'ankle_restraint': '腳部約束帶',
+            'mitt': '手套'
+          };
+          items.push(nameMap[key] || key);
+        }
+      });
+
+      // 檢查其他約束物品
       if (restraints.others && restraints.others_specify) {
         items.push(restraints.others_specify);
+      }
+      if (restraints['其他約束物品'] && restraints['其他約束物品'].checked && restraints['其他約束物品']['名稱']) {
+        items.push(restraints['其他約束物品']['名稱']);
       }
     }
 

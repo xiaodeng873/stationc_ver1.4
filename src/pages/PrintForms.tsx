@@ -136,7 +136,7 @@ const PrintForms: React.FC = () => {
         t.type === 'diaper-change-record' ||
         t.type === 'personal-hygiene-record' ||
         t.type === 'admission-layout' ||
-        t.type === 'station-bed-layout' ||
+        t.type === 'bed-layout' ||
         t.type === 'restraint-observation'
       );
       setTemplates(printFormTemplates);
@@ -340,7 +340,7 @@ const PrintForms: React.FC = () => {
     }
 
     // 床位表不需要選擇院友
-    if (selectedTemplate.type === 'station-bed-layout') {
+    if (selectedTemplate.type === 'bed-layout') {
       await handleBedLayoutExport();
       return;
     }
@@ -510,7 +510,7 @@ const PrintForms: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">列印表格</h1>
           <div className="flex items-center space-x-2">
             {((selectedRows.size > 0 && selectedTemplate && selectedTemplate.type !== 'station-bed-layout') ||
-              (selectedTemplate?.type === 'station-bed-layout')) && (
+              (selectedTemplate?.type === 'bed-layout')) && (
               <button
                 onClick={handleExportSelected}
                 disabled={isExporting}
@@ -525,7 +525,7 @@ const PrintForms: React.FC = () => {
                   <>
                     <Download className="h-4 w-4" />
                     <span>
-                      {selectedTemplate?.type === 'station-bed-layout' && '生成床位表'}
+                      {selectedTemplate?.type === 'bed-layout' && '生成床位表'}
                       {selectedTemplate?.type === 'restraint-observation' && `生成觀察表 (${selectedRows.size})`}
                       {selectedTemplate?.type !== 'station-bed-layout' && selectedTemplate?.type !== 'restraint-observation' && `生成表格 (${selectedRows.size})`}
                     </span>
@@ -568,9 +568,9 @@ const PrintForms: React.FC = () => {
                   {template.type === 'diaper-change-record' && '換片記錄'}
                   {template.type === 'personal-hygiene-record' && '個人衛生記錄'}
                   {template.type === 'admission-layout' && '入住排版'}
-                  {template.type === 'station-bed-layout' && '床位表'}
+                  {template.type === 'bed-layout' && '床位表'}
                   {template.type === 'restraint-observation' && '約束物品觀察表'}
-                  {!['diaper-change-record', 'personal-hygiene-record', 'admission-layout', 'station-bed-layout', 'restraint-observation'].includes(template.type) && template.name}
+                  {!['diaper-change-record', 'personal-hygiene-record', 'admission-layout', 'bed-layout', 'restraint-observation'].includes(template.type) && template.name}
                 </option>
               ))}
             </select>

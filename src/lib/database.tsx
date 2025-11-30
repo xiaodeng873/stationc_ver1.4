@@ -4065,7 +4065,7 @@ export const getDiaperChangeRecordsInDateRange = async (startDate: string, endDa
     .gte('change_date', startDate)
     .lte('change_date', endDate)
     .order('change_date', { ascending: false })
-    .order('time_slot', { ascending: false });
+    .order('scheduled_time', { ascending: false });
 
   if (error) {
     console.error('Error fetching diaper change records in date range:', error);
@@ -4082,7 +4082,7 @@ export const getRestraintObservationRecordsInDateRange = async (startDate: strin
     .gte('observation_date', startDate)
     .lte('observation_date', endDate)
     .order('observation_date', { ascending: false })
-    .order('time_slot', { ascending: false });
+    .order('scheduled_time', { ascending: false });
 
   if (error) {
     console.error('Error fetching restraint observation records in date range:', error);
