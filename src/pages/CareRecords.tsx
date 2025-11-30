@@ -74,6 +74,12 @@ const CareRecords: React.FC = () => {
 
   const weekDates = useMemo(() => generateWeekDates(weekStartDate), [weekStartDate]);
 
+  // 將 Date 物件轉換為 YYYY-MM-DD 字串格式，用於與資料庫日期比對
+  const weekDateStrings = useMemo(() =>
+    weekDates.map(date => formatDate(date)),
+    [weekDates]
+  );
+
   const sortedActivePatients = useMemo(() => {
     return patients
       .filter(p => p.在住狀態 === '在住')
@@ -276,23 +282,30 @@ const CareRecords: React.FC = () => {
                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border">
                   {timeSlot}
                 </td>
-                {weekDates.map((date) => {
+                {weekDates.map((date, index) => {
+                  const dateString = weekDateStrings[index];
                   const record = patientPatrolRounds.find(
-                    r => r.patrol_date === date && r.scheduled_time === timeSlot
+                    r => {
+                      const match = r.patrol_date === dateString && r.scheduled_time === timeSlot;
+                      if (patientPatrolRounds.length > 0 && timeSlot === '8AM') {
+                        console.log('🔎 巡房記錄匹配:', { dateString, timeSlot, patrol_date: r.patrol_date, scheduled_time: r.scheduled_time, match });
+                      }
+                      return match;
+                    }
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeSlot, admissionRecords);
-                  const overdue = !record && !inHospital && isOverdue(date, timeSlot);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords);
+                  const overdue = !record && !inHospital && isOverdue(dateString, timeSlot);
 
                   return (
                     <td
-                      key={date}
+                      key={dateString}
                       className={`px-2 py-3 text-center text-sm border cursor-pointer ${
                         inHospital ? 'bg-gray-100' :
                         record ? 'bg-green-50 hover:bg-green-100' :
                         overdue ? 'bg-red-50 hover:bg-red-100' :
                         'hover:bg-blue-50'
                       }`}
-                      onClick={() => !inHospital && handleCellClick(date, timeSlot, record)}
+                      onClick={() => !inHospital && handleCellClick(dateString, timeSlot, record)}
                     >
                       {inHospital ? (
                         <span className="text-gray-500">入院</span>
@@ -347,22 +360,23 @@ const CareRecords: React.FC = () => {
                   <div>{slot.label}</div>
                   <div className="text-xs text-gray-500">{slot.time}</div>
                 </td>
-                {weekDates.map((date) => {
+                {weekDates.map((date, index) => {
+                  const dateString = weekDateStrings[index];
                   const record = patientDiaperChanges.find(
-                    r => r.change_date === date && r.time_slot === slot.time
+                    r => r.change_date === dateString && r.time_slot === slot.time
                   );
                   const timeStr = slot.time.split('-')[0];
-                  const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeStr, admissionRecords);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeStr, admissionRecords);
 
                   return (
                     <td
-                      key={date}
+                      key={dateString}
                       className={`px-2 py-3 text-center text-sm border cursor-pointer ${
                         inHospital ? 'bg-gray-100' :
                         record ? 'bg-blue-50 hover:bg-blue-100' :
                         'hover:bg-blue-50'
                       }`}
-                      onClick={() => !inHospital && handleCellClick(date, slot.time, record)}
+                      onClick={() => !inHospital && handleCellClick(dateString, slot.time, record)}
                     >
                       {inHospital ? (
                         <span className="text-gray-500">入院</span>
@@ -427,16 +441,17 @@ const CareRecords: React.FC = () => {
                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border">
                   {timeSlot}
                 </td>
-                {weekDates.map((date) => {
+                {weekDates.map((date, index) => {
+                  const dateString = weekDateStrings[index];
                   const record = patientRestraintObservations.find(
-                    r => r.observation_date === date && r.scheduled_time === timeSlot
+                    r => r.observation_date === dateString && r.scheduled_time === timeSlot
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeSlot, admissionRecords);
-                  const overdue = !record && !inHospital && isOverdue(date, timeSlot);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords);
+                  const overdue = !record && !inHospital && isOverdue(dateString, timeSlot);
 
                   return (
                     <td
-                      key={date}
+                      key={dateString}
                       className={`px-2 py-3 text-center text-sm border cursor-pointer ${
                         inHospital ? 'bg-gray-100' :
                         record ? (
@@ -447,7 +462,7 @@ const CareRecords: React.FC = () => {
                         overdue ? 'bg-red-50 hover:bg-red-100' :
                         'hover:bg-blue-50'
                       }`}
-                      onClick={() => !inHospital && handleCellClick(date, timeSlot, record)}
+                      onClick={() => !inHospital && handleCellClick(dateString, timeSlot, record)}
                     >
                       {inHospital ? (
                         <span className="text-gray-500">入院</span>
@@ -508,22 +523,23 @@ const CareRecords: React.FC = () => {
                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border">
                   {timeSlot}
                 </td>
-                {weekDates.map((date) => {
+                {weekDates.map((date, dateIndex) => {
+                  const dateString = weekDateStrings[dateIndex];
                   const record = patientPositionChanges.find(
-                    r => r.change_date === date && r.scheduled_time === timeSlot
+                    r => r.change_date === dateString && r.scheduled_time === timeSlot
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient, date, timeSlot, admissionRecords);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords);
                   const expectedPosition = getPositionSequence(index);
 
                   return (
                     <td
-                      key={date}
+                      key={dateString}
                       className={`px-2 py-3 text-center text-sm border cursor-pointer ${
                         inHospital ? 'bg-gray-100' :
                         record ? 'bg-purple-50 hover:bg-purple-100' :
                         'hover:bg-blue-50'
                       }`}
-                      onClick={() => !inHospital && handleCellClick(date, timeSlot, record)}
+                      onClick={() => !inHospital && handleCellClick(dateString, timeSlot, record)}
                     >
                       {inHospital ? (
                         <span className="text-gray-500">入院</span>
