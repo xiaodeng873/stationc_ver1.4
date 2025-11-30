@@ -868,7 +868,7 @@ const CareRecords: React.FC = () => {
 
       {showPatrolModal && selectedPatient && (
         <PatrolRoundModal
-          key={`patrol-${modalDate}-${modalTimeSlot}-${modalExistingRecord?.id || 'new'}-${Date.now()}`}
+          key={modalExistingRecord?.id || `new-patrol-${modalDate}-${modalTimeSlot}`}
           patient={selectedPatient}
           date={modalDate}
           timeSlot={modalTimeSlot}
@@ -882,7 +882,7 @@ const CareRecords: React.FC = () => {
 
       {showDiaperModal && selectedPatient && (
         <DiaperChangeModal
-          key={`diaper-${modalDate}-${modalTimeSlot}-${modalExistingRecord?.id || 'new'}-${Date.now()}`}
+          key={modalExistingRecord?.id || `new-diaper-${modalDate}-${modalTimeSlot}`}
           patient={selectedPatient}
           date={modalDate}
           timeSlot={modalTimeSlot}
@@ -896,7 +896,7 @@ const CareRecords: React.FC = () => {
 
       {showRestraintModal && selectedPatient && (
         <RestraintObservationModal
-          key={`restraint-${modalDate}-${modalTimeSlot}-${modalExistingRecord?.id || 'new'}-${Date.now()}`}
+          key={modalExistingRecord?.id || `new-restraint-${modalDate}-${modalTimeSlot}`}
           patient={selectedPatient}
           date={modalDate}
           timeSlot={modalTimeSlot}
@@ -911,7 +911,7 @@ const CareRecords: React.FC = () => {
 
       {showPositionModal && selectedPatient && (
         <PositionChangeModal
-          key={`position-${modalDate}-${modalTimeSlot}-${modalExistingRecord?.id || 'new'}-${Date.now()}`}
+          key={modalExistingRecord?.id || `new-position-${modalDate}-${modalTimeSlot}`}
           patient={selectedPatient}
           date={modalDate}
           timeSlot={modalTimeSlot}
