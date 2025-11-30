@@ -39,7 +39,7 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
       setRecorder(staffName);
       setNotes('');
     }
-  }, [existingRecord?.id, timeSlot, staffName]);
+  }, [existingRecord, timeSlot, staffName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

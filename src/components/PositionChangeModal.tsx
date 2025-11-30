@@ -36,7 +36,7 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
       setPosition(suggestedPosition);
       setRecorder(staffName);
     }
-  }, [existingRecord?.id, timeSlot, staffName]);
+  }, [existingRecord, timeSlot, staffName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

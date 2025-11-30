@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Clock, User, FileText, AlertTriangle, CheckCircle, PauseCircle, Trash2, Info } from 'lucide-react';
+import { X, Clock, User, FileText, AlertTriangle, CheckCircle, PauseCircle, Trash2, Info, Shield } from 'lucide-react';
 import type { Patient, RestraintObservationRecord, PatientRestraintAssessment } from '../lib/database';
 import { addRandomOffset } from '../utils/careRecordHelper';
 
@@ -80,7 +80,7 @@ const RestraintObservationModal: React.FC<RestraintObservationModalProps> = ({
       setNotes('');
       setUsedRestraints({});
     }
-  }, [existingRecord?.id, timeSlot, staffName]);
+  }, [existingRecord, timeSlot, staffName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
