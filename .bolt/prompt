@@ -4,6 +4,10 @@ By default, this template supports JSX syntax with Tailwind CSS classes, React h
 
 Use icons from lucide-react for logos.
 以中文作答
+
+每次修改後都要以用戶的角度運行，確保沒有error才回覆完成，否則繼續查找原因，做到沒有error為此。
+當我要求修改CSS或UI布局時，要先給我布局圖
+
 When the user asks you not to change the unnecessary part of the model and pages, that means you can only change the designated part; the other must remain unchanged.
 我不使用 Bolt Database 数据库，我用Supabase 数据库，你不容許再提及或修改成Bolt Database 数据库。
 
@@ -17,5 +21,3 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 # Bolt.new 在發布時會自動將 .env 中的 Supabase 配置替換為其內建資料庫
 # 為了防止這個問題,本專案已在 src/config/supabase.config.ts 中硬編碼正確的配置
 # 即使 .env 被修改,應用程式仍會使用正確的 Supabase 連線資訊
-
-當我要求修改CSS或UI布局時，要先給我布局圖
