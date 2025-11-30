@@ -25,6 +25,7 @@ import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import PatientAutocomplete from '../components/PatientAutocomplete';
+import PatientInfoCard from '../components/PatientInfoCard';
 import PrescriptionModal from '../components/PrescriptionModal';
 import DispenseConfirmModal from '../components/DispenseConfirmModal';
 import BatchDispenseConfirmModal from '../components/BatchDispenseConfirmModal';
@@ -2243,119 +2244,121 @@ const MedicationWorkflow: React.FC = () => {
         </div>
       </div> 
 
-      {/* 院友選擇和日期控制 */}
+      {/* 緊湊兩行佈局 - 院友選擇、日期控制、院友資訊卡、一鍵操作按鈕 */}
       <div className="sticky top-16 bg-white z-20 shadow-sm">
         <div className="card p-4">
-          <div className="space-y-4">
-            {/* 響應式佈局 */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] xl:grid-cols-2 gap-4">
-              {/* 左側區域：日期控制 + 院友選擇（iPad 橫向時垂直排列） */}
-              <div className="space-y-4">
-                {/* 日期控制 */}
-                <div>
-                  <label className="form-label">
-                    <Calendar className="h-4 w-4 inline mr-1" />
-                    選擇日期
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={goToPreviousDay}
-                      className="btn-secondary p-2"
-                      title="前一日"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-
-                    <input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="form-input flex-1"
+          <div className="space-y-3">
+            {/* 第一行：院友選擇（左60%）+ 日期控制（右40%） */}
+            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
+              {/* 左側：院友選擇 */}
+              <div>
+                <label className="form-label text-xs mb-1">
+                  <User className="h-3 w-3 inline mr-1" />
+                  選擇院友
+                </label>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={goToPreviousPatient}
+                    disabled={sortedActivePatients.length <= 1}
+                    className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
+                    title="上一位院友"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <PatientAutocomplete
+                      value={selectedPatientId}
+                      onChange={setSelectedPatientId}
+                      placeholder="搜索院友..."
+                      showResidencyFilter={true}
+                      defaultResidencyStatus="在住"
                     />
-
-                    <button
-                      onClick={goToNextDay}
-                      className="btn-secondary p-2"
-                      title="後一日"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-
-                    <button
-                      onClick={goToToday}
-                      className="btn-secondary text-sm"
-                    >
-                      今天
-                    </button>
                   </div>
+                  <button
+                    onClick={goToNextPatient}
+                    disabled={sortedActivePatients.length <= 1}
+                    className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
+                    title="下一位院友"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
-
-                {/* 院友選擇 */}
-                <div>
-                  <label className="form-label">
-                    <User className="h-4 w-4 inline mr-1" />
-                    選擇院友
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={goToPreviousPatient}
-                      disabled={sortedActivePatients.length <= 1}
-                      className="btn-secondary flex items-center space-x-1 px-3 py-2 flex-shrink-0"
-                      title="上一位院友"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      <span>上一位</span>
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <PatientAutocomplete
-                        value={selectedPatientId}
-                        onChange={setSelectedPatientId}
-                        placeholder="搜索院友..."
-                        showResidencyFilter={true}
-                        defaultResidencyStatus="在住"
-                      />
-                    </div>
-                    <button
-                      onClick={goToNextPatient}
-                      disabled={sortedActivePatients.length <= 1}
-                      className="btn-secondary flex items-center space-x-1 px-3 py-2 flex-shrink-0"
-                      title="下一位院友"
-                    >
-                      <span>下一位</span>
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+                {/* 院友導航指示器 */}
+                {sortedActivePatients.length > 0 && selectedPatient && (
+                  <div className="mt-1 text-xs text-gray-600">
+                    第 {sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId) + 1} / {sortedActivePatients.length} 位 | 床號: {selectedPatient.床號}
                   </div>
-
-                  {/* 院友導航指示器 */}
-                  {sortedActivePatients.length > 0 && (
-                    <div className="mt-2 text-sm text-gray-600 text-center lg:text-left">
-                      第 {sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId) + 1} / {sortedActivePatients.length} 位院友
-                      {selectedPatient && (
-                        <span className="ml-2 text-blue-600">
-                          (床號: {selectedPatient.床號})
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
-              {/* 右側區域：一鍵操作按鈕（iPad 橫向時獨立成欄） */}
-              <div className="flex lg:flex-col xl:flex-row items-center lg:justify-center xl:justify-end gap-2">
+              {/* 右側：日期控制 */}
+              <div>
+                <label className="form-label text-xs mb-1">
+                  <Calendar className="h-3 w-3 inline mr-1" />
+                  選擇日期
+                </label>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={goToPreviousDay}
+                    className="btn-secondary p-1.5"
+                    title="前一日"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="form-input flex-1 text-sm"
+                  />
+                  <button
+                    onClick={goToNextDay}
+                    className="btn-secondary p-1.5"
+                    title="後一日"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={goToToday}
+                    className="btn-secondary text-xs px-2"
+                  >
+                    今天
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 第二行：院友資訊卡（左60%）+ 一鍵操作按鈕（右40%） */}
+            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
+              {/* 左側：院友資訊卡 */}
+              <div>
+                <PatientInfoCard
+                  patient={selectedPatient}
+                  onToggleCrushMedication={(patientId, needsCrushing) => {
+                    // 更新本地狀態
+                    if (selectedPatient) {
+                      selectedPatient.needs_medication_crushing = needsCrushing;
+                    }
+                  }}
+                />
+              </div>
+
+              {/* 右側：一鍵操作按鈕 */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleOneClickPrepare}
                   disabled={oneClickProcessing.preparation || !currentDayWorkflowRecords.some(r => {
                     const prescription = prescriptions.find(p => p.id === r.prescription_id);
                     return r.preparation_status === 'pending' && prescription?.preparation_method !== 'immediate';
                   })}
-                  className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 lg:w-full xl:w-auto"
+                  className="btn-primary flex flex-col items-center justify-center space-y-1 px-2 py-3"
                 >
                   {oneClickProcessing.preparation ? (
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   ) : (
-                    <FastForward className="h-7 w-7" />
+                    <FastForward className="h-6 w-6" />
                   )}
-                  <span>一鍵執藥</span>
+                  <span className="text-xs">一鍵執藥</span>
                 </button>
 
                 <button
@@ -2366,14 +2369,14 @@ const MedicationWorkflow: React.FC = () => {
                            r.preparation_status === 'completed' &&
                            prescription?.preparation_method !== 'immediate';
                   })}
-                  className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 lg:w-full xl:w-auto"
+                  className="btn-primary flex flex-col items-center justify-center space-y-1 px-2 py-3"
                 >
                   {oneClickProcessing.verification ? (
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   ) : (
-                    <CheckSquare className="h-7 w-7" />
+                    <CheckSquare className="h-6 w-6" />
                   )}
-                  <span>一鍵核藥</span>
+                  <span className="text-xs">一鍵核藥</span>
                 </button>
 
                 <button
@@ -2385,31 +2388,30 @@ const MedicationWorkflow: React.FC = () => {
                            prescription?.administration_route !== '注射' &&
                            !(prescription?.inspection_rules && prescription.inspection_rules.length > 0);
                   })}
-                  className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 lg:w-full xl:w-auto"
+                  className="btn-primary flex flex-col items-center justify-center space-y-1 px-2 py-3"
                 >
                   {oneClickProcessing.dispensing ? (
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   ) : (
-                    <Users className="h-7 w-7" />
+                    <Users className="h-6 w-6" />
                   )}
-                  <span>一鍵派藥</span>
+                  <span className="text-xs">一鍵派藥</span>
                 </button>
 
                 <button
                   onClick={handleOneClickDispenseSpecial}
                   disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
                     const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                    // 只要是符合即時備藥條件的處方，無論處於哪個階段都可以使用
                     return canOneClickDispense(prescription);
                   })}
-                  className="btn-primary flex items-center space-x-1 text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 lg:w-full xl:w-auto"
+                  className="btn-primary flex flex-col items-center justify-center space-y-1 px-2 py-3 bg-purple-600 hover:bg-purple-700"
                 >
                   {oneClickProcessing.dispensing ? (
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   ) : (
-                    <Zap className="h-7 w-7" />
+                    <Zap className="h-6 w-6" />
                   )}
-                  <span>一鍵全程</span>
+                  <span className="text-xs">一鍵全程</span>
                 </button>
               </div>
             </div>

@@ -31,6 +31,7 @@ export interface Patient {
   discharge_reason?: '死亡' | '回家' | '留醫' | '轉往其他機構';
   death_date?: string;
   transfer_facility_name?: string;
+  needs_medication_crushing?: boolean;
 }
 
 export interface Station {
