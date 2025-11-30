@@ -399,6 +399,7 @@ export interface RestraintObservationRecord {
   observation_status: 'N' | 'P' | 'S';
   recorder: string;
   notes?: string;
+  used_restraints?: any;
   created_at: string;
   updated_at: string;
 }
@@ -410,6 +411,16 @@ export interface PositionChangeRecord {
   scheduled_time: string;
   position: '左' | '平' | '右';
   recorder: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PatientCareTab {
+  id: string;
+  patient_id: number;
+  tab_type: 'patrol' | 'diaper' | 'intake_output' | 'restraint' | 'position' | 'toilet_training';
+  is_manually_added: boolean;
+  is_hidden: boolean;
   created_at: string;
   updated_at: string;
 }

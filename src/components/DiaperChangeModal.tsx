@@ -52,7 +52,7 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
       setStoolAmount('');
       setRecorder(staffName);
     }
-  }, [existingRecord, staffName]);
+  }, [existingRecord?.id, staffName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

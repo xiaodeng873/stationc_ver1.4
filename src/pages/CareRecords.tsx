@@ -10,7 +10,9 @@ import {
   Shield,
   RotateCcw,
   Droplets,
-  GraduationCap
+  GraduationCap,
+  Plus,
+  X
 } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
@@ -29,7 +31,15 @@ import {
   isOverdue,
   getPositionSequence
 } from '../utils/careRecordHelper';
-import type { Patient, PatrolRound, DiaperChangeRecord, RestraintObservationRecord, PositionChangeRecord } from '../lib/database';
+import type { Patient, PatrolRound, DiaperChangeRecord, RestraintObservationRecord, PositionChangeRecord, PatientCareTab } from '../lib/database';
+import { supabase } from '../lib/supabase';
+import {
+  loadPatientCareTabs,
+  initializePatientCareTabs,
+  addPatientCareTab,
+  hidePatientCareTab,
+  getVisibleTabTypes
+} from '../utils/careTabsHelper';
 
 type TabType = 'patrol' | 'diaper' | 'intake_output' | 'restraint' | 'position' | 'toilet_training';
 
@@ -72,6 +82,9 @@ const CareRecords: React.FC = () => {
   const [modalTimeSlot, setModalTimeSlot] = useState('');
   const [modalExistingRecord, setModalExistingRecord] = useState<any>(null);
 
+  const [patientCareTabs, setPatientCareTabs] = useState<PatientCareTab[]>([]);
+  const [showAddTabMenu, setShowAddTabMenu] = useState(false);
+
   const weekDates = useMemo(() => generateWeekDates(weekStartDate), [weekStartDate]);
 
   // 將 Date 物件轉換為 YYYY-MM-DD 字串格式，用於與資料庫日期比對
@@ -97,11 +110,46 @@ const CareRecords: React.FC = () => {
     return patients.find(p => p.院友id === patientIdNum);
   }, [selectedPatientId, patients]);
 
+  useEffect(() => {
+    const loadAndInitializeTabs = async () => {
+      if (!selectedPatient) return;
+
+      const existingTabs = await loadPatientCareTabs(selectedPatient.院友id);
+
+      if (existingTabs.length === 0) {
+        const healthTasks: any[] = [];
+        const initializedTabs = await initializePatientCareTabs(
+          selectedPatient,
+          healthAssessments,
+          patientRestraintAssessments,
+          healthTasks
+        );
+        setPatientCareTabs(initializedTabs);
+      } else {
+        setPatientCareTabs(existingTabs);
+      }
+    };
+
+    loadAndInitializeTabs();
+  }, [selectedPatient, healthAssessments, patientRestraintAssessments]);
+
+  const visibleTabTypes = useMemo(() => {
+    if (!selectedPatient) return ['patrol'] as TabType[];
+
+    return getVisibleTabTypes(
+      selectedPatient.院友id,
+      patientCareTabs,
+      patrolRounds,
+      diaperChangeRecords,
+      restraintObservationRecords,
+      positionChangeRecords
+    ) as TabType[];
+  }, [selectedPatient, patientCareTabs, patrolRounds, diaperChangeRecords, restraintObservationRecords, positionChangeRecords]);
+
   const patientPatrolRounds = useMemo(() => {
     if (!selectedPatientId) return [];
     const patientIdNum = parseInt(selectedPatientId);
     const filtered = patrolRounds.filter(r => r.patient_id === patientIdNum);
-    console.log('🔍 巡房記錄過濾:', { patientIdNum, total: patrolRounds.length, filtered: filtered.length, records: filtered });
     return filtered;
   }, [selectedPatientId, patrolRounds]);
 
@@ -109,7 +157,6 @@ const CareRecords: React.FC = () => {
     if (!selectedPatientId) return [];
     const patientIdNum = parseInt(selectedPatientId);
     const filtered = diaperChangeRecords.filter(r => r.patient_id === patientIdNum);
-    console.log('🔍 換片記錄過濾:', { patientIdNum, total: diaperChangeRecords.length, filtered: filtered.length, records: filtered });
     return filtered;
   }, [selectedPatientId, diaperChangeRecords]);
 
@@ -117,7 +164,6 @@ const CareRecords: React.FC = () => {
     if (!selectedPatientId) return [];
     const patientIdNum = parseInt(selectedPatientId);
     const filtered = restraintObservationRecords.filter(r => r.patient_id === patientIdNum);
-    console.log('🔍 約束觀察記錄過濾:', { patientIdNum, total: restraintObservationRecords.length, filtered: filtered.length, records: filtered });
     return filtered;
   }, [selectedPatientId, restraintObservationRecords]);
 
@@ -125,7 +171,6 @@ const CareRecords: React.FC = () => {
     if (!selectedPatientId) return [];
     const patientIdNum = parseInt(selectedPatientId);
     const filtered = positionChangeRecords.filter(r => r.patient_id === patientIdNum);
-    console.log('🔍 轉身記錄過濾:', { patientIdNum, total: positionChangeRecords.length, filtered: filtered.length, records: filtered });
     return filtered;
   }, [selectedPatientId, positionChangeRecords]);
 
@@ -176,6 +221,47 @@ const CareRecords: React.FC = () => {
     return age;
   };
 
+  const handleAddTab = async (tabType: TabType) => {
+    if (!selectedPatient) return;
+
+    const newTab = await addPatientCareTab(selectedPatient.院友id, tabType);
+    if (newTab) {
+      setPatientCareTabs(prev => [...prev.filter(t => t.id !== newTab.id), newTab]);
+      setActiveTab(tabType);
+    }
+    setShowAddTabMenu(false);
+  };
+
+  const handleRemoveTab = async (tabType: TabType) => {
+    if (!selectedPatient || tabType === 'patrol') return;
+
+    const tabToRemove = patientCareTabs.find(
+      t => t.patient_id === selectedPatient.院友id && t.tab_type === tabType
+    );
+
+    if (!tabToRemove) return;
+
+    const hasRecords =
+      (tabType === 'diaper' && diaperChangeRecords.some(r => r.patient_id === selectedPatient.院友id)) ||
+      (tabType === 'restraint' && restraintObservationRecords.some(r => r.patient_id === selectedPatient.院友id)) ||
+      (tabType === 'position' && positionChangeRecords.some(r => r.patient_id === selectedPatient.院友id)) ||
+      (tabType === 'patrol' && patrolRounds.some(r => r.patient_id === selectedPatient.院友id));
+
+    const confirmMessage = hasRecords
+      ? `該選項卡有記錄，刪除後選項卡將隱藏但記錄仍保留，確定要刪除嗎？`
+      : `確定要刪除此選項卡嗎？`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    const success = await hidePatientCareTab(tabToRemove.id);
+    if (success) {
+      setPatientCareTabs(prev => prev.filter(t => t.id !== tabToRemove.id));
+      if (activeTab === tabType) {
+        setActiveTab('patrol');
+      }
+    }
+  };
+
   const handleCellClick = (date: string, timeSlot: string, existingRecord?: any) => {
     if (!selectedPatient) return;
 
@@ -201,10 +287,9 @@ const CareRecords: React.FC = () => {
 
   const handlePatrolSubmit = async (data: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      console.log('📝 提交巡房記錄:', data);
       await createPatrolRound(data);
-      console.log('✅ 巡房記錄創建成功');
       setShowPatrolModal(false);
+      setModalExistingRecord(null);
     } catch (error) {
       console.error('❌ 創建巡房記錄失敗:', error);
     }
@@ -212,15 +297,13 @@ const CareRecords: React.FC = () => {
 
   const handleDiaperSubmit = async (data: Omit<DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      console.log('📝 提交換片記錄:', data);
       if (modalExistingRecord) {
         await updateDiaperChangeRecord({ ...modalExistingRecord, ...data });
-        console.log('✅ 換片記錄更新成功');
       } else {
         await createDiaperChangeRecord(data);
-        console.log('✅ 換片記錄創建成功');
       }
       setShowDiaperModal(false);
+      setModalExistingRecord(null);
     } catch (error) {
       console.error('❌ 保存換片記錄失敗:', error);
     }
@@ -228,15 +311,13 @@ const CareRecords: React.FC = () => {
 
   const handleRestraintSubmit = async (data: Omit<RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      console.log('📝 提交約束觀察記錄:', data);
       if (modalExistingRecord) {
         await updateRestraintObservationRecord({ ...modalExistingRecord, ...data });
-        console.log('✅ 約束觀察記錄更新成功');
       } else {
         await createRestraintObservationRecord(data);
-        console.log('✅ 約束觀察記錄創建成功');
       }
       setShowRestraintModal(false);
+      setModalExistingRecord(null);
     } catch (error) {
       console.error('❌ 保存約束觀察記錄失敗:', error);
     }
@@ -244,10 +325,9 @@ const CareRecords: React.FC = () => {
 
   const handlePositionSubmit = async (data: Omit<PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      console.log('📝 提交轉身記錄:', data);
       await createPositionChangeRecord(data);
-      console.log('✅ 轉身記錄創建成功');
       setShowPositionModal(false);
+      setModalExistingRecord(null);
     } catch (error) {
       console.error('❌ 創建轉身記錄失敗:', error);
     }
@@ -287,9 +367,6 @@ const CareRecords: React.FC = () => {
                   const record = patientPatrolRounds.find(
                     r => {
                       const match = r.patrol_date === dateString && r.scheduled_time === timeSlot;
-                      if (patientPatrolRounds.length > 0 && timeSlot === '8AM') {
-                        console.log('🔎 巡房記錄匹配:', { dateString, timeSlot, patrol_date: r.patrol_date, scheduled_time: r.scheduled_time, match });
-                      }
                       return match;
                     }
                   );
@@ -675,72 +752,86 @@ const CareRecords: React.FC = () => {
           <div className="card">
             <div className="flex flex-wrap lg:flex-nowrap items-start justify-between gap-4 p-4 border-b border-gray-200">
               <div className="flex flex-wrap gap-1 flex-1 min-w-0">
-                <button
-                  onClick={() => setActiveTab('patrol')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
-                    activeTab === 'patrol'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <ClipboardCheck className="h-4 w-4" />
-                  <span>巡房記錄</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('diaper')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
-                    activeTab === 'diaper'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <Baby className="h-4 w-4" />
-                  <span>換片記錄</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('intake_output')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
-                    activeTab === 'intake_output'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <Droplets className="h-4 w-4" />
-                  <span>出入量記錄</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('restraint')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
-                    activeTab === 'restraint'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <Shield className="h-4 w-4" />
-                  <span>約束觀察</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('position')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
-                    activeTab === 'position'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  <span>轉身記錄</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('toilet_training')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
-                    activeTab === 'toilet_training'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <GraduationCap className="h-4 w-4" />
-                  <span>如廁訓練</span>
-                </button>
+                {visibleTabTypes.map(tabType => {
+                  const tabConfig = {
+                    patrol: { icon: ClipboardCheck, label: '巡房記錄' },
+                    diaper: { icon: Baby, label: '換片記錄' },
+                    intake_output: { icon: Droplets, label: '出入量記錄' },
+                    restraint: { icon: Shield, label: '約束觀察' },
+                    position: { icon: RotateCcw, label: '轉身記錄' },
+                    toilet_training: { icon: GraduationCap, label: '如廁訓練' }
+                  }[tabType];
+
+                  const Icon = tabConfig.icon;
+
+                  return (
+                    <div key={tabType} className="relative group">
+                      <button
+                        onClick={() => setActiveTab(tabType)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-2 ${
+                          activeTab === tabType
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{tabConfig.label}</span>
+                      </button>
+                      {tabType !== 'patrol' && (
+                        <button
+                          onClick={() => handleRemoveTab(tabType)}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity hidden group-hover:flex hover:bg-red-600"
+                          title="刪除此選項卡"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAddTabMenu(!showAddTabMenu)}
+                    className="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center space-x-1 text-gray-600 hover:bg-gray-100 border-2 border-dashed border-gray-300"
+                    title="添加選項卡"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>添加</span>
+                  </button>
+
+                  {showAddTabMenu && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-[150px]">
+                      {(['diaper', 'intake_output', 'restraint', 'position', 'toilet_training'] as TabType[])
+                        .filter(tabType => !visibleTabTypes.includes(tabType))
+                        .map(tabType => {
+                          const labels = {
+                            diaper: '換片記錄',
+                            intake_output: '出入量記錄',
+                            restraint: '約束觀察',
+                            position: '轉身記錄',
+                            toilet_training: '如廁訓練'
+                          };
+
+                          return (
+                            <button
+                              key={tabType}
+                              onClick={() => handleAddTab(tabType)}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg"
+                            >
+                              {labels[tabType]}
+                            </button>
+                          );
+                        })}
+                      {(['diaper', 'intake_output', 'restraint', 'position', 'toilet_training'] as TabType[])
+                        .filter(tabType => !visibleTabTypes.includes(tabType)).length === 0 && (
+                        <div className="px-4 py-2 text-sm text-gray-500">
+                          所有選項卡已添加
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -791,7 +882,7 @@ const CareRecords: React.FC = () => {
           timeSlot={modalTimeSlot}
           staffName={displayName}
           existingRecord={modalExistingRecord}
-          onClose={() => setShowPatrolModal(false)}
+          onClose={() => { setShowPatrolModal(false); setModalExistingRecord(null); }}
           onSubmit={handlePatrolSubmit}
           onDelete={(id) => deletePatrolRound(id).then(() => setShowPatrolModal(false))}
         />
@@ -804,7 +895,7 @@ const CareRecords: React.FC = () => {
           timeSlot={modalTimeSlot}
           staffName={displayName}
           existingRecord={modalExistingRecord}
-          onClose={() => setShowDiaperModal(false)}
+          onClose={() => { setShowDiaperModal(false); setModalExistingRecord(null); }}
           onSubmit={handleDiaperSubmit}
           onDelete={(id) => deleteDiaperChangeRecord(id).then(() => setShowDiaperModal(false))}
         />
@@ -818,7 +909,7 @@ const CareRecords: React.FC = () => {
           staffName={displayName}
           existingRecord={modalExistingRecord}
           restraintAssessments={patientRestraintAssessments}
-          onClose={() => setShowRestraintModal(false)}
+          onClose={() => { setShowRestraintModal(false); setModalExistingRecord(null); }}
           onSubmit={handleRestraintSubmit}
           onDelete={(id) => deleteRestraintObservationRecord(id).then(() => setShowRestraintModal(false))}
         />
@@ -831,7 +922,7 @@ const CareRecords: React.FC = () => {
           timeSlot={modalTimeSlot}
           staffName={displayName}
           existingRecord={modalExistingRecord}
-          onClose={() => setShowPositionModal(false)}
+          onClose={() => { setShowPositionModal(false); setModalExistingRecord(null); }}
           onSubmit={handlePositionSubmit}
           onDelete={(id) => deletePositionChangeRecord(id).then(() => setShowPositionModal(false))}
         />

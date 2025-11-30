@@ -6,12 +6,12 @@ export const TIME_SLOTS = [
 ];
 
 export const DIAPER_CHANGE_SLOTS = [
-  { time: '7AM-10AM', label: '早班' },
-  { time: '11AM-2PM', label: '午班' },
-  { time: '3PM-6PM', label: '黃昏班' },
-  { time: '7PM-10PM', label: '晚班' },
-  { time: '11PM-2AM', label: '深夜班' },
-  { time: '3AM-6AM', label: '凌晨班' }
+  { time: '7AM-10AM', label: '7AM-10AM' },
+  { time: '11AM-2PM', label: '11AM-2PM' },
+  { time: '3PM-6PM', label: '3PM-6PM' },
+  { time: '7PM-10PM', label: '7PM-10PM' },
+  { time: '11PM-2AM', label: '11PM-2AM' },
+  { time: '3AM-6AM', label: '3AM-6AM' }
 ];
 
 export const generateWeekDates = (startDate: Date): Date[] => {
@@ -176,7 +176,9 @@ export const getPositionSequence = (scheduledTime: string): '左' | '平' | '右
   return positions[timeIndex % 3];
 };
 
-export const isOverdue = (scheduledDateTime: Date, currentDateTime: Date): boolean => {
+export const isOverdue = (dateString: string, timeString: string): boolean => {
+  const scheduledDateTime = new Date(`${dateString}T${timeString}:00`);
+  const currentDateTime = new Date();
   return scheduledDateTime < currentDateTime;
 };
 
