@@ -913,10 +913,16 @@ const CareRecords: React.FC = () => {
           onClose={() => { setShowPatrolModal(false); setModalExistingRecord(null); }}
           onSubmit={handlePatrolSubmit}
           onDelete={async (id) => {
-            await db.deletePatrolRound(id);
-            setShowPatrolModal(false);
-            setModalExistingRecord(null);
-            loadAllRecords();
+            try {
+              await db.deletePatrolRound(id);
+              setShowPatrolModal(false);
+              setModalExistingRecord(null);
+              await loadAllRecords();
+              alert('巡房記錄已成功刪除');
+            } catch (error) {
+              console.error('❌ 刪除巡房記錄失敗:', error);
+              alert('刪除巡房記錄失敗，請重試');
+            }
           }}
         />
       )}
@@ -932,10 +938,16 @@ const CareRecords: React.FC = () => {
           onClose={() => { setShowDiaperModal(false); setModalExistingRecord(null); }}
           onSubmit={handleDiaperSubmit}
           onDelete={async (id) => {
-            await db.deleteDiaperChangeRecord(id);
-            setShowDiaperModal(false);
-            setModalExistingRecord(null);
-            loadAllRecords();
+            try {
+              await db.deleteDiaperChangeRecord(id);
+              setShowDiaperModal(false);
+              setModalExistingRecord(null);
+              await loadAllRecords();
+              alert('換片記錄已成功刪除');
+            } catch (error) {
+              console.error('❌ 刪除換片記錄失敗:', error);
+              alert('刪除換片記錄失敗，請重試');
+            }
           }}
         />
       )}
@@ -952,10 +964,16 @@ const CareRecords: React.FC = () => {
           onClose={() => { setShowRestraintModal(false); setModalExistingRecord(null); }}
           onSubmit={handleRestraintSubmit}
           onDelete={async (id) => {
-            await db.deleteRestraintObservationRecord(id);
-            setShowRestraintModal(false);
-            setModalExistingRecord(null);
-            loadAllRecords();
+            try {
+              await db.deleteRestraintObservationRecord(id);
+              setShowRestraintModal(false);
+              setModalExistingRecord(null);
+              await loadAllRecords();
+              alert('約束觀察記錄已成功刪除');
+            } catch (error) {
+              console.error('❌ 刪除約束觀察記錄失敗:', error);
+              alert('刪除約束觀察記錄失敗，請重試');
+            }
           }}
         />
       )}
@@ -971,10 +989,16 @@ const CareRecords: React.FC = () => {
           onClose={() => { setShowPositionModal(false); setModalExistingRecord(null); }}
           onSubmit={handlePositionSubmit}
           onDelete={async (id) => {
-            await db.deletePositionChangeRecord(id);
-            setShowPositionModal(false);
-            setModalExistingRecord(null);
-            loadAllRecords();
+            try {
+              await db.deletePositionChangeRecord(id);
+              setShowPositionModal(false);
+              setModalExistingRecord(null);
+              await loadAllRecords();
+              alert('轉身記錄已成功刪除');
+            } catch (error) {
+              console.error('❌ 刪除轉身記錄失敗:', error);
+              alert('刪除轉身記錄失敗，請重試');
+            }
           }}
         />
       )}
