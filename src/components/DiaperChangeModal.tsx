@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Trash2 } from 'lucide-react';
+import { X, User, Trash2, Calendar, Clock } from 'lucide-react';
 import type { Patient, DiaperChangeRecord } from '../lib/database';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
 interface DiaperChangeModalProps {
   patient: Patient;
@@ -31,6 +32,7 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
   const [stoolTexture, setStoolTexture] = useState('');
   const [stoolAmount, setStoolAmount] = useState('');
   const [recorder, setRecorder] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (existingRecord) {
@@ -74,10 +76,29 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
     onSubmit(data);
   };
 
-  const handleDelete = () => {
-    if (existingRecord && onDelete && window.confirm('確定要刪除此換片記錄嗎？')) {
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (existingRecord && onDelete) {
       onDelete(existingRecord.id);
     }
+  };
+
+  const getChangeDescription = () => {
+    const parts = [];
+    if (hasUrine) parts.push(`小便${urineAmount ? `: ${urineAmount}` : ''}`);
+    if (hasStool) {
+      const stoolDesc = [
+        stoolColor,
+        stoolTexture,
+        stoolAmount
+      ].filter(Boolean).join(', ');
+      parts.push(`大便${stoolDesc ? `: ${stoolDesc}` : ''}`);
+    }
+    if (hasNone) parts.push('無');
+    return parts.join(' / ') || '無記錄';
   };
 
   const handleCheckboxChange = (type: 'urine' | 'stool' | 'none') => {
@@ -275,7 +296,7 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
             {existingRecord && onDelete && (
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={handleDeleteClick}
                 className="px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center space-x-1"
               >
                 <Trash2 className="h-4 w-4" />
@@ -300,6 +321,43 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* 刪除確認對話框 */}
+      {existingRecord && (
+        <DeleteConfirmModal
+          isOpen={showDeleteConfirm}
+          onClose={() => setShowDeleteConfirm(false)}
+          onConfirm={handleDeleteConfirm}
+          title="刪除換片記錄確認"
+          recordType="換片記錄"
+          patientInfo={{
+            name: patient.中文姓名,
+            bedNumber: patient.床號,
+            patientId: patient.院友id
+          }}
+          recordDetails={[
+            {
+              label: '換片日期',
+              value: date,
+              icon: <Calendar className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '時段',
+              value: timeSlot,
+              icon: <Clock className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '換片內容',
+              value: getChangeDescription()
+            },
+            {
+              label: '記錄者',
+              value: recorder,
+              icon: <User className="w-4 h-4 text-gray-500" />
+            }
+          ]}
+        />
+      )}
     </div>
   );
 };

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, User, FileText, Trash2 } from 'lucide-react';
+import { X, Clock, User, FileText, Trash2, Calendar } from 'lucide-react';
 import type { Patient, PatrolRound } from '../lib/database';
 import { addRandomOffset } from '../utils/careRecordHelper';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
 interface PatrolRoundModalProps {
   patient: Patient;
@@ -27,6 +28,7 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
   const [patrolTime, setPatrolTime] = useState('');
   const [recorder, setRecorder] = useState('');
   const [notes, setNotes] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (existingRecord) {
@@ -56,8 +58,12 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
     onSubmit(data);
   };
 
-  const handleDelete = () => {
-    if (existingRecord && onDelete && window.confirm('確定要刪除此巡房記錄嗎？')) {
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (existingRecord && onDelete) {
       onDelete(existingRecord.id);
     }
   };
@@ -160,7 +166,7 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
             {existingRecord && onDelete && (
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={handleDeleteClick}
                 className="px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center space-x-1"
               >
                 <Trash2 className="h-4 w-4" />
@@ -185,6 +191,49 @@ const PatrolRoundModal: React.FC<PatrolRoundModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* 刪除確認對話框 */}
+      {existingRecord && (
+        <DeleteConfirmModal
+          isOpen={showDeleteConfirm}
+          onClose={() => setShowDeleteConfirm(false)}
+          onConfirm={handleDeleteConfirm}
+          title="刪除巡房記錄確認"
+          recordType="巡房記錄"
+          patientInfo={{
+            name: patient.中文姓名,
+            bedNumber: patient.床號,
+            patientId: patient.院友id
+          }}
+          recordDetails={[
+            {
+              label: '巡房日期',
+              value: date,
+              icon: <Calendar className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '預定時段',
+              value: timeSlot,
+              icon: <Clock className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '實際巡房時間',
+              value: patrolTime,
+              icon: <Clock className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '記錄者',
+              value: recorder,
+              icon: <User className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '備註',
+              value: notes || '無',
+              icon: <FileText className="w-4 h-4 text-gray-500" />
+            }
+          ]}
+        />
+      )}
     </div>
   );
 };

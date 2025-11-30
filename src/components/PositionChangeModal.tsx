@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, RotateCcw, Trash2 } from 'lucide-react';
+import { X, User, RotateCcw, Trash2, Calendar, Clock } from 'lucide-react';
 import type { Patient, PositionChangeRecord } from '../lib/database';
 import { getPositionSequence } from '../utils/careRecordHelper';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
 interface PositionChangeModalProps {
   patient: Patient;
@@ -26,6 +27,7 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
 }) => {
   const [position, setPosition] = useState<'左' | '平' | '右'>('左');
   const [recorder, setRecorder] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (existingRecord) {
@@ -52,8 +54,12 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
     onSubmit(data);
   };
 
-  const handleDelete = () => {
-    if (existingRecord && onDelete && window.confirm('確定要刪除此轉身記錄嗎？')) {
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (existingRecord && onDelete) {
       onDelete(existingRecord.id);
     }
   };
@@ -182,7 +188,7 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
             {existingRecord && onDelete && (
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={handleDeleteClick}
                 className="px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center space-x-1"
               >
                 <Trash2 className="h-4 w-4" />
@@ -207,6 +213,44 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* 刪除確認對話框 */}
+      {existingRecord && (
+        <DeleteConfirmModal
+          isOpen={showDeleteConfirm}
+          onClose={() => setShowDeleteConfirm(false)}
+          onConfirm={handleDeleteConfirm}
+          title="刪除轉身記錄確認"
+          recordType="轉身記錄"
+          patientInfo={{
+            name: patient.中文姓名,
+            bedNumber: patient.床號,
+            patientId: patient.院友id
+          }}
+          recordDetails={[
+            {
+              label: '轉身日期',
+              value: date,
+              icon: <Calendar className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '預定時段',
+              value: timeSlot,
+              icon: <Clock className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '轉身位置',
+              value: position,
+              icon: <RotateCcw className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '記錄者',
+              value: recorder,
+              icon: <User className="w-4 h-4 text-gray-500" />
+            }
+          ]}
+        />
+      )}
     </div>
   );
 };
