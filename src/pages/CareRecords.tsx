@@ -173,8 +173,11 @@ const CareRecords: React.FC = () => {
   };
 
   // 加載當前週的護理記錄數據
-  const loadCareRecordsForWeek = async (startDate: string, endDate: string) => {
-    setLoading(true);
+  const loadCareRecordsForWeek = async (startDate: string, endDate: string, silent = false) => {
+    // silent 模式下不顯示全螢幕 loading，避免畫面閃爍
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const [patrolData, diaperData, restraintData, positionData] = await Promise.all([
         db.getPatrolRoundsInDateRange(startDate, endDate),
@@ -190,7 +193,9 @@ const CareRecords: React.FC = () => {
     } catch (error) {
       console.error('載入護理記錄失敗:', error);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -317,8 +322,8 @@ const CareRecords: React.FC = () => {
       }
       setShowPatrolModal(false);
       setModalExistingRecord(null);
-      // 重新加載當前週數據
-      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1]);
+      // 靜默重新加載當前週數據，避免畫面閃爍
+      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1], true);
     } catch (error) {
       console.error('❌ 巡房記錄操作失敗:', error);
     }
@@ -333,8 +338,8 @@ const CareRecords: React.FC = () => {
       }
       setShowDiaperModal(false);
       setModalExistingRecord(null);
-      // 重新加載當前週數據
-      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1]);
+      // 靜默重新加載當前週數據，避免畫面閃爍
+      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1], true);
     } catch (error) {
       console.error('❌ 保存換片記錄失敗:', error);
     }
@@ -349,8 +354,8 @@ const CareRecords: React.FC = () => {
       }
       setShowRestraintModal(false);
       setModalExistingRecord(null);
-      // 重新加載當前週數據
-      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1]);
+      // 靜默重新加載當前週數據，避免畫面閃爍
+      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1], true);
     } catch (error) {
       console.error('❌ 保存約束觀察記錄失敗:', error);
     }
@@ -361,8 +366,8 @@ const CareRecords: React.FC = () => {
       await db.createPositionChangeRecord(data);
       setShowPositionModal(false);
       setModalExistingRecord(null);
-      // 重新加載當前週數據
-      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1]);
+      // 靜默重新加載當前週數據，避免畫面閃爍
+      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1], true);
     } catch (error) {
       console.error('❌ 創建轉身記錄失敗:', error);
     }
@@ -491,17 +496,17 @@ const CareRecords: React.FC = () => {
                       ) : record ? (
                         <div className="space-y-1">
                           <div className="font-medium text-gray-900">
-                            {record.has_urine && '尿'}
+                            {record.has_urine && '小便'}
                             {record.has_urine && record.has_stool && '/'}
-                            {record.has_stool && '便'}
+                            {record.has_stool && '大便'}
                             {record.has_none && '無'}
                           </div>
                           {record.has_urine && record.urine_amount && (
-                            <div className="text-xs text-gray-600">尿: {record.urine_amount}</div>
+                            <div className="text-xs text-gray-600">小便: {record.urine_amount}</div>
                           )}
                           {record.has_stool && (
                             <div className="text-xs text-gray-600">
-                              便: {record.stool_color || ''}{record.stool_texture ? ` ${record.stool_texture}` : ''}{record.stool_amount ? ` ${record.stool_amount}` : ''}
+                              大便: {record.stool_color || ''}{record.stool_texture ? ` ${record.stool_texture}` : ''}{record.stool_amount ? ` ${record.stool_amount}` : ''}
                             </div>
                           )}
                           <div className="text-xs text-gray-500">{record.recorder}</div>
@@ -917,8 +922,10 @@ const CareRecords: React.FC = () => {
               await db.deletePatrolRound(id);
               setShowPatrolModal(false);
               setModalExistingRecord(null);
-              await loadAllRecords();
-              alert('巡房記錄已成功刪除');
+              // 立即從本地狀態中移除記錄
+              setPatrolRounds(prev => prev.filter(r => r.id !== id));
+              // 在背景静默重新加載以確保同步（不顯示 loading 動畫）
+              await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1], true);
             } catch (error) {
               console.error('❌ 刪除巡房記錄失敗:', error);
               alert('刪除巡房記錄失敗，請重試');
@@ -942,8 +949,10 @@ const CareRecords: React.FC = () => {
               await db.deleteDiaperChangeRecord(id);
               setShowDiaperModal(false);
               setModalExistingRecord(null);
-              await loadAllRecords();
-              alert('換片記錄已成功刪除');
+              // 立即從本地狀態中移除記錄
+              setDiaperChangeRecords(prev => prev.filter(r => r.id !== id));
+              // 在背景静默重新加載以確保同步（不顯示 loading 動畫）
+              await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1], true);
             } catch (error) {
               console.error('❌ 刪除換片記錄失敗:', error);
               alert('刪除換片記錄失敗，請重試');
@@ -968,8 +977,10 @@ const CareRecords: React.FC = () => {
               await db.deleteRestraintObservationRecord(id);
               setShowRestraintModal(false);
               setModalExistingRecord(null);
-              await loadAllRecords();
-              alert('約束觀察記錄已成功刪除');
+              // 立即從本地狀態中移除記錄
+              setRestraintObservationRecords(prev => prev.filter(r => r.id !== id));
+              // 在背景静默重新加載以確保同步（不顯示 loading 動畫）
+              await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1], true);
             } catch (error) {
               console.error('❌ 刪除約束觀察記錄失敗:', error);
               alert('刪除約束觀察記錄失敗，請重試');
@@ -993,8 +1004,10 @@ const CareRecords: React.FC = () => {
               await db.deletePositionChangeRecord(id);
               setShowPositionModal(false);
               setModalExistingRecord(null);
-              await loadAllRecords();
-              alert('轉身記錄已成功刪除');
+              // 立即從本地狀態中移除記錄
+              setPositionChangeRecords(prev => prev.filter(r => r.id !== id));
+              // 在背景静默重新加載以確保同步（不顯示 loading 動畫）
+              await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1], true);
             } catch (error) {
               console.error('❌ 刪除轉身記錄失敗:', error);
               alert('刪除轉身記錄失敗，請重試');
