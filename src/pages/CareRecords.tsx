@@ -94,25 +94,33 @@ const CareRecords: React.FC = () => {
   const patientPatrolRounds = useMemo(() => {
     if (!selectedPatientId) return [];
     const patientIdNum = parseInt(selectedPatientId);
-    return patrolRounds.filter(r => r.patient_id === patientIdNum);
+    const filtered = patrolRounds.filter(r => r.patient_id === patientIdNum);
+    console.log('🔍 巡房記錄過濾:', { patientIdNum, total: patrolRounds.length, filtered: filtered.length, records: filtered });
+    return filtered;
   }, [selectedPatientId, patrolRounds]);
 
   const patientDiaperChanges = useMemo(() => {
     if (!selectedPatientId) return [];
     const patientIdNum = parseInt(selectedPatientId);
-    return diaperChangeRecords.filter(r => r.patient_id === patientIdNum);
+    const filtered = diaperChangeRecords.filter(r => r.patient_id === patientIdNum);
+    console.log('🔍 換片記錄過濾:', { patientIdNum, total: diaperChangeRecords.length, filtered: filtered.length, records: filtered });
+    return filtered;
   }, [selectedPatientId, diaperChangeRecords]);
 
   const patientRestraintObservations = useMemo(() => {
     if (!selectedPatientId) return [];
     const patientIdNum = parseInt(selectedPatientId);
-    return restraintObservationRecords.filter(r => r.patient_id === patientIdNum);
+    const filtered = restraintObservationRecords.filter(r => r.patient_id === patientIdNum);
+    console.log('🔍 約束觀察記錄過濾:', { patientIdNum, total: restraintObservationRecords.length, filtered: filtered.length, records: filtered });
+    return filtered;
   }, [selectedPatientId, restraintObservationRecords]);
 
   const patientPositionChanges = useMemo(() => {
     if (!selectedPatientId) return [];
     const patientIdNum = parseInt(selectedPatientId);
-    return positionChangeRecords.filter(r => r.patient_id === patientIdNum);
+    const filtered = positionChangeRecords.filter(r => r.patient_id === patientIdNum);
+    console.log('🔍 轉身記錄過濾:', { patientIdNum, total: positionChangeRecords.length, filtered: filtered.length, records: filtered });
+    return filtered;
   }, [selectedPatientId, positionChangeRecords]);
 
   const handlePreviousWeek = () => {
@@ -187,45 +195,55 @@ const CareRecords: React.FC = () => {
 
   const handlePatrolSubmit = async (data: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      console.log('📝 提交巡房記錄:', data);
       await createPatrolRound(data);
+      console.log('✅ 巡房記錄創建成功');
       setShowPatrolModal(false);
     } catch (error) {
-      console.error('創建巡房記錄失敗:', error);
+      console.error('❌ 創建巡房記錄失敗:', error);
     }
   };
 
   const handleDiaperSubmit = async (data: Omit<DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      console.log('📝 提交換片記錄:', data);
       if (modalExistingRecord) {
         await updateDiaperChangeRecord({ ...modalExistingRecord, ...data });
+        console.log('✅ 換片記錄更新成功');
       } else {
         await createDiaperChangeRecord(data);
+        console.log('✅ 換片記錄創建成功');
       }
       setShowDiaperModal(false);
     } catch (error) {
-      console.error('保存換片記錄失敗:', error);
+      console.error('❌ 保存換片記錄失敗:', error);
     }
   };
 
   const handleRestraintSubmit = async (data: Omit<RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      console.log('📝 提交約束觀察記錄:', data);
       if (modalExistingRecord) {
         await updateRestraintObservationRecord({ ...modalExistingRecord, ...data });
+        console.log('✅ 約束觀察記錄更新成功');
       } else {
         await createRestraintObservationRecord(data);
+        console.log('✅ 約束觀察記錄創建成功');
       }
       setShowRestraintModal(false);
     } catch (error) {
-      console.error('保存約束觀察記錄失敗:', error);
+      console.error('❌ 保存約束觀察記錄失敗:', error);
     }
   };
 
   const handlePositionSubmit = async (data: Omit<PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      console.log('📝 提交轉身記錄:', data);
       await createPositionChangeRecord(data);
+      console.log('✅ 轉身記錄創建成功');
       setShowPositionModal(false);
     } catch (error) {
-      console.error('創建轉身記錄失敗:', error);
+      console.error('❌ 創建轉身記錄失敗:', error);
     }
   };
 
@@ -281,7 +299,7 @@ const CareRecords: React.FC = () => {
                       ) : record ? (
                         <div>
                           <div className="text-green-600 font-bold">✓</div>
-                          <div className="text-xs text-gray-600">{record.staff_name}</div>
+                          <div className="text-xs text-gray-600">{record.recorder}</div>
                         </div>
                       ) : overdue ? (
                         <span className="text-red-600 text-xs">逾期</span>
@@ -351,16 +369,20 @@ const CareRecords: React.FC = () => {
                       ) : record ? (
                         <div className="space-y-1">
                           <div className="font-medium text-gray-900">
-                            {record.urine_status && '尿'}
-                            {record.urine_status && record.stool_status && '/'}
-                            {record.stool_status && '便'}
+                            {record.has_urine && '尿'}
+                            {record.has_urine && record.has_stool && '/'}
+                            {record.has_stool && '便'}
+                            {record.has_none && '無'}
                           </div>
-                          {record.urine_status && (
-                            <div className="text-xs text-gray-600">{record.urine_status}</div>
+                          {record.has_urine && record.urine_amount && (
+                            <div className="text-xs text-gray-600">尿: {record.urine_amount}</div>
                           )}
-                          {record.stool_status && (
-                            <div className="text-xs text-gray-600">{record.stool_status}</div>
+                          {record.has_stool && (
+                            <div className="text-xs text-gray-600">
+                              便: {record.stool_color || ''}{record.stool_texture ? ` ${record.stool_texture}` : ''}{record.stool_amount ? ` ${record.stool_amount}` : ''}
+                            </div>
                           )}
+                          <div className="text-xs text-gray-500">{record.recorder}</div>
                         </div>
                       ) : (
                         <span className="text-gray-400 text-xs">待記錄</span>
@@ -418,8 +440,8 @@ const CareRecords: React.FC = () => {
                       className={`px-2 py-3 text-center text-sm border cursor-pointer ${
                         inHospital ? 'bg-gray-100' :
                         record ? (
-                          record.status === 'normal' ? 'bg-green-50 hover:bg-green-100' :
-                          record.status === 'abnormal' ? 'bg-red-50 hover:bg-red-100' :
+                          record.observation_status === 'N' ? 'bg-green-50 hover:bg-green-100' :
+                          record.observation_status === 'P' ? 'bg-red-50 hover:bg-red-100' :
                           'bg-orange-50 hover:bg-orange-100'
                         ) :
                         overdue ? 'bg-red-50 hover:bg-red-100' :
@@ -432,14 +454,14 @@ const CareRecords: React.FC = () => {
                       ) : record ? (
                         <div>
                           <div className={`font-bold ${
-                            record.status === 'normal' ? 'text-green-600' :
-                            record.status === 'abnormal' ? 'text-red-600' :
+                            record.observation_status === 'N' ? 'text-green-600' :
+                            record.observation_status === 'P' ? 'text-red-600' :
                             'text-orange-600'
                           }`}>
-                            {record.status === 'normal' ? '🟢N' :
-                             record.status === 'abnormal' ? '🔴P' : '🟠S'}
+                            {record.observation_status === 'N' ? '🟢N' :
+                             record.observation_status === 'P' ? '🔴P' : '🟠S'}
                           </div>
-                          <div className="text-xs text-gray-600">{record.staff_name}</div>
+                          <div className="text-xs text-gray-600">{record.recorder}</div>
                         </div>
                       ) : overdue ? (
                         <span className="text-red-600 text-xs">逾期</span>
@@ -508,7 +530,7 @@ const CareRecords: React.FC = () => {
                       ) : record ? (
                         <div>
                           <div className="font-medium text-purple-600">{record.position}</div>
-                          <div className="text-xs text-gray-600">{record.staff_name}</div>
+                          <div className="text-xs text-gray-600">{record.recorder}</div>
                         </div>
                       ) : (
                         <span className="text-gray-400 text-xs">[{expectedPosition}]</span>
