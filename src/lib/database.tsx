@@ -4040,4 +4040,73 @@ export const deletePositionChangeRecord = async (recordId: string): Promise<void
   }
 };
 
+// 優化版本：帶日期範圍過濾的護理記錄查詢
+export const getPatrolRoundsInDateRange = async (startDate: string, endDate: string): Promise<PatrolRound[]> => {
+  const { data, error } = await supabase
+    .from('patrol_rounds')
+    .select('*')
+    .gte('patrol_date', startDate)
+    .lte('patrol_date', endDate)
+    .order('patrol_date', { ascending: false })
+    .order('scheduled_time', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching patrol rounds in date range:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const getDiaperChangeRecordsInDateRange = async (startDate: string, endDate: string): Promise<DiaperChangeRecord[]> => {
+  const { data, error } = await supabase
+    .from('diaper_change_records')
+    .select('*')
+    .gte('change_date', startDate)
+    .lte('change_date', endDate)
+    .order('change_date', { ascending: false })
+    .order('time_slot', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching diaper change records in date range:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const getRestraintObservationRecordsInDateRange = async (startDate: string, endDate: string): Promise<RestraintObservationRecord[]> => {
+  const { data, error } = await supabase
+    .from('restraint_observation_records')
+    .select('*')
+    .gte('observation_date', startDate)
+    .lte('observation_date', endDate)
+    .order('observation_date', { ascending: false })
+    .order('time_slot', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching restraint observation records in date range:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const getPositionChangeRecordsInDateRange = async (startDate: string, endDate: string): Promise<PositionChangeRecord[]> => {
+  const { data, error } = await supabase
+    .from('position_change_records')
+    .select('*')
+    .gte('change_date', startDate)
+    .lte('change_date', endDate)
+    .order('change_date', { ascending: false })
+    .order('scheduled_time', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching position change records in date range:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
 export default DrugModal;

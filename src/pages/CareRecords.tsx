@@ -31,6 +31,7 @@ import {
   getPositionSequence
 } from '../utils/careRecordHelper';
 import type { Patient, PatrolRound, DiaperChangeRecord, RestraintObservationRecord, PositionChangeRecord, PatientCareTab } from '../lib/database';
+import * as db from '../lib/database';
 import { supabase } from '../lib/supabase';
 import {
   loadPatientCareTabs,
@@ -45,25 +46,17 @@ type TabType = 'patrol' | 'diaper' | 'intake_output' | 'restraint' | 'position' 
 const CareRecords: React.FC = () => {
   const {
     patients,
-    loading,
-    patrolRounds,
-    diaperChangeRecords,
-    restraintObservationRecords,
-    positionChangeRecords,
-    createPatrolRound,
-    deletePatrolRound,
-    createDiaperChangeRecord,
-    updateDiaperChangeRecord,
-    deleteDiaperChangeRecord,
-    createRestraintObservationRecord,
-    updateRestraintObservationRecord,
-    deleteRestraintObservationRecord,
-    createPositionChangeRecord,
-    deletePositionChangeRecord,
     patientRestraintAssessments,
     healthAssessments,
     admissionRecords
   } = usePatients();
+
+  // 本地狀態管理護理記錄數據
+  const [loading, setLoading] = useState(false);
+  const [patrolRounds, setPatrolRounds] = useState<PatrolRound[]>([]);
+  const [diaperChangeRecords, setDiaperChangeRecords] = useState<DiaperChangeRecord[]>([]);
+  const [restraintObservationRecords, setRestraintObservationRecords] = useState<RestraintObservationRecord[]>([]);
+  const [positionChangeRecords, setPositionChangeRecords] = useState<PositionChangeRecord[]>([]);
 
   const { user } = useAuth();
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || '未知';
@@ -179,6 +172,37 @@ const CareRecords: React.FC = () => {
     setWeekStartDate(prevWeek);
   };
 
+  // 加載當前週的護理記錄數據
+  const loadCareRecordsForWeek = async (startDate: string, endDate: string) => {
+    setLoading(true);
+    try {
+      const [patrolData, diaperData, restraintData, positionData] = await Promise.all([
+        db.getPatrolRoundsInDateRange(startDate, endDate),
+        db.getDiaperChangeRecordsInDateRange(startDate, endDate),
+        db.getRestraintObservationRecordsInDateRange(startDate, endDate),
+        db.getPositionChangeRecordsInDateRange(startDate, endDate)
+      ]);
+
+      setPatrolRounds(patrolData);
+      setDiaperChangeRecords(diaperData);
+      setRestraintObservationRecords(restraintData);
+      setPositionChangeRecords(positionData);
+    } catch (error) {
+      console.error('載入護理記錄失敗:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 當週期改變時重新加載數據
+  useEffect(() => {
+    if (weekDateStrings.length > 0) {
+      const startDate = weekDateStrings[0];
+      const endDate = weekDateStrings[weekDateStrings.length - 1];
+      loadCareRecordsForWeek(startDate, endDate);
+    }
+  }, [weekDateStrings]);
+
   const handleNextWeek = () => {
     const nextWeek = new Date(weekStartDate);
     nextWeek.setDate(nextWeek.getDate() + 7);
@@ -286,9 +310,11 @@ const CareRecords: React.FC = () => {
 
   const handlePatrolSubmit = async (data: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      await createPatrolRound(data);
+      await db.createPatrolRound(data);
       setShowPatrolModal(false);
       setModalExistingRecord(null);
+      // 重新加載當前週數據
+      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1]);
     } catch (error) {
       console.error('❌ 創建巡房記錄失敗:', error);
     }
@@ -297,12 +323,14 @@ const CareRecords: React.FC = () => {
   const handleDiaperSubmit = async (data: Omit<DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       if (modalExistingRecord) {
-        await updateDiaperChangeRecord({ ...modalExistingRecord, ...data });
+        await db.updateDiaperChangeRecord({ ...modalExistingRecord, ...data });
       } else {
-        await createDiaperChangeRecord(data);
+        await db.createDiaperChangeRecord(data);
       }
       setShowDiaperModal(false);
       setModalExistingRecord(null);
+      // 重新加載當前週數據
+      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1]);
     } catch (error) {
       console.error('❌ 保存換片記錄失敗:', error);
     }
@@ -311,12 +339,14 @@ const CareRecords: React.FC = () => {
   const handleRestraintSubmit = async (data: Omit<RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       if (modalExistingRecord) {
-        await updateRestraintObservationRecord({ ...modalExistingRecord, ...data });
+        await db.updateRestraintObservationRecord({ ...modalExistingRecord, ...data });
       } else {
-        await createRestraintObservationRecord(data);
+        await db.createRestraintObservationRecord(data);
       }
       setShowRestraintModal(false);
       setModalExistingRecord(null);
+      // 重新加載當前週數據
+      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1]);
     } catch (error) {
       console.error('❌ 保存約束觀察記錄失敗:', error);
     }
@@ -324,9 +354,11 @@ const CareRecords: React.FC = () => {
 
   const handlePositionSubmit = async (data: Omit<PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      await createPositionChangeRecord(data);
+      await db.createPositionChangeRecord(data);
       setShowPositionModal(false);
       setModalExistingRecord(null);
+      // 重新加載當前週數據
+      await loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1]);
     } catch (error) {
       console.error('❌ 創建轉身記錄失敗:', error);
     }
