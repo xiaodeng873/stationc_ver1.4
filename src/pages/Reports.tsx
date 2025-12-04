@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { BarChart3, Download, Calendar, Users, FileText, Activity, Utensils, Stethoscope, AlertCircle } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
+import MonthlyReportTable from '../components/MonthlyReportTable';
 
 type ReportTab = 'daily' | 'monthly' | 'infection' | 'meal' | 'tube' | 'special' | 'drugSensitivity';
 type TimeFilter = 'today' | 'yesterday' | 'thisMonth' | 'lastMonth';
@@ -457,6 +458,104 @@ const Reports: React.FC = () => {
       p.感染控制 && p.感染控制.length > 0
     );
 
+    // 氧氣治療
+    const oxygenTherapyPatients = activePatients.filter(p => {
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
+      return assessment?.treatment_items?.includes('氧氣治療');
+    });
+
+    // 皮下注射
+    const subcutaneousInjectionPatients = activePatients.filter(p => {
+      return (prescriptions || []).some(rx =>
+        rx.patient_id === p.院友id &&
+        rx.status === 'active' &&
+        (rx.administration_route === '皮下注射' || rx.administration_route?.includes('皮下'))
+      );
+    });
+
+    // 呼吸器
+    const respiratorPatients = activePatients.filter(p => {
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
+      return assessment?.treatment_items?.includes('呼吸器');
+    });
+
+    // 善終（晚晴計劃）
+    const palliativeCarePatients = activePatients.filter(p => {
+      return (patientHealthTasks || []).some(task =>
+        task.patient_id === p.院友id &&
+        task.health_record_type === '晚晴計劃'
+      );
+    });
+
+    // 化療
+    const chemotherapyPatients = activePatients.filter(p => {
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
+      return assessment?.treatment_items?.includes('化療');
+    });
+
+    // 放射治療
+    const radiotherapyPatients = activePatients.filter(p => {
+      const assessment = (healthAssessments || []).find(a => a.patient_id === p.院友id);
+      return assessment?.treatment_items?.includes('放射治療');
+    });
+
+    // 因情緒問題而轉介 - 從事故報告或備註中判斷
+    const emotionalReferralPatients = activePatients.filter(p => {
+      const hasEmotionalIssue = emotionalPatients.some(ep => ep.院友id === p.院友id);
+      const hasReferral = (incidentReports || []).some(incident =>
+        incident.patient_id === p.院友id &&
+        (incident.incident_details?.includes('轉介') || incident.incident_details?.includes('情緒'))
+      );
+      return hasEmotionalIssue && hasReferral;
+    });
+
+    // 錯發藥物（當月）
+    const medicationErrorIncidents = (incidentReports || []).filter(incident => {
+      const incidentDate = new Date(incident.incident_date);
+      return (incident.incident_type === '其他' &&
+              (incident.other_incident_type?.includes('藥物') ||
+               incident.other_incident_type?.includes('錯發') ||
+               incident.incident_details?.includes('藥物') ||
+               incident.incident_details?.includes('錯發'))) &&
+             incidentDate >= monthStart &&
+             incidentDate <= monthEnd;
+    });
+    const medicationErrorPatientIds = new Set(medicationErrorIncidents.map(i => i.patient_id));
+    const medicationErrorPatients = activePatients.filter(p => medicationErrorPatientIds.has(p.院友id));
+
+    // 哽塞（當月）
+    const chokingIncidents = (incidentReports || []).filter(incident => {
+      const incidentDate = new Date(incident.incident_date);
+      return (incident.other_incident_type?.includes('哽塞') ||
+              incident.other_incident_type?.includes('吞嚥') ||
+              incident.incident_details?.includes('哽塞') ||
+              incident.incident_details?.includes('吞嚥困難')) &&
+             incidentDate >= monthStart &&
+             incidentDate <= monthEnd;
+    });
+    const chokingPatientIds = new Set(chokingIncidents.map(i => i.patient_id));
+    const chokingPatients = activePatients.filter(p => chokingPatientIds.has(p.院友id));
+
+    // 脫水（當月）
+    const dehydrationIncidents = (incidentReports || []).filter(incident => {
+      const incidentDate = new Date(incident.incident_date);
+      return (incident.other_incident_type?.includes('脫水') ||
+              incident.incident_details?.includes('脫水')) &&
+             incidentDate >= monthStart &&
+             incidentDate <= monthEnd;
+    });
+    const dehydrationPatientIds = new Set(dehydrationIncidents.map(i => i.patient_id));
+    const dehydrationPatients = activePatients.filter(p => dehydrationPatientIds.has(p.院友id));
+
+    // 入住醫院（當前正在住院的患者）
+    const hospitalizedPatientIds = new Set<number>();
+    (hospitalEpisodes || []).forEach(episode => {
+      if (episode.status === 'active') {
+        hospitalizedPatientIds.add(episode.patient_id);
+      }
+    });
+    const hospitalizedPatients = activePatients.filter(p => hospitalizedPatientIds.has(p.院友id));
+
     // 尿道炎 - 這需要從健康記錄或備註中判斷,暫時留空
     const utiPatients: typeof activePatients = [];
 
@@ -468,6 +567,7 @@ const Reports: React.FC = () => {
       導尿管: { count: catheterPatients.length, names: catheterPatients.map(formatPatientName) },
       遊走: { count: wanderingPatients.length, names: wanderingPatients.map(formatPatientName) },
       情緒問題: { count: emotionalPatients.length, names: emotionalPatients.map(formatPatientName) },
+      因情緒問題而轉介: { count: emotionalReferralPatients.length, names: emotionalReferralPatients.map(formatPatientName) },
       長期卧床: { count: bedriddenPatients.length, names: bedriddenPatients.map(formatPatientName) },
       長期使用輪椅: { count: wheelchairPatients.length, names: wheelchairPatients.map(formatPatientName) },
       一人協助: { count: onePersonAssistPatients.length, names: onePersonAssistPatients.map(formatPatientName) },
@@ -476,22 +576,29 @@ const Reports: React.FC = () => {
       鼻胃飼: { count: ngTubePatients.length, names: ngTubePatients.map(formatPatientName) },
       腹膜血液透析: { count: dialysisPatients.length, names: dialysisPatients.map(formatPatientName) },
       造口: { count: stomaPatients.length, names: stomaPatients.map(formatPatientName) },
+      氧氣治療: { count: oxygenTherapyPatients.length, names: oxygenTherapyPatients.map(formatPatientName) },
+      皮下注射: { count: subcutaneousInjectionPatients.length, names: subcutaneousInjectionPatients.map(formatPatientName) },
+      呼吸器: { count: respiratorPatients.length, names: respiratorPatients.map(formatPatientName) },
+      善終: { count: palliativeCarePatients.length, names: palliativeCarePatients.map(formatPatientName) },
+      化療: { count: chemotherapyPatients.length, names: chemotherapyPatients.map(formatPatientName) },
+      放射治療: { count: radiotherapyPatients.length, names: radiotherapyPatients.map(formatPatientName) },
       服藥9種或以上: { count: multiMedicationPatients.length, names: multiMedicationPatients.map(formatPatientName) },
-      接受物理治療: { count: physioTherapyPatients.length, names: physioTherapyPatients.map(formatPatientName) },
-      接受職業治療: { count: occupationalTherapyPatients.length, names: occupationalTherapyPatients.map(formatPatientName) },
-      醫院服務使用人次: { count: hospitalServiceCount, names: hospitalServicePatientNames },
+      入住醫院: { count: hospitalizedPatients.length, names: hospitalizedPatients.map(formatPatientName) },
       認知障礙: { count: cognitiveImpairmentPatients.length, names: cognitiveImpairmentPatients.map(formatPatientName) },
+      錯發藥物: { count: medicationErrorPatients.length, names: medicationErrorPatients.map(formatPatientName) },
       失禁: { count: incontinencePatients.length, names: incontinencePatients.map(formatPatientName) },
       如廁訓練: { count: toiletTrainingPatients.length, names: toiletTrainingPatients.map(formatPatientName) },
       壓瘡: { count: pressureUlcerPatients.length, names: pressureUlcerPatients.map(formatPatientName) },
       跌倒: { count: monthlyFallPatients.length, names: monthlyFallPatients.map(formatPatientName) },
       體重下降5: { count: weightDecreasePatients.length, names: weightDecreasePatients.map(formatPatientName) },
+      哽塞: { count: chokingPatients.length, names: chokingPatients.map(formatPatientName) },
+      脫水: { count: dehydrationPatients.length, names: dehydrationPatients.map(formatPatientName) },
       使用約束物品: { count: restraintPatients.length, names: restraintPatients.map(formatPatientName) },
       轉身: { count: turningPatients.length, names: turningPatients.map(formatPatientName) },
       傳染病: { count: infectiousDiseasePatients.length, names: infectiousDiseasePatients.map(formatPatientName) },
       尿道炎: { count: utiPatients.length, names: utiPatients.map(formatPatientName) },
     };
-  }, [filteredPatients, timeFilter, healthAssessments, woundAssessments, incidentReports, patientRestraintAssessments, patientHealthTasks, prescriptions, healthRecords, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd]);
+  }, [filteredPatients, timeFilter, healthAssessments, woundAssessments, incidentReports, patientRestraintAssessments, patientHealthTasks, prescriptions, healthRecords, hospitalEpisodes, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd]);
 
   if (loading) {
     return (
@@ -663,141 +770,194 @@ const Reports: React.FC = () => {
     </div>
   );
 
-  const renderMonthlyReport = () => (
-    <div className="space-y-6">
-      <div className="flex space-x-4 mb-4">
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setTimeFilter('today')}
-            className={`px-4 py-2 rounded-lg ${timeFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            當月
-          </button>
-          <button
-            onClick={() => setTimeFilter('yesterday')}
-            className={`px-4 py-2 rounded-lg ${timeFilter === 'yesterday' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            上月
-          </button>
-        </div>
-        <select
-          value={stationFilter}
-          onChange={(e) => setStationFilter(e.target.value)}
-          className="form-input"
-        >
-          <option value="all">所有分區</option>
-          {stations?.map(station => (
-            <option key={station.id} value={station.id}>{station.name}</option>
-          ))}
-        </select>
-      </div>
+  const renderMonthlyReport = () => {
+    const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">護理等級</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard
-            title="半護理"
-            value={monthlyReportData.半護理.count}
-            bgColor="bg-yellow-50"
-            textColor="text-yellow-600"
-            patientNames={monthlyReportData.半護理.names}
-          />
-          <StatCard
-            title="全護理"
-            value={monthlyReportData.全護理.count}
-            bgColor="bg-red-50"
-            textColor="text-red-600"
-            patientNames={monthlyReportData.全護理.names}
-          />
-        </div>
-      </div>
+    const tableData = activePatients.map(patient => {
+      const assessment = (healthAssessments || []).find(a => a.patient_id === patient.院友id);
+      const activePrescriptions = (prescriptions || []).filter(rx =>
+        rx.patient_id === patient.院友id && rx.status === 'active'
+      );
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">醫療項目</h3>
-        <div className="grid grid-cols-4 gap-4">
-          <StatCard title="導尿管" value={monthlyReportData.導尿管.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={monthlyReportData.導尿管.names} />
-          <StatCard title="鼻胃飼" value={monthlyReportData.鼻胃飼.count} bgColor="bg-green-50" textColor="text-green-600" patientNames={monthlyReportData.鼻胃飼.names} />
-          <StatCard title="腹膜/血液透析" value={monthlyReportData.腹膜血液透析.count} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={monthlyReportData.腹膜血液透析.names} />
-          <StatCard title="造口" value={monthlyReportData.造口.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={monthlyReportData.造口.names} />
-        </div>
-      </div>
+      const hasCatheter = (patientHealthTasks || []).some(task =>
+        task.patient_id === patient.院友id &&
+        task.health_record_type === '尿導管更換'
+      );
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">行為與情緒</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard title="遊走" value={monthlyReportData.遊走.count} bgColor="bg-yellow-50" textColor="text-yellow-600" patientNames={monthlyReportData.遊走.names} />
-          <StatCard title="情緒問題(抑鬱/激動)" value={monthlyReportData.情緒問題.count} bgColor="bg-red-50" textColor="text-red-600" patientNames={monthlyReportData.情緒問題.names} />
-        </div>
-      </div>
+      const hasWandering = assessment?.behavior_expression?.includes('遊走');
+      const hasEmotionalIssue = assessment?.emotional_expression === '抑鬱' || assessment?.emotional_expression === '激動';
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">活動能力</h3>
-        <div className="grid grid-cols-4 gap-4">
-          <StatCard title="長期卧床" value={monthlyReportData.長期卧床.count} bgColor="bg-gray-50" textColor="text-gray-600" patientNames={monthlyReportData.長期卧床.names} />
-          <StatCard title="長期使用輪椅" value={monthlyReportData.長期使用輪椅.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={monthlyReportData.長期使用輪椅.names} />
-          <StatCard title="一人協助" value={monthlyReportData.一人協助.count} bgColor="bg-green-50" textColor="text-green-600" patientNames={monthlyReportData.一人協助.names} />
-          <StatCard title="二人協助" value={monthlyReportData.二人協助.count} bgColor="bg-yellow-50" textColor="text-yellow-600" patientNames={monthlyReportData.二人協助.names} />
-        </div>
-      </div>
+      const hasEmotionalReferral = hasEmotionalIssue && (incidentReports || []).some(incident =>
+        incident.patient_id === patient.院友id &&
+        (incident.incident_details?.includes('轉介') || incident.incident_details?.includes('情緒'))
+      );
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">飲食與營養</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard title="需餵食" value={monthlyReportData.需餵食.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={monthlyReportData.需餵食.names} />
-          <StatCard title="體重下降5%" value={monthlyReportData.體重下降5.count} bgColor="bg-red-50" textColor="text-red-600" patientNames={monthlyReportData.體重下降5.names} />
-        </div>
-      </div>
+      const hasPressureUlcer = (woundAssessments || []).some(wa =>
+        wa.patient_id === patient.院友id &&
+        wa.wound_details?.some(detail =>
+          (detail.wound_status === '未處理' || detail.wound_status === '治療中') &&
+          detail.wound_type === '壓力性'
+        )
+      );
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">藥物管理</h3>
-        <div className="grid grid-cols-1 gap-4">
-          <StatCard title="服藥9種或以上" value={monthlyReportData.服藥9種或以上.count} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={monthlyReportData.服藥9種或以上.names} />
-        </div>
-      </div>
+      const monthStart = timeFilter === 'today' ? thisMonthStart : lastMonthStart;
+      const monthEnd = timeFilter === 'today' ? thisMonthEnd : lastMonthEnd;
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">治療服務</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard title="接受物理治療" value={monthlyReportData.接受物理治療.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={monthlyReportData.接受物理治療.names} />
-          <StatCard title="接受職業治療" value={monthlyReportData.接受職業治療.count} bgColor="bg-green-50" textColor="text-green-600" patientNames={monthlyReportData.接受職業治療.names} />
-        </div>
-      </div>
+      const hasFall = (incidentReports || []).some(incident => {
+        const incidentDate = new Date(incident.incident_date);
+        return incident.incident_type === '跌倒' &&
+               incident.patient_id === patient.院友id &&
+               incidentDate >= monthStart &&
+               incidentDate <= monthEnd;
+      });
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">健康狀況</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard title="醫院服務使用人次" value={monthlyReportData.醫院服務使用人次.count} bgColor="bg-red-50" textColor="text-red-600" subtitle="本月入院事件總次數" patientNames={monthlyReportData.醫院服務使用人次.names} />
-          <StatCard title="認知障礙" value={monthlyReportData.認知障礙.count} bgColor="bg-yellow-50" textColor="text-yellow-600" patientNames={monthlyReportData.認知障礙.names} />
-          <StatCard title="傳染病" value={monthlyReportData.傳染病.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={monthlyReportData.傳染病.names} />
-        </div>
-      </div>
+      const hasMedicationError = (incidentReports || []).some(incident => {
+        const incidentDate = new Date(incident.incident_date);
+        return incident.patient_id === patient.院友id &&
+               incident.incident_type === '其他' &&
+               (incident.other_incident_type?.includes('藥物') ||
+                incident.other_incident_type?.includes('錯發') ||
+                incident.incident_details?.includes('藥物') ||
+                incident.incident_details?.includes('錯發')) &&
+               incidentDate >= monthStart &&
+               incidentDate <= monthEnd;
+      });
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">大小便管理</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard title="失禁(全護理)" value={monthlyReportData.失禁.count} bgColor="bg-gray-50" textColor="text-gray-600" patientNames={monthlyReportData.失禁.names} />
-          <StatCard title="如廁訓練" value={monthlyReportData.如廁訓練.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={monthlyReportData.如廁訓練.names} />
-        </div>
-      </div>
+      const hasChoking = (incidentReports || []).some(incident => {
+        const incidentDate = new Date(incident.incident_date);
+        return incident.patient_id === patient.院友id &&
+               (incident.other_incident_type?.includes('哽塞') ||
+                incident.other_incident_type?.includes('吞嚥') ||
+                incident.incident_details?.includes('哽塞') ||
+                incident.incident_details?.includes('吞嚥困難')) &&
+               incidentDate >= monthStart &&
+               incidentDate <= monthEnd;
+      });
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">傷口與意外</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard title="壓瘡" value={monthlyReportData.壓瘡.count} bgColor="bg-red-50" textColor="text-red-600" patientNames={monthlyReportData.壓瘡.names} />
-          <StatCard title="跌倒" value={monthlyReportData.跌倒.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={monthlyReportData.跌倒.names} />
-        </div>
-      </div>
+      const hasDehydration = (incidentReports || []).some(incident => {
+        const incidentDate = new Date(incident.incident_date);
+        return incident.patient_id === patient.院友id &&
+               (incident.other_incident_type?.includes('脫水') ||
+                incident.incident_details?.includes('脫水')) &&
+               incidentDate >= monthStart &&
+               incidentDate <= monthEnd;
+      });
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">約束與護理</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard title="使用約束物品" value={monthlyReportData.使用約束物品.count} bgColor="bg-yellow-50" textColor="text-yellow-600" patientNames={monthlyReportData.使用約束物品.names} />
-          <StatCard title="轉身(卧床)" value={monthlyReportData.轉身.count} bgColor="bg-gray-50" textColor="text-gray-600" patientNames={monthlyReportData.轉身.names} />
-          <StatCard title="尿道炎" value={monthlyReportData.尿道炎.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={monthlyReportData.尿道炎.names} />
+      const lastMonthDate = new Date(monthStart);
+      lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+
+      const hasWeightDecrease = (() => {
+        const currentMonthRecords = (healthRecords || []).filter(r =>
+          r.院友id === patient.院友id &&
+          r.記錄類型 === '體重控制' &&
+          r.體重 &&
+          new Date(r.記錄日期) >= monthStart &&
+          new Date(r.記錄日期) <= monthEnd
+        );
+        const lastMonthRecords = (healthRecords || []).filter(r =>
+          r.院友id === patient.院友id &&
+          r.記錄類型 === '體重控制' &&
+          r.體重 &&
+          new Date(r.記錄日期) >= lastMonthDate &&
+          new Date(r.記錄日期) < monthStart
+        );
+        if (currentMonthRecords.length === 0 || lastMonthRecords.length === 0) return false;
+        const currentWeight = currentMonthRecords[currentMonthRecords.length - 1].體重;
+        const lastWeight = lastMonthRecords[lastMonthRecords.length - 1].體重;
+        if (!currentWeight || !lastWeight) return false;
+        const decrease = ((lastWeight - currentWeight) / lastWeight) * 100;
+        return decrease >= 5;
+      })();
+
+      const isHospitalized = (hospitalEpisodes || []).some(episode =>
+        episode.patient_id === patient.院友id && episode.status === 'active'
+      );
+
+      const hasRestraint = (patientRestraintAssessments || []).some(r =>
+        r.patient_id === patient.院友id
+      );
+
+      const hasPalliativeCare = (patientHealthTasks || []).some(task =>
+        task.patient_id === patient.院友id &&
+        task.health_record_type === '晚晴計劃'
+      );
+
+      return {
+        patientId: patient.院友id,
+        bedNumber: patient.床號 || '',
+        name: `${patient.中文姓氏}${patient.中文名字}`,
+        半護理: patient.護理等級 === '半護理' ? 1 : 0,
+        全護理: patient.護理等級 === '全護理' ? 1 : 0,
+        導尿管: hasCatheter ? 1 : 0,
+        遊走: hasWandering ? 1 : 0,
+        情緒問題: hasEmotionalIssue ? 1 : 0,
+        因情緒問題而轉介: hasEmotionalReferral ? 1 : 0,
+        長期卧床: assessment?.daily_activities?.mobility === '卧床' ? 1 : 0,
+        長期使用輪椅: assessment?.daily_activities?.mobility === '輪椅' ? 1 : 0,
+        一人協助: assessment?.daily_activities?.mobility === '一人協助' ? 1 : 0,
+        二人協助: assessment?.daily_activities?.mobility === '二人協助' ? 1 : 0,
+        需餵食: (assessment?.daily_activities?.eating === '需要幫助' || assessment?.daily_activities?.eating === '完全依賴') ? 1 : 0,
+        鼻胃飼: assessment?.nutrition_diet?.status === '鼻胃管' ? 1 : 0,
+        腹膜血液透析: assessment?.treatment_items?.includes('腹膜/血液透析') ? 1 : 0,
+        造口: (assessment?.bowel_bladder_control?.bowel === '腸造口' || assessment?.bowel_bladder_control?.bladder === '小便造口') ? 1 : 0,
+        氧氣治療: assessment?.treatment_items?.includes('氧氣治療') ? 1 : 0,
+        皮下注射: activePrescriptions.some(rx => rx.administration_route === '皮下注射' || rx.administration_route?.includes('皮下')) ? 1 : 0,
+        呼吸器: assessment?.treatment_items?.includes('呼吸器') ? 1 : 0,
+        善終: hasPalliativeCare ? 1 : 0,
+        化療: assessment?.treatment_items?.includes('化療') ? 1 : 0,
+        放射治療: assessment?.treatment_items?.includes('放射治療') ? 1 : 0,
+        服藥9種或以上: activePrescriptions.length >= 9 ? 1 : 0,
+        入住醫院: isHospitalized ? 1 : 0,
+        認知障礙: (assessment?.consciousness_cognition?.includes('認知障礙') || assessment?.consciousness_cognition?.includes('失智')) ? 1 : 0,
+        錯發藥物: hasMedicationError ? 1 : 0,
+        失禁: patient.護理等級 === '全護理' ? 1 : 0,
+        如廁訓練: assessment?.toilet_training === true ? 1 : 0,
+        壓瘡: hasPressureUlcer ? 1 : 0,
+        跌倒: hasFall ? 1 : 0,
+        體重下降5: hasWeightDecrease ? 1 : 0,
+        哽塞: hasChoking ? 1 : 0,
+        脫水: hasDehydration ? 1 : 0,
+        轉身: assessment?.daily_activities?.mobility === '卧床' ? 1 : 0,
+        傳染病: (patient.感染控制 && patient.感染控制.length > 0) ? 1 : 0,
+        尿道炎: 0,
+      };
+    });
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex space-x-4">
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setTimeFilter('today')}
+                className={`px-4 py-2 rounded-lg ${timeFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                當月
+              </button>
+              <button
+                onClick={() => setTimeFilter('yesterday')}
+                className={`px-4 py-2 rounded-lg ${timeFilter === 'yesterday' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                上月
+              </button>
+            </div>
+            <select
+              value={stationFilter}
+              onChange={(e) => setStationFilter(e.target.value)}
+              className="form-input"
+            >
+              <option value="all">所有分區</option>
+              {stations?.map(station => (
+                <option key={station.id} value={station.id}>{station.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        <MonthlyReportTable data={tableData} />
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderInfectionReport = () => {
     const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
