@@ -521,6 +521,15 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                 </button>
                 <button
                   type="button"
+                  onClick={() => addEvent('discharge')}
+                  className="btn-secondary flex items-center space-x-2 text-sm"
+                  disabled={events.some(e => e.event_type === 'discharge')}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>新增出院</span>
+                </button>
+                 <button
+                  type="button"
                   onClick={() => addEvent('vacation_start')}
                   className="btn-secondary flex items-center space-x-2 text-sm"
                 >
@@ -535,15 +544,6 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                 >
                   <Plus className="h-4 w-4" />
                   <span>新增渡假結束</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addEvent('discharge')}
-                  className="btn-secondary flex items-center space-x-2 text-sm"
-                  disabled={events.some(e => e.event_type === 'discharge')}
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>新增出院</span>
                 </button>
               </div>
             </div>
