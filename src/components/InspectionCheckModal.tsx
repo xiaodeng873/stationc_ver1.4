@@ -163,7 +163,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
         return;
       }
 
-      // 如果院友渡假中，直接標記為"暫時回家"失敗，不執行檢測
+      // 如果院友渡假中，直接標記為"回家"失敗，不執行檢測
       if (isOnVacation) {
         try {
           const inspectionResult = {
@@ -179,7 +179,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             // 使用 setTimeout 確保狀態穩定後再回調
             setTimeout(() => {
               if (isMountedRef.current) {
-                onResult(false, '暫時回家', inspectionResult);
+                onResult(false, '回家', inspectionResult);
               }
             }, 100);
           } else {
@@ -187,7 +187,7 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
             await dispenseMedication(
               workflowRecord.id,
               displayName || '未知',
-              '暫時回家',
+              '回家',
               undefined,
               workflowRecord.patient_id,
               workflowRecord.scheduled_date,

@@ -731,7 +731,11 @@ const Reports: React.FC = () => {
 
               <div className="text-base leading-loose">
                 <span className="text-gray-700">
-                  3. 暫時回家人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyStats.residenceStats.暫時回家男}</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyStats.residenceStats.暫時回家女}</span> 人)
+                  3. 暫時回家人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.暫時回家男Names.join('\n') || '無')}>
+                    {dailyReportData.residenceStats.暫時回家男}
+                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.暫時回家女Names.join('\n') || '無')}>
+                    {dailyReportData.residenceStats.暫時回家女}
+                  </span> 人)
                 </span>
               </div>
               <div className="border-t border-gray-300"></div>
@@ -739,11 +743,11 @@ const Reports: React.FC = () => {
               <div className="text-base leading-loose">
                 <span className="text-gray-700">
                   4. 總人數 [a+b+c]: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
-                    {dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.住在本站女 + dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女}
+                    {dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.住在本站女 + dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女 + dailyReportData.residenceStats.暫時回家男 + dailyReportData.residenceStats.暫時回家女}
                   </span> 人; 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
-                    {dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.入住醫院男}
+                    {dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.暫時回家男}
                   </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
-                    {dailyReportData.residenceStats.住在本站女 + dailyReportData.residenceStats.入住醫院女}
+                    {dailyReportData.residenceStats.住在本站女 + dailyReportData.residenceStats.入住醫院女 + dailyReportData.residenceStats.暫時回家女}
                   </span> 人)
                 </span>
               </div>

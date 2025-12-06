@@ -1363,7 +1363,7 @@ const MedicationWorkflow: React.FC = () => {
           return;
         }
 
-        // 如果在渡假期間，直接寫入"暫時回家"失敗，不彈出任何對話框
+        // 如果在渡假期間，直接寫入"回家"失敗，不彈出任何對話框
         if (inVacationPeriod) {
           const inspectionResult = {
             canDispense: false,
@@ -1375,7 +1375,7 @@ const MedicationWorkflow: React.FC = () => {
           await dispenseMedication(
             record.id,
             displayName || '未知',
-            '暫時回家',
+            '回家',
             undefined,
             patientIdNum,
             scheduledDate,
@@ -1625,8 +1625,8 @@ const MedicationWorkflow: React.FC = () => {
                 await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
                 return { type: 'hospitalized' };
               } else if (inVacationPeriod) {
-                // 如果服藥時間在渡假期間，自動標記為「暫時回家」失敗原因
-                await dispenseMedication(record.id, displayName || '未知', '暫時回家', undefined, patientIdNum, selectedDate);
+                // 如果服藥時間在渡假期間，自動標記為「回家」失敗原因
+                await dispenseMedication(record.id, displayName || '未知', '回家', undefined, patientIdNum, selectedDate);
                 return { type: 'vacation' };
               } else {
                 // 正常派藥
@@ -1823,7 +1823,7 @@ const MedicationWorkflow: React.FC = () => {
             );
             return { type: 'hospitalized' };
           } else if (inVacationPeriod) {
-            // 如果服藥時間在渡假期間，自動標記為「暫時回家」失敗原因
+            // 如果服藥時間在渡假期間，自動標記為「回家」失敗原因
             const inspectionResult = hasInspectionRules ? {
               canDispense: false,
               isOnVacation: true,
@@ -1834,7 +1834,7 @@ const MedicationWorkflow: React.FC = () => {
             await dispenseMedication(
               record.id,
               displayName || '未知',
-              '暫時回家',
+              '回家',
               undefined,
               patientIdNum,
               selectedDate,
