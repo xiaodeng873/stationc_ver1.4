@@ -82,7 +82,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
 
       return processedEvents;
     } else {
-      // 新建住院事件時，預設添加一個入院事件
+      // 新建缺席事件時，預設添加一個入院事件
 
       return [{
         id: `temp-${Date.now()}`,
@@ -193,7 +193,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
     // 不能刪除入院事件
     const eventToRemove = events.find(e => e.id === id);
     if (eventToRemove?.event_type === 'admission') {
-      alert('不能刪除入院事件');
+      alert('不能刪除起始事件');
       return;
     }
     
@@ -393,7 +393,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
             <Hospital className="h-6 w-6 text-blue-600" />
             <div>
               <h2 className="text-xl font-semibold text-gray-900">
-                {episode ? '編輯住院事件' : '新增住院事件'}
+                {episode ? '編輯缺席事件' : '新增缺席事件'}
               </h2>
               <p className="text-sm text-gray-600">完整記錄從入院到出院的整個過程</p>
             </div>
@@ -746,7 +746,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                   <span>處理中...</span>
                 </div>
               ) : (
-                episode ? '更新住院事件' : '新增住院事件'
+                episode ? '更新缺席事件' : '新增缺席事件'
               )}
             </button>
           </div>

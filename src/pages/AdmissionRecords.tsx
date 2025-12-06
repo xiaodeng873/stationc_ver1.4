@@ -284,7 +284,7 @@ const AdmissionRecords: React.FC = () => {
     const episode = hospitalEpisodes.find(e => e.id === id);
     const patient = patients.find(p => p.院友id === episode?.patient_id);
     
-    if (confirm(`確定要刪除 ${patient?.中文姓名} 從 ${episode?.episode_start_date} 開始的住院事件嗎？`)) {
+    if (confirm(`確定要刪除 ${patient?.中文姓名} 從 ${episode?.episode_start_date} 開始的缺席事件嗎？`)) {
       try {
         setDeletingIds(prev => new Set(prev).add(id));
         await deleteHospitalEpisode(id);
@@ -294,7 +294,7 @@ const AdmissionRecords: React.FC = () => {
           return newSet;
         });
       } catch (error) {
-        alert('刪除住院事件失敗，請重試');
+        alert('刪除缺席事件失敗，請重試');
       } finally {
         setDeletingIds(prev => {
           const newSet = new Set(prev);
@@ -311,7 +311,7 @@ const AdmissionRecords: React.FC = () => {
       return;
     }
 
-    const confirmMessage = `確定要刪除 ${selectedRows.size} 個住院事件嗎？\n\n此操作無法復原。`;
+    const confirmMessage = `確定要刪除 ${selectedRows.size} 個缺席事件嗎？\n\n此操作無法復原。`;
     
     if (!confirm(confirmMessage)) {
       return;
@@ -325,10 +325,10 @@ const AdmissionRecords: React.FC = () => {
         await deleteHospitalEpisode(episodeId);
       }
       setSelectedRows(new Set());
-      alert(`成功刪除 ${deletingArray.length} 個住院事件`);
+      alert(`成功刪除 ${deletingArray.length} 個缺席事件`);
     } catch (error) {
-      console.error('批量刪除住院事件失敗:', error);
-      alert('批量刪除住院事件失敗，請重試');
+      console.error('批量刪除缺席事件失敗:', error);
+      alert('批量刪除缺席事件失敗，請重試');
     } finally {
       setDeletingIds(new Set());
     }
@@ -391,7 +391,7 @@ const AdmissionRecords: React.FC = () => {
 
     const headers = ['床號', '中文姓名', '住院開始日期', '住院結束日期', '住院天數', '狀態', '主要醫院', '主要病房', '主要床號', '出院類型', '出院目的地', '備註', '創建時間'];
     const csvContent = [
-      `"住院事件記錄"`,
+      `"缺席事件記錄"`,
       `"生成日期: ${new Date().toLocaleDateString('zh-TW')}"`,
       `"總記錄數: ${exportData.length}"`,
       '',
@@ -403,7 +403,7 @@ const AdmissionRecords: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `住院事件記錄_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `缺席事件記錄_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -456,7 +456,7 @@ const AdmissionRecords: React.FC = () => {
     <div className="space-y-6">
       <div className="sticky top-0 bg-white z-30 py-4 border-b border-gray-200 shadow-sm">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">住院事件管理</h1>
+          <h1 className="text-2xl font-bold text-gray-900">缺席管理</h1>
           <div className="flex items-center space-x-2">
             {selectedRows.size > 0 && (
               <button
@@ -475,7 +475,7 @@ const AdmissionRecords: React.FC = () => {
               className="btn-primary flex items-center space-x-2"
             >
               <Plus className="h-4 w-4" />
-              <span>新增住院事件</span>
+              <span>新增缺席事件</span>
             </button>
           </div>
         </div>
@@ -490,7 +490,7 @@ const AdmissionRecords: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="搜索院友姓名、床號、住院日期、醫院名稱、病房或備註..."
+                  placeholder="搜索院友姓名、床號、缺席日期、醫院名稱、病房或備註..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="form-input pl-10"
@@ -530,7 +530,7 @@ const AdmissionRecords: React.FC = () => {
                 <h3 className="text-sm font-medium text-gray-900 mb-3">進階篩選</h3>
                 
                 <div className="mb-4">
-                  <label className="form-label">住院開始日期區間</label>
+                  <label className="form-label">缺席開始日期區間</label>
                   <div className="flex items-center space-x-2">
                     <input
                       type="date"
@@ -647,7 +647,7 @@ const AdmissionRecords: React.FC = () => {
             )}
             
             <div className="flex items-center justify-between text-sm text-gray-600">
-              <span>顯示 {startIndex + 1}-{Math.min(endIndex, totalItems)} / {totalItems} 個住院事件 (共 {hospitalEpisodes.length} 個)</span>
+              <span>顯示 {startIndex + 1}-{Math.min(endIndex, totalItems)} / {totalItems} 個缺席事件 (共 {hospitalEpisodes.length} 個)</span>
               {(searchTerm || hasAdvancedFilters()) && (
                 <span className="text-blue-600">已套用篩選條件</span>
               )}
@@ -936,17 +936,17 @@ const AdmissionRecords: React.FC = () => {
           <div className="text-center py-12">
             <Hospital className="h-24 w-24 mx-auto mb-4 text-gray-300" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {searchTerm || hasAdvancedFilters() ? '找不到符合條件的住院事件' : '暫無住院事件'}
+              {searchTerm || hasAdvancedFilters() ? '找不到符合條件的缺席事件' : '暫無缺席事件'}
             </h3>
             <p className="text-gray-600 mb-4">
-              {searchTerm || hasAdvancedFilters() ? '請嘗試調整搜索條件' : '開始記錄院友的住院事件'}
+              {searchTerm || hasAdvancedFilters() ? '請嘗試調整搜索條件' : '開始記錄院友的缺席事件'}
             </p>
             {!searchTerm && !hasAdvancedFilters() ? (
               <button
                 onClick={() => setShowModal(true)}
                 className="btn-primary"
               >
-                新增住院事件
+                新增缺席事件
               </button>
             ) : (
               <button
