@@ -1002,7 +1002,7 @@ const AdmissionRecords: React.FC = () => {
                               const endTypeLabel = getVacationEndTypeLabel(dynamicStatus.vacationEndType);
                               return (
                                 <div className="text-xs text-gray-600">
-                                  結束方式：{endTypeLabel}
+                                  {endTypeLabel}
                                 </div>
                               );
                             }
