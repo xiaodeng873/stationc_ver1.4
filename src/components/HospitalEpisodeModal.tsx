@@ -366,7 +366,10 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
             ...eventData,
             // 只有編輯現有事件時才包含 id
             ...(id && !id.startsWith('temp-') ? { id } : {}),
-            event_time: eventData.event_time || null
+            event_time: eventData.event_time || null,
+            vacation_end_type: eventData.vacation_end_type || null,
+            vacation_destination: eventData.vacation_destination || null,
+            vacation_contact: eventData.vacation_contact || null
           };
         })
       };
