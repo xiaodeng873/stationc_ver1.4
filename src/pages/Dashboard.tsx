@@ -597,8 +597,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleTaskCompleted = async (taskId: string, recordDateTime: Date) => {
+    // 只關閉模態框，不立即清除數據，避免快速連續操作時數據丟失
     setShowHealthRecordModal(false);
-    setSelectedHealthRecordInitialData({});
 
     try {
       const task = patientHealthTasks.find(t => t.id === taskId);
@@ -1478,7 +1478,10 @@ const Dashboard: React.FC = () => {
           onClose={() => {
             console.log('關閉 HealthRecordModal');
             setShowHealthRecordModal(false);
-            setSelectedHealthRecordInitialData({});
+            // 延遲清除數據，確保新任務數據能正確設置
+            setTimeout(() => {
+              setSelectedHealthRecordInitialData({});
+            }, 150);
           }}
           onTaskCompleted={(recordDateTime) => handleTaskCompleted(selectedHealthRecordInitialData.task.id, recordDateTime)}
         />
