@@ -82,18 +82,8 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
 
       return processedEvents;
     } else {
-      // 新建缺席事件時，根據 defaultEventType 添加對應事件（預設為入院）
-      const initialEventType = defaultEventType || 'admission';
-      return [{
-        id: `temp-${Date.now()}`,
-        event_type: initialEventType,
-        event_date: getHongKongDate(),
-        event_time: getHongKongTime(),
-        hospital_name: initialEventType !== 'vacation_start' && initialEventType !== 'vacation_end' ? '' : undefined,
-        hospital_ward: '',
-        hospital_bed_number: '',
-        remarks: ''
-      }];
+      // 新建缺席事件時，不預設任何事件，讓用戶自行選擇添加
+      return [];
     }
   });
 
@@ -174,7 +164,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
   ];
 
   // 添加事件
-  const addEvent = (eventType: 'transfer' | 'discharge' | 'vacation_start' | 'vacation_end') => {
+  const addEvent = (eventType: 'admission' | 'transfer' | 'discharge' | 'vacation_start' | 'vacation_end') => {
     const newEvent: EpisodeEvent = {
       id: `temp-${Date.now()}-${Math.random()}`,
       event_type: eventType,
@@ -262,7 +252,12 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
     if (!formData.patient_id) {
       newErrors.patient_id = '請選擇院友';
     }
-    
+
+    // 檢查是否至少有一個事件
+    if (events.length === 0) {
+      newErrors.no_events = '請至少添加一個事件（入院或渡假開始）';
+    }
+
     // 檢查是否有入院事件 - 只有當存在轉院或出院事件時才需要入院事件
     const admissionEvent = events.find(e => e.event_type === 'admission');
     const hasTransferOrDischarge = events.some(e => e.event_type === 'transfer' || e.event_type === 'discharge');
@@ -501,11 +496,38 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
+                  onClick={() => addEvent('admission')}
+                  className="btn-secondary flex items-center space-x-2 text-sm"
+                  disabled={events.some(e => e.event_type === 'admission')}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>新增入院</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => addEvent('transfer')}
                   className="btn-secondary flex items-center space-x-2 text-sm"
                 >
                   <Plus className="h-4 w-4" />
                   <span>新增轉院</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addEvent('vacation_start')}
+                  className="btn-secondary flex items-center space-x-2 text-sm"
+                  disabled={events.some(e => e.event_type === 'vacation_start')}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>新增渡假開始</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addEvent('vacation_end')}
+                  className="btn-secondary flex items-center space-x-2 text-sm"
+                  disabled={events.some(e => e.event_type === 'vacation_end')}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>新增渡假結束</span>
                 </button>
                 <button
                   type="button"
@@ -515,23 +537,6 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                 >
                   <Plus className="h-4 w-4" />
                   <span>新增出院</span>
-                </button>
-                 <button
-                  type="button"
-                  onClick={() => addEvent('vacation_start')}
-                  className="btn-secondary flex items-center space-x-2 text-sm"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>渡假開始</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addEvent('vacation_end')}
-                  className="btn-secondary flex items-center space-x-2 text-sm"
-                  disabled={events.some(e => e.event_type === 'vacation_end')}
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>渡假結束</span>
                 </button>
               </div>
             </div>
@@ -547,19 +552,14 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${eventInfo.color} ${eventInfo.bgColor} border ${eventInfo.borderColor}`}>
                           {index + 1}. {eventInfo.label}
                         </span>
-                        {event.event_type === 'admission' && (
-                          <span className="text-xs text-gray-500">(必要事件)</span>
-                        )}
                       </div>
-                      {event.event_type !== 'admission' && (
-                        <button
-                          type="button"
-                          onClick={() => removeEvent(event.id)}
-                          className="text-red-600 hover:text-red-700 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeEvent(event.id)}
+                        className="text-red-600 hover:text-red-700 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -756,6 +756,13 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                   </div>
                 );
               })}
+
+              {events.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">請點擊上方按鈕添加第一個事件</p>
+                  <p className="text-xs mt-1">您可以選擇「新增入院」或「新增渡假開始」作為起始事件</p>
+                </div>
+              )}
             </div>
           </div>
 
