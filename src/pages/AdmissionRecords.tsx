@@ -927,7 +927,7 @@ const AdmissionRecords: React.FC = () => {
                   <SortableHeader field="狀態">狀態</SortableHeader>
                   <SortableHeader field="開始日期">缺席日期</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    住院天數
+                    缺席天數
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     入住醫院
