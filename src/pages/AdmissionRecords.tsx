@@ -561,6 +561,38 @@ const AdmissionRecords: React.FC = () => {
     return episode.episode_start_date;
   };
 
+  // 獲取實際缺席結束日期（從事件中查找）
+  const getAbsenceEndDate = (episode: any): string | null => {
+    // 如果有記錄的結束日期，先使用它
+    if (episode.episode_end_date) {
+      return episode.episode_end_date;
+    }
+
+    if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
+      return null;
+    }
+
+    // 按事件日期排序，找到最新的結束事件
+    const sortedEvents = [...episode.episode_events].sort((a, b) => {
+      const dateA = new Date(a.event_date).getTime();
+      const dateB = new Date(b.event_date).getTime();
+      return dateB - dateA;
+    });
+
+    // 優先順序：discharge > vacation_end
+    const discharge = sortedEvents.find((e: any) => e.event_type === 'discharge');
+    if (discharge) {
+      return discharge.event_date;
+    }
+
+    const vacationEnd = sortedEvents.find((e: any) => e.event_type === 'vacation_end');
+    if (vacationEnd) {
+      return vacationEnd.event_date;
+    }
+
+    return null;
+  };
+
   // 智能顯示安排欄位
   const getArrangementDisplay = (episode: any): { primary: string; secondary?: string } => {
     if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
@@ -977,30 +1009,38 @@ const AdmissionRecords: React.FC = () => {
                             <Calendar className="h-4 w-4 mr-1 text-gray-400" />
                             <span>{new Date(getAbsenceStartDate(episode)).toLocaleDateString('zh-TW')}</span>
                           </div>
-                          {episode.episode_end_date && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              至 {new Date(episode.episode_end_date).toLocaleDateString('zh-TW')}
-                            </div>
-                          )}
+                          {(() => {
+                            const endDate = getAbsenceEndDate(episode);
+                            if (endDate) {
+                              return (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  至 {new Date(endDate).toLocaleDateString('zh-TW')}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="text-sm text-gray-900">
                           {(() => {
                             const absenceStartDate = getAbsenceStartDate(episode);
-                            if (episode.status === 'active') {
-                              // 入院中：計算從實際缺席開始日期到今天的天數
+                            const absenceEndDate = getAbsenceEndDate(episode);
+
+                            if (absenceEndDate) {
+                              // 已完成：使用實際缺席開始和結束日期計算
+                              const startDate = new Date(absenceStartDate);
+                              const endDate = new Date(absenceEndDate);
+                              const diffTime = endDate.getTime() - startDate.getTime();
+                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                              return `${diffDays} 天`;
+                            } else if (episode.status === 'active') {
+                              // 進行中：計算從實際缺席開始日期到今天的天數
                               const startDate = new Date(absenceStartDate);
                               const today = new Date();
                               const diffTime = today.getTime() - startDate.getTime();
                               const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                              return `${diffDays} 天`;
-                            } else if (episode.episode_end_date) {
-                              // 已完成：使用實際缺席開始日期重新計算
-                              const startDate = new Date(absenceStartDate);
-                              const endDate = new Date(episode.episode_end_date);
-                              const diffTime = endDate.getTime() - startDate.getTime();
-                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
                               return `${diffDays} 天`;
                             } else {
                               return '計算中';
