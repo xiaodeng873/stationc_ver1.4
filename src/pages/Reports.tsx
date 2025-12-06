@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BarChart3, Download, Calendar, Users, FileText, Activity, Utensils, Stethoscope, AlertCircle } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import MonthlyReportTable from '../components/MonthlyReportTable';
+import PatientListModal from '../components/PatientListModal';
 
 type ReportTab = 'daily' | 'monthly' | 'infection' | 'meal' | 'tube' | 'special' | 'drugSensitivity';
 type TimeFilter = 'today' | 'yesterday' | 'thisMonth' | 'lastMonth';
@@ -49,6 +50,15 @@ const Reports: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ReportTab>('daily');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [stationFilter, setStationFilter] = useState<StationFilter>('all');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalPatients, setModalPatients] = useState<string[]>([]);
+
+  const showPatientList = (title: string, names: string[]) => {
+    setModalTitle(title);
+    setModalPatients(names);
+    setModalOpen(true);
+  };
 
   const getDateRanges = () => {
     const now = new Date();
@@ -88,39 +98,115 @@ const Reports: React.FC = () => {
       暫住: { count: 暫住Patients.length, names: 暫住Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`) },
     };
 
-    // 使用 hospitalEpisodes 來判斷是否入院，而不是依賴 is_hospitalized 欄位
-    const getIsHospitalized = (patientId: number) => {
-      return hospitalEpisodes.some(episode =>
-        episode.patient_id === patientId && episode.status === 'active'
-      );
+    const parseDateOnly = (dateString: string): Date => {
+      const date = new Date(dateString);
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate());
     };
 
-    // 判斷患者是否在渡假中（暫時回家）
-    const getIsOnVacation = (patientId: number) => {
-      return hospitalEpisodes.some(episode => {
-        if (episode.patient_id !== patientId || !episode.episode_events) {
-          return false;
-        }
-
-        // 找出所有渡假開始和結束事件
-        const vacationStartEvents = episode.episode_events.filter((e: any) => e.event_type === 'vacation_start');
-        const vacationEndEvents = episode.episode_events.filter((e: any) => e.event_type === 'vacation_end');
-
-        // 如果有渡假開始但沒有對應的渡假結束，表示仍在渡假中
-        if (vacationStartEvents.length > vacationEndEvents.length) {
-          return true;
-        }
-
-        return false;
-      });
+    const isBeforeOrSameDate = (date1: Date, date2: Date): boolean => {
+      const d1 = new Date(date1.getFullYear(), date1.getMonth(), date1.getDate());
+      const d2 = new Date(date2.getFullYear(), date2.getMonth(), date2.getDate());
+      return d1.getTime() <= d2.getTime();
     };
 
-    const 住在本站男Patients = activePatients.filter(p => p.性別 === '男' && !getIsHospitalized(p.院友id) && !getIsOnVacation(p.院友id));
-    const 住在本站女Patients = activePatients.filter(p => p.性別 === '女' && !getIsHospitalized(p.院友id) && !getIsOnVacation(p.院友id));
-    const 入住醫院男Patients = activePatients.filter(p => p.性別 === '男' && getIsHospitalized(p.院友id));
-    const 入住醫院女Patients = activePatients.filter(p => p.性別 === '女' && getIsHospitalized(p.院友id));
-    const 暫時回家男Patients = activePatients.filter(p => p.性別 === '男' && getIsOnVacation(p.院友id));
-    const 暫時回家女Patients = activePatients.filter(p => p.性別 === '女' && getIsOnVacation(p.院友id));
+    const isAfterDate = (date1: Date, date2: Date): boolean => {
+      const d1 = new Date(date1.getFullYear(), date1.getMonth(), date1.getDate());
+      const d2 = new Date(date2.getFullYear(), date2.getMonth(), date2.getDate());
+      return d1.getTime() > d2.getTime();
+    };
+
+    const getIsHospitalizedAtDate = (patientId: number, targetDate: Date): boolean => {
+      const patientEpisodes = hospitalEpisodes.filter(episode => episode.patient_id === patientId);
+
+      for (const episode of patientEpisodes) {
+        if (!episode.episode_events || !Array.isArray(episode.episode_events)) {
+          continue;
+        }
+
+        const sortedEvents = [...episode.episode_events].sort((a: any, b: any) => {
+          return new Date(a.event_date).getTime() - new Date(b.event_date).getTime();
+        });
+
+        for (let i = 0; i < sortedEvents.length; i++) {
+          const event = sortedEvents[i];
+
+          if (event.event_type === 'admission' || event.event_type === 'transfer') {
+            const admissionDate = parseDateOnly(event.event_date);
+
+            if (isBeforeOrSameDate(admissionDate, targetDate)) {
+              let dischargeEvent = null;
+              for (let j = i + 1; j < sortedEvents.length; j++) {
+                if (sortedEvents[j].event_type === 'discharge') {
+                  dischargeEvent = sortedEvents[j];
+                  break;
+                }
+              }
+
+              if (!dischargeEvent) {
+                return true;
+              }
+
+              const dischargeDate = parseDateOnly(dischargeEvent.event_date);
+              if (isAfterDate(dischargeDate, targetDate)) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+
+      return false;
+    };
+
+    const getIsOnVacationAtDate = (patientId: number, targetDate: Date): boolean => {
+      const patientEpisodes = hospitalEpisodes.filter(episode => episode.patient_id === patientId);
+
+      for (const episode of patientEpisodes) {
+        if (!episode.episode_events || !Array.isArray(episode.episode_events)) {
+          continue;
+        }
+
+        const sortedEvents = [...episode.episode_events].sort((a: any, b: any) => {
+          return new Date(a.event_date).getTime() - new Date(b.event_date).getTime();
+        });
+
+        for (let i = 0; i < sortedEvents.length; i++) {
+          const event = sortedEvents[i];
+
+          if (event.event_type === 'vacation_start') {
+            const vacationStartDate = parseDateOnly(event.event_date);
+
+            if (isBeforeOrSameDate(vacationStartDate, targetDate)) {
+              let vacationEndEvent = null;
+              for (let j = i + 1; j < sortedEvents.length; j++) {
+                if (sortedEvents[j].event_type === 'vacation_end') {
+                  vacationEndEvent = sortedEvents[j];
+                  break;
+                }
+              }
+
+              if (!vacationEndEvent) {
+                return true;
+              }
+
+              const vacationEndDate = parseDateOnly(vacationEndEvent.event_date);
+              if (isAfterDate(vacationEndDate, targetDate)) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+
+      return false;
+    };
+
+    const 住在本站男Patients = activePatients.filter(p => p.性別 === '男' && !getIsHospitalizedAtDate(p.院友id, targetDate) && !getIsOnVacationAtDate(p.院友id, targetDate));
+    const 住在本站女Patients = activePatients.filter(p => p.性別 === '女' && !getIsHospitalizedAtDate(p.院友id, targetDate) && !getIsOnVacationAtDate(p.院友id, targetDate));
+    const 入住醫院男Patients = activePatients.filter(p => p.性別 === '男' && getIsHospitalizedAtDate(p.院友id, targetDate));
+    const 入住醫院女Patients = activePatients.filter(p => p.性別 === '女' && getIsHospitalizedAtDate(p.院友id, targetDate));
+    const 暫時回家男Patients = activePatients.filter(p => p.性別 === '男' && getIsOnVacationAtDate(p.院友id, targetDate));
+    const 暫時回家女Patients = activePatients.filter(p => p.性別 === '女' && getIsOnVacationAtDate(p.院友id, targetDate));
 
     const residenceStats = {
       住在本站男: 住在本站男Patients.length,
@@ -682,22 +768,22 @@ const Reports: React.FC = () => {
               <h3 className="text-base font-bold text-gray-900 mb-3">【入住類型統計】</h3>
               <div className="flex items-center text-base leading-loose">
                 <span className="text-gray-700">
-                  買位: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.admissionTypeStats.買位.names.join('\n') || '無')}>
+                  買位: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('買位院友', dailyReportData.admissionTypeStats.買位.names)}>
                     {dailyReportData.admissionTypeStats.買位.count}
                   </span> 人;
                 </span>
                 <span className="text-gray-700 ml-4">
-                  私位: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.admissionTypeStats.私位.names.join('\n') || '無')}>
+                  私位: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('私位院友', dailyReportData.admissionTypeStats.私位.names)}>
                     {dailyReportData.admissionTypeStats.私位.count}
                   </span> 人;
                 </span>
                 <span className="text-gray-700 ml-4">
-                  院舍劵: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.admissionTypeStats.院舍劵.names.join('\n') || '無')}>
+                  院舍劵: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('院舍劵院友', dailyReportData.admissionTypeStats.院舍劵.names)}>
                     {dailyReportData.admissionTypeStats.院舍劵.count}
                   </span> 人;
                 </span>
                 <span className="text-gray-700 ml-4">
-                  暫住: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.admissionTypeStats.暫住.names.join('\n') || '無')}>
+                  暫住: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('暫住院友', dailyReportData.admissionTypeStats.暫住.names)}>
                     {dailyReportData.admissionTypeStats.暫住.count}
                   </span> 人
                 </span>
@@ -709,9 +795,9 @@ const Reports: React.FC = () => {
             <div className="space-y-3">
               <div className="text-base leading-loose">
                 <span className="text-gray-700">
-                  1. 住在本區人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.住在本站男Names.join('\n') || '無')}>
+                  1. 住在本區人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('住在本站男院友', dailyReportData.residenceStats.住在本站男Names)}>
                     {dailyReportData.residenceStats.住在本站男}
-                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.住在本站女Names.join('\n') || '無')}>
+                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('住在本站女院友', dailyReportData.residenceStats.住在本站女Names)}>
                     {dailyReportData.residenceStats.住在本站女}
                   </span> 人)
                 </span>
@@ -720,9 +806,9 @@ const Reports: React.FC = () => {
 
               <div className="text-base leading-loose">
                 <span className="text-gray-700">
-                  2. 入住醫院人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.入住醫院男Names.join('\n') || '無')}>
+                  2. 入住醫院人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('入住醫院男院友', dailyReportData.residenceStats.入住醫院男Names)}>
                     {dailyReportData.residenceStats.入住醫院男}
-                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.入住醫院女Names.join('\n') || '無')}>
+                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('入住醫院女院友', dailyReportData.residenceStats.入住醫院女Names)}>
                     {dailyReportData.residenceStats.入住醫院女}
                   </span> 人)
                 </span>
@@ -731,9 +817,9 @@ const Reports: React.FC = () => {
 
               <div className="text-base leading-loose">
                 <span className="text-gray-700">
-                  3. 暫時回家人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.暫時回家男Names.join('\n') || '無')}>
+                  3. 暫時回家人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('暫時回家男院友', dailyReportData.residenceStats.暫時回家男Names)}>
                     {dailyReportData.residenceStats.暫時回家男}
-                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.暫時回家女Names.join('\n') || '無')}>
+                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('暫時回家女院友', dailyReportData.residenceStats.暫時回家女Names)}>
                     {dailyReportData.residenceStats.暫時回家女}
                   </span> 人)
                 </span>
@@ -760,7 +846,7 @@ const Reports: React.FC = () => {
               <div className="space-y-3">
                 <div className="text-base leading-loose">
                   <span className="text-gray-700">
-                    1. 過去 24 小時新收院友: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.newAdmissions.names.join('\n') || '無')}>
+                    1. 過去 24 小時新收院友: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('新收院友', dailyReportData.newAdmissions.names)}>
                       {dailyReportData.newAdmissions.count}
                     </span> 人; 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.newAdmissions.男}</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.newAdmissions.女}</span> 人)
                   </span>
@@ -769,7 +855,7 @@ const Reports: React.FC = () => {
 
                 <div className="text-base leading-loose">
                   <span className="text-gray-700">
-                    2. 過去 24 小時死亡人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.death.names.join('\n') || '無')}>
+                    2. 過去 24 小時死亡人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('死亡院友', dailyReportData.death.names)}>
                       {dailyReportData.death.total}
                     </span> 人; 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.death.男}</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.death.女}</span> 人)
                   </span>
@@ -778,7 +864,7 @@ const Reports: React.FC = () => {
 
                 <div className="text-base leading-loose">
                   <span className="text-gray-700">
-                    3. 當日退住人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.discharge.names.join('\n') || '無')}>
+                    3. 當日退住人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('退住院友', dailyReportData.discharge.names)}>
                       {dailyReportData.discharge.total}
                     </span> 人; 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.discharge.男}</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.discharge.女}</span> 人)
                   </span>
@@ -787,7 +873,7 @@ const Reports: React.FC = () => {
 
                 <div className="text-base leading-loose">
                   <span className="text-gray-700">
-                    4. 當月累積死亡: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.monthlyDeaths.names.join('\n') || '無')}>
+                    4. 當月累積死亡: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('當月累積死亡', dailyReportData.monthlyDeaths.names)}>
                       {dailyReportData.monthlyDeaths.count}
                     </span> 人
                   </span>
@@ -802,22 +888,22 @@ const Reports: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-center text-base leading-loose">
                   <span className="text-gray-700">
-                    鼻胃飼: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.鼻胃飼.names.join('\n') || '無')}>
+                    鼻胃飼: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('鼻胃飼院友', dailyReportData.medical.鼻胃飼.names)}>
                       {dailyReportData.medical.鼻胃飼.count}
                     </span> 人;
                   </span>
                   <span className="text-gray-700 ml-4">
-                    尿管: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.導尿管.names.join('\n') || '無')}>
+                    尿管: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('尿管院友', dailyReportData.medical.導尿管.names)}>
                       {dailyReportData.medical.導尿管.count}
                     </span> 人;
                   </span>
                   <span className="text-gray-700 ml-4">
-                    傷口: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.傷口.names.join('\n') || '無')}>
+                    傷口: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('傷口院友', dailyReportData.medical.傷口.names)}>
                       {dailyReportData.medical.傷口.count}
                     </span> 人;
                   </span>
                   <span className="text-gray-700 ml-4">
-                    壓瘡: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.壓瘡.names.join('\n') || '無')}>
+                    壓瘡: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('壓瘡院友', dailyReportData.medical.壓瘡.names)}>
                       {dailyReportData.medical.壓瘡.count}
                     </span> 人
                   </span>
@@ -826,12 +912,12 @@ const Reports: React.FC = () => {
 
                 <div className="flex items-center text-base leading-loose">
                   <span className="text-gray-700">
-                    腹膜/血液透析: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.腹膜血液透析.names.join('\n') || '無')}>
+                    腹膜/血液透析: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('腹膜/血液透析院友', dailyReportData.medical.腹膜血液透析.names)}>
                       {dailyReportData.medical.腹膜血液透析.count}
                     </span> 人;
                   </span>
                   <span className="text-gray-700 ml-4">
-                    吸氧: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.氧氣治療.names.join('\n') || '無')}>
+                    吸氧: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('吸氧院友', dailyReportData.medical.氧氣治療.names)}>
                       {dailyReportData.medical.氧氣治療.count}
                     </span> 人
                   </span>
@@ -840,17 +926,17 @@ const Reports: React.FC = () => {
 
                 <div className="flex items-center text-base leading-loose">
                   <span className="text-gray-700">
-                    造口: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.造口.names.join('\n') || '無')}>
+                    造口: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('造口院友', dailyReportData.medical.造口.names)}>
                       {dailyReportData.medical.造口.count}
                     </span> 人;
                   </span>
                   <span className="text-gray-700 ml-4">
-                    傳染病隔離: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.感染控制.names.join('\n') || '無')}>
+                    傳染病隔離: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('傳染病隔離院友', dailyReportData.medical.感染控制.names)}>
                       {dailyReportData.medical.感染控制.count}
                     </span> 人;
                   </span>
                   <span className="text-gray-700 ml-4">
-                    使用約束物品: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.使用約束物品.names.join('\n') || '無')}>
+                    使用約束物品: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('使用約束物品院友', dailyReportData.medical.使用約束物品.names)}>
                       {dailyReportData.medical.使用約束物品.count}
                     </span> 人
                   </span>
@@ -864,17 +950,17 @@ const Reports: React.FC = () => {
               <h3 className="text-base font-bold text-gray-900 mb-3">【意外事件】</h3>
               <div className="flex items-center text-base leading-loose">
                 <span className="text-gray-700">
-                  藥物: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.incidents.藥物.names.join('\n') || '無')}>
+                  藥物: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('藥物意外院友', dailyReportData.incidents.藥物.names)}>
                     {dailyReportData.incidents.藥物.count}
                   </span> 人 ( <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.incidents.藥物.count}</span> 次);
                 </span>
                 <span className="text-gray-700 ml-4">
-                  跌倒: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.incidents.跌倒.names.join('\n') || '無')}>
+                  跌倒: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('跌倒意外院友', dailyReportData.incidents.跌倒.names)}>
                     {dailyReportData.incidents.跌倒.count}
                   </span> 人 ( <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.incidents.跌倒.count}</span> 次);
                 </span>
                 <span className="text-gray-700 ml-4">
-                  死亡: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.incidents.死亡.names.join('\n') || '無')}>
+                  死亡: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('死亡意外院友', dailyReportData.incidents.死亡.names)}>
                     {dailyReportData.incidents.死亡.count}
                   </span> 人
                 </span>
@@ -888,9 +974,9 @@ const Reports: React.FC = () => {
               <div className="space-y-3">
                 <div className="text-base leading-loose">
                   <span className="text-gray-700">
-                    a) 半護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.半護理男.names.join('\n') || '無')}>
+                    a) 半護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('半護理男院友', dailyReportData.careLevel.半護理男.names)}>
                       {dailyReportData.careLevel.半護理男.count}
-                    </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.半護理女.names.join('\n') || '無')}>
+                    </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('半護理女院友', dailyReportData.careLevel.半護理女.names)}>
                       {dailyReportData.careLevel.半護理女.count}
                     </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
                       {dailyReportData.careLevel.半護理男.count + dailyReportData.careLevel.半護理女.count}
@@ -901,9 +987,9 @@ const Reports: React.FC = () => {
 
                 <div className="text-base leading-loose">
                   <span className="text-gray-700">
-                    b) 全護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.全護理男.names.join('\n') || '無')}>
+                    b) 全護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('全護理男院友', dailyReportData.careLevel.全護理男.names)}>
                       {dailyReportData.careLevel.全護理男.count}
-                    </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.全護理女.names.join('\n') || '無')}>
+                    </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('全護理女院友', dailyReportData.careLevel.全護理女.names)}>
                       {dailyReportData.careLevel.全護理女.count}
                     </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
                       {dailyReportData.careLevel.全護理男.count + dailyReportData.careLevel.全護理女.count}
@@ -914,9 +1000,9 @@ const Reports: React.FC = () => {
 
                 <div className="text-base leading-loose">
                   <span className="text-gray-700">
-                    c) 療養級: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.療養級男.names.join('\n') || '無')}>
+                    c) 療養級: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('療養級男院友', dailyReportData.careLevel.療養級男.names)}>
                       {dailyReportData.careLevel.療養級男.count}
-                    </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.療養級女.names.join('\n') || '無')}>
+                    </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => showPatientList('療養級女院友', dailyReportData.careLevel.療養級女.names)}>
                       {dailyReportData.careLevel.療養級女.count}
                     </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
                       {dailyReportData.careLevel.療養級男.count + dailyReportData.careLevel.療養級女.count}
@@ -927,6 +1013,13 @@ const Reports: React.FC = () => {
             </div>
           </div>
         </div>
+
+        <PatientListModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          title={modalTitle}
+          patientNames={modalPatients}
+        />
       </div>
     );
   };
