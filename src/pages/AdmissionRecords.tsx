@@ -491,7 +491,7 @@ const AdmissionRecords: React.FC = () => {
     if (hasVacationStart && hasVacationEnd) {
       return {
         status: 'completed',
-        label: '已結束',
+        label: '渡假結束',
         color: 'bg-green-100 text-green-800 border-green-200'
       };
     }
