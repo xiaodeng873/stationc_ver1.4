@@ -858,57 +858,42 @@ const Reports: React.FC = () => {
             <div>
               <h3 className="text-base font-bold text-gray-900 mb-3">【護理等級】</h3>
               <div className="space-y-3">
-                <div>
-                  <div className="text-base leading-loose">
-                    <span className="text-gray-700">
-                      a) 全護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.全護理男.names.join('\n') || '無')}>
-                        {dailyReportData.careLevel.全護理男.count}
-                      </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.全護理女.names.join('\n') || '無')}>
-                        {dailyReportData.careLevel.全護理女.count}
-                      </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
-                        {dailyReportData.careLevel.全護理男.count + dailyReportData.careLevel.全護理女.count}
-                      </span> 人
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1 ml-4">
-                    # 全護理包含: 具有認知障礙及身體虛弱能力, 不能負責床舍及肢, 只需監督護理及照顧走失
-                  </div>
+                <div className="text-base leading-loose">
+                  <span className="text-gray-700">
+                    a) 半護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.半護理男.names.join('\n') || '無')}>
+                      {dailyReportData.careLevel.半護理男.count}
+                    </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.半護理女.names.join('\n') || '無')}>
+                      {dailyReportData.careLevel.半護理女.count}
+                    </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
+                      {dailyReportData.careLevel.半護理男.count + dailyReportData.careLevel.半護理女.count}
+                    </span> 人
+                  </span>
                 </div>
                 <div className="border-t border-gray-300"></div>
 
-                <div>
-                  <div className="text-base leading-loose">
-                    <span className="text-gray-700">
-                      b) 半護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.半護理男.names.join('\n') || '無')}>
-                        {dailyReportData.careLevel.半護理男.count}
-                      </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.半護理女.names.join('\n') || '無')}>
-                        {dailyReportData.careLevel.半護理女.count}
-                      </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
-                        {dailyReportData.careLevel.半護理男.count + dailyReportData.careLevel.半護理女.count}
-                      </span> 人
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1 ml-4">
-                    # 半護理包含: 依制作訂的及性動工具(如認知/助行架等)
-                  </div>
+                <div className="text-base leading-loose">
+                  <span className="text-gray-700">
+                    b) 全護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.全護理男.names.join('\n') || '無')}>
+                      {dailyReportData.careLevel.全護理男.count}
+                    </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.全護理女.names.join('\n') || '無')}>
+                      {dailyReportData.careLevel.全護理女.count}
+                    </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
+                      {dailyReportData.careLevel.全護理男.count + dailyReportData.careLevel.全護理女.count}
+                    </span> 人
+                  </span>
                 </div>
                 <div className="border-t border-gray-300"></div>
 
-                <div>
-                  <div className="text-base leading-loose">
-                    <span className="text-gray-700">
-                      c) 療養級: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.療養級男.names.join('\n') || '無')}>
-                        {dailyReportData.careLevel.療養級男.count}
-                      </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.療養級女.names.join('\n') || '無')}>
-                        {dailyReportData.careLevel.療養級女.count}
-                      </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
-                        {dailyReportData.careLevel.療養級男.count + dailyReportData.careLevel.療養級女.count}
-                      </span> 人
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1 ml-4">
-                    # 療養級包含: 所有患者按天
-                  </div>
+                <div className="text-base leading-loose">
+                  <span className="text-gray-700">
+                    c) 療養級: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.療養級男.names.join('\n') || '無')}>
+                      {dailyReportData.careLevel.療養級男.count}
+                    </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.療養級女.names.join('\n') || '無')}>
+                      {dailyReportData.careLevel.療養級女.count}
+                    </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
+                      {dailyReportData.careLevel.療養級男.count + dailyReportData.careLevel.療養級女.count}
+                    </span> 人
+                  </span>
                 </div>
               </div>
             </div>
