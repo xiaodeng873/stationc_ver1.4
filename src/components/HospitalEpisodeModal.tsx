@@ -516,7 +516,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                     </div>
                     {totalDays && (
                       <div className="md:col-span-2">
-                        <span className="text-blue-700">住院天數：</span>
+                        <span className="text-blue-700">缺席天數：</span>
                         <span className="font-medium text-blue-900">{totalDays} 天</span>
                       </div>
                     )}
