@@ -61,11 +61,11 @@ const MonthlyReportTable: React.FC<MonthlyReportTableProps> = ({ data }) => {
     { key: '腹膜血液透析', label: '腹膜/血液透析' },
     { key: '造口', label: '造口' },
     { key: '氧氣治療', label: '氧氣治療' },
-    { key: '皮下注射', label: '皮下注射', isSpecial: true },
-    { key: '呼吸器', label: '呼吸器', isSpecial: true },
-    { key: '善終', label: '善終', isSpecial: true },
-    { key: '化療', label: '化療', isSpecial: true },
-    { key: '放射治療', label: '放射治療', isSpecial: true },
+    { key: '皮下注射', label: '皮下注射' },
+    { key: '呼吸器', label: '呼吸器' },
+    { key: '善終', label: '善終' },
+    { key: '化療', label: '化療' },
+    { key: '放射治療', label: '放射治療' },
     { key: '服藥9種或以上', label: '服藥9種或以上' },
     { key: '入住醫院', label: '入住醫院' },
     { key: '認知障礙', label: '認知障礙' },
@@ -89,19 +89,19 @@ const MonthlyReportTable: React.FC<MonthlyReportTableProps> = ({ data }) => {
   return (
     <div className="overflow-auto max-h-[800px] border border-gray-300 rounded-lg shadow-lg">
       <table className="min-w-full border-collapse text-sm">
-        <thead>
-          <tr className="bg-blue-100 sticky top-0 z-10">
-            <th className="sticky left-0 z-20 bg-blue-100 border border-gray-300 px-3 py-2 font-semibold text-gray-700 min-w-[80px]">
+        <thead className="sticky top-0 z-30">
+          <tr className="bg-blue-100">
+            <th className="sticky left-0 z-40 bg-blue-100 border border-gray-300 px-3 py-2 font-semibold text-gray-700 min-w-[80px]">
               床號
             </th>
-            <th className="sticky left-[80px] z-20 bg-blue-100 border border-gray-300 px-3 py-2 font-semibold text-gray-700 min-w-[100px]">
+            <th className="sticky left-[80px] z-40 bg-blue-100 border border-gray-300 px-3 py-2 font-semibold text-gray-700 min-w-[100px]">
               姓名
             </th>
             {columns.map((col) => (
               <th
                 key={col.key}
                 className={`border border-gray-300 px-3 py-2 font-semibold text-gray-700 min-w-[80px] ${
-                  col.isSpecial ? 'bg-yellow-100' : ''
+                  (col as any).isSpecial ? 'bg-yellow-100' : ''
                 }`}
               >
                 {col.label}
@@ -110,32 +110,39 @@ const MonthlyReportTable: React.FC<MonthlyReportTableProps> = ({ data }) => {
           </tr>
         </thead>
         <tbody>
-          {data.map((row, index) => (
-            <tr
-              key={row.patientId}
-              className={index % 2 === 0 ? 'bg-white hover:bg-blue-50' : 'bg-gray-50 hover:bg-blue-50'}
-            >
-              <td className="sticky left-0 z-10 bg-inherit border border-gray-300 px-3 py-2 font-medium text-gray-900">
-                {row.bedNumber}
-              </td>
-              <td className="sticky left-[80px] z-10 bg-inherit border border-gray-300 px-3 py-2 text-gray-900">
-                {row.name}
-              </td>
-              {columns.map((col) => (
-                <td
-                  key={col.key}
-                  className={`border border-gray-300 px-3 py-2 text-center ${
-                    col.isSpecial ? 'bg-yellow-50' : ''
-                  }`}
-                >
-                  {row[col.key as keyof MonthlyReportRow] || 0}
+          {data.map((row, index) => {
+            const rowBgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+            const hoverBgClass = 'hover:bg-blue-50';
+
+            return (
+              <tr
+                key={row.patientId}
+                className={`${rowBgClass} ${hoverBgClass}`}
+              >
+                <td className={`sticky left-0 z-20 border border-gray-300 px-3 py-2 font-medium text-gray-900 ${rowBgClass}`}>
+                  {row.bedNumber}
                 </td>
-              ))}
-            </tr>
-          ))}
-          <tr className="bg-gray-200 font-bold sticky bottom-0 z-10">
+                <td className={`sticky left-[80px] z-20 border border-gray-300 px-3 py-2 text-gray-900 ${rowBgClass}`}>
+                  {row.name}
+                </td>
+                {columns.map((col) => (
+                  <td
+                    key={col.key}
+                    className={`border border-gray-300 px-3 py-2 text-center ${
+                      (col as any).isSpecial ? 'bg-yellow-50' : ''
+                    }`}
+                  >
+                    {row[col.key as keyof MonthlyReportRow] || 0}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="bg-gray-200 font-bold sticky bottom-0 z-30">
             <td
-              className="sticky left-0 z-20 bg-gray-200 border border-gray-300 px-3 py-2 text-gray-900"
+              className="sticky left-0 z-40 bg-gray-200 border border-gray-300 px-3 py-2 text-gray-900"
               colSpan={2}
             >
               總計
@@ -144,14 +151,14 @@ const MonthlyReportTable: React.FC<MonthlyReportTableProps> = ({ data }) => {
               <td
                 key={col.key}
                 className={`border border-gray-300 px-3 py-2 text-center text-gray-900 ${
-                  col.isSpecial ? 'bg-yellow-100' : ''
+                  (col as any).isSpecial ? 'bg-yellow-200' : ''
                 }`}
               >
                 {calculateTotal(col.key)}
               </td>
             ))}
           </tr>
-        </tbody>
+        </tfoot>
       </table>
     </div>
   );
