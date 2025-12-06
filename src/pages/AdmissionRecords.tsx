@@ -527,6 +527,98 @@ const AdmissionRecords: React.FC = () => {
     }
   };
 
+  // 獲取實際缺席開始日期（從事件中查找）
+  const getAbsenceStartDate = (episode: any): string => {
+    if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
+      // 沒有事件時，使用記錄創建日期作為後備
+      return episode.episode_start_date;
+    }
+
+    // 按事件日期排序，找到最早的事件
+    const sortedEvents = [...episode.episode_events].sort((a, b) => {
+      const dateA = new Date(a.event_date).getTime();
+      const dateB = new Date(b.event_date).getTime();
+      return dateA - dateB;
+    });
+
+    // 優先順序：vacation_start > admission > transfer
+    const vacationStart = sortedEvents.find((e: any) => e.event_type === 'vacation_start');
+    if (vacationStart) {
+      return vacationStart.event_date;
+    }
+
+    const admission = sortedEvents.find((e: any) => e.event_type === 'admission');
+    if (admission) {
+      return admission.event_date;
+    }
+
+    const transfer = sortedEvents.find((e: any) => e.event_type === 'transfer');
+    if (transfer) {
+      return transfer.event_date;
+    }
+
+    // 如果都沒有，使用記錄創建日期
+    return episode.episode_start_date;
+  };
+
+  // 智能顯示安排欄位
+  const getArrangementDisplay = (episode: any): { primary: string; secondary?: string } => {
+    if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
+      // 沒有事件時，檢查是否有出院安排
+      if (episode.discharge_type && episode.discharge_type.trim()) {
+        return { primary: getDischargeTypeLabel(episode.discharge_type) };
+      }
+      return { primary: '未安排' };
+    }
+
+    // 檢查事件類型
+    const hasVacation = episode.episode_events.some((e: any) =>
+      e.event_type === 'vacation_start' || e.event_type === 'vacation_end'
+    );
+    const hasHospital = episode.episode_events.some((e: any) =>
+      e.event_type === 'admission' || e.event_type === 'transfer' || e.event_type === 'discharge'
+    );
+
+    // 情況 A: 只有渡假事件
+    if (hasVacation && !hasHospital) {
+      const dynamicStatus = calculateDynamicStatus(episode);
+      if (dynamicStatus.vacationEndType) {
+        return { primary: getVacationEndTypeLabel(dynamicStatus.vacationEndType) };
+      }
+      return { primary: '未安排' };
+    }
+
+    // 情況 B: 只有住院事件
+    if (hasHospital && !hasVacation) {
+      if (episode.discharge_type && episode.discharge_type.trim()) {
+        return { primary: getDischargeTypeLabel(episode.discharge_type) };
+      }
+      return { primary: '未安排' };
+    }
+
+    // 情況 C: 同時有渡假和住院事件
+    if (hasVacation && hasHospital) {
+      const dynamicStatus = calculateDynamicStatus(episode);
+      const hasDischargeType = episode.discharge_type && episode.discharge_type.trim();
+      const hasVacationEndType = dynamicStatus.vacationEndType;
+
+      if (hasDischargeType && hasVacationEndType) {
+        return {
+          primary: getDischargeTypeLabel(episode.discharge_type),
+          secondary: getVacationEndTypeLabel(dynamicStatus.vacationEndType)
+        };
+      } else if (hasDischargeType) {
+        return { primary: getDischargeTypeLabel(episode.discharge_type) };
+      } else if (hasVacationEndType) {
+        return { primary: getVacationEndTypeLabel(dynamicStatus.vacationEndType) };
+      }
+      return { primary: '未安排' };
+    }
+
+    // 情況 D: 沒有任何事件（理論上不會到這裡，但作為後備）
+    return { primary: '未安排' };
+  };
+
   const SortableHeader: React.FC<{ field: SortField; children: React.ReactNode }> = ({ field, children }) => (
     <th 
       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
@@ -883,7 +975,7 @@ const AdmissionRecords: React.FC = () => {
                         <div>
                           <div className="flex items-center">
                             <Calendar className="h-4 w-4 mr-1 text-gray-400" />
-                            <span>{new Date(episode.episode_start_date).toLocaleDateString('zh-TW')}</span>
+                            <span>{new Date(getAbsenceStartDate(episode)).toLocaleDateString('zh-TW')}</span>
                           </div>
                           {episode.episode_end_date && (
                             <div className="text-xs text-gray-500 mt-1">
@@ -895,24 +987,21 @@ const AdmissionRecords: React.FC = () => {
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="text-sm text-gray-900">
                           {(() => {
+                            const absenceStartDate = getAbsenceStartDate(episode);
                             if (episode.status === 'active') {
-                              // 入院中：計算從開始日期到今天的天數
-                              const startDate = new Date(episode.episode_start_date);
+                              // 入院中：計算從實際缺席開始日期到今天的天數
+                              const startDate = new Date(absenceStartDate);
                               const today = new Date();
                               const diffTime = today.getTime() - startDate.getTime();
                               const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                               return `${diffDays} 天`;
                             } else if (episode.episode_end_date) {
-                              // 已完成：使用資料庫計算的天數或重新計算
-                              if (episode.total_days) {
-                                return `${episode.total_days} 天`;
-                              } else {
-                                const startDate = new Date(episode.episode_start_date);
-                                const endDate = new Date(episode.episode_end_date);
-                                const diffTime = endDate.getTime() - startDate.getTime();
-                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                return `${diffDays} 天`;
-                              }
+                              // 已完成：使用實際缺席開始日期重新計算
+                              const startDate = new Date(absenceStartDate);
+                              const endDate = new Date(episode.episode_end_date);
+                              const diffTime = endDate.getTime() - startDate.getTime();
+                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                              return `${diffDays} 天`;
                             } else {
                               return '計算中';
                             }
@@ -993,20 +1082,18 @@ const AdmissionRecords: React.FC = () => {
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-900">
                         <div className="space-y-1">
-                          <div>
-                            {episode.discharge_type && episode.discharge_type.trim() ? getDischargeTypeLabel(episode.discharge_type) : '未安排'}
-                          </div>
                           {(() => {
-                            const dynamicStatus = calculateDynamicStatus(episode);
-                            if (dynamicStatus.vacationEndType) {
-                              const endTypeLabel = getVacationEndTypeLabel(dynamicStatus.vacationEndType);
-                              return (
-                                <div className="text-xs text-gray-600">
-                                  {endTypeLabel}
-                                </div>
-                              );
-                            }
-                            return null;
+                            const arrangement = getArrangementDisplay(episode);
+                            return (
+                              <>
+                                <div>{arrangement.primary}</div>
+                                {arrangement.secondary && (
+                                  <div className="text-xs text-gray-600">
+                                    {arrangement.secondary}
+                                  </div>
+                                )}
+                              </>
+                            );
                           })()}
                         </div>
                       </td>
