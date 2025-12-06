@@ -527,7 +527,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                   disabled={events.some(e => e.event_type === 'vacation_start')}
                 >
                   <Plus className="h-4 w-4" />
-                  <span>新增渡假開始</span>
+                  <span>渡假開始</span>
                 </button>
                 <button
                   type="button"
@@ -536,7 +536,7 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                   disabled={events.some(e => e.event_type === 'vacation_end')}
                 >
                   <Plus className="h-4 w-4" />
-                  <span>新增渡假結束</span>
+                  <span>渡假結束</span>
                 </button>
               </div>
             </div>
