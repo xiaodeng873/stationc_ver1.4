@@ -11,8 +11,6 @@ interface EpisodeEvent {
   hospital_name?: string;
   hospital_ward?: string;
   hospital_bed_number?: string;
-  vacation_destination?: string;
-  vacation_contact?: string;
   remarks?: string;
 }
 
@@ -20,7 +18,7 @@ interface HospitalEpisodeModalProps {
   episode?: any;
   onClose: () => void;
   defaultPatientId?: string;
-  defaultEventType?: 'admission' | 'transfer' | 'discharge';
+  defaultEventType?: 'admission' | 'transfer' | 'discharge' | 'vacation_start' | 'vacation_end';
 }
 
 const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
@@ -78,22 +76,20 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
             hospital_name: event.hospital_name || '',
             hospital_ward: event.hospital_ward || '',
             hospital_bed_number: event.hospital_bed_number || '',
-            vacation_destination: event.vacation_destination || '',
-            vacation_contact: event.vacation_contact || '',
             remarks: event.remarks || ''
           };
         });
 
       return processedEvents;
     } else {
-      // 新建缺席事件時，預設添加一個入院事件
-
+      // 新建缺席事件時，根據 defaultEventType 添加對應事件（預設為入院）
+      const initialEventType = defaultEventType || 'admission';
       return [{
         id: `temp-${Date.now()}`,
-        event_type: 'admission',
+        event_type: initialEventType,
         event_date: getHongKongDate(),
         event_time: getHongKongTime(),
-        hospital_name: '',
+        hospital_name: initialEventType !== 'vacation_start' && initialEventType !== 'vacation_end' ? '' : undefined,
         hospital_ward: '',
         hospital_bed_number: '',
         remarks: ''
@@ -132,8 +128,6 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
             hospital_name: event.hospital_name || '',
             hospital_ward: event.hospital_ward || '',
             hospital_bed_number: event.hospital_bed_number || '',
-            vacation_destination: event.vacation_destination || '',
-            vacation_contact: event.vacation_contact || '',
             remarks: event.remarks || ''
           }));
 
@@ -189,8 +183,6 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
       hospital_name: eventType.startsWith('vacation') ? undefined : '',
       hospital_ward: '',
       hospital_bed_number: '',
-      vacation_destination: eventType.startsWith('vacation') ? '' : undefined,
-      vacation_contact: eventType.startsWith('vacation') ? '' : undefined,
       remarks: ''
     };
     setEvents([...events, newEvent]);
@@ -198,13 +190,17 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
 
   // 刪除事件
   const removeEvent = (id: string) => {
-    // 不能刪除入院事件
     const eventToRemove = events.find(e => e.id === id);
+
+    // 如果要刪除入院事件，檢查是否有轉院或出院事件依賴它
     if (eventToRemove?.event_type === 'admission') {
-      alert('不能刪除起始事件');
-      return;
+      const hasTransferOrDischarge = events.some(e => e.event_type === 'transfer' || e.event_type === 'discharge');
+      if (hasTransferOrDischarge) {
+        alert('有轉院或出院事件時，不能刪除入院事件');
+        return;
+      }
     }
-    
+
     // 如果刪除的是出院事件，重置出院相關資料
     if (eventToRemove?.event_type === 'discharge') {
       setFormData(prev => ({
@@ -267,10 +263,12 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
       newErrors.patient_id = '請選擇院友';
     }
     
-    // 檢查是否有入院事件
+    // 檢查是否有入院事件 - 只有當存在轉院或出院事件時才需要入院事件
     const admissionEvent = events.find(e => e.event_type === 'admission');
-    if (!admissionEvent) {
-      newErrors.admission_event = '必須有入院事件';
+    const hasTransferOrDischarge = events.some(e => e.event_type === 'transfer' || e.event_type === 'discharge');
+
+    if (hasTransferOrDischarge && !admissionEvent) {
+      newErrors.admission_event = '有轉院或出院事件時，必須先有入院事件';
     }
 
     // 驗證事件
@@ -282,16 +280,6 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
       // 驗證醫院名稱（只在非渡假事件時需要）
       if (!event.event_type.startsWith('vacation') && !event.hospital_name) {
         newErrors[`hospital_name_${index}`] = '請輸入醫院名稱';
-      }
-
-      // 驗證渡假事件的必填欄位
-      if (event.event_type.startsWith('vacation')) {
-        if (!event.vacation_destination) {
-          newErrors[`vacation_destination_${index}`] = '請輸入渡假目的地';
-        }
-        if (!event.vacation_contact) {
-          newErrors[`vacation_contact_${index}`] = '請輸入聯絡方式';
-        }
       }
     });
 
@@ -665,53 +653,6 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
                                 placeholder="例：A01"
                               />
                             </div>
-                          </div>
-                        </>
-                      )}
-
-                      {/* 渡假相關欄位 - 只在渡假事件時顯示 */}
-                      {event.event_type.startsWith('vacation') && (
-                        <>
-                          {/* 渡假目的地 */}
-                          <div className="md:col-span-2">
-                            <label className="form-label">
-                              渡假目的地 <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative">
-                              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                              <input
-                                type="text"
-                                value={event.vacation_destination || ''}
-                                onChange={(e) => updateEvent(event.id, 'vacation_destination', e.target.value)}
-                                className={`form-input pl-10 ${errors[`vacation_destination_${index}`] ? 'border-red-300' : ''}`}
-                                placeholder="例：家中、親友家、度假村等"
-                                required
-                              />
-                            </div>
-                            {errors[`vacation_destination_${index}`] && (
-                              <p className="text-red-500 text-sm mt-1">{errors[`vacation_destination_${index}`]}</p>
-                            )}
-                          </div>
-
-                          {/* 聯絡方式 */}
-                          <div>
-                            <label className="form-label">
-                              聯絡方式 <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative">
-                              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                              <input
-                                type="text"
-                                value={event.vacation_contact || ''}
-                                onChange={(e) => updateEvent(event.id, 'vacation_contact', e.target.value)}
-                                className={`form-input pl-10 ${errors[`vacation_contact_${index}`] ? 'border-red-300' : ''}`}
-                                placeholder="例：手機號碼、地址等"
-                                required
-                              />
-                            </div>
-                            {errors[`vacation_contact_${index}`] && (
-                              <p className="text-red-500 text-sm mt-1">{errors[`vacation_contact_${index}`]}</p>
-                            )}
                           </div>
                         </>
                       )}
