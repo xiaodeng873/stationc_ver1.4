@@ -88,28 +88,8 @@ const AdmissionRecords: React.FC = () => {
     }
     // 使用動態計算的狀態進行篩選
     if (advancedFilters.狀態) {
-      // 內聯計算狀態
-      let dynamicStatus = 'active';
-      if (episode.episode_events && Array.isArray(episode.episode_events) && episode.episode_events.length > 0) {
-        const hasVacationStart = episode.episode_events.some((e: any) => e.event_type === 'vacation_start');
-        const hasVacationEnd = episode.episode_events.some((e: any) => e.event_type === 'vacation_end');
-        const hasAdmissionOrTransfer = episode.episode_events.some((e: any) =>
-          e.event_type === 'admission' || e.event_type === 'transfer'
-        );
-        const hasDischarge = episode.episode_events.some((e: any) => e.event_type === 'discharge');
-
-        if (hasVacationStart && !hasVacationEnd) {
-          dynamicStatus = 'vacation';
-        } else if (hasAdmissionOrTransfer && !hasDischarge) {
-          dynamicStatus = 'hospitalized';
-        } else if (hasDischarge || (hasVacationStart && hasVacationEnd)) {
-          dynamicStatus = 'completed';
-        } else {
-          dynamicStatus = episode.status;
-        }
-      } else {
-        dynamicStatus = episode.status;
-      }
+      // 使用統一的狀態計算函數
+      const dynamicStatus = calculateDynamicStatus(episode).status;
 
       if (dynamicStatus !== advancedFilters.狀態) {
         return false;
@@ -436,7 +416,7 @@ const AdmissionRecords: React.FC = () => {
   };
 
   // 計算動態狀態（根據事件時間軸）
-  const calculateDynamicStatus = (episode: any): { status: string; label: string; color: string } => {
+  const calculateDynamicStatus = (episode: any): { status: string; label: string; color: string; vacationEndType?: string } => {
     if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
       // 沒有事件時，使用原始狀態
       return {
@@ -455,8 +435,9 @@ const AdmissionRecords: React.FC = () => {
 
     // 檢查是否有未結束的渡假
     const hasVacationStart = episode.episode_events.some((e: any) => e.event_type === 'vacation_start');
-    const hasVacationEnd = episode.episode_events.some((e: any) => e.event_type === 'vacation_end');
-    if (hasVacationStart && !hasVacationEnd) {
+    const vacationEndEvent = episode.episode_events.find((e: any) => e.event_type === 'vacation_end');
+
+    if (hasVacationStart && !vacationEndEvent) {
       return {
         status: 'vacation',
         label: '渡假中',
@@ -487,8 +468,21 @@ const AdmissionRecords: React.FC = () => {
       };
     }
 
-    // 如果渡假已結束
-    if (hasVacationStart && hasVacationEnd) {
+    // 如果渡假已結束，根據 vacation_end_type 顯示狀態
+    if (hasVacationStart && vacationEndEvent) {
+      // 優先使用 episode.vacation_end_type，否則使用事件中的
+      const vacationEndType = episode.vacation_end_type || vacationEndEvent.vacation_end_type;
+
+      if (vacationEndType) {
+        const endTypeLabel = getVacationEndTypeLabel(vacationEndType);
+        return {
+          status: 'vacation_ended',
+          label: `渡假結束 (${endTypeLabel})`,
+          color: 'bg-green-100 text-green-800 border-green-200',
+          vacationEndType
+        };
+      }
+
       return {
         status: 'completed',
         label: '渡假結束',
@@ -528,6 +522,16 @@ const AdmissionRecords: React.FC = () => {
       case 'home': return '回家';
       case 'transfer_out': return '轉至其他機構';
       case 'deceased': return '院內離世';
+      default: return type;
+    }
+  };
+
+  const getVacationEndTypeLabel = (type: string) => {
+    switch (type) {
+      case 'return_to_facility': return '返回護老院';
+      case 'home': return '回到原居住地';
+      case 'transfer_out': return '轉至其他機構';
+      case 'deceased': return '渡假期間離世';
       default: return type;
     }
   };
@@ -695,7 +699,8 @@ const AdmissionRecords: React.FC = () => {
                       <option value="">所有狀態</option>
                       <option value="hospitalized">住院中</option>
                       <option value="vacation">渡假中</option>
-                      <option value="completed">已完成</option>
+                      <option value="vacation_ended">渡假結束</option>
+                      <option value="completed">已出院</option>
                     </select>
                   </div>
                   
