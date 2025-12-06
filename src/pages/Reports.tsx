@@ -648,7 +648,7 @@ const Reports: React.FC = () => {
         <div className="bg-white border-4 border-gray-900 shadow-lg print:shadow-none print:border-2">
           {/* 標題 */}
           <div className="border-b-4 border-gray-900 bg-gray-50 p-6 text-center">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">每日報表</h2>
+      
             <p className="text-lg text-gray-700">日期: {displayDate}</p>
           </div>
 
