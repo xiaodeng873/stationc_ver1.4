@@ -86,8 +86,34 @@ const AdmissionRecords: React.FC = () => {
     if (advancedFilters.主要病房 && !episode.primary_ward?.toLowerCase().includes(advancedFilters.主要病房.toLowerCase())) {
       return false;
     }
-    if (advancedFilters.狀態 && episode.status !== advancedFilters.狀態) {
-      return false;
+    // 使用動態計算的狀態進行篩選
+    if (advancedFilters.狀態) {
+      // 內聯計算狀態
+      let dynamicStatus = 'active';
+      if (episode.episode_events && Array.isArray(episode.episode_events) && episode.episode_events.length > 0) {
+        const hasVacationStart = episode.episode_events.some((e: any) => e.event_type === 'vacation_start');
+        const hasVacationEnd = episode.episode_events.some((e: any) => e.event_type === 'vacation_end');
+        const hasAdmissionOrTransfer = episode.episode_events.some((e: any) =>
+          e.event_type === 'admission' || e.event_type === 'transfer'
+        );
+        const hasDischarge = episode.episode_events.some((e: any) => e.event_type === 'discharge');
+
+        if (hasVacationStart && !hasVacationEnd) {
+          dynamicStatus = 'vacation';
+        } else if (hasAdmissionOrTransfer && !hasDischarge) {
+          dynamicStatus = 'hospitalized';
+        } else if (hasDischarge || (hasVacationStart && hasVacationEnd)) {
+          dynamicStatus = 'completed';
+        } else {
+          dynamicStatus = episode.status;
+        }
+      } else {
+        dynamicStatus = episode.status;
+      }
+
+      if (dynamicStatus !== advancedFilters.狀態) {
+        return false;
+      }
     }
     if (advancedFilters.出院安排 && episode.discharge_type !== advancedFilters.出院安排) {
       return false;
@@ -372,13 +398,14 @@ const AdmissionRecords: React.FC = () => {
 
     const exportData = selectedEpisodes.map(episode => {
       const patient = patients.find(p => p.院友id === episode.patient_id);
+      const dynamicStatus = calculateDynamicStatus(episode);
       return {
         床號: patient?.床號 || '',
         中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
         住院開始日期: new Date(episode.episode_start_date).toLocaleDateString('zh-TW'),
-        住院結束日期: episode.episode_end_date ? new Date(episode.episode_end_date).toLocaleDateString('zh-TW') : '入院中',
+        住院結束日期: episode.episode_end_date ? new Date(episode.episode_end_date).toLocaleDateString('zh-TW') : '進行中',
         住院天數: episode.total_days || '',
-        狀態: getStatusLabel(episode.status),
+        狀態: dynamicStatus.label,
         主要醫院: episode.primary_hospital || '',
         主要病房: episode.primary_ward || '',
         主要床號: episode.primary_bed_number || '',
@@ -406,6 +433,75 @@ const AdmissionRecords: React.FC = () => {
     a.download = `缺席事件記錄_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // 計算動態狀態（根據事件時間軸）
+  const calculateDynamicStatus = (episode: any): { status: string; label: string; color: string } => {
+    if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
+      // 沒有事件時，使用原始狀態
+      return {
+        status: episode.status,
+        label: getStatusLabel(episode.status),
+        color: getStatusColor(episode.status)
+      };
+    }
+
+    // 按事件日期和時間排序，獲取最新事件
+    const sortedEvents = [...episode.episode_events].sort((a, b) => {
+      const dateA = new Date(`${a.event_date} ${a.event_time || '00:00'}`).getTime();
+      const dateB = new Date(`${b.event_date} ${b.event_time || '00:00'}`).getTime();
+      return dateB - dateA;
+    });
+
+    // 檢查是否有未結束的渡假
+    const hasVacationStart = episode.episode_events.some((e: any) => e.event_type === 'vacation_start');
+    const hasVacationEnd = episode.episode_events.some((e: any) => e.event_type === 'vacation_end');
+    if (hasVacationStart && !hasVacationEnd) {
+      return {
+        status: 'vacation',
+        label: '渡假中',
+        color: 'bg-purple-100 text-purple-800 border-purple-200'
+      };
+    }
+
+    // 檢查是否有未結束的住院（入院或轉院，但沒有出院）
+    const hasAdmissionOrTransfer = episode.episode_events.some((e: any) =>
+      e.event_type === 'admission' || e.event_type === 'transfer'
+    );
+    const hasDischarge = episode.episode_events.some((e: any) => e.event_type === 'discharge');
+
+    if (hasAdmissionOrTransfer && !hasDischarge) {
+      return {
+        status: 'hospitalized',
+        label: '住院中',
+        color: 'bg-red-100 text-red-800 border-red-200'
+      };
+    }
+
+    // 如果有出院事件，狀態為已完成
+    if (hasDischarge) {
+      return {
+        status: 'completed',
+        label: '已出院',
+        color: 'bg-green-100 text-green-800 border-green-200'
+      };
+    }
+
+    // 如果渡假已結束
+    if (hasVacationStart && hasVacationEnd) {
+      return {
+        status: 'completed',
+        label: '已結束',
+        color: 'bg-green-100 text-green-800 border-green-200'
+      };
+    }
+
+    // 預設返回原始狀態
+    return {
+      status: episode.status,
+      label: getStatusLabel(episode.status),
+      color: getStatusColor(episode.status)
+    };
   };
 
   const getStatusColor = (status: string) => {
@@ -597,9 +693,9 @@ const AdmissionRecords: React.FC = () => {
                       className="form-input"
                     >
                       <option value="">所有狀態</option>
-                      <option value="active">入院中</option>
+                      <option value="hospitalized">住院中</option>
+                      <option value="vacation">渡假中</option>
                       <option value="completed">已完成</option>
-                      <option value="transferred">已轉院</option>
                     </select>
                   </div>
                   
@@ -778,9 +874,14 @@ const AdmissionRecords: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(episode.status)}`}>
-                          {getStatusLabel(episode.status)}
-                        </span>
+                        {(() => {
+                          const dynamicStatus = calculateDynamicStatus(episode);
+                          return (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${dynamicStatus.color}`}>
+                              {dynamicStatus.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div>
