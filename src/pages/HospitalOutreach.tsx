@@ -160,6 +160,67 @@ const HospitalOutreach: React.FC = () => {
     return '在住';
   };
 
+  // 獲取缺席開始日期（住院或渡假）
+  const getAbsenceStartDate = (record: any): string | null => {
+    if (!record.events || !Array.isArray(record.events) || record.events.length === 0) {
+      return null;
+    }
+
+    // 檢查是否有未結束的渡假
+    const vacationStartEvent = record.events.find((e: any) => e.event_type === 'vacation_start');
+    const hasVacationEnd = record.events.some((e: any) => e.event_type === 'vacation_end');
+    if (vacationStartEvent && !hasVacationEnd) {
+      return vacationStartEvent.event_date;
+    }
+
+    // 檢查是否有未結束的住院
+    const admissionEvent = record.events.find((e: any) => e.event_type === 'admission');
+    const hasDischarge = record.events.some((e: any) => e.event_type === 'discharge');
+    if (admissionEvent && !hasDischarge) {
+      return admissionEvent.event_date;
+    }
+
+    return null;
+  };
+
+  // 獲取結束類型資訊
+  const getEndTypeInfo = (record: any): string | null => {
+    if (!record.events || !Array.isArray(record.events) || record.events.length === 0) {
+      return null;
+    }
+
+    // 按事件日期和時間排序，獲取最新事件
+    const sortedEvents = [...record.events].sort((a, b) => {
+      const dateA = new Date(`${a.event_date} ${a.event_time || '00:00'}`).getTime();
+      const dateB = new Date(`${b.event_date} ${b.event_time || '00:00'}`).getTime();
+      return dateB - dateA;
+    });
+
+    const latestEvent = sortedEvents[0];
+
+    // 如果最新事件是出院或渡假結束，顯示結束類型
+    if (latestEvent.event_type === 'discharge' && record.discharge_type) {
+      const dischargeTypeMap: Record<string, string> = {
+        'home': '回家',
+        'transfer_out': '轉往其他機構',
+        'deceased': '離世'
+      };
+      return dischargeTypeMap[record.discharge_type] || record.discharge_type;
+    }
+
+    if (latestEvent.event_type === 'vacation_end' && latestEvent.vacation_end_type) {
+      const vacationEndTypeMap: Record<string, string> = {
+        'return_to_facility': '返回護老院',
+        'home': '回到原居住地',
+        'transfer_out': '轉至其他機構',
+        'deceased': '渡假期間離世'
+      };
+      return vacationEndTypeMap[latestEvent.vacation_end_type] || latestEvent.vacation_end_type;
+    }
+
+    return null;
+  };
+
   // 獲取狀態顯示樣式
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -996,13 +1057,16 @@ const HospitalOutreach: React.FC = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     狀態
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    缺席日期
+                  </th>
                   <SortableHeader field="藥袋日期">藥袋日期</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     處方週數
                   </th>
                   <SortableHeader field="藥完日期">藥完日期</SortableHeader>
                   <SortableHeader field="覆診日期">覆診日期</SortableHeader>
-                  <SortableHeader field="取藥安排">取藥安排</SortableHeader>
+                  <SortableHeader field="取藥安排">安排</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     外展藥物來源
                   </th>
@@ -1076,6 +1140,20 @@ const HospitalOutreach: React.FC = () => {
                         })()}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(() => {
+                          const absenceDate = getAbsenceStartDate(record);
+                          if (absenceDate) {
+                            return (
+                              <div className="flex items-center">
+                                <Calendar className="h-4 w-4 mr-1 text-gray-400" />
+                                <span>{new Date(absenceDate).toLocaleDateString('zh-TW')}</span>
+                              </div>
+                            );
+                          }
+                          return <span className="text-gray-400">-</span>;
+                        })()}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="space-y-1">
                           {getAllMedicationSources(record).map((source, index) => (
                             <div key={index} className="flex items-center text-xs">
@@ -1131,20 +1209,33 @@ const HospitalOutreach: React.FC = () => {
                           <span className="text-gray-500">未安排</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPickupArrangementColor(record.medication_pickup_arrangement)}`}>
-                            {getPickupArrangementLabel(record.medication_pickup_arrangement)}
-                          </span>
-                          {record.medication_pickup_arrangement === '每次詢問' && (
-                            <button
-                              onClick={() => copyWhatsAppMessage(record)}
-                              className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50"
-                              title="複製 WhatsApp 訊息"
-                            >
-                              <MessageCircle className="h-4 w-4" />
-                            </button>
-                          )}
+                      <td className="px-4 py-4 text-sm text-gray-900">
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPickupArrangementColor(record.medication_pickup_arrangement)}`}>
+                              {getPickupArrangementLabel(record.medication_pickup_arrangement)}
+                            </span>
+                            {record.medication_pickup_arrangement === '每次詢問' && (
+                              <button
+                                onClick={() => copyWhatsAppMessage(record)}
+                                className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50"
+                                title="複製 WhatsApp 訊息"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                          {(() => {
+                            const endTypeInfo = getEndTypeInfo(record);
+                            if (endTypeInfo) {
+                              return (
+                                <div className="text-xs text-gray-600">
+                                  結束方式：{endTypeInfo}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
