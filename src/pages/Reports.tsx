@@ -611,164 +611,313 @@ const Reports: React.FC = () => {
     );
   }
 
-  const renderDailyReport = () => (
-    <div className="space-y-6">
-      <div className="flex space-x-4">
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setTimeFilter('today')}
-            className={`px-4 py-2 rounded-lg ${timeFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+  const renderDailyReport = () => {
+    const targetDate = timeFilter === 'today' ? today : yesterday;
+    const displayDate = targetDate.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    return (
+      <div className="space-y-6">
+        <div className="flex space-x-4 mb-4 print:hidden">
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setTimeFilter('today')}
+              className={`px-4 py-2 rounded-lg ${timeFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            >
+              當日
+            </button>
+            <button
+              onClick={() => setTimeFilter('yesterday')}
+              className={`px-4 py-2 rounded-lg ${timeFilter === 'yesterday' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            >
+              昨日
+            </button>
+          </div>
+          <select
+            value={stationFilter}
+            onChange={(e) => setStationFilter(e.target.value)}
+            className="form-input"
           >
-            當日
-          </button>
-          <button
-            onClick={() => setTimeFilter('yesterday')}
-            className={`px-4 py-2 rounded-lg ${timeFilter === 'yesterday' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            昨日
-          </button>
+            <option value="all">全部站點</option>
+            {(stations || []).map(station => (
+              <option key={station.id} value={station.id}>{station.name}</option>
+            ))}
+          </select>
         </div>
-        <select
-          value={stationFilter}
-          onChange={(e) => setStationFilter(e.target.value)}
-          className="form-input"
-        >
-          <option value="all">全部站點</option>
-          {(stations || []).map(station => (
-            <option key={station.id} value={station.id}>{station.name}</option>
-          ))}
-        </select>
-      </div>
 
-      {/* 第一行: 在住狀態統計 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">在住狀態統計</h3>
-        <div className="grid grid-cols-4 gap-4">
-          <StatCard
-            title="在住本區人數"
-            value={dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.住在本站女}
-            subtitle={`男: ${dailyReportData.residenceStats.住在本站男} | 女: ${dailyReportData.residenceStats.住在本站女}`}
-            bgColor="bg-green-50"
-            textColor="text-green-600"
-            patientNames={[...dailyReportData.residenceStats.住在本站男Names, ...dailyReportData.residenceStats.住在本站女Names]}
-          />
-          <StatCard
-            title="入住醫院人數"
-            value={dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女}
-            subtitle={`男: ${dailyReportData.residenceStats.入住醫院男} | 女: ${dailyReportData.residenceStats.入住醫院女}`}
-            bgColor="bg-red-50"
-            textColor="text-red-600"
-            patientNames={[...dailyReportData.residenceStats.入住醫院男Names, ...dailyReportData.residenceStats.入住醫院女Names]}
-          />
-          <StatCard
-            title="暫時回家人數"
-            value={0}
-            subtitle="男: 0 | 女: 0"
-            bgColor="bg-yellow-50"
-            textColor="text-yellow-600"
-            patientNames={[]}
-          />
-          <StatCard
-            title="總人數 (a+b+c)"
-            value={dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.住在本站女 + dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女}
-            bgColor="bg-blue-50"
-            textColor="text-blue-600"
-            patientNames={[]}
-          />
-        </div>
-      </div>
+        {/* 紙質表格風格的報表 */}
+        <div className="bg-white border-4 border-gray-900 shadow-lg print:shadow-none print:border-2">
+          {/* 標題 */}
+          <div className="border-b-4 border-gray-900 bg-gray-50 p-6 text-center">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">每日報表</h2>
+            <p className="text-lg text-gray-700">日期: {displayDate}</p>
+          </div>
 
-      {/* 第二行: 本區過去24小時 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">本區過去 24 小時</h3>
-        <div className="grid grid-cols-4 gap-4">
-          <StatCard title="過去 24 小時新收" value={dailyReportData.newAdmissions.count} subtitle={`男: ${dailyReportData.newAdmissions.男} | 女: ${dailyReportData.newAdmissions.女}`} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.newAdmissions.names} />
-          <StatCard
-            title="過去 24 小時死亡"
-            value={dailyReportData.death.total}
-            subtitle={`男: ${dailyReportData.death.男} | 女: ${dailyReportData.death.女}`}
-            bgColor="bg-red-50"
-            textColor="text-red-600"
-            patientNames={dailyReportData.death.names}
-          />
-          <StatCard
-            title="當日退住"
-            value={dailyReportData.discharge.total}
-            subtitle={`男: ${dailyReportData.discharge.男} | 女: ${dailyReportData.discharge.女}`}
-            bgColor="bg-orange-50"
-            textColor="text-orange-600"
-            patientNames={dailyReportData.discharge.names}
-          />
-          <StatCard
-            title="當月累積死亡"
-            value={dailyReportData.monthlyDeaths.count}
-            bgColor="bg-gray-50"
-            textColor="text-gray-600"
-            patientNames={dailyReportData.monthlyDeaths.names}
-          />
-        </div>
-      </div>
+          {/* 表格主體 */}
+          <div className="p-8 space-y-1">
+            {/* 入住類型統計 - 頂置 */}
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-gray-900 mb-3">【入住類型統計】</h3>
+              <div className="flex items-center text-base leading-loose">
+                <span className="text-gray-700">
+                  買位: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.admissionTypeStats.買位.names.join('\n') || '無')}>
+                    {dailyReportData.admissionTypeStats.買位.count}
+                  </span> 人;
+                </span>
+                <span className="text-gray-700 ml-4">
+                  私位: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.admissionTypeStats.私位.names.join('\n') || '無')}>
+                    {dailyReportData.admissionTypeStats.私位.count}
+                  </span> 人;
+                </span>
+                <span className="text-gray-700 ml-4">
+                  院舍劵: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.admissionTypeStats.院舍劵.names.join('\n') || '無')}>
+                    {dailyReportData.admissionTypeStats.院舍劵.count}
+                  </span> 人;
+                </span>
+                <span className="text-gray-700 ml-4">
+                  暫住: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.admissionTypeStats.暫住.names.join('\n') || '無')}>
+                    {dailyReportData.admissionTypeStats.暫住.count}
+                  </span> 人
+                </span>
+              </div>
+            </div>
+            <div className="border-t-2 border-gray-300 my-3"></div>
 
-      {/* 第四行: 買位/長者等統計 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">入住類型統計</h3>
-        <div className="grid grid-cols-4 gap-4">
-          <StatCard title="買位" value={dailyReportData.admissionTypeStats.買位.count} bgColor="bg-blue-50" textColor="text-blue-600" patientNames={dailyReportData.admissionTypeStats.買位.names} />
-          <StatCard title="私位" value={dailyReportData.admissionTypeStats.私位.count} bgColor="bg-green-50" textColor="text-green-600" patientNames={dailyReportData.admissionTypeStats.私位.names} />
-          <StatCard title="院舍劵" value={dailyReportData.admissionTypeStats.院舍劵.count} bgColor="bg-purple-50" textColor="text-purple-600" patientNames={dailyReportData.admissionTypeStats.院舍劵.names} />
-          <StatCard title="暫住" value={dailyReportData.admissionTypeStats.暫住.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={dailyReportData.admissionTypeStats.暫住.names} />
-        </div>
-      </div>
+            {/* 在住狀態統計 */}
+            <div className="space-y-3">
+              <div className="text-base leading-loose">
+                <span className="text-gray-700">
+                  1. 住在本區人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.住在本站男Names.join('\n') || '無')}>
+                    {dailyReportData.residenceStats.住在本站男}
+                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.住在本站女Names.join('\n') || '無')}>
+                    {dailyReportData.residenceStats.住在本站女}
+                  </span> 人)
+                </span>
+              </div>
+              <div className="border-t border-gray-300"></div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">醫療項目</h3>
-        <div className="grid grid-cols-5 gap-4">
-          {Object.entries(dailyReportData.medical).map(([key, value]) => (
-            <StatCard key={key} title={key} value={value.count} bgColor="bg-indigo-50" textColor="text-indigo-600" patientNames={value.names} />
-          ))}
-        </div>
-      </div>
+              <div className="text-base leading-loose">
+                <span className="text-gray-700">
+                  2. 入住醫院人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.入住醫院男Names.join('\n') || '無')}>
+                    {dailyReportData.residenceStats.入住醫院男}
+                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.residenceStats.入住醫院女Names.join('\n') || '無')}>
+                    {dailyReportData.residenceStats.入住醫院女}
+                  </span> 人)
+                </span>
+              </div>
+              <div className="border-t border-gray-300"></div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">意外事件</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard title="藥物" value={dailyReportData.incidents.藥物.count} bgColor="bg-yellow-50" textColor="text-yellow-600" patientNames={dailyReportData.incidents.藥物.names} />
-          <StatCard title="跌倒" value={dailyReportData.incidents.跌倒.count} bgColor="bg-orange-50" textColor="text-orange-600" patientNames={dailyReportData.incidents.跌倒.names} />
-          <StatCard title="死亡" value={dailyReportData.incidents.死亡.count} bgColor="bg-red-50" textColor="text-red-600" patientNames={dailyReportData.incidents.死亡.names} />
-        </div>
-      </div>
+              <div className="text-base leading-loose">
+                <span className="text-gray-700">
+                  3. 暫時回家人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">0</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">0</span> 人)
+                </span>
+              </div>
+              <div className="border-t border-gray-300"></div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">護理等級</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard
-            title="全護理"
-            value={dailyReportData.careLevel.全護理男.count + dailyReportData.careLevel.全護理女.count}
-            subtitle={`男: ${dailyReportData.careLevel.全護理男.count} | 女: ${dailyReportData.careLevel.全護理女.count}`}
-            bgColor="bg-red-50"
-            textColor="text-red-600"
-            patientNames={[...dailyReportData.careLevel.全護理男.names, ...dailyReportData.careLevel.全護理女.names]}
-          />
-          <StatCard
-            title="半護理"
-            value={dailyReportData.careLevel.半護理男.count + dailyReportData.careLevel.半護理女.count}
-            subtitle={`男: ${dailyReportData.careLevel.半護理男.count} | 女: ${dailyReportData.careLevel.半護理女.count}`}
-            bgColor="bg-yellow-50"
-            textColor="text-yellow-600"
-            patientNames={[...dailyReportData.careLevel.半護理男.names, ...dailyReportData.careLevel.半護理女.names]}
-          />
-          <StatCard
-            title="療養級"
-            value={dailyReportData.careLevel.療養級男.count + dailyReportData.careLevel.療養級女.count}
-            subtitle={`男: ${dailyReportData.careLevel.療養級男.count} | 女: ${dailyReportData.careLevel.療養級女.count}`}
-            bgColor="bg-green-50"
-            textColor="text-green-600"
-            patientNames={[...dailyReportData.careLevel.療養級男.names, ...dailyReportData.careLevel.療養級女.names]}
-          />
+              <div className="text-base leading-loose">
+                <span className="text-gray-700">
+                  4. 總人數 [a+b+c]: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
+                    {dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.住在本站女 + dailyReportData.residenceStats.入住醫院男 + dailyReportData.residenceStats.入住醫院女}
+                  </span> 人; 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
+                    {dailyReportData.residenceStats.住在本站男 + dailyReportData.residenceStats.入住醫院男}
+                  </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
+                    {dailyReportData.residenceStats.住在本站女 + dailyReportData.residenceStats.入住醫院女}
+                  </span> 人)
+                </span>
+              </div>
+            </div>
+            <div className="border-t-2 border-gray-300 my-3"></div>
+
+            {/* 本區過去 24 小時 */}
+            <div>
+              <h3 className="text-base font-bold text-gray-900 mb-3">【本區過去 24 小時】</h3>
+              <div className="space-y-3">
+                <div className="text-base leading-loose">
+                  <span className="text-gray-700">
+                    1. 過去 24 小時新收院法: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.newAdmissions.names.join('\n') || '無')}>
+                      {dailyReportData.newAdmissions.count}
+                    </span> 人; 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.newAdmissions.男}</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.newAdmissions.女}</span> 人)
+                  </span>
+                </div>
+                <div className="border-t border-gray-300"></div>
+
+                <div className="text-base leading-loose">
+                  <span className="text-gray-700">
+                    2. 過去 24 小時死亡人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.death.names.join('\n') || '無')}>
+                      {dailyReportData.death.total}
+                    </span> 人; 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.death.男}</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.death.女}</span> 人)
+                  </span>
+                </div>
+                <div className="border-t border-gray-300"></div>
+
+                <div className="text-base leading-loose">
+                  <span className="text-gray-700">
+                    3. 當日退住人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.discharge.names.join('\n') || '無')}>
+                      {dailyReportData.discharge.total}
+                    </span> 人; 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.discharge.男}</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.discharge.女}</span> 人)
+                  </span>
+                </div>
+                <div className="border-t border-gray-300"></div>
+
+                <div className="text-base leading-loose">
+                  <span className="text-gray-700">
+                    4. 當月累積死亡: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.monthlyDeaths.names.join('\n') || '無')}>
+                      {dailyReportData.monthlyDeaths.count}
+                    </span> 人
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="border-t-2 border-gray-300 my-3"></div>
+
+            {/* 醫療項目 */}
+            <div>
+              <h3 className="text-base font-bold text-gray-900 mb-3">【醫療項目】</h3>
+              <div className="space-y-3">
+                <div className="flex items-center text-base leading-loose">
+                  <span className="text-gray-700">
+                    鼻胃飼: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.鼻胃飼.names.join('\n') || '無')}>
+                      {dailyReportData.medical.鼻胃飼.count}
+                    </span> 人;
+                  </span>
+                  <span className="text-gray-700 ml-4">
+                    尿管: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.導尿管.names.join('\n') || '無')}>
+                      {dailyReportData.medical.導尿管.count}
+                    </span> 人;
+                  </span>
+                  <span className="text-gray-700 ml-4">
+                    傷口: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.傷口.names.join('\n') || '無')}>
+                      {dailyReportData.medical.傷口.count}
+                    </span> 人;
+                  </span>
+                  <span className="text-gray-700 ml-4">
+                    壓瘡: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.壓瘡.names.join('\n') || '無')}>
+                      {dailyReportData.medical.壓瘡.count}
+                    </span> 人
+                  </span>
+                </div>
+                <div className="border-t border-gray-300"></div>
+
+                <div className="flex items-center text-base leading-loose">
+                  <span className="text-gray-700">
+                    腹膜/血液透析: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.腹膜血液透析.names.join('\n') || '無')}>
+                      {dailyReportData.medical.腹膜血液透析.count}
+                    </span> 人;
+                  </span>
+                  <span className="text-gray-700 ml-4">
+                    吸氧: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.氧氣治療.names.join('\n') || '無')}>
+                      {dailyReportData.medical.氧氣治療.count}
+                    </span> 人
+                  </span>
+                </div>
+                <div className="border-t border-gray-300"></div>
+
+                <div className="flex items-center text-base leading-loose">
+                  <span className="text-gray-700">
+                    造口: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.造口.names.join('\n') || '無')}>
+                      {dailyReportData.medical.造口.count}
+                    </span> 人;
+                  </span>
+                  <span className="text-gray-700 ml-4">
+                    傳染病隔離: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.感染控制.names.join('\n') || '無')}>
+                      {dailyReportData.medical.感染控制.count}
+                    </span> 人;
+                  </span>
+                  <span className="text-gray-700 ml-4">
+                    使用約束物品: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.medical.使用約束物品.names.join('\n') || '無')}>
+                      {dailyReportData.medical.使用約束物品.count}
+                    </span> 人
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="border-t-2 border-gray-300 my-3"></div>
+
+            {/* 意外事件 */}
+            <div>
+              <h3 className="text-base font-bold text-gray-900 mb-3">【意外事件】</h3>
+              <div className="flex items-center text-base leading-loose">
+                <span className="text-gray-700">
+                  藥物: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.incidents.藥物.names.join('\n') || '無')}>
+                    {dailyReportData.incidents.藥物.count}
+                  </span> 人 ( <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.incidents.藥物.count}</span> 次);
+                </span>
+                <span className="text-gray-700 ml-4">
+                  跌倒: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.incidents.跌倒.names.join('\n') || '無')}>
+                    {dailyReportData.incidents.跌倒.count}
+                  </span> 人 ( <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.incidents.跌倒.count}</span> 次);
+                </span>
+                <span className="text-gray-700 ml-4">
+                  死亡: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.incidents.死亡.names.join('\n') || '無')}>
+                    {dailyReportData.incidents.死亡.count}
+                  </span> 人
+                </span>
+              </div>
+            </div>
+            <div className="border-t-2 border-gray-300 my-3"></div>
+
+            {/* 護理等級 */}
+            <div>
+              <h3 className="text-base font-bold text-gray-900 mb-3">【護理等級】</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="text-base leading-loose">
+                    <span className="text-gray-700">
+                      a) 全護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.全護理男.names.join('\n') || '無')}>
+                        {dailyReportData.careLevel.全護理男.count}
+                      </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.全護理女.names.join('\n') || '無')}>
+                        {dailyReportData.careLevel.全護理女.count}
+                      </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
+                        {dailyReportData.careLevel.全護理男.count + dailyReportData.careLevel.全護理女.count}
+                      </span> 人
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1 ml-4">
+                    # 全護理包含: 具有認知障礙及身體虛弱能力, 不能負責床舍及肢, 只需監督護理及照顧走失
+                  </div>
+                </div>
+                <div className="border-t border-gray-300"></div>
+
+                <div>
+                  <div className="text-base leading-loose">
+                    <span className="text-gray-700">
+                      b) 半護理: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.半護理男.names.join('\n') || '無')}>
+                        {dailyReportData.careLevel.半護理男.count}
+                      </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.半護理女.names.join('\n') || '無')}>
+                        {dailyReportData.careLevel.半護理女.count}
+                      </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
+                        {dailyReportData.careLevel.半護理男.count + dailyReportData.careLevel.半護理女.count}
+                      </span> 人
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1 ml-4">
+                    # 半護理包含: 依制作訂的及性動工具(如認知/助行架等)
+                  </div>
+                </div>
+                <div className="border-t border-gray-300"></div>
+
+                <div>
+                  <div className="text-base leading-loose">
+                    <span className="text-gray-700">
+                      c) 療養級: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.療養級男.names.join('\n') || '無')}>
+                        {dailyReportData.careLevel.療養級男.count}
+                      </span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.careLevel.療養級女.names.join('\n') || '無')}>
+                        {dailyReportData.careLevel.療養級女.count}
+                      </span> 人); 總人數: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">
+                        {dailyReportData.careLevel.療養級男.count + dailyReportData.careLevel.療養級女.count}
+                      </span> 人
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1 ml-4">
+                    # 療養級包含: 所有患者按天
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderMonthlyReport = () => {
     const activePatients = filteredPatients.filter(p => p.在住狀態 === '在住');
