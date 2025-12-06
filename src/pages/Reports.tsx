@@ -647,8 +647,7 @@ const Reports: React.FC = () => {
         {/* 紙質表格風格的報表 */}
         <div className="bg-white border-4 border-gray-900 shadow-lg print:shadow-none print:border-2">
           {/* 標題 */}
-          <div className="border-b-4 border-gray-900 bg-gray-50 p-6 text-center">
-      
+          <div className="border-b-4 border-gray-900 bg-gray-50 p-6 text-center">     
             <p className="text-lg text-gray-700">日期: {displayDate}</p>
           </div>
 
@@ -733,7 +732,7 @@ const Reports: React.FC = () => {
               <div className="space-y-3">
                 <div className="text-base leading-loose">
                   <span className="text-gray-700">
-                    1. 過去 24 小時新收院法: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.newAdmissions.names.join('\n') || '無')}>
+                    1. 過去 24 小時新收院友: <span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold cursor-pointer hover:bg-yellow-100" title="點擊查看院友名單" onClick={() => alert(dailyReportData.newAdmissions.names.join('\n') || '無')}>
                       {dailyReportData.newAdmissions.count}
                     </span> 人; 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.newAdmissions.男}</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyReportData.newAdmissions.女}</span> 人)
                   </span>
