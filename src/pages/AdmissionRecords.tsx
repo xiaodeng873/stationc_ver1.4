@@ -473,20 +473,11 @@ const AdmissionRecords: React.FC = () => {
       // 優先使用 episode.vacation_end_type，否則使用事件中的
       const vacationEndType = episode.vacation_end_type || vacationEndEvent.vacation_end_type;
 
-      if (vacationEndType) {
-        const endTypeLabel = getVacationEndTypeLabel(vacationEndType);
-        return {
-          status: 'vacation_ended',
-          label: `渡假結束 (${endTypeLabel})`,
-          color: 'bg-green-100 text-green-800 border-green-200',
-          vacationEndType
-        };
-      }
-
       return {
-        status: 'completed',
+        status: 'vacation_ended',
         label: '渡假結束',
-        color: 'bg-green-100 text-green-800 border-green-200'
+        color: 'bg-green-100 text-green-800 border-green-200',
+        vacationEndType
       };
     }
 
@@ -810,7 +801,7 @@ const AdmissionRecords: React.FC = () => {
                   </th>
                   <SortableHeader field="院友姓名">院友</SortableHeader>
                   <SortableHeader field="狀態">狀態</SortableHeader>
-                  <SortableHeader field="開始日期">住院日期</SortableHeader>
+                  <SortableHeader field="開始日期">缺席日期</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     住院天數
                   </th>
@@ -821,7 +812,7 @@ const AdmissionRecords: React.FC = () => {
                     入住病房/床號
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    出院安排
+                    安排
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     備註
@@ -1000,8 +991,24 @@ const AdmissionRecords: React.FC = () => {
                           })()}
                         </div>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {episode.discharge_type && episode.discharge_type.trim() ? getDischargeTypeLabel(episode.discharge_type) : '未安排'}
+                      <td className="px-4 py-4 text-sm text-gray-900">
+                        <div className="space-y-1">
+                          <div>
+                            {episode.discharge_type && episode.discharge_type.trim() ? getDischargeTypeLabel(episode.discharge_type) : '未安排'}
+                          </div>
+                          {(() => {
+                            const dynamicStatus = calculateDynamicStatus(episode);
+                            if (dynamicStatus.vacationEndType) {
+                              const endTypeLabel = getVacationEndTypeLabel(dynamicStatus.vacationEndType);
+                              return (
+                                <div className="text-xs text-gray-600">
+                                  結束方式：{endTypeLabel}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-900 max-w-md">
                         <div className="truncate" title={episode.remarks || ''}>
