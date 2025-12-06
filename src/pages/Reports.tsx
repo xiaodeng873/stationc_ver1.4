@@ -95,22 +95,46 @@ const Reports: React.FC = () => {
       );
     };
 
-    const 住在本站男Patients = activePatients.filter(p => p.性別 === '男' && !getIsHospitalized(p.院友id));
-    const 住在本站女Patients = activePatients.filter(p => p.性別 === '女' && !getIsHospitalized(p.院友id));
+    // 判斷患者是否在渡假中（暫時回家）
+    const getIsOnVacation = (patientId: number) => {
+      return hospitalEpisodes.some(episode => {
+        if (episode.patient_id !== patientId || !episode.episode_events) {
+          return false;
+        }
+
+        // 找出所有渡假開始和結束事件
+        const vacationStartEvents = episode.episode_events.filter((e: any) => e.event_type === 'vacation_start');
+        const vacationEndEvents = episode.episode_events.filter((e: any) => e.event_type === 'vacation_end');
+
+        // 如果有渡假開始但沒有對應的渡假結束，表示仍在渡假中
+        if (vacationStartEvents.length > vacationEndEvents.length) {
+          return true;
+        }
+
+        return false;
+      });
+    };
+
+    const 住在本站男Patients = activePatients.filter(p => p.性別 === '男' && !getIsHospitalized(p.院友id) && !getIsOnVacation(p.院友id));
+    const 住在本站女Patients = activePatients.filter(p => p.性別 === '女' && !getIsHospitalized(p.院友id) && !getIsOnVacation(p.院友id));
     const 入住醫院男Patients = activePatients.filter(p => p.性別 === '男' && getIsHospitalized(p.院友id));
     const 入住醫院女Patients = activePatients.filter(p => p.性別 === '女' && getIsHospitalized(p.院友id));
+    const 暫時回家男Patients = activePatients.filter(p => p.性別 === '男' && getIsOnVacation(p.院友id));
+    const 暫時回家女Patients = activePatients.filter(p => p.性別 === '女' && getIsOnVacation(p.院友id));
 
     const residenceStats = {
       住在本站男: 住在本站男Patients.length,
       住在本站女: 住在本站女Patients.length,
       入住醫院男: 入住醫院男Patients.length,
       入住醫院女: 入住醫院女Patients.length,
-      暫時回家男: 0,
-      暫時回家女: 0,
+      暫時回家男: 暫時回家男Patients.length,
+      暫時回家女: 暫時回家女Patients.length,
       住在本站男Names: 住在本站男Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
       住在本站女Names: 住在本站女Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
       入住醫院男Names: 入住醫院男Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
       入住醫院女Names: 入住醫院女Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
+      暫時回家男Names: 暫時回家男Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
+      暫時回家女Names: 暫時回家女Patients.map(p => `${p.床號} ${p.中文姓氏}${p.中文名字}`),
     };
 
     const newAdmissionsPatients = filteredPatients.filter(p => {
@@ -707,7 +731,7 @@ const Reports: React.FC = () => {
 
               <div className="text-base leading-loose">
                 <span className="text-gray-700">
-                  3. 暫時回家人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">0</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">0</span> 人)
+                  3. 暫時回家人數: 男 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyStats.residenceStats.暫時回家男}</span> 人); 女 (<span className="inline-block w-12 border-b-2 border-gray-400 text-center font-bold">{dailyStats.residenceStats.暫時回家女}</span> 人)
                 </span>
               </div>
               <div className="border-t border-gray-300"></div>

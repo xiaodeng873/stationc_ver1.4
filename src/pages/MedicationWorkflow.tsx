@@ -341,6 +341,13 @@ const WorkflowCell: React.FC<WorkflowCellProps> = ({ record, step, onStepClick, 
         </div>
       )}
 
+      {/* 顯示渡假狀態 */}
+      {step === 'dispensing' && status === 'failed' && inspectionValues?.isOnVacation && (
+        <div className="mt-1 text-xs text-purple-700 font-medium">
+          渡假中
+        </div>
+      )}
+
       {/* 顯示檢測不合格的項目及數值（iPad橫向模式隱藏，Web桌面顯示） */}
       {step === 'dispensing' && status === 'failed' && blockedRules && blockedRules.length > 0 && (
         <div className="mt-1 space-y-0.5 max-[1024px]:landscape:hidden">
@@ -1202,6 +1209,99 @@ const MedicationWorkflow: React.FC = () => {
     return false;
   };
 
+  // 檢查服藥時間是否在渡假期間
+  const isInVacationPeriod = (patientId: number, scheduledDate: string, scheduledTime: string): boolean => {
+    console.log('🔍 檢查渡假期間:', { patientId, scheduledDate, scheduledTime });
+
+    // 不限制狀態，檢查所有住院事件（包含渡假事件）
+    const patientEpisodes = hospitalEpisodes.filter(ep => ep.patient_id === patientId);
+    console.log('👤 病人的所有住院事件:', patientEpisodes);
+
+    if (patientEpisodes.length === 0) {
+      console.log('❌ 沒有住院事件');
+      return false;
+    }
+
+    // 服藥時間點
+    const medicationDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+    console.log('⏰ 服藥時間:', medicationDateTime.toISOString());
+
+    // 檢查所有住院事件，看服藥時間是否落在任何一個渡假期間
+    for (const episode of patientEpisodes) {
+      console.log('📌 檢查住院事件:', episode);
+
+      if (!episode.episode_events || episode.episode_events.length === 0) {
+        console.log('  ⚠️ 此事件沒有事件記錄，跳過');
+        continue;
+      }
+
+      // 找出該住院事件的所有渡假開始和渡假結束事件
+      const vacationStartEvents = episode.episode_events
+        .filter((e: any) => e.event_type === 'vacation_start')
+        .sort((a: any, b: any) => {
+          const dateA = new Date(`${a.event_date}T${a.event_time || '00:00:00'}`);
+          const dateB = new Date(`${b.event_date}T${b.event_time || '00:00:00'}`);
+          return dateA.getTime() - dateB.getTime();
+        });
+
+      const vacationEndEvents = episode.episode_events
+        .filter((e: any) => e.event_type === 'vacation_end')
+        .sort((a: any, b: any) => {
+          const dateA = new Date(`${a.event_date}T${a.event_time || '00:00:00'}`);
+          const dateB = new Date(`${b.event_date}T${b.event_time || '00:00:00'}`);
+          return dateA.getTime() - dateB.getTime();
+        });
+
+      console.log('  🏖️ 渡假開始事件:', vacationStartEvents);
+      console.log('  🏠 渡假結束事件:', vacationEndEvents);
+
+      // 檢查每個渡假開始事件
+      for (const vacationStart of vacationStartEvents) {
+        console.log('  🔍 渡假開始事件原始資料:', vacationStart);
+
+        const vacationStartDateTime = new Date(`${vacationStart.event_date}T${vacationStart.event_time || '00:00:00'}`);
+        console.log('  🏖️ 渡假開始時間:', vacationStartDateTime.toISOString());
+
+        // 如果服藥時間早於渡假開始時間，跳過此渡假事件
+        if (medicationDateTime < vacationStartDateTime) {
+          console.log('  ❌ 服藥時間在此渡假之前，跳過');
+          continue;
+        }
+
+        // 找出此渡假開始後的第一個渡假結束事件
+        const nextVacationEnd = vacationEndEvents.find((vacationEnd: any) => {
+          const vacationEndDateTime = new Date(`${vacationEnd.event_date}T${vacationEnd.event_time || '00:00:00'}`);
+          return vacationEndDateTime > vacationStartDateTime;
+        });
+
+        if (nextVacationEnd) {
+          console.log('  🔍 渡假結束事件原始資料:', nextVacationEnd);
+
+          const vacationEndDateTime = new Date(`${nextVacationEnd.event_date}T${nextVacationEnd.event_time || '00:00:00'}`);
+          console.log('  🏠 對應渡假結束時間:', vacationEndDateTime.toISOString());
+
+          // 檢查服藥時間是否在渡假開始和渡假結束之間
+          if (medicationDateTime >= vacationStartDateTime && medicationDateTime < vacationEndDateTime) {
+            console.log('  ✅ 服藥時間在此渡假期間內！');
+            return true;
+          } else {
+            console.log('  ❌ 服藥時間不在此渡假期間內');
+          }
+        } else {
+          // 沒有對應的渡假結束事件，表示仍在渡假中
+          console.log('  📌 此渡假尚未結束');
+          if (medicationDateTime >= vacationStartDateTime) {
+            console.log('  ✅ 服藥時間在渡假開始之後（尚未結束）！');
+            return true;
+          }
+        }
+      }
+    }
+
+    console.log('❌ 服藥時間不在任何渡假期間內');
+    return false;
+  };
+
   // 處理完成工作流程步驟
   const handleCompleteWorkflowStep = async (recordId: string, step: string) => {
     const patientIdNum = parseInt(selectedPatientId);
@@ -1234,6 +1334,13 @@ const MedicationWorkflow: React.FC = () => {
           record.scheduled_time
         );
 
+        // 檢查服藥時間點是否在渡假期間
+        const inVacationPeriod = isInVacationPeriod(
+          patientIdNum,
+          record.scheduled_date,
+          record.scheduled_time
+        );
+
         // 如果在入院期間，直接寫入"入院"失敗，不彈出任何對話框
         if (inHospitalizationPeriod) {
           const inspectionResult = {
@@ -1247,6 +1354,28 @@ const MedicationWorkflow: React.FC = () => {
             record.id,
             displayName || '未知',
             '入院',
+            undefined,
+            patientIdNum,
+            scheduledDate,
+            undefined,
+            inspectionResult
+          );
+          return;
+        }
+
+        // 如果在渡假期間，直接寫入"暫時回家"失敗，不彈出任何對話框
+        if (inVacationPeriod) {
+          const inspectionResult = {
+            canDispense: false,
+            isOnVacation: true,
+            blockedRules: [],
+            usedVitalSignData: {}
+          };
+
+          await dispenseMedication(
+            record.id,
+            displayName || '未知',
+            '暫時回家',
             undefined,
             patientIdNum,
             scheduledDate,
@@ -1470,6 +1599,13 @@ const MedicationWorkflow: React.FC = () => {
             record.scheduled_time
           );
 
+          // 檢查此筆記錄的服藥時間是否在渡假期間
+          const inVacationPeriod = isInVacationPeriod(
+            patientIdNum,
+            record.scheduled_date,
+            record.scheduled_time
+          );
+
           // 執行完整流程：執藥 -> 核藥 -> 派藥
           try {
             // 1. 執藥（如果還未執藥）
@@ -1488,6 +1624,10 @@ const MedicationWorkflow: React.FC = () => {
                 // 如果服藥時間在入院期間，自動標記為「入院」失敗原因
                 await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, selectedDate);
                 return { type: 'hospitalized' };
+              } else if (inVacationPeriod) {
+                // 如果服藥時間在渡假期間，自動標記為「暫時回家」失敗原因
+                await dispenseMedication(record.id, displayName || '未知', '暫時回家', undefined, patientIdNum, selectedDate);
+                return { type: 'vacation' };
               } else {
                 // 正常派藥
                 await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, selectedDate);
@@ -1655,6 +1795,13 @@ const MedicationWorkflow: React.FC = () => {
             record.scheduled_time
           );
 
+          // 檢查此筆記錄的服藥時間是否在渡假期間
+          const inVacationPeriod = isInVacationPeriod(
+            patientIdNum,
+            record.scheduled_date,
+            record.scheduled_time
+          );
+
           if (inHospitalizationPeriod) {
             // 如果服藥時間在入院期間，自動標記為「入院」失敗原因
             const inspectionResult = hasInspectionRules ? {
@@ -1675,6 +1822,26 @@ const MedicationWorkflow: React.FC = () => {
               inspectionResult
             );
             return { type: 'hospitalized' };
+          } else if (inVacationPeriod) {
+            // 如果服藥時間在渡假期間，自動標記為「暫時回家」失敗原因
+            const inspectionResult = hasInspectionRules ? {
+              canDispense: false,
+              isOnVacation: true,
+              blockedRules: [],
+              usedVitalSignData: {}
+            } : undefined;
+
+            await dispenseMedication(
+              record.id,
+              displayName || '未知',
+              '暫時回家',
+              undefined,
+              patientIdNum,
+              selectedDate,
+              undefined,
+              inspectionResult
+            );
+            return { type: 'vacation' };
           } else if (hasInspectionRules) {
             // 有檢測項要求：先檢查是否有用戶提供的檢測結果
             console.log(`\n🔍 記錄 ${record.id} 有檢測項要求`);
