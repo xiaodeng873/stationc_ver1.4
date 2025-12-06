@@ -162,18 +162,18 @@ const HospitalEpisodeModal: React.FC<HospitalEpisodeModalProps> = ({
 
   // 出院類型選項
   const dischargeTypes = [
-    { value: 'return_to_facility', label: '返回院舍', description: '院友康復後返回護老院', icon: <Building2 className="h-5 w-5" /> },
+    { value: 'return_to_facility', label: '返回院舍', description: '院友康復後返回院舍', icon: <Building2 className="h-5 w-5" /> },
     { value: 'home', label: '回家', description: '院友康復後回到原居住地', icon: <Building2 className="h-5 w-5" /> },
     { value: 'transfer_out', label: '轉至其他機構', description: '轉移至其他醫療或照護機構', icon: <MapPin className="h-5 w-5" /> },
-    { value: 'deceased', label: '離世', description: '院友在醫院內離世', icon: <Heart className="h-5 w-5" /> }
+    { value: 'deceased', label: '離世', description: '院友在醫院離世', icon: <Heart className="h-5 w-5" /> }
   ];
 
   // 渡假結束類型選項
   const vacationEndTypes = [
-    { value: 'return_to_facility', label: '返回護老院', description: '渡假後返回護老院繼續照護', icon: <Building2 className="h-5 w-5" /> },
+    { value: 'return_to_facility', label: '返回院舍', description: '渡假後返回院舍繼續照護', icon: <Building2 className="h-5 w-5" /> },
     { value: 'home', label: '回到原居住地', description: '渡假後回到原居住地生活', icon: <Building2 className="h-5 w-5" /> },
     { value: 'transfer_out', label: '轉至其他機構', description: '渡假後轉移至其他照護機構', icon: <MapPin className="h-5 w-5" /> },
-    { value: 'deceased', label: '渡假期間離世', description: '院友在渡假期間不幸離世', icon: <Heart className="h-5 w-5" /> }
+    { value: 'deceased', label: '渡假期間離世', description: '院友在渡假期間離世', icon: <Heart className="h-5 w-5" /> }
   ];
 
   // 添加事件
