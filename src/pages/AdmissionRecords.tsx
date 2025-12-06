@@ -519,7 +519,7 @@ const AdmissionRecords: React.FC = () => {
 
   const getVacationEndTypeLabel = (type: string) => {
     switch (type) {
-      case 'return_to_facility': return '返回護老院';
+      case 'return_to_facility': return '返回院舍';
       case 'home': return '回到原居住地';
       case 'transfer_out': return '轉至其他機構';
       case 'deceased': return '渡假期間離世';
