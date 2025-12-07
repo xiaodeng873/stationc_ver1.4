@@ -183,6 +183,22 @@ const Dashboard: React.FC = () => {
     return <div className="flex space-x-1 mt-2">{dots}</div>;
   };
 
+  // [新增] 補回遺失的輔助函式
+  const isAnnualCheckupOverdue = (checkup: any): boolean => {
+    if (!checkup.next_due_date) return false;
+    const today = new Date();
+    const dueDate = new Date(checkup.next_due_date);
+    return dueDate < today;
+  };
+
+  const isAnnualCheckupDueSoon = (checkup: any): boolean => {
+    if (!checkup.next_due_date) return false;
+    const today = new Date();
+    const dueDate = new Date(checkup.next_due_date);
+    const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return daysDiff <= 14 && daysDiff > 0;
+  };
+
   const missingTasks = useMemo(() => {
     const activePatients = patients.filter(p => p.在住狀態 === '在住');
     const result: { patient: any; missingTaskTypes: string[] }[] = [];
@@ -254,7 +270,6 @@ const Dashboard: React.FC = () => {
     }).slice(0, 100);
   }, [monitoringTasks, patientsMap]);
 
-  // [修正] 這裡修正了之前變數未初始化即回傳的問題
   const { breakfastTasks, lunchTasks, dinnerTasks, snackTasks } = useMemo(() => {
     const breakfast: typeof urgentMonitoringTasks = [];
     const lunch: typeof urgentMonitoringTasks = [];
@@ -607,8 +622,132 @@ const Dashboard: React.FC = () => {
                     </div>
                   );
                 } else {
-                  // ... (評估類任務保持原樣)
-                  return null; 
+                  const assessment = item.data;
+                  const patient = patients.find(p => p.院友id === assessment.patient_id);
+                  
+                  if (item.type === 'restraint') {
+                    const isOverdue = isRestraintAssessmentOverdue(assessment);
+                    const isDueSoon = isRestraintAssessmentDueSoon(assessment);
+                    return (
+                      <div 
+                        key={`restraint-${assessment.id}`} 
+                        className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg cursor-pointer hover:bg-yellow-100 transition-colors border border-yellow-200"
+                        onClick={() => handleRestraintAssessmentClick(assessment)}
+                      >
+                        <div className="w-10 h-10 bg-yellow-100 rounded-full overflow-hidden flex items-center justify-center">
+                          {patient?.院友相片 ? (
+                            <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="h-5 w-5 text-yellow-600" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
+                            <span className="text-xs text-gray-500">({patient?.床號})</span>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Shield className="h-4 w-4 text-yellow-600" />
+                            <p className="text-sm text-gray-600">約束物品評估</p>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            到期: {assessment.next_due_date ? new Date(assessment.next_due_date).toLocaleDateString('zh-TW') : '未設定'}
+                          </p>
+                        </div>
+                        <span className={`status-badge ${
+                          isOverdue ? 'bg-red-100 text-red-800' : 
+                          isDueSoon ? 'bg-orange-100 text-orange-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {isOverdue ? '逾期' : 
+                           isDueSoon ? '即將到期' :
+                           '排程中'}
+                        </span>
+                      </div>
+                    );
+                  } else if (item.type === 'health-assessment') {
+                    const assessment = item.data;
+                    const isOverdue = isHealthAssessmentOverdue(assessment);
+                    const isDueSoon = isHealthAssessmentDueSoon(assessment);
+                    return (
+                      <div
+                        key={`health-assessment-${assessment.id}`}
+                        className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors border border-red-200"
+                        onClick={() => handleHealthAssessmentClick(assessment)}
+                      >
+                        <div className="w-10 h-10 bg-red-100 rounded-full overflow-hidden flex items-center justify-center">
+                          {patient?.院友相片 ? (
+                            <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="h-5 w-5 text-red-600" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
+                            <span className="text-xs text-gray-500">({patient?.床號})</span>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Stethoscope className="h-4 w-4 text-red-600" />
+                            <p className="text-sm text-gray-600">健康評估</p>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            到期: {assessment.next_due_date ? new Date(assessment.next_due_date).toLocaleDateString('zh-TW') : '未設定'}
+                          </p>
+                        </div>
+                        <span className={`status-badge ${
+                          isOverdue ? 'bg-red-100 text-red-800' :
+                          isDueSoon ? 'bg-orange-100 text-orange-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {isOverdue ? '逾期' :
+                           isDueSoon ? '即將到期' :
+                           '排程中'}
+                        </span>
+                      </div>
+                    );
+                  } else {
+                    const checkup = item.data;
+                    const isOverdue = isAnnualCheckupOverdue(checkup);
+                    const isDueSoon = isAnnualCheckupDueSoon(checkup);
+                    return (
+                      <div
+                        key={`annual-checkup-${checkup.id}`}
+                        className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors border border-blue-200"
+                        onClick={() => handleAnnualCheckupClick(checkup)}
+                      >
+                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                          {patient?.院友相片 ? (
+                            <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="h-5 w-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
+                            <span className="text-xs text-gray-500">({patient?.床號})</span>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <CalendarCheck className="h-4 w-4 text-blue-600" />
+                            <p className="text-sm text-gray-600">年度體檢</p>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            到期: {checkup.next_due_date ? new Date(checkup.next_due_date).toLocaleDateString('zh-TW') : '未設定'}
+                          </p>
+                        </div>
+                        <span className={`status-badge ${
+                          isOverdue ? 'bg-red-100 text-red-800' :
+                          isDueSoon ? 'bg-orange-100 text-orange-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {isOverdue ? '逾期' :
+                           isDueSoon ? '即將到期' :
+                           '排程中'}
+                        </span>
+                      </div>
+                    );
+                  }
                 }
               })
             ) : (
