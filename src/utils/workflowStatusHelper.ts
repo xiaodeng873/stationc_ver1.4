@@ -43,9 +43,7 @@ export const isWorkflowOverdue = (record: WorkflowRecord): boolean => {
   const isOverdue = scheduledDateTime < hkTime;
 
   // 調試日誌（僅在逾期時輸出）
-  if (isOverdue) {
-   });
-  }
+  if (isOverdue) 
 
   return isOverdue;
 };
