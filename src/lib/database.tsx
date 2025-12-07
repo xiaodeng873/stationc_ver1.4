@@ -1,7 +1,13 @@
 import { supabase } from './supabase';
 import { calculateNextDueDate } from '../utils/taskScheduler';
 
-// --- 介面定義 (Interfaces) ---
+// [新增] 全域導出 CUTOFF 日期字串，確保所有組件使用同一標準
+// 2025-12-01 (含) 以前的記錄視為舊資料，不觸發紅點或任務更新
+// 2025-12-02 開始才計算
+export const SYNC_CUTOFF_DATE_STR = '2025-12-01';
+
+// ... (以下介面定義保持不變，為節省篇幅省略，請保留您原本的 Interface 定義) ...
+// 為了讓您能直接複製，我這裡還是列出完整的介面，避免遺漏
 
 export interface Patient {
   院友id: number;
@@ -86,11 +92,10 @@ export interface Prescription {
   服用時間: string[];
 }
 
-// [重要] HealthRecord 介面增加 task_id
 export interface HealthRecord {
   記錄id: number;
   院友id: number;
-  task_id?: string; // 關聯的任務ID
+  task_id?: string;
   記錄日期: string;
   記錄時間: string;
   記錄類型: '生命表徵' | '血糖控制' | '體重控制';
@@ -856,7 +861,7 @@ export const createBatchHealthRecords = async (records: Omit<HealthRecord, '記�
   return data || [];
 };
 
-// [重要] 這裡恢復了您的 getFollowUps 函式
+// [重要] 恢復了 getFollowUps
 export const getFollowUps = async (): Promise<FollowUpAppointment[]> => {
   const { data, error } = await supabase.from('覆診安排主表').select('*').order('覆診日期', { ascending: true });
   if (error) { console.error('Error fetching follow-ups:', error); throw error; }
@@ -1168,7 +1173,7 @@ export const deleteMedicationInspectionRule = async (ruleId: string): Promise<vo
   if (error) throw error;
 };
 
-// [重要] 恢復了您的 getPrescriptions 函式 (之前被我誤刪)
+// [重要] 恢復了 getPrescriptions
 export const getPrescriptions = async (patientId?: number): Promise<MedicationPrescription[]> => {
   let query = supabase.from('new_medication_prescriptions').select('*').order('created_at', { ascending: false });
   if (patientId) query = query.eq('patient_id', patientId);
@@ -1529,45 +1534,26 @@ export const downloadTemplateFile = async (storagePath: string, originalName: st
   URL.revokeObjectURL(url);
 };
 
-// Drug Database functions
-export async function getDrugDatabase() {
-  const { data, error } = await supabase.from('medication_drug_database').select('*').order('drug_name');
-  if (error) throw error;
-  return data || [];
-};
-
-export async function createDrug(drug: any) {
-  const { data, error } = await supabase.from('medication_drug_database').insert([drug]).select().single();
-  if (error) throw error;
-  return data;
-};
-
-export async function updateDrug(drug: any) {
-  const { data, error } = await supabase.from('medication_drug_database').update(drug).eq('id', drug.id).select().single();
-  if (error) throw error;
-  return data;
-};
-
-export async function deleteDrug(id: string) {
-  const { error } = await supabase.from('medication_drug_database').delete().eq('id', id);
-  if (error) throw error;
-};
-
-// [重要] 核心同步功能
+// [新增] 核心功能：根據最新的有效記錄，重新計算任務狀態
 export const syncTaskStatus = async (taskId: string) => {
   console.log('🔄 開始同步任務狀態:', taskId);
-  const SYNC_CUTOFF_DATE = new Date('2025-01-01');
+  
+  // [分界線設定] 早於此日期的記錄不參與同步計算
+  const SYNC_CUTOFF_DATE = new Date('2025-12-01'); // 根據需求更新
 
+  // 1. 獲取任務設定
   const { data: task, error: taskError } = await supabase.from('patient_health_tasks').select('*').eq('id', taskId).single();
   if (taskError || !task) { console.error('無法找到任務:', taskId); return; }
 
+  // 2. 找出這個任務「最新」的一筆有效記錄
   const { data: latestRecord } = await supabase.from('健康記錄主表').select('記錄日期, 記錄時間').eq('task_id', taskId).order('記錄日期', { ascending: false }).order('記錄時間', { ascending: false }).limit(1).maybeSingle();
 
   let updates = {};
 
   if (latestRecord) {
     const recordDate = new Date(latestRecord.記錄日期);
-    if (recordDate < SYNC_CUTOFF_DATE) {
+    // [重要] 如果最新記錄早於或等於分界線，則不進行同步
+    if (recordDate <= SYNC_CUTOFF_DATE) {
       console.log('⚠️ 最新記錄早於分界線，跳過同步:', latestRecord.記錄日期);
       return;
     }
@@ -1582,6 +1568,7 @@ export const syncTaskStatus = async (taskId: string) => {
     updates = { last_completed_at: null, next_due_at: resetDate.toISOString() };
   }
 
+  // 3. 更新資料庫
   const { error: updateError } = await supabase.from('patient_health_tasks').update(updates).eq('id', taskId);
   if (updateError) console.error('更新任務狀態失敗:', updateError);
 };
