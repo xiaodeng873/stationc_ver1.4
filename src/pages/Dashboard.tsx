@@ -219,29 +219,30 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = useMemo(() => patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)), [patientHealthTasks]);
   const documentTasks = useMemo(() => patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)), [patientHealthTasks]);
 
-  // [移動並保留此函式，確保只有這一個定義]
+  // [修改] 找出最近的一個缺漏日期 (傳入 taskRecords 進行動態判斷)
   const findMostRecentMissedDate = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
     
+    // 預先篩選出該任務的記錄，提升效能
+    const taskRecords = healthRecords.filter(r => {
+      if (r.task_id && r.task_id === task.id) return true;
+      return r.院友id.toString() == task.patient_id.toString() && 
+             r.記錄類型 === task.health_record_type;
+    });
+
     const today = new Date();
     today.setHours(0,0,0,0);
     
-    // 往回檢查 60 天
     for (let i = 1; i <= 60; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       
-      // Cutoff 檢查
       if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
 
-      if (isTaskScheduledForDate(task, d)) {
-        const hasRecord = healthRecords.some(r => {
-          if (r.task_id === task.id) return r.記錄日期 === dateStr;
-          return r.院友id.toString() == task.patient_id.toString() && 
-                 r.記錄類型 === task.health_record_type && 
-                 r.記錄日期 === dateStr;
-        });
+      // [修改] 傳入 taskRecords
+      if (isTaskScheduledForDate(task, d, taskRecords)) {
+        const hasRecord = taskRecords.some(r => r.記錄日期 === dateStr);
         if (!hasRecord) return d;
       }
     }
@@ -817,7 +818,6 @@ const Dashboard: React.FC = () => {
           onClose={() => setShowHistoryModal(false)}
           onDateSelect={(date) => {
             handleTaskClick(selectedHistoryTask.task, date);
-            // 選擇日期後關閉日曆
             setShowHistoryModal(false); 
           }}
         />
