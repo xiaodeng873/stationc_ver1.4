@@ -21,6 +21,12 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
   onClose, 
   onDateSelect 
 }) => {
+  // [修復] 安全檢查：如果沒有任務或沒有院友資料，直接不渲染，防止崩潰
+  if (!task || !patient) {
+    console.warn('TaskHistoryModal: Missing task or patient data');
+    return null;
+  }
+
   const [currentDate, setCurrentDate] = useState(initialDate || new Date());
 
   const getDaysInMonth = (year: number, month: number) => {
@@ -140,10 +146,12 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
       }}
     >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
+        {/* Header */}
         <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-gray-900 text-sm">
-              {patient.中文姓氏}{patient.中文名字} - {task.health_record_type}
+              {/* [修復] 使用 Optional Chaining 防止 undefined 錯誤 */}
+              {patient?.中文姓氏}{patient?.中文名字} - {task?.health_record_type}
             </h3>
             <p className="text-xs text-gray-500">點擊紅色日期進行補錄</p>
           </div>
@@ -152,6 +160,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
           </button>
         </div>
 
+        {/* Calendar Controls */}
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded-full">
@@ -176,6 +185,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
           </div>
         </div>
 
+        {/* Legend */}
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex justify-center space-x-4">
           <div className="flex items-center opacity-60"><div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>已完成</div>
           <div className="flex items-center text-red-600 font-medium"><div className="w-2 h-2 rounded-full bg-red-500 mr-1.5"></div>缺漏(可點)</div>
