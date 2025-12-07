@@ -296,8 +296,14 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const [hospitalOutreachRecordHistory, setHospitalOutreachRecordHistory] = useState<any[]>([]);
   const [doctorVisitSchedule, setDoctorVisitSchedule] = useState<any[]>([]);
 
-  // ... (省略未修改的初始化與資料載入函數，請保持原樣) ...
-  // 注意：實際實作時這裡需要包含所有初始化邏輯，與原始檔案一致
+  const [prescriptionWorkflowRecords, setPrescriptionWorkflowRecords] = useState<any[]>([]);
+  // [修復] 補回 loading 狀態定義
+  const [loading, setLoading] = useState(true);
+  
+  // 新增的處方工作流程相關狀態
+  const [prescriptionTimeSlotDefinitions, setPrescriptionTimeSlotDefinitions] = useState<PrescriptionTimeSlotDefinition[]>([]);
+  const [dailySystemTasks, setDailySystemTasks] = useState<db.DailySystemTask[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   // Fetch hospital outreach records - 使用 useCallback 記憶化
   const fetchHospitalOutreachRecords = useCallback(async () => {
@@ -490,13 +496,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       throw error;
     }
   }, [fetchHospitalOutreachRecords]);
-
-  const [prescriptionWorkflowRecords, setPrescriptionWorkflowRecords] = useState<any[]>([]);
-  
-  // 新增的處方工作流程相關狀態
-  const [prescriptionTimeSlotDefinitions, setPrescriptionTimeSlotDefinitions] = useState<PrescriptionTimeSlotDefinition[]>([]);
-  const [dailySystemTasks, setDailySystemTasks] = useState<db.DailySystemTask[]>([]);
-  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
     if (!authReady) {
@@ -758,7 +757,1470 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  // ... (省略未修改的 addPatient, updatePatient, deletePatient 等函式) ...
+  const addPatient = async (patient: Omit<db.Patient, '院友id'>) => {
+    try {
+      console.log('Adding patient:', patient);
+      const { 中文姓氏, 中文名字, 英文姓氏, 英文名字, 床號, ...rest } = patient;
+      if (!中文姓氏 || !中文名字) {
+        throw new Error('中文姓氏和中文名字為必填欄位');
+      }
+      const 中文姓名 = `${中文姓氏}${中文名字}`;
+
+      // 合成英文姓名
+      let 英文姓名 = '';
+      if (英文姓氏 && 英文名字) {
+        英文姓名 = `${英文姓氏}, ${英文名字}`;
+      } else if (英文姓氏) {
+        英文姓名 = 英文姓氏;
+      } else if (英文名字) {
+        英文姓名 = 英文名字;
+      }
+
+      // 清理所有空字串欄位：轉為 null
+      const cleanedRest: any = { ...rest };
+
+      // 清理日期欄位
+      if (cleanedRest.退住日期 === '') cleanedRest.退住日期 = null;
+      if (cleanedRest.death_date === '') cleanedRest.death_date = null;
+      if (cleanedRest.入住日期 === '') cleanedRest.入住日期 = null;
+      if (cleanedRest.出生日期 === '') cleanedRest.出生日期 = null;
+
+      // 清理文本欄位
+      if (cleanedRest.discharge_reason === '') cleanedRest.discharge_reason = null;
+      if (cleanedRest.transfer_facility_name === '') cleanedRest.transfer_facility_name = null;
+      if (cleanedRest.院友相片 === '') cleanedRest.院友相片 = null;
+      if (cleanedRest.身份證號碼 === '') cleanedRest.身份證號碼 = null;
+
+      const patientWithFullName: Omit<db.Patient, '院友id'> = {
+        ...cleanedRest,
+        中文姓氏,
+        中文名字,
+        中文姓名,
+        英文姓氏,
+        英文名字,
+        英文姓名,
+        床號: 床號 || '待分配'
+      };
+      console.log('Generated patient with full name:', patientWithFullName);
+      const newPatient = await db.createPatient(patientWithFullName);
+      console.log('Patient added successfully:', newPatient);
+      await refreshData();
+      console.log('Data refreshed successfully');
+    } catch (error) {
+      console.error('Error adding patient:', error);
+      throw error;
+    }
+  };
+
+  const updatePatient = async (patient: db.Patient) => {
+    try {
+      // 如果更新了床位，同步更新床號
+      if (patient.bed_id) {
+        const bed = beds.find(b => b.id === patient.bed_id);
+        if (bed) {
+          patient.床號 = bed.bed_number;
+        }
+      }
+
+      // 清理所有空字串欄位：轉為 null
+      const cleanedPatient: any = { ...patient };
+
+      // 清理日期欄位
+      if (cleanedPatient.退住日期 === '') cleanedPatient.退住日期 = null;
+      if (cleanedPatient.death_date === '') cleanedPatient.death_date = null;
+      if (cleanedPatient.入住日期 === '') cleanedPatient.入住日期 = null;
+      if (cleanedPatient.出生日期 === '') cleanedPatient.出生日期 = null;
+
+      // 清理文本欄位
+      if (cleanedPatient.discharge_reason === '') cleanedPatient.discharge_reason = null;
+      if (cleanedPatient.transfer_facility_name === '') cleanedPatient.transfer_facility_name = null;
+      if (cleanedPatient.院友相片 === '') cleanedPatient.院友相片 = null;
+      if (cleanedPatient.身份證號碼 === '') cleanedPatient.身份證號碼 = null;
+
+      await db.updatePatient(cleanedPatient);
+
+      // 當院友狀態更新時，檢查是否需要更新 is_hospitalized 狀態
+      // 如果有 active 的住院事件，設為 true；否則設為 false
+      const activeEpisode = hospitalEpisodes.find(episode =>
+        episode.patient_id === cleanedPatient.院友id && episode.status === 'active'
+      );
+
+      if (activeEpisode && !cleanedPatient.is_hospitalized) {
+        // 有 active 住院事件但 is_hospitalized 為 false，需要更新
+        await db.updatePatient({
+          ...cleanedPatient,
+          is_hospitalized: true
+        });
+      } else if (!activeEpisode && cleanedPatient.is_hospitalized) {
+        // 沒有 active 住院事件但 is_hospitalized 為 true，需要更新
+        await db.updatePatient({
+          ...cleanedPatient,
+          is_hospitalized: false
+        });
+      }
+
+      // 如果院友退住，刪除健康任務
+      // 資料庫觸發器會自動處理床位釋放
+      if (cleanedPatient.在住狀態 === '已退住') {
+        const patientTasks = patientHealthTasks.filter(task => task.patient_id === cleanedPatient.院友id);
+        for (const task of patientTasks) {
+          await db.deletePatientHealthTask(task.id);
+        }
+      }
+
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating patient:', error);
+      throw error;
+    }
+  };
+
+  const deletePatient = async (id: number) => {
+    try {
+      await db.deletePatient(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patient:', error);
+    }
+  };
+
+  const addSchedule = async (schedule: Omit<db.Schedule, '排程id'>) => {
+    try {
+      await db.createSchedule(schedule);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding schedule:', error);
+    }
+  };
+
+  const updateSchedule = async (schedule: ScheduleWithDetails) => {
+    try {
+      await db.updateSchedule(schedule);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+    }
+  };
+
+  const addPatientToSchedule = async (scheduleId: number, patientId: number, symptoms: string, notes: string, reasons: string[]) => {
+    try {
+      await db.addPatientToSchedule(scheduleId, patientId, symptoms, notes, reasons);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient to schedule:', error);
+    }
+  };
+
+  const updateScheduleDetail = async (detailData: { 細項id: number; 症狀說明: string; 備註: string; reasonIds: number[] }) => {
+    try {
+      console.log('PatientContext updateScheduleDetail 調用:', detailData);
+      const result = await db.updateScheduleDetail(detailData);
+      console.log('PatientContext updateScheduleDetail 結果:', result);
+      
+      if (result?.error) {
+        throw new Error(result.error.message || '更新失敗');
+      }
+          
+      console.log('PatientContext 數據刷新完成');
+      return result;
+    } catch (error) {
+      console.error('Error updating schedule detail:', error);
+      throw error;
+    }
+  };
+
+  const deleteScheduleDetail = async (detailId: number) => {
+    try {
+      await db.deleteScheduleDetail(detailId);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting schedule detail:', error);
+    }
+  };
+
+  const deleteSchedule = async (id: number) => {
+    try {
+      await db.deleteSchedule(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+    }
+  };
+
+  const addPrescription = async (prescription: Omit<db.Prescription, '處方id'>) => {
+    try {
+      console.log('Adding prescription:', prescription);
+      await db.createPrescription(prescription);
+      console.log('Prescription added successfully, refreshing data...');
+      await refreshData();
+      console.log('Data refreshed successfully');
+    } catch (error) {
+      console.error('Error adding prescription:', error);
+      throw error;
+    }
+  };
+
+  const updatePrescription = async (prescription: any) => {
+    try {
+      console.log('Updating prescription:', prescription);
+      await db.updatePrescription(prescription);
+      console.log('Prescription updated successfully, refreshing data...');
+      await refreshData();
+      console.log('Data refreshed successfully');
+    } catch (error) {
+      console.error('Error updating prescription:', error);
+      throw error;
+    }
+  };
+
+  const deletePrescription = async (id: number) => {
+    try {
+      console.log('Deleting prescription:', id);
+      await db.deletePrescription(id);
+      console.log('Prescription deleted successfully, refreshing data...');
+      await refreshData();
+      console.log('Data refreshed successfully');
+    } catch (error) {
+      console.error('Error deleting prescription:', error);
+      throw error;
+    }
+  };
+
+  const addHealthRecord = async (record: Omit<db.HealthRecord, '記錄id'>, skipRefresh = false) => {
+    try {
+      console.log('Adding health record:', record);
+      const newRecord = await db.createHealthRecord(record);
+      console.log('Health record added successfully');
+
+      if (!skipRefresh) {
+        // 只更新健康記錄，不重新載入所有數據
+        setHealthRecords(prev => [...prev, newRecord]);
+      }
+
+      return newRecord;
+    } catch (error) {
+      console.error('Error adding health record:', error);
+      throw error;
+    }
+  };
+
+  // 新增的載入函數
+  const loadPrescriptionWorkflowRecords = async (patientId?: number, date?: string) => {
+    try {
+      // 首先檢查表是否存在，如果不存在則創建工作流程記錄
+      const { data: existingRecords, error: fetchError } = await supabase
+        .from('medication_workflow_records')
+        .select('*')
+        .eq('patient_id', patientId)
+        .eq('scheduled_date', date);
+      
+      if (fetchError) throw fetchError;
+      setPrescriptionWorkflowRecords(existingRecords || []);
+    } catch (error) {
+      console.error('載入處方工作流程記錄失敗:', error);
+      throw error;
+    }
+  };
+  
+  const loadPrescriptionTimeSlotDefinitions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('prescription_time_slot_definitions')
+        .select('*')
+        .order('slot_name');
+      
+      if (error) throw error;
+      setPrescriptionTimeSlotDefinitions(data || []);
+    } catch (error) {
+      console.error('載入處方時段定義失敗:', error);
+      throw error;
+    }
+  };
+
+  const checkEligiblePatientsForTemperature = (targetDate?: string) => {
+    const today = targetDate || getHongKongDate();
+    const eligiblePatients: db.Patient[] = [];
+    const excludedPatients: { patient: db.Patient; reason: string }[] = [];
+
+    patients.forEach(patient => {
+      if (patient.在住狀態 !== '在住') {
+        excludedPatients.push({ patient, reason: '不在住狀態' });
+        return;
+      }
+      
+      if (patient.is_hospitalized) {
+        excludedPatients.push({ patient, reason: '住院中' });
+        return;
+      }
+      
+      const hasTemperatureRecord = healthRecords.some(record => 
+        record.院友id === patient.院友id && 
+        record.記錄日期 === today && 
+        record.記錄類型 === '生命表徵' && 
+        record.體溫 !== null
+      );
+
+      if (hasTemperatureRecord) {
+        excludedPatients.push({ patient, reason: '已量度體溫' });
+        return;
+      }
+      
+      // 符合條件的院友
+      eligiblePatients.push(patient);
+    });
+
+    return {
+      eligiblePatients,
+      excludedPatients,
+      targetDate: today
+    };
+  };
+
+  // 一鍵為所有符合條件的院友生成隨機體溫（支援指定日期）
+  const generateRandomTemperaturesForActivePatients = async (targetDate?: string) => {
+    try {
+      const { eligiblePatients, targetDate: today } = checkEligiblePatientsForTemperature(targetDate);
+
+      // 為每位符合條件的院友建立監測記錄
+      const newHealthRecords = eligiblePatients.map(patient => ({
+        院友id: patient.院友id,
+        記錄日期: today,
+        記錄時間: getFixedMorningTime(),
+        記錄類型: '生命表徵',
+        血壓收縮壓: null,
+        血壓舒張壓: null,
+        脈搏: null,
+        體溫: patient.is_hospitalized ? null : generateRandomTemperature(),
+        血含氧量: null,
+        呼吸頻率: null,
+        血糖值: null,
+        體重: null,
+        備註: patient.is_hospitalized ? '無法量度原因: 入院' : null,
+        記錄人員: null
+      }));
+
+      // 批量插入監測記錄
+      await db.createBatchHealthRecords(newHealthRecords);
+      
+      // 刷新資料
+      await refreshData();
+      
+      return eligiblePatients.length;
+    } catch (error) {
+      console.error('生成隨機體溫失敗:', error);
+      throw error;
+    }
+  };
+
+  // 記錄每日體溫生成任務完成
+  const recordDailyTemperatureGenerationCompletion = async () => {
+    try {
+      const today = getHongKongDate();
+      await db.recordDailySystemTaskCompletion('Daily Temperature Generation', today);
+      
+      // 刷新每日系統任務狀態
+      const overdueTasks = await db.getOverdueDailySystemTasks();
+      setDailySystemTasks(overdueTasks);
+    } catch (error) {
+      console.error('記錄每日體溫生成任務完成失敗:', error);
+      throw error;
+    }
+  };
+
+  // 獲取逾期的每日系統任務
+  const getOverdueDailySystemTasks = async (): Promise<db.DailySystemTask[]> => {
+    try {
+      return await db.getOverdueDailySystemTasks();
+    } catch (error) {
+      console.error('獲取逾期每日系統任務失敗:', error);
+      return [];
+    }
+  };
+  
+  // 新增的處方工作流程相關函數
+  const fetchPrescriptionWorkflowRecords = async (patientId?: number, scheduledDate?: string): Promise<PrescriptionWorkflowRecord[]> => {
+    try {
+      // 嚴格的參數驗證和轉換
+      const validPatientId = (patientId !== undefined && patientId !== null && !isNaN(patientId) && patientId > 0) ? patientId : null;
+      const validScheduledDate = (scheduledDate && typeof scheduledDate === 'string' && scheduledDate.trim() !== '' && scheduledDate !== 'undefined') ? scheduledDate.trim() : null;
+
+      console.log('🔍 fetchPrescriptionWorkflowRecords 被調用:', {
+        原始patientId: patientId,
+        原始scheduledDate: scheduledDate,
+        有效patientId: validPatientId,
+        有效scheduledDate: validScheduledDate,
+        將查詢所有記錄: validPatientId === null && validScheduledDate === null
+      });
+
+      let query = supabase
+        .from('medication_workflow_records')
+        .select('*');
+
+      if (validPatientId !== null) {
+        query = query.eq('patient_id', validPatientId);
+      }
+
+      if (validScheduledDate !== null) {
+        query = query.eq('scheduled_date', validScheduledDate);
+      }
+
+      const { data: queryData, error: queryError } = await query.order('scheduled_time');
+
+      if (queryError) {
+        console.error('Supabase 查詢錯誤:', queryError);
+        throw new Error(`查詢工作流程記錄失敗: ${queryError.message}`);
+      }
+
+      console.log('查詢成功，返回記錄數量:', queryData?.length || 0);
+      setPrescriptionWorkflowRecords(queryData || []);
+      return queryData || [];
+    } catch (error) {
+      console.error('錯誤詳情:', {
+        message: error instanceof Error ? error.message : '未知錯誤',
+        originalParams: { patientId, scheduledDate }
+      });
+      console.error('獲取處方工作流程記錄失敗:', error);
+      
+      // 嚴格的參數正規化
+      const normalizedPatientId = (() => {
+        if (patientId === null || patientId === undefined) return null;
+        if (typeof patientId === 'string') {
+          const parsed = parseInt(patientId, 10);
+          return !isNaN(parsed) && parsed > 0 ? parsed : null;
+        }
+        if (typeof patientId === 'number') {
+          return !isNaN(patientId) && patientId > 0 ? patientId : null;
+        }
+        return null;
+      })();
+
+      const normalizedScheduledDate = (() => {
+        if (scheduledDate === null || scheduledDate === undefined) return null;
+        if (typeof scheduledDate === 'string' && scheduledDate.trim() !== '' && scheduledDate !== 'undefined') {
+          return scheduledDate.trim();
+        }
+        return null;
+      })();
+
+      console.log('正規化後的參數:', { 
+        normalizedPatientId, 
+        normalizedScheduledDate 
+      });
+
+      // 如果所有參數都無效，直接返回空結果
+      if (normalizedPatientId === null && normalizedScheduledDate === null) {
+        console.log('所有參數都無效，返回空結果');
+        setPrescriptionWorkflowRecords([]);
+        return [];
+      }
+
+      throw error;
+    }
+  };
+
+  // 使用 useCallback 穩定化 fetchPrescriptionWorkflowRecords 函數（移到定義之後）
+  const memoizedFetchPrescriptionWorkflowRecords = useCallback(fetchPrescriptionWorkflowRecords, []);
+
+  const createPrescriptionWorkflowRecord = async (recordData: Omit<PrescriptionWorkflowRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('medication_workflow_records')
+        .insert([recordData])
+        .select()
+        .single();
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('建立處方工作流程記錄失敗:', error);
+      throw error;
+    }
+  };
+  
+  const updatePrescriptionWorkflowRecord = async (recordId: string, updateData: Partial<PrescriptionWorkflowRecord>) => {
+    try {
+      const { error } = await supabase
+        .from('medication_workflow_records')
+        .update(updateData)
+        .eq('id', recordId);
+      
+      if (error) throw error;
+      await loadPrescriptionWorkflowRecords();
+    } catch (error) {
+      console.error('更新處方工作流程記錄失敗:', error);
+      throw error;
+    }
+  };
+  
+  const prepareMedication = async (
+    recordId: string, 
+    staffName: string,
+    failureReason?: string,
+    failureCustomReason?: string,
+    patientId?: number,
+    scheduledDate?: string
+  ) => {
+    // 參數驗證和正規化
+    const normalizedPatientId = patientId && !isNaN(patientId) && patientId > 0 ? patientId : null;
+    const normalizedScheduledDate = scheduledDate && scheduledDate.trim() !== '' ? scheduledDate.trim() : null;
+    
+    console.log('=== prepareMedication 參數檢查 ===', {
+      recordId,
+      staffName,
+      originalPatientId: patientId,
+      originalScheduledDate: scheduledDate,
+      normalizedPatientId,
+      normalizedScheduledDate
+    });
+    
+    if (!normalizedPatientId || !normalizedScheduledDate) {
+      console.error('prepareMedication 參數無效:', { normalizedPatientId, normalizedScheduledDate });
+      throw new Error('院友ID和排程日期為必填項目');
+    }
+
+    try {
+      console.log('執行執藥操作:', { recordId, staffName });
+      
+      const updateData: any = {
+        preparation_staff: staffName,
+        preparation_time: new Date().toISOString()
+      };
+
+      if (failureReason) {
+        updateData.preparation_status = 'failed';
+        updateData.dispensing_failure_reason = failureReason;
+        updateData.custom_failure_reason = failureCustomReason || null;
+      } else {
+        updateData.preparation_status = 'completed';
+        updateData.dispensing_failure_reason = null;
+        updateData.custom_failure_reason = null;
+      }
+      
+      const { data: updatedRecord, error } = await supabase
+        .from('medication_workflow_records')
+        .update(updateData)
+        .eq('id', recordId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase 更新錯誤:', error);
+        throw error;
+      }
+
+      console.log('執藥操作完成');
+
+      // 使用樂觀更新：直接更新本地狀態
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(rec => rec.id === recordId ? updatedRecord : rec)
+      );
+    } catch (error) {
+      console.error('執行preparation失敗:', error);
+      throw error;
+    }
+  };
+  
+  const verifyMedication = async (
+    recordId: string, 
+    staffName: string,
+    failureReason?: string,
+    failureCustomReason?: string,
+    patientId?: number,
+    scheduledDate?: string
+  ) => {
+    // 參數驗證和正規化
+    const normalizedPatientId = patientId && !isNaN(patientId) && patientId > 0 ? patientId : null;
+    const normalizedScheduledDate = scheduledDate && scheduledDate.trim() !== '' ? scheduledDate.trim() : null;
+    
+    console.log('=== verifyMedication 參數檢查 ===', {
+      recordId,
+      staffName,
+      originalPatientId: patientId,
+      originalScheduledDate: scheduledDate,
+      normalizedPatientId,
+      normalizedScheduledDate
+    });
+    
+    if (!normalizedPatientId || !normalizedScheduledDate) {
+      console.error('verifyMedication 參數無效:', { normalizedPatientId, normalizedScheduledDate });
+      throw new Error('院友ID和排程日期為必填項目');
+    }
+
+    try {
+      console.log('執行核藥操作:', { recordId, staffName });
+      
+      // 檢查執藥是否已完成
+      const { data: record, error: fetchError } = await supabase
+        .from('medication_workflow_records')
+        .select('preparation_status')
+        .eq('id', recordId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      if (record.preparation_status !== 'completed') {
+        throw new Error('必須先完成執藥步驟才能進行核藥');
+      }
+      
+      const updateData: any = {
+        verification_staff: staffName,
+        verification_time: new Date().toISOString()
+      };
+
+      if (failureReason) {
+        updateData.verification_status = 'failed';
+        updateData.dispensing_failure_reason = failureReason;
+        updateData.custom_failure_reason = failureCustomReason || null;
+      } else {
+        updateData.verification_status = 'completed';
+        updateData.dispensing_failure_reason = null;
+        updateData.custom_failure_reason = null;
+      }
+      
+      const { data: updatedRecord, error } = await supabase
+        .from('medication_workflow_records')
+        .update(updateData)
+        .eq('id', recordId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase 更新錯誤:', error);
+        throw error;
+      }
+
+      console.log('核藥操作完成');
+
+      // 使用樂觀更新：直接更新本地狀態
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(rec => rec.id === recordId ? updatedRecord : rec)
+      );
+    } catch (error) {
+      console.error('執行verification失敗:', error);
+      throw error;
+    }
+  };
+  
+  const dispenseMedication = async (
+    recordId: string,
+    staffName: string,
+    failureReason?: string,
+    failureCustomReason?: string,
+    patientId?: number,
+    scheduledDate?: string,
+    notes?: string,
+    inspectionCheckResult?: any
+  ) => {
+    // 參數驗證和正規化
+    const normalizedPatientId = patientId && !isNaN(patientId) && patientId > 0 ? patientId : null;
+    const normalizedScheduledDate = scheduledDate && scheduledDate.trim() !== '' ? scheduledDate.trim() : null;
+
+    console.log('=== dispenseMedication 參數檢查 ===', {
+      recordId,
+      staffName,
+      failureReason,
+      failureCustomReason,
+      originalPatientId: patientId,
+      originalScheduledDate: scheduledDate,
+      normalizedPatientId,
+      normalizedScheduledDate,
+      notes,
+      inspectionCheckResult
+    });
+
+    if (!normalizedPatientId || !normalizedScheduledDate) {
+      console.error('dispenseMedication 參數無效:', { normalizedPatientId, normalizedScheduledDate });
+      throw new Error('院友ID和排程日期為必填項目');
+    }
+
+    try {
+      console.log('執行派藥操作:', { recordId, staffName, failureReason, failureCustomReason });
+
+      // 檢查核藥是否已完成（僅在成功派藥時需要檢查）
+      const { data: record, error: fetchError } = await supabase
+        .from('medication_workflow_records')
+        .select('verification_status, prescription_id, patient_id')
+        .eq('id', recordId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // 只有在沒有失敗原因時（即正常派藥），才需要檢查核藥是否完成
+      if (!failureReason && record.verification_status !== 'completed') {
+        throw new Error('必須先完成核藥步驟才能進行派藥');
+      }
+
+      // 正常派藥或手動設定失敗
+      const updateData: any = {
+        dispensing_staff: staffName,
+        dispensing_time: new Date().toISOString()
+      };
+
+      if (failureReason) {
+        updateData.dispensing_status = 'failed';
+        updateData.dispensing_failure_reason = failureReason;
+        updateData.custom_failure_reason = failureCustomReason || null;
+      } else {
+        updateData.dispensing_status = 'completed';
+        updateData.dispensing_failure_reason = null;
+        updateData.custom_failure_reason = null;
+      }
+
+      // 如果有備註（如注射位置），添加到更新數據中
+      if (notes) {
+        updateData.notes = notes;
+      }
+
+      // 如果有檢測結果，存儲到 inspection_check_result 字段
+      if (inspectionCheckResult) {
+        console.log('[dispenseMedication] 儲存檢測結果:', inspectionCheckResult);
+        updateData.inspection_check_result = inspectionCheckResult;
+      }
+
+      console.log('[dispenseMedication] 更新數據:', updateData);
+
+      const { data: updatedRecord, error } = await supabase
+        .from('medication_workflow_records')
+        .update(updateData)
+        .eq('id', recordId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[dispenseMedication] Supabase 更新錯誤:', error);
+        throw error;
+      }
+
+      console.log('[dispenseMedication] 派藥記錄更新成功');
+
+      // 使用樂觀更新：直接更新本地狀態，不需要重新載入
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(rec => rec.id === recordId ? updatedRecord : rec)
+      );
+    } catch (error) {
+      console.error('執行dispensing失敗:', error);
+      throw error;
+    }
+  };
+  
+  const checkPrescriptionInspectionRules = async (
+    prescriptionId: string,
+    patientId: number,
+    newVitalSignData?: Omit<db.HealthRecord, '記錄id'>
+  ): Promise<InspectionCheckResult> => {
+    try {
+      console.log('[checkPrescriptionInspectionRules] 開始檢查，處方ID:', prescriptionId, '院友ID:', patientId);
+
+      // 獲取處方的檢測規則
+      const { data: prescription, error: prescriptionError } = await supabase
+        .from('new_medication_prescriptions')
+        .select('inspection_rules')
+        .eq('id', prescriptionId)
+        .single();
+
+      if (prescriptionError) {
+        console.error('[checkPrescriptionInspectionRules] 獲取處方失敗:', prescriptionError);
+        throw prescriptionError;
+      }
+
+      const inspectionRules = prescription.inspection_rules || [];
+      console.log('[checkPrescriptionInspectionRules] 檢測規則:', inspectionRules);
+
+      if (inspectionRules.length === 0) {
+        console.log('[checkPrescriptionInspectionRules] 無檢測規則，允許派藥');
+        return {
+          canDispense: true,
+          blockedRules: [],
+          usedVitalSignData: {}
+        };
+      }
+
+      const result: InspectionCheckResult = {
+        canDispense: true,
+        blockedRules: [],
+        usedVitalSignData: {}
+      };
+
+      // 檢查每個檢測規則
+      for (const rule of inspectionRules) {
+        console.log('[checkPrescriptionInspectionRules] 檢查規則:', rule);
+        const latestVitalSign = await fetchLatestVitalSigns(patientId, rule.vital_sign_type);
+        
+        if (!latestVitalSign) {
+          // 沒有相關的監測記錄，跳過此規則
+          continue;
+        }
+        
+        let actualValue: number = 0;
+        
+        // 根據檢測項類型獲取實際值
+        switch (rule.vital_sign_type) {
+          case '上壓':
+            actualValue = latestVitalSign.血壓收縮壓 || 0;
+            break;
+          case '下壓':
+            actualValue = latestVitalSign.血壓舒張壓 || 0;
+            break;
+          case '脈搏':
+            actualValue = latestVitalSign.脈搏 || 0;
+            break;
+          case '血糖值':
+            actualValue = latestVitalSign.血糖值 || 0;
+            break;
+          case '呼吸':
+            actualValue = latestVitalSign.呼吸頻率 || 0;
+            break;
+          case '血含氧量':
+            actualValue = latestVitalSign.血含氧量 || 0;
+            break;
+          case '體溫':
+            actualValue = latestVitalSign.體溫 || 0;
+            break;
+          default:
+            continue;
+        }
+        
+        // 記錄使用的監測數據
+        result.usedVitalSignData[rule.vital_sign_type] = actualValue;
+
+        // 檢查條件
+        let conditionMet = false;
+
+        switch (rule.condition_operator) {
+          case 'gt':
+            conditionMet = actualValue > rule.condition_value;
+            break;
+          case 'lt':
+            conditionMet = actualValue < rule.condition_value;
+            break;
+          case 'gte':
+            conditionMet = actualValue >= rule.condition_value;
+            break;
+          case 'lte':
+            conditionMet = actualValue <= rule.condition_value;
+            break;
+        }
+
+        if (conditionMet) {
+          result.canDispense = false;
+          result.blockedRules.push({
+            vital_sign_type: rule.vital_sign_type,
+            condition_operator: rule.condition_operator,
+            condition_value: rule.condition_value,
+            actual_value: actualValue,
+            action_if_met: rule.action_if_met || 'block_dispensing'
+          });
+        }
+      }
+
+      console.log('[checkPrescriptionInspectionRules] 檢測結果:', result);
+
+      return result;
+    } catch (error) {
+      console.error('檢查處方檢測規則失敗:', error);
+      throw error;
+    }
+  };
+  
+  const fetchLatestVitalSigns = async (patientId: number, vitalSignType: string): Promise<db.HealthRecord | null> => {
+    try {
+      console.log(`[fetchLatestVitalSigns] 開始查詢，院友ID: ${patientId}, 檢測類型: ${vitalSignType}`);
+
+      // 根據檢測項類型決定要查詢的記錄類型和字段名
+      let recordType = '';
+      let fieldName = '';
+
+      if (vitalSignType === '上壓') {
+        recordType = '生命表徵';
+        fieldName = '血壓收縮壓';
+      } else if (vitalSignType === '下壓') {
+        recordType = '生命表徵';
+        fieldName = '血壓舒張壓';
+      } else if (vitalSignType === '脈搏') {
+        recordType = '生命表徵';
+        fieldName = '脈搏';
+      } else if (vitalSignType === '呼吸') {
+        recordType = '生命表徵';
+        fieldName = '呼吸頻率';
+      } else if (vitalSignType === '血含氧量') {
+        recordType = '生命表徵';
+        fieldName = '血含氧量';
+      } else if (vitalSignType === '體溫') {
+        recordType = '生命表徵';
+        fieldName = '體溫';
+      } else if (vitalSignType === '血糖值') {
+        recordType = '血糖控制';
+        fieldName = '血糖值';
+      } else {
+        console.warn(`[fetchLatestVitalSigns] 未知的檢測類型: ${vitalSignType}`);
+        return null;
+      }
+
+      console.log(`[fetchLatestVitalSigns] 查詢記錄類型: ${recordType}, 字段名: ${fieldName}`);
+
+      // 查詢該記錄類型的多條記錄，然後找到第一條包含該字段數據的記錄
+      const { data, error } = await supabase
+        .from('健康記錄主表')
+        .select('*')
+        .eq('院友id', patientId)
+        .eq('記錄類型', recordType)
+        .not(fieldName, 'is', null)
+        .order('記錄日期', { ascending: false })
+        .order('記錄時間', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('[fetchLatestVitalSigns] 查詢失敗:', error);
+        throw new Error(`查詢${recordType}記錄失敗: ${error.message}`);
+      }
+
+      const result = data && data.length > 0 ? data[0] : null;
+
+      if (result) {
+        console.log(`[fetchLatestVitalSigns] 查詢結果: 找到記錄ID ${result.記錄id}, ${fieldName}=${result[fieldName]}, 日期=${result.記錄日期}, 時間=${result.記錄時間}`);
+      } else {
+        console.log(`[fetchLatestVitalSigns] 查詢結果: 無包含${fieldName}的${recordType}記錄`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('[fetchLatestVitalSigns] 獲取最新監測記錄失敗:', error);
+      throw error;
+    }
+  };
+  
+  const batchSetDispenseFailure = async (patientId: number, scheduledDate: string, scheduledTime: string, reason: string) => {
+    try {
+      // 獲取該院友在指定日期時間的所有在服處方工作流程記錄
+      const { data: records, error: fetchError } = await supabase
+        .from('medication_workflow_records')
+        .select('id')
+        .eq('patient_id', patientId)
+        .eq('scheduled_date', scheduledDate)
+        .eq('scheduled_time', scheduledTime)
+        .eq('dispensing_status', 'pending');
+      
+      if (fetchError) throw fetchError;
+      
+      if (records && records.length > 0) {
+        const updateData = {
+          dispensing_status: 'failed' as const,
+          dispensing_failure_reason: reason,
+          dispensing_time: new Date().toISOString()
+        };
+        
+        const { error: updateError } = await supabase
+          .from('medication_workflow_records')
+          .update(updateData)
+          .in('id', records.map(r => r.id));
+        
+        if (updateError) throw updateError;
+        
+        await loadPrescriptionWorkflowRecords();
+      }
+    } catch (error) {
+      console.error('批量設定派藥失敗失敗:', error);
+      throw error;
+    }
+  };
+  
+  // 撤銷工作流程步驟
+  const revertPrescriptionWorkflowStep = async (
+    recordId: string, 
+    step: 'preparation' | 'verification' | 'dispensing',
+    patientId?: number,
+    scheduledDate?: string
+  ) => {
+    if (!recordId || recordId === 'undefined') {
+      throw new Error('無效的記錄ID');
+    }
+
+    try {
+      const updateData: any = {};
+
+      switch (step) {
+        case 'preparation':
+          updateData.preparation_status = 'pending';
+          updateData.preparation_staff = null;
+          updateData.preparation_time = null;
+          // 如果撤銷執藥，也要撤銷後續步驟
+          updateData.verification_status = 'pending';
+          updateData.verification_staff = null;
+          updateData.verification_time = null;
+          updateData.dispensing_status = 'pending';
+          updateData.dispensing_staff = null;
+          updateData.dispensing_time = null;
+          updateData.dispensing_failure_reason = null;
+          updateData.custom_failure_reason = null;
+          break;
+        case 'verification':
+          updateData.verification_status = 'pending';
+          updateData.verification_staff = null;
+          updateData.verification_time = null;
+          // 如果撤銷核藥，也要撤銷派藥步驟
+          updateData.dispensing_status = 'pending';
+          updateData.dispensing_staff = null;
+          updateData.dispensing_time = null;
+          updateData.dispensing_failure_reason = null;
+          updateData.custom_failure_reason = null;
+          break;
+        case 'dispensing':
+          updateData.dispensing_status = 'pending';
+          updateData.dispensing_staff = null;
+          updateData.dispensing_time = null;
+          updateData.dispensing_failure_reason = null;
+          updateData.custom_failure_reason = null;
+          break;
+      }
+
+      const { error } = await supabase
+        .from('medication_workflow_records')
+        .update(updateData)
+        .eq('id', recordId);
+
+      if (error) {
+        throw new Error(`撤銷${step}失敗: ${error.message}`);
+      }
+
+      // 重新載入數據
+      if (patientId && scheduledDate) {
+        await fetchPrescriptionWorkflowRecords(patientId, scheduledDate);
+      }
+    } catch (error) {
+      console.error(`撤銷${step}失敗:`, error);
+      throw error;
+    }
+  };
+  
+  // 處方時段定義相關函數
+  const fetchPrescriptionTimeSlotDefinitions = async (): Promise<PrescriptionTimeSlotDefinition[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('prescription_time_slot_definitions')
+        .select('*')
+        .order('slot_name');
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('獲取處方時段定義失敗:', error);
+      throw error;
+    }
+  };
+  
+  const addPrescriptionTimeSlotDefinition = async (definition: Omit<PrescriptionTimeSlotDefinition, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('prescription_time_slot_definitions')
+        .insert([definition])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      await loadPrescriptionTimeSlotDefinitions();
+    } catch (error) {
+      console.error('新增處方時段定義失敗:', error);
+      throw error;
+    }
+  };
+  
+  const updatePrescriptionTimeSlotDefinition = async (definition: PrescriptionTimeSlotDefinition) => {
+    try {
+      const { error } = await supabase
+        .from('prescription_time_slot_definitions')
+        .update(definition)
+        .eq('id', definition.id);
+      
+      if (error) throw error;
+      await loadPrescriptionTimeSlotDefinitions();
+    } catch (error) {
+      console.error('更新處方時段定義失敗:', error);
+      throw error;
+    }
+  };
+  
+  const deletePrescriptionTimeSlotDefinition = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('prescription_time_slot_definitions')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      await loadPrescriptionTimeSlotDefinitions();
+    } catch (error) {
+      console.error('刪除處方時段定義失敗:', error);
+      throw error;
+    }
+  };
+
+  // Station management functions
+  const addStation = async (station: Omit<db.Station, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createStation(station);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding station:', error);
+      throw error;
+    }
+  };
+
+  const updateStation = async (station: db.Station) => {
+    try {
+      await db.updateStation(station);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating station:', error);
+      throw error;
+    }
+  };
+
+  const deleteStation = async (id: string) => {
+    try {
+      await db.deleteStation(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting station:', error);
+      throw error;
+    }
+  };
+
+  // Bed management functions
+  const addBed = async (bed: Omit<db.Bed, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createBed(bed);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding bed:', error);
+      throw error;
+    }
+  };
+
+  const updateBed = async (bed: db.Bed) => {
+    try {
+      await db.updateBed(bed);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating bed:', error);
+      throw error;
+    }
+  };
+
+  const deleteBed = async (id: string) => {
+    try {
+      await db.deleteBed(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting bed:', error);
+      throw error;
+    }
+  };
+
+  const assignPatientToBed = async (patientId: number, bedId: string) => {
+    try {
+      const patient = patients.find(p => p.院友id === patientId);
+      const bed = beds.find(b => b.id === bedId);
+
+      if (!patient) {
+        throw new Error('找不到指定的院友');
+      }
+
+      if (!bed) {
+        throw new Error('找不到指定的床位');
+      }
+
+      // 從資料庫檢查床位的實際佔用狀態
+      const { data: occupiedCheck, error: checkError } = await supabase
+        .from('院友主表')
+        .select('院友id, 中文姓名')
+        .eq('bed_id', bedId)
+        .eq('在住狀態', '在住')
+        .maybeSingle();
+
+      if (checkError) {
+        throw checkError;
+      }
+
+      // 如果床位已有在住院友,拋出錯誤但不重新載入資料
+      if (occupiedCheck) {
+        throw new Error(`此床位已被院友「${occupiedCheck.中文姓名}」佔用`);
+      }
+
+      // 更新院友的床位和床號
+      // 資料庫觸發器會自動處理床位的 is_occupied 狀態
+      const { error } = await supabase
+        .from('院友主表')
+        .update({
+          bed_id: bedId,
+          station_id: bed.station_id,
+          床號: bed.bed_number,
+          在住狀態: '在住'
+        })
+        .eq('院友id', patientId);
+
+      if (error) {
+        throw error;
+      }
+
+      // 重新載入資料以確保所有頁面同步
+      await refreshData();
+    } catch (error) {
+      console.error('指派床位失敗:', error);
+      throw error;
+    }
+  };
+
+  const swapPatientBeds = async (patientId1: number, patientId2: number) => {
+    try {
+      const patient1 = patients.find(p => p.院友id === patientId1);
+      const patient2 = patients.find(p => p.院友id === patientId2);
+
+      if (!patient1 || !patient2) {
+        throw new Error('找不到指定的院友');
+      }
+
+      const bed1 = beds.find(b => b.id === patient1.bed_id);
+      const bed2 = beds.find(b => b.id === patient2.bed_id);
+
+      if (!bed1 || !bed2) {
+        throw new Error('找不到院友的床位資訊');
+      }
+
+      // 交換床位
+      const { error } = await supabase.rpc('swap_patient_beds', {
+        patient_id_1: patientId1,
+        patient_id_2: patientId2
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // 重新載入資料以確保所有頁面同步
+      await refreshData();
+    } catch (error) {
+      console.error('交換床位失敗:', error);
+      throw error;
+    }
+  };
+
+  const moveBedToStation = async (bedId: string, newStationId: string) => {
+    try {
+      await db.moveBedToStation(bedId, newStationId);
+      await refreshData();
+    } catch (error) {
+      console.error('Error moving bed to station:', error);
+      throw error;
+    }
+  };
+
+  // Drug database functions
+  const addDrug = async (drug: Omit<any, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createDrug(drug);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding drug:', error);
+      throw error;
+    }
+  };
+
+  const updateDrug = async (drug: any) => {
+    try {
+      await db.updateDrug(drug);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating drug:', error);
+      throw error;
+    }
+  };
+
+  const deleteDrug = async (id: string) => {
+    try {
+      await db.deleteDrug(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting drug:', error);
+      throw error;
+    }
+  };
+
+  // Health record functions
+  const updateHealthRecord = async (record: db.HealthRecord) => {
+    try {
+      await db.updateHealthRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating health record:', error);
+      throw error;
+    }
+  };
+
+  const deleteHealthRecord = async (id: number) => {
+    try {
+      console.log('[deleteHealthRecord] 刪除監測記錄 ID:', id);
+      await db.deleteHealthRecord(id);
+
+      // 只刷新監測記錄，不需要刷新所有數據
+      console.log('[deleteHealthRecord] 刷新監測記錄列表');
+      const healthRecordsData = await db.getHealthRecords();
+      setHealthRecords(healthRecordsData);
+
+      console.log('[deleteHealthRecord] 刪除成功');
+    } catch (error) {
+      console.error('[deleteHealthRecord] 刪除失敗:', error);
+      throw error;
+    }
+  };
+
+  // 回收筒相关函数
+  const fetchDeletedHealthRecords = async () => {
+    try {
+      const records = await db.getDeletedHealthRecords();
+      setDeletedHealthRecords(records);
+    } catch (error) {
+      console.warn('回收筒暂时不可用，跳过获取已删除记录:', error);
+      // 不抛出错误，允许程序继续执行
+      setDeletedHealthRecords([]);
+    }
+  };
+
+  const restoreHealthRecord = async (deletedRecordId: string) => {
+    try {
+      await db.restoreHealthRecordFromRecycleBin(deletedRecordId);
+      await fetchDeletedHealthRecords(); // 刷新回收筒列表
+      await refreshData(); // 刷新主列表
+    } catch (error) {
+      console.error('Error restoring health record:', error);
+      throw error;
+    }
+  };
+
+  const permanentlyDeleteHealthRecord = async (deletedRecordId: string) => {
+    try {
+      await db.permanentlyDeleteHealthRecord(deletedRecordId);
+      await fetchDeletedHealthRecords(); // 刷新回收筒列表
+    } catch (error) {
+      console.error('Error permanently deleting health record:', error);
+      throw error;
+    }
+  };
+
+  // 去重相关函数
+  const findDuplicateHealthRecords = async (): Promise<db.DuplicateRecordGroup[]> => {
+    try {
+      return await db.findDuplicateHealthRecords();
+    } catch (error) {
+      console.error('Error finding duplicate health records:', error);
+      throw error;
+    }
+  };
+
+  const batchDeleteDuplicateRecords = async (duplicateRecordIds: number[], deletedBy?: string) => {
+    try {
+      await db.batchMoveDuplicatesToRecycleBin(duplicateRecordIds, deletedBy);
+      await refreshData(); // 刷新主列表
+      // 尝试刷新回收筒列表，但即使失败也不影响主流程
+      await fetchDeletedHealthRecords().catch(err => {
+        console.warn('刷新回收筒列表失败，但记录已成功删除:', err);
+      });
+    } catch (error) {
+      console.error('Error batch deleting duplicate records:', error);
+      throw error;
+    }
+  };
+
+  // Follow-up appointment functions
+  const addFollowUpAppointment = async (appointment: Omit<db.FollowUpAppointment, '覆診id' | '創建時間' | '更新時間'>) => {
+    try {
+      await db.createFollowUp(appointment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding follow-up appointment:', error);
+      throw error;
+    }
+  };
+
+  const updateFollowUpAppointment = async (appointment: db.FollowUpAppointment) => {
+    try {
+      await db.updateFollowUp(appointment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating follow-up appointment:', error);
+      throw error;
+    }
+  };
+
+  const deleteFollowUpAppointment = async (id: string) => {
+    try {
+      await db.deleteFollowUp(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting follow-up appointment:', error);
+      throw error;
+    }
+  };
+
+  // Meal guidance functions
+  const addMealGuidance = async (guidance: Omit<db.MealGuidance, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createMealGuidance(guidance);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding meal guidance:', error);
+      throw error;
+    }
+  };
+
+  const updateMealGuidance = async (guidance: db.MealGuidance) => {
+    try {
+      await db.updateMealGuidance(guidance);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating meal guidance:', error);
+      throw error;
+    }
+  };
+
+  const deleteMealGuidance = async (id: string) => {
+    try {
+      await db.deleteMealGuidance(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting meal guidance:', error);
+      throw error;
+    }
+  };
+
+  // Patient log functions
+  const addPatientLog = async (log: Omit<db.PatientLog, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPatientLog(log);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient log:', error);
+      throw error;
+    }
+  };
+
+  const updatePatientLog = async (log: db.PatientLog) => {
+    try {
+      await db.updatePatientLog(log);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating patient log:', error);
+      throw error;
+    }
+  };
+
+  const deletePatientLog = async (id: string) => {
+    try {
+      await db.deletePatientLog(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patient log:', error);
+      throw error;
+    }
+  };
 
   // Patient health task functions - Optimistic Updates
   const addPatientHealthTask = async (task: Omit<db.PatientHealthTask, 'id' | 'created_at' | 'updated_at'>) => {
@@ -802,15 +2264,482 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  // ... (其他函式保持不變，請確保包含完整的 PatientContext 內容) ...
-  // 為確保完整性，我將只展示修改的部分，請保留您原本的其他函式
-  // 若您需要完整的檔案內容（包含所有未修改的函式），請讓我知道。
-  // (由於篇幅限制，這裡假設您會將上述三個函式替換掉原本的實現)
-  
-  // 為了讓代碼能運作，這裡必須補上 return 部分
+  // Patient restraint assessment functions
+  const addPatientRestraintAssessment = async (assessment: Omit<db.PatientRestraintAssessment, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createRestraintAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient restraint assessment:', error);
+      throw error;
+    }
+  };
+
+  const updatePatientRestraintAssessment = async (assessment: db.PatientRestraintAssessment) => {
+    try {
+      await db.updateRestraintAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating patient restraint assessment:', error);
+      throw error;
+    }
+  };
+
+  const deletePatientRestraintAssessment = async (id: string) => {
+    try {
+      await db.deleteRestraintAssessment(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patient restraint assessment:', error);
+      throw error;
+    }
+  };
+
+  // Health assessment functions
+  const addHealthAssessment = async (assessment: Omit<db.HealthAssessment, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createHealthAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding health assessment:', error);
+      throw error;
+    }
+  };
+
+  const updateHealthAssessment = async (assessment: db.HealthAssessment) => {
+    try {
+      await db.updateHealthAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating health assessment:', error);
+      throw error;
+    }
+  };
+
+  const deleteHealthAssessment = async (id: string) => {
+    try {
+      await db.deleteHealthAssessment(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting health assessment:', error);
+      throw error;
+    }
+  };
+
+  // Wound assessment functions
+  const addWoundAssessment = async (assessment: Omit<db.WoundAssessment, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createWoundAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding wound assessment:', error);
+      throw error;
+    }
+  };
+
+  const updateWoundAssessment = async (assessment: db.WoundAssessment) => {
+    try {
+      await db.updateWoundAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating wound assessment:', error);
+      throw error;
+    }
+  };
+
+  const deleteWoundAssessment = async (id: string) => {
+    try {
+      await db.deleteWoundAssessment(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting wound assessment:', error);
+      throw error;
+    }
+  };
+
+  const addAnnualHealthCheckup = async (checkup: any) => {
+    try {
+      await db.createAnnualHealthCheckup(checkup);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding annual health checkup:', error);
+      throw error;
+    }
+  };
+
+  const updateAnnualHealthCheckup = async (checkup: any) => {
+    try {
+      await db.updateAnnualHealthCheckup(checkup);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating annual health checkup:', error);
+      throw error;
+    }
+  };
+
+  const deleteAnnualHealthCheckup = async (id: string) => {
+    try {
+      await db.deleteAnnualHealthCheckup(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting annual health checkup:', error);
+      throw error;
+    }
+  };
+
+  // Incident report functions
+  const addIncidentReport = async (report: Omit<db.IncidentReport, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createIncidentReport(report);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding incident report:', error);
+      throw error;
+    }
+  };
+
+  const updateIncidentReport = async (report: db.IncidentReport) => {
+    try {
+      await db.updateIncidentReport(report);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating incident report:', error);
+      throw error;
+    }
+  };
+
+  const deleteIncidentReport = async (id: string) => {
+    try {
+      await db.deleteIncidentReport(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting incident report:', error);
+      throw error;
+    }
+  };
+
+  const addDiagnosisRecord = async (record: Omit<db.DiagnosisRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createDiagnosisRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding diagnosis record:', error);
+      throw error;
+    }
+  };
+
+  const updateDiagnosisRecord = async (record: db.DiagnosisRecord) => {
+    try {
+      await db.updateDiagnosisRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating diagnosis record:', error);
+      throw error;
+    }
+  };
+
+  const deleteDiagnosisRecord = async (id: string) => {
+    try {
+      await db.deleteDiagnosisRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting diagnosis record:', error);
+      throw error;
+    }
+  };
+
+  const addVaccinationRecord = async (record: Omit<db.VaccinationRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createVaccinationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding vaccination record:', error);
+      throw error;
+    }
+  };
+
+  const updateVaccinationRecord = async (record: db.VaccinationRecord) => {
+    try {
+      await db.updateVaccinationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating vaccination record:', error);
+      throw error;
+    }
+  };
+
+  const deleteVaccinationRecord = async (id: string) => {
+    try {
+      await db.deleteVaccinationRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting vaccination record:', error);
+      throw error;
+    }
+  };
+
+  // Patient note functions
+  const addPatientNote = async (note: Omit<db.PatientNote, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPatientNote(note);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient note:', error);
+      throw error;
+    }
+  };
+
+  const updatePatientNote = async (note: db.PatientNote) => {
+    try {
+      await db.updatePatientNote(note);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating patient note:', error);
+      throw error;
+    }
+  };
+
+  const deletePatientNote = async (id: string) => {
+    try {
+      await db.deletePatientNote(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patient note:', error);
+      throw error;
+    }
+  };
+
+  const completePatientNote = async (id: string) => {
+    try {
+      await db.completePatientNote(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error completing patient note:', error);
+      throw error;
+    }
+  };
+
+  // Care Records functions
+  const createPatrolRound = async (round: Omit<db.PatrolRound, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPatrolRound(round);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating patrol round:', error);
+      throw error;
+    }
+  };
+
+  const deletePatrolRound = async (id: string) => {
+    try {
+      await db.deletePatrolRound(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patrol round:', error);
+      throw error;
+    }
+  };
+
+  const createDiaperChangeRecord = async (record: Omit<db.DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createDiaperChangeRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating diaper change record:', error);
+      throw error;
+    }
+  };
+
+  const updateDiaperChangeRecord = async (record: db.DiaperChangeRecord) => {
+    try {
+      await db.updateDiaperChangeRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating diaper change record:', error);
+      throw error;
+    }
+  };
+
+  const deleteDiaperChangeRecord = async (id: string) => {
+    try {
+      await db.deleteDiaperChangeRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting diaper change record:', error);
+      throw error;
+    }
+  };
+
+  const createRestraintObservationRecord = async (record: Omit<db.RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createRestraintObservationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating restraint observation record:', error);
+      throw error;
+    }
+  };
+
+  const updateRestraintObservationRecord = async (record: db.RestraintObservationRecord) => {
+    try {
+      await db.updateRestraintObservationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating restraint observation record:', error);
+      throw error;
+    }
+  };
+
+  const deleteRestraintObservationRecord = async (id: string) => {
+    try {
+      await db.deleteRestraintObservationRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting restraint observation record:', error);
+      throw error;
+    }
+  };
+
+  const createPositionChangeRecord = async (record: Omit<db.PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPositionChangeRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating position change record:', error);
+      throw error;
+    }
+  };
+
+  const deletePositionChangeRecord = async (id: string) => {
+    try {
+      await db.deletePositionChangeRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting position change record:', error);
+      throw error;
+    }
+  };
+
+  // Patient admission record functions
+  const addPatientAdmissionRecord = async (record: Omit<db.PatientAdmissionRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPatientAdmissionRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient admission record:', error);
+      throw error;
+    }
+  };
+
+  const updatePatientAdmissionRecord = async (record: db.PatientAdmissionRecord) => {
+    try {
+      await db.updatePatientAdmissionRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating patient admission record:', error);
+      throw error;
+    }
+  };
+
+  const deletePatientAdmissionRecord = async (id: string) => {
+    try {
+      await db.deletePatientAdmissionRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patient admission record:', error);
+      throw error;
+    }
+  };
+
+  // Hospital episode functions
+  const addHospitalEpisode = async (episodeData: any) => {
+    try {
+      await db.createHospitalEpisode(episodeData);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding hospital episode:', error);
+      throw error;
+    }
+  };
+
+  const updateHospitalEpisode = async (episodeData: any) => {
+    try {
+      await db.updateHospitalEpisode(episodeData);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating hospital episode:', error);
+      throw error;
+    }
+  };
+
+  const deleteHospitalEpisode = async (id: string) => {
+    try {
+      await db.deleteHospitalEpisode(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting hospital episode:', error);
+      throw error;
+    }
+  };
+
+  // 獲取住院事件列表
+  const fetchHospitalEpisodes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('hospital_episodes')
+        .select(`
+          *,
+          episode_events (*)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      console.log('查詢住院事件成功，返回記錄數量:', data?.length || 0);
+      setHospitalEpisodes(data || []);
+      return data || [];
+    } catch (error) {
+      console.error('查詢住院事件失敗:', error);
+      setHospitalEpisodes([]);
+      return [];
+    }
+  };
+
+  const recordPatientAdmissionEvent = async (eventData: {
+    patient_id: number;
+    event_type: db.AdmissionEventType;
+    event_date: string;
+    hospital_name?: string;
+    hospital_ward?: string;
+    hospital_bed_number?: string;
+    remarks?: string;
+  }) => {
+    try {
+      await db.recordPatientAdmissionEvent(eventData);
+      await refreshData();
+    } catch (error) {
+      console.error('Error recording patient admission event:', error);
+      throw error;
+    }
+  };
+
+  // Helper functions
+  const getHongKongDate = () => {
+    const now = new Date();
+    const hongKongTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+    return hongKongTime.toISOString().split('T')[0];
+  };
+
+  const getFixedMorningTime = () => {
+    return '08:00';
+  };
+
+  const generateRandomTemperature = () => {
+    return (Math.random() * 0.9 + 36.0).toFixed(1);
+  };
+
   return (
     <PatientContext.Provider value={{
-      // ... (其他狀態)
       patients,
       stations,
       beds,
@@ -868,7 +2797,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       updatePatientHealthTask,
       deletePatientHealthTask,
       setPatientHealthTasks,
-      // ... (其他所有函式)
       addPatientRestraintAssessment,
       updatePatientRestraintAssessment,
       deletePatientRestraintAssessment,
