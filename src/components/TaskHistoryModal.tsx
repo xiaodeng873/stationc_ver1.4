@@ -183,7 +183,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
 
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex justify-center space-x-4">
           <div className="flex items-center opacity-60"><div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>已完成</div>
-          <div className="flex items-center text-red-600 font-medium"><div className="w-2 h-2 rounded-full bg-red-500 mr-1.5"></div>補錄</div>
+          <div className="flex items-center text-red-600 font-medium"><div className="w-2 h-2 rounded-full bg-red-500 mr-1.5"></div>逾期</div>
           <div className="flex items-center text-blue-600"><div className="w-2 h-2 rounded-full border border-blue-500 mr-1.5"></div>待辦</div>
         </div>
       </div>
