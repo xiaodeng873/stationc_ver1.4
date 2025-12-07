@@ -10,7 +10,7 @@ interface HealthRecordModalProps {
     patient?: { 院友id: number; 中文姓名?: string; 床號?: string };
     task?: { id: string; health_record_type: string; next_due_at: string };
     預設記錄類型?: string;
-    預設日期?: string; 
+    預設日期?: string;
   };
   onClose: () => void;
   onTaskCompleted?: (recordDateTime: Date) => void;
