@@ -68,7 +68,7 @@ const EnhancedAdmissionRecordModal: React.FC<EnhancedAdmissionRecordModalProps> 
     {
       value: 'return_to_facility',
       label: '返回院舍',
-      description: '院友康復後返回護老院',
+      description: '院友康復後返回院舍',
       icon: <Building2 className="h-5 w-5" />
     },
     {

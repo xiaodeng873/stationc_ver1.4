@@ -393,9 +393,34 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     setIsDateWarningConfirmed(false);
   };
 
+  // 監聽日期警告對話框的鍵盤事件
+  React.useEffect(() => {
+    if (!showDateWarningModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleDateWarningConfirm();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleDateWarningCancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showDateWarningModal]);
+
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+      >
       <div className="bg-white rounded-lg max-w-4xl w-full p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
@@ -771,7 +796,14 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
       {/* 日期警告確認模態框 */}
       {showDateWarningModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleDateWarningCancel();
+            }
+          }}
+        >
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">

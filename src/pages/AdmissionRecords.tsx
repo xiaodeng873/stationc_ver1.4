@@ -86,8 +86,14 @@ const AdmissionRecords: React.FC = () => {
     if (advancedFilters.主要病房 && !episode.primary_ward?.toLowerCase().includes(advancedFilters.主要病房.toLowerCase())) {
       return false;
     }
-    if (advancedFilters.狀態 && episode.status !== advancedFilters.狀態) {
-      return false;
+    // 使用動態計算的狀態進行篩選
+    if (advancedFilters.狀態) {
+      // 使用統一的狀態計算函數
+      const dynamicStatus = calculateDynamicStatus(episode).status;
+
+      if (dynamicStatus !== advancedFilters.狀態) {
+        return false;
+      }
     }
     if (advancedFilters.出院安排 && episode.discharge_type !== advancedFilters.出院安排) {
       return false;
@@ -284,7 +290,7 @@ const AdmissionRecords: React.FC = () => {
     const episode = hospitalEpisodes.find(e => e.id === id);
     const patient = patients.find(p => p.院友id === episode?.patient_id);
     
-    if (confirm(`確定要刪除 ${patient?.中文姓名} 從 ${episode?.episode_start_date} 開始的住院事件嗎？`)) {
+    if (confirm(`確定要刪除 ${patient?.中文姓名} 從 ${episode?.episode_start_date} 開始的缺席事件嗎？`)) {
       try {
         setDeletingIds(prev => new Set(prev).add(id));
         await deleteHospitalEpisode(id);
@@ -294,7 +300,7 @@ const AdmissionRecords: React.FC = () => {
           return newSet;
         });
       } catch (error) {
-        alert('刪除住院事件失敗，請重試');
+        alert('刪除缺席事件失敗，請重試');
       } finally {
         setDeletingIds(prev => {
           const newSet = new Set(prev);
@@ -311,7 +317,7 @@ const AdmissionRecords: React.FC = () => {
       return;
     }
 
-    const confirmMessage = `確定要刪除 ${selectedRows.size} 個住院事件嗎？\n\n此操作無法復原。`;
+    const confirmMessage = `確定要刪除 ${selectedRows.size} 個缺席事件嗎？\n\n此操作無法復原。`;
     
     if (!confirm(confirmMessage)) {
       return;
@@ -325,10 +331,10 @@ const AdmissionRecords: React.FC = () => {
         await deleteHospitalEpisode(episodeId);
       }
       setSelectedRows(new Set());
-      alert(`成功刪除 ${deletingArray.length} 個住院事件`);
+      alert(`成功刪除 ${deletingArray.length} 個缺席事件`);
     } catch (error) {
-      console.error('批量刪除住院事件失敗:', error);
-      alert('批量刪除住院事件失敗，請重試');
+      console.error('批量刪除缺席事件失敗:', error);
+      alert('批量刪除缺席事件失敗，請重試');
     } finally {
       setDeletingIds(new Set());
     }
@@ -372,13 +378,14 @@ const AdmissionRecords: React.FC = () => {
 
     const exportData = selectedEpisodes.map(episode => {
       const patient = patients.find(p => p.院友id === episode.patient_id);
+      const dynamicStatus = calculateDynamicStatus(episode);
       return {
         床號: patient?.床號 || '',
         中文姓名: patient ? `${patient.中文姓氏}${patient.中文名字}` : '',
         住院開始日期: new Date(episode.episode_start_date).toLocaleDateString('zh-TW'),
-        住院結束日期: episode.episode_end_date ? new Date(episode.episode_end_date).toLocaleDateString('zh-TW') : '入院中',
+        住院結束日期: episode.episode_end_date ? new Date(episode.episode_end_date).toLocaleDateString('zh-TW') : '進行中',
         住院天數: episode.total_days || '',
-        狀態: getStatusLabel(episode.status),
+        狀態: dynamicStatus.label,
         主要醫院: episode.primary_hospital || '',
         主要病房: episode.primary_ward || '',
         主要床號: episode.primary_bed_number || '',
@@ -391,7 +398,7 @@ const AdmissionRecords: React.FC = () => {
 
     const headers = ['床號', '中文姓名', '住院開始日期', '住院結束日期', '住院天數', '狀態', '主要醫院', '主要病房', '主要床號', '出院類型', '出院目的地', '備註', '創建時間'];
     const csvContent = [
-      `"住院事件記錄"`,
+      `"缺席事件記錄"`,
       `"生成日期: ${new Date().toLocaleDateString('zh-TW')}"`,
       `"總記錄數: ${exportData.length}"`,
       '',
@@ -403,9 +410,83 @@ const AdmissionRecords: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `住院事件記錄_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `缺席事件記錄_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // 計算動態狀態（根據事件時間軸）
+  const calculateDynamicStatus = (episode: any): { status: string; label: string; color: string; vacationEndType?: string } => {
+    if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
+      // 沒有事件時，使用原始狀態
+      return {
+        status: episode.status,
+        label: getStatusLabel(episode.status),
+        color: getStatusColor(episode.status)
+      };
+    }
+
+    // 按事件日期和時間排序，獲取最新事件
+    const sortedEvents = [...episode.episode_events].sort((a, b) => {
+      const dateA = new Date(`${a.event_date} ${a.event_time || '00:00'}`).getTime();
+      const dateB = new Date(`${b.event_date} ${b.event_time || '00:00'}`).getTime();
+      return dateB - dateA;
+    });
+
+    // 檢查是否有未結束的渡假
+    const hasVacationStart = episode.episode_events.some((e: any) => e.event_type === 'vacation_start');
+    const vacationEndEvent = episode.episode_events.find((e: any) => e.event_type === 'vacation_end');
+
+    if (hasVacationStart && !vacationEndEvent) {
+      return {
+        status: 'vacation',
+        label: '渡假中',
+        color: 'bg-purple-100 text-purple-800 border-purple-200'
+      };
+    }
+
+    // 檢查是否有未結束的住院（入院或轉院，但沒有出院）
+    const hasAdmissionOrTransfer = episode.episode_events.some((e: any) =>
+      e.event_type === 'admission' || e.event_type === 'transfer'
+    );
+    const hasDischarge = episode.episode_events.some((e: any) => e.event_type === 'discharge');
+
+    if (hasAdmissionOrTransfer && !hasDischarge) {
+      return {
+        status: 'hospitalized',
+        label: '住院中',
+        color: 'bg-red-100 text-red-800 border-red-200'
+      };
+    }
+
+    // 如果有出院事件，狀態為已完成
+    if (hasDischarge) {
+      return {
+        status: 'completed',
+        label: '已出院',
+        color: 'bg-green-100 text-green-800 border-green-200'
+      };
+    }
+
+    // 如果渡假已結束，根據 vacation_end_type 顯示狀態
+    if (hasVacationStart && vacationEndEvent) {
+      // 優先使用 episode.vacation_end_type，否則使用事件中的
+      const vacationEndType = episode.vacation_end_type || vacationEndEvent.vacation_end_type;
+
+      return {
+        status: 'vacation_ended',
+        label: '渡假結束',
+        color: 'bg-green-100 text-green-800 border-green-200',
+        vacationEndType
+      };
+    }
+
+    // 預設返回原始狀態
+    return {
+      status: episode.status,
+      label: getStatusLabel(episode.status),
+      color: getStatusColor(episode.status)
+    };
   };
 
   const getStatusColor = (status: string) => {
@@ -436,6 +517,140 @@ const AdmissionRecords: React.FC = () => {
     }
   };
 
+  const getVacationEndTypeLabel = (type: string) => {
+    switch (type) {
+      case 'return_to_facility': return '返回院舍';
+      case 'home': return '回到原居住地';
+      case 'transfer_out': return '轉至其他機構';
+      case 'deceased': return '渡假期間離世';
+      default: return type;
+    }
+  };
+
+  // 獲取實際缺席開始日期（從事件中查找）
+  const getAbsenceStartDate = (episode: any): string => {
+    if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
+      // 沒有事件時，使用記錄創建日期作為後備
+      return episode.episode_start_date;
+    }
+
+    // 按事件日期排序，找到最早的事件
+    const sortedEvents = [...episode.episode_events].sort((a, b) => {
+      const dateA = new Date(a.event_date).getTime();
+      const dateB = new Date(b.event_date).getTime();
+      return dateA - dateB;
+    });
+
+    // 優先順序：vacation_start > admission > transfer
+    const vacationStart = sortedEvents.find((e: any) => e.event_type === 'vacation_start');
+    if (vacationStart) {
+      return vacationStart.event_date;
+    }
+
+    const admission = sortedEvents.find((e: any) => e.event_type === 'admission');
+    if (admission) {
+      return admission.event_date;
+    }
+
+    const transfer = sortedEvents.find((e: any) => e.event_type === 'transfer');
+    if (transfer) {
+      return transfer.event_date;
+    }
+
+    // 如果都沒有，使用記錄創建日期
+    return episode.episode_start_date;
+  };
+
+  // 獲取實際缺席結束日期（從事件中查找）
+  const getAbsenceEndDate = (episode: any): string | null => {
+    // 如果有記錄的結束日期，先使用它
+    if (episode.episode_end_date) {
+      return episode.episode_end_date;
+    }
+
+    if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
+      return null;
+    }
+
+    // 按事件日期排序，找到最新的結束事件
+    const sortedEvents = [...episode.episode_events].sort((a, b) => {
+      const dateA = new Date(a.event_date).getTime();
+      const dateB = new Date(b.event_date).getTime();
+      return dateB - dateA;
+    });
+
+    // 優先順序：discharge > vacation_end
+    const discharge = sortedEvents.find((e: any) => e.event_type === 'discharge');
+    if (discharge) {
+      return discharge.event_date;
+    }
+
+    const vacationEnd = sortedEvents.find((e: any) => e.event_type === 'vacation_end');
+    if (vacationEnd) {
+      return vacationEnd.event_date;
+    }
+
+    return null;
+  };
+
+  // 智能顯示安排欄位
+  const getArrangementDisplay = (episode: any): { primary: string; secondary?: string } => {
+    if (!episode.episode_events || !Array.isArray(episode.episode_events) || episode.episode_events.length === 0) {
+      // 沒有事件時，檢查是否有出院安排
+      if (episode.discharge_type && episode.discharge_type.trim()) {
+        return { primary: getDischargeTypeLabel(episode.discharge_type) };
+      }
+      return { primary: '未安排' };
+    }
+
+    // 檢查事件類型
+    const hasVacation = episode.episode_events.some((e: any) =>
+      e.event_type === 'vacation_start' || e.event_type === 'vacation_end'
+    );
+    const hasHospital = episode.episode_events.some((e: any) =>
+      e.event_type === 'admission' || e.event_type === 'transfer' || e.event_type === 'discharge'
+    );
+
+    // 情況 A: 只有渡假事件
+    if (hasVacation && !hasHospital) {
+      const dynamicStatus = calculateDynamicStatus(episode);
+      if (dynamicStatus.vacationEndType) {
+        return { primary: getVacationEndTypeLabel(dynamicStatus.vacationEndType) };
+      }
+      return { primary: '未安排' };
+    }
+
+    // 情況 B: 只有住院事件
+    if (hasHospital && !hasVacation) {
+      if (episode.discharge_type && episode.discharge_type.trim()) {
+        return { primary: getDischargeTypeLabel(episode.discharge_type) };
+      }
+      return { primary: '未安排' };
+    }
+
+    // 情況 C: 同時有渡假和住院事件
+    if (hasVacation && hasHospital) {
+      const dynamicStatus = calculateDynamicStatus(episode);
+      const hasDischargeType = episode.discharge_type && episode.discharge_type.trim();
+      const hasVacationEndType = dynamicStatus.vacationEndType;
+
+      if (hasDischargeType && hasVacationEndType) {
+        return {
+          primary: getDischargeTypeLabel(episode.discharge_type),
+          secondary: getVacationEndTypeLabel(dynamicStatus.vacationEndType)
+        };
+      } else if (hasDischargeType) {
+        return { primary: getDischargeTypeLabel(episode.discharge_type) };
+      } else if (hasVacationEndType) {
+        return { primary: getVacationEndTypeLabel(dynamicStatus.vacationEndType) };
+      }
+      return { primary: '未安排' };
+    }
+
+    // 情況 D: 沒有任何事件（理論上不會到這裡，但作為後備）
+    return { primary: '未安排' };
+  };
+
   const SortableHeader: React.FC<{ field: SortField; children: React.ReactNode }> = ({ field, children }) => (
     <th 
       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
@@ -456,7 +671,7 @@ const AdmissionRecords: React.FC = () => {
     <div className="space-y-6">
       <div className="sticky top-0 bg-white z-30 py-4 border-b border-gray-200 shadow-sm">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">住院事件管理</h1>
+          <h1 className="text-2xl font-bold text-gray-900">缺席管理</h1>
           <div className="flex items-center space-x-2">
             {selectedRows.size > 0 && (
               <button
@@ -475,7 +690,7 @@ const AdmissionRecords: React.FC = () => {
               className="btn-primary flex items-center space-x-2"
             >
               <Plus className="h-4 w-4" />
-              <span>新增住院事件</span>
+              <span>新增缺席事件</span>
             </button>
           </div>
         </div>
@@ -490,7 +705,7 @@ const AdmissionRecords: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="搜索院友姓名、床號、住院日期、醫院名稱、病房或備註..."
+                  placeholder="搜索院友姓名、床號、缺席日期、醫院名稱、病房或備註..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="form-input pl-10"
@@ -530,7 +745,7 @@ const AdmissionRecords: React.FC = () => {
                 <h3 className="text-sm font-medium text-gray-900 mb-3">進階篩選</h3>
                 
                 <div className="mb-4">
-                  <label className="form-label">住院開始日期區間</label>
+                  <label className="form-label">缺席開始日期區間</label>
                   <div className="flex items-center space-x-2">
                     <input
                       type="date"
@@ -597,9 +812,10 @@ const AdmissionRecords: React.FC = () => {
                       className="form-input"
                     >
                       <option value="">所有狀態</option>
-                      <option value="active">入院中</option>
-                      <option value="completed">已完成</option>
-                      <option value="transferred">已轉院</option>
+                      <option value="hospitalized">住院中</option>
+                      <option value="vacation">渡假中</option>
+                      <option value="vacation_ended">渡假結束</option>
+                      <option value="completed">已出院</option>
                     </select>
                   </div>
                   
@@ -647,7 +863,7 @@ const AdmissionRecords: React.FC = () => {
             )}
             
             <div className="flex items-center justify-between text-sm text-gray-600">
-              <span>顯示 {startIndex + 1}-{Math.min(endIndex, totalItems)} / {totalItems} 個住院事件 (共 {hospitalEpisodes.length} 個)</span>
+              <span>顯示 {startIndex + 1}-{Math.min(endIndex, totalItems)} / {totalItems} 個缺席事件 (共 {hospitalEpisodes.length} 個)</span>
               {(searchTerm || hasAdvancedFilters()) && (
                 <span className="text-blue-600">已套用篩選條件</span>
               )}
@@ -709,9 +925,9 @@ const AdmissionRecords: React.FC = () => {
                   </th>
                   <SortableHeader field="院友姓名">院友</SortableHeader>
                   <SortableHeader field="狀態">狀態</SortableHeader>
-                  <SortableHeader field="開始日期">住院日期</SortableHeader>
+                  <SortableHeader field="開始日期">缺席日期</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    住院天數
+                    缺席天數
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     入住醫院
@@ -720,7 +936,7 @@ const AdmissionRecords: React.FC = () => {
                     入住病房/床號
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    出院安排
+                    安排
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     備註
@@ -778,44 +994,54 @@ const AdmissionRecords: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(episode.status)}`}>
-                          {getStatusLabel(episode.status)}
-                        </span>
+                        {(() => {
+                          const dynamicStatus = calculateDynamicStatus(episode);
+                          return (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${dynamicStatus.color}`}>
+                              {dynamicStatus.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div>
                           <div className="flex items-center">
                             <Calendar className="h-4 w-4 mr-1 text-gray-400" />
-                            <span>{new Date(episode.episode_start_date).toLocaleDateString('zh-TW')}</span>
+                            <span>{new Date(getAbsenceStartDate(episode)).toLocaleDateString('zh-TW')}</span>
                           </div>
-                          {episode.episode_end_date && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              至 {new Date(episode.episode_end_date).toLocaleDateString('zh-TW')}
-                            </div>
-                          )}
+                          {(() => {
+                            const endDate = getAbsenceEndDate(episode);
+                            if (endDate) {
+                              return (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  至 {new Date(endDate).toLocaleDateString('zh-TW')}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="text-sm text-gray-900">
                           {(() => {
-                            if (episode.status === 'active') {
-                              // 入院中：計算從開始日期到今天的天數
-                              const startDate = new Date(episode.episode_start_date);
+                            const absenceStartDate = getAbsenceStartDate(episode);
+                            const absenceEndDate = getAbsenceEndDate(episode);
+
+                            if (absenceEndDate) {
+                              // 已完成：使用實際缺席開始和結束日期計算
+                              const startDate = new Date(absenceStartDate);
+                              const endDate = new Date(absenceEndDate);
+                              const diffTime = endDate.getTime() - startDate.getTime();
+                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                              return `${diffDays} 天`;
+                            } else if (episode.status === 'active') {
+                              // 進行中：計算從實際缺席開始日期到今天的天數
+                              const startDate = new Date(absenceStartDate);
                               const today = new Date();
                               const diffTime = today.getTime() - startDate.getTime();
                               const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                               return `${diffDays} 天`;
-                            } else if (episode.episode_end_date) {
-                              // 已完成：使用資料庫計算的天數或重新計算
-                              if (episode.total_days) {
-                                return `${episode.total_days} 天`;
-                              } else {
-                                const startDate = new Date(episode.episode_start_date);
-                                const endDate = new Date(episode.episode_end_date);
-                                const diffTime = endDate.getTime() - startDate.getTime();
-                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                return `${diffDays} 天`;
-                              }
                             } else {
                               return '計算中';
                             }
@@ -894,8 +1120,22 @@ const AdmissionRecords: React.FC = () => {
                           })()}
                         </div>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {episode.discharge_type && episode.discharge_type.trim() ? getDischargeTypeLabel(episode.discharge_type) : '未安排'}
+                      <td className="px-4 py-4 text-sm text-gray-900">
+                        <div className="space-y-1">
+                          {(() => {
+                            const arrangement = getArrangementDisplay(episode);
+                            return (
+                              <>
+                                <div>{arrangement.primary}</div>
+                                {arrangement.secondary && (
+                                  <div className="text-xs text-gray-600">
+                                    {arrangement.secondary}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-900 max-w-md">
                         <div className="truncate" title={episode.remarks || ''}>
@@ -936,17 +1176,17 @@ const AdmissionRecords: React.FC = () => {
           <div className="text-center py-12">
             <Hospital className="h-24 w-24 mx-auto mb-4 text-gray-300" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {searchTerm || hasAdvancedFilters() ? '找不到符合條件的住院事件' : '暫無住院事件'}
+              {searchTerm || hasAdvancedFilters() ? '找不到符合條件的缺席事件' : '暫無缺席事件'}
             </h3>
             <p className="text-gray-600 mb-4">
-              {searchTerm || hasAdvancedFilters() ? '請嘗試調整搜索條件' : '開始記錄院友的住院事件'}
+              {searchTerm || hasAdvancedFilters() ? '請嘗試調整搜索條件' : '開始記錄院友的缺席事件'}
             </p>
             {!searchTerm && !hasAdvancedFilters() ? (
               <button
                 onClick={() => setShowModal(true)}
                 className="btn-primary"
               >
-                新增住院事件
+                新增缺席事件
               </button>
             ) : (
               <button

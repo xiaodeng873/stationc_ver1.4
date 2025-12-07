@@ -24,7 +24,8 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     checkPrescriptionInspectionRules,
     fetchLatestVitalSigns,
     addHealthRecord,
-    dispenseMedication
+    dispenseMedication,
+    hospitalEpisodes
   } = usePatients();
   const { displayName } = useAuth();
 
@@ -41,6 +42,24 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
   const patient = patients.find(p => p.院友id === workflowRecord.patient_id);
   const prescription = prescriptions.find(p => p.id === workflowRecord.prescription_id);
   const isHospitalized = patient?.is_hospitalized || false;
+
+  // 判斷患者是否在渡假中
+  const isOnVacation = hospitalEpisodes.some(episode => {
+    if (episode.patient_id !== workflowRecord.patient_id || !episode.episode_events) {
+      return false;
+    }
+
+    // 找出所有渡假開始和結束事件
+    const vacationStartEvents = episode.episode_events.filter((e: any) => e.event_type === 'vacation_start');
+    const vacationEndEvents = episode.episode_events.filter((e: any) => e.event_type === 'vacation_end');
+
+    // 如果有渡假開始但沒有對應的渡假結束，表示仍在渡假中
+    if (vacationStartEvents.length > vacationEndEvents.length) {
+      return true;
+    }
+
+    return false;
+  });
 
   // 檢測項圖標映射
   const getVitalSignIcon = (type: string) => {
@@ -138,6 +157,49 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
           }
         } catch (error) {
           console.error('處理入院中院友派藥失敗:', error);
+          alert(`處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // 如果院友渡假中，直接標記為"回家"失敗，不執行檢測
+      if (isOnVacation) {
+        try {
+          const inspectionResult = {
+            canDispense: false,
+            isOnVacation: true,
+            blockedRules: [],
+            usedVitalSignData: {}
+          };
+
+          if (isBatchMode) {
+            // 批量模式：通過 onResult 回傳，不直接寫入數據庫
+            setHasNoRulesAndHandled(true);
+            // 使用 setTimeout 確保狀態穩定後再回調
+            setTimeout(() => {
+              if (isMountedRef.current) {
+                onResult(false, '回家', inspectionResult);
+              }
+            }, 100);
+          } else {
+            // 單個派藥模式：直接寫入數據庫並關閉
+            await dispenseMedication(
+              workflowRecord.id,
+              displayName || '未知',
+              '回家',
+              undefined,
+              workflowRecord.patient_id,
+              workflowRecord.scheduled_date,
+              undefined,
+              inspectionResult
+            );
+
+            setHasNoRulesAndHandled(true);
+            onClose();
+          }
+        } catch (error) {
+          console.error('處理渡假中院友派藥失敗:', error);
           alert(`處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
         }
         setLoading(false);

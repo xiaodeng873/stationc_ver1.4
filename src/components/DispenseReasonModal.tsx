@@ -23,7 +23,7 @@ const DispenseReasonModal: React.FC<DispenseReasonModalProps> = ({
   const failureReasons = [
     { 
       value: '回家',
-      label: '回家', 
+      label: '渡假', 
       icon: <Home className="h-4 w-4" />,
       description: '院友回家，無法派藥',
       isBatch: true

@@ -729,12 +729,12 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         setDailySystemTasks([]);
       }
       
-      // 單獨載入出入院記錄，如果表不存在則設為空陣列
+      // 單獨載入缺席記錄，如果表不存在則設為空陣列
       try {
         const patientAdmissionRecordsData = await db.getPatientAdmissionRecords();
         setPatientAdmissionRecords(patientAdmissionRecordsData);
       } catch (admissionError) {
-        console.warn('載入出入院記錄失敗，可能是表尚未建立:', admissionError);
+        console.warn('載入缺席記錄失敗，可能是表尚未建立:', admissionError);
         setPatientAdmissionRecords([]);
       }
 
@@ -2688,21 +2688,21 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         }
       }
 
-      console.log('新增住院事件成功:', episode);
+      console.log('新增缺席事件成功:', episode);
       await fetchHospitalEpisodes();
       return episode;
     } catch (error) {
-      console.error('新增住院事件失敗:', error);
+      console.error('新增缺席事件失敗:', error);
       throw error;
     }
   };
 
-  // 更新住院事件
+  // 更新缺席事件
   const updateHospitalEpisode = async (episodeData: any) => {
     try {
       const { events, ...mainEpisodeData } = episodeData;
-      
-      // 更新主要住院事件
+
+      // 更新主要缺席事件
       const { data: episode, error: episodeError } = await supabase
         .from('hospital_episodes')
         .update(mainEpisodeData)
@@ -2739,16 +2739,16 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         if (eventsError) throw eventsError;
       }
 
-      console.log('更新住院事件成功:', episode);
+      console.log('更新缺席事件成功:', episode);
       await fetchHospitalEpisodes();
       return episode;
     } catch (error) {
-      console.error('更新住院事件失敗:', error);
+      console.error('更新缺席事件失敗:', error);
       throw error;
     }
   };
 
-  // 刪除住院事件
+  // 刪除缺席事件
   const deleteHospitalEpisode = async (episodeId: string) => {
     try {
       const { error } = await supabase
@@ -2758,10 +2758,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       if (error) throw error;
 
-      console.log('刪除住院事件成功:', episodeId);
+      console.log('刪除缺席事件成功:', episodeId);
       await fetchHospitalEpisodes();
     } catch (error) {
-      console.error('刪除住院事件失敗:', error);
+      console.error('刪除缺席事件失敗:', error);
       throw error;
     }
   };

@@ -56,7 +56,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onSignOut }) => {
     { name: '診斷記錄', href: '/diagnosis-records', icon: FileText },
     { name: '疫苗記錄', href: '/vaccination-records', icon: Syringe },
     { name: '年度體檢', href: '/annual-health-checkup', icon: BicepsFlexed },
-    { name: '出入院記錄', href: '/admission-records', icon: Ambulance },
+    { name: '缺席管理', href: '/admission-records', icon: Ambulance },
     { name: '傷口管理', href: '/wound', icon: Bandage },
     { name: 'OCR文件識別', href: '/ocr', icon: ScanLine },
     { name: '處方管理', href: '/prescriptions', icon: Pill },

@@ -50,7 +50,7 @@ const HospitalOutreach: React.FC = () => {
     備註: '',
     startDate: '',
     endDate: '',
-    在住狀態: '在住'
+    在住狀態: '全部'
   });
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [deletingDoctorVisitIds, setDeletingDoctorVisitIds] = useState<Set<string>>(new Set());
@@ -86,7 +86,7 @@ const HospitalOutreach: React.FC = () => {
   // 獲取記錄的所有藥物來源（按藥完日期排序）
   const getAllMedicationSources = (record: any) => {
     const sources = [];
-    
+
     // 如果有新的 medication_sources 陣列，使用它
     if (record.medication_sources && Array.isArray(record.medication_sources)) {
       record.medication_sources.forEach((source: any) => {
@@ -114,11 +114,64 @@ const HospitalOutreach: React.FC = () => {
         outreach_medication_source: record.outreach_medication_source
       });
     }
-    
+
     // 按藥完日期排序（由近到遠，即最新的日期在前）
     return sources
       .filter(source => source.medication_end_date)
       .sort((a, b) => new Date(a.medication_end_date).getTime() - new Date(b.medication_end_date).getTime());
+  };
+
+  // 計算院友狀態（根據外展記錄的事件）
+  const calculatePatientStatus = (record: any): string => {
+    if (!record.events || !Array.isArray(record.events) || record.events.length === 0) {
+      return '在住';
+    }
+
+    // 按事件日期和時間排序，獲取最新事件
+    const sortedEvents = [...record.events].sort((a, b) => {
+      const dateA = new Date(`${a.event_date} ${a.event_time || '00:00'}`).getTime();
+      const dateB = new Date(`${b.event_date} ${b.event_time || '00:00'}`).getTime();
+      return dateB - dateA;
+    });
+
+    const latestEvent = sortedEvents[0];
+
+    // 檢查是否有未結束的渡假
+    const hasVacationStart = record.events.some((e: any) => e.event_type === 'vacation_start');
+    const hasVacationEnd = record.events.some((e: any) => e.event_type === 'vacation_end');
+    if (hasVacationStart && !hasVacationEnd) {
+      return '渡假中';
+    }
+
+    // 檢查是否有未結束的住院（入院或轉院，但沒有出院）
+    const hasAdmissionOrTransfer = record.events.some((e: any) =>
+      e.event_type === 'admission' || e.event_type === 'transfer'
+    );
+    const hasDischarge = record.events.some((e: any) => e.event_type === 'discharge');
+    if (hasAdmissionOrTransfer && !hasDischarge) {
+      return '住院中';
+    }
+
+    // 如果有出院事件，檢查出院類型
+    if (latestEvent.event_type === 'discharge') {
+      return '在住';
+    }
+
+    return '在住';
+  };
+
+  // 獲取狀態顯示樣式
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case '住院中':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case '渡假中':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case '在住':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
   };
 
   // Reset to first page when filters change (except date filters to avoid disrupting date input)
@@ -172,8 +225,9 @@ const HospitalOutreach: React.FC = () => {
         return false;
       }
 
-      // 先應用進階篩選
-      if (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '全部' && patient?.在住狀態 !== advancedFilters.在住狀態) {
+      // 先應用進階篩選 - 使用動態計算的狀態
+      const recordStatus = calculatePatientStatus(record);
+      if (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '全部' && recordStatus !== advancedFilters.在住狀態) {
         return false;
       }
       if (advancedFilters.床號 && !patient?.床號.toLowerCase().includes(advancedFilters.床號.toLowerCase())) {
@@ -249,7 +303,7 @@ const HospitalOutreach: React.FC = () => {
       備註: '',
       startDate: '',
       endDate: '',
-      在住狀態: '在住'
+      在住狀態: '全部'
     });
   };
 
@@ -861,16 +915,16 @@ const HospitalOutreach: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label className="form-label">在住狀態</label>
+                    <label className="form-label">狀態</label>
                     <select
                       value={advancedFilters.在住狀態}
                       onChange={(e) => updateAdvancedFilter('在住狀態', e.target.value)}
                       className="form-input"
                     >
-                      <option value="在住">在住</option>
-                      <option value="待入住">待入住</option>
-                      <option value="已退住">已退住</option>
                       <option value="全部">全部</option>
+                      <option value="在住">在住</option>
+                      <option value="住院中">住院中</option>
+                      <option value="渡假中">渡假中</option>
                     </select>
                   </div>
                 </div>
@@ -939,6 +993,9 @@ const HospitalOutreach: React.FC = () => {
                     />
                   </th>
                   <SortableHeader field="院友姓名">院友</SortableHeader>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    狀態
+                  </th>
                   <SortableHeader field="藥袋日期">藥袋日期</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     處方週數
@@ -1007,6 +1064,16 @@ const HospitalOutreach: React.FC = () => {
                             <div className="text-sm text-gray-500">{patient?.床號}</div>
                           </div>
                         </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm">
+                        {(() => {
+                          const status = calculatePatientStatus(record);
+                          return (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusStyle(status)}`}>
+                              {status}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="space-y-1">
