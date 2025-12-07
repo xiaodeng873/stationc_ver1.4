@@ -21,45 +21,62 @@ export function isEveningCarePlanTask(taskType: string): boolean {
 }
 
 // [核心修正] 判斷某一天是否應該有任務
-export function isTaskScheduledForDate(task: any, date: Date): boolean {
-  // 1. 每日任務：需考慮頻率數值 (例如每 2 天)
+// 新增 referenceRecords 參數，用於 "每 X 天" 的動態計算
+export function isTaskScheduledForDate(task: any, date: Date, referenceRecords: any[] = []): boolean {
+  // 1. 每日任務邏輯
   if (task.frequency_unit === 'daily') {
     const freqValue = task.frequency_value || 1;
     
-    // 如果是「每天」，則每天都回傳 true
+    // 如果是「每天」，則每天都回傳 true (這是最簡單的情況)
     if (freqValue === 1) return true;
 
-    // 如果是「每 X 天」，需要一個基準日來計算週期
-    // 我們優先使用 created_at (建立日) 作為錨點
+    // [重點] 如果是「每 X 天」(freq > 1)，我們需要"動態錨點"
+    // 邏輯：找到目標日期"之前"最近的一筆完成記錄，下一筆應該是 "記錄日 + X天"
+    if (referenceRecords.length > 0) {
+       const checkDateStr = date.toISOString().split('T')[0];
+       const checkTime = date.getTime();
+
+       // 1. 找出所有早於 checkDate 的記錄
+       // 注意：這裡假設 referenceRecords 已經包含該任務的記錄
+       const previousRecords = referenceRecords
+         .filter(r => new Date(r.記錄日期).getTime() < checkTime)
+         .sort((a, b) => new Date(b.記錄日期).getTime() - new Date(a.記錄日期).getTime()); // 降序，最新的在前
+
+       if (previousRecords.length > 0) {
+         const lastRecord = previousRecords[0];
+         const lastDate = new Date(lastRecord.記錄日期);
+         lastDate.setHours(0,0,0,0);
+         
+         // 計算預期日：上一筆 + 頻率
+         const expectedDate = new Date(lastDate);
+         expectedDate.setDate(expectedDate.getDate() + freqValue);
+         
+         // 如果目標日期 == 預期日，則這天該做
+         return expectedDate.getTime() === date.getTime();
+       }
+    }
+
+    // 如果沒有任何歷史記錄，退回到使用 created_at 作為靜態錨點 (Fallback)
     if (task.created_at) {
       const createdDate = new Date(task.created_at);
       createdDate.setHours(0, 0, 0, 0);
-      
       const targetDate = new Date(date);
       targetDate.setHours(0, 0, 0, 0);
-
-      // 計算相差天數
       const diffTime = targetDate.getTime() - createdDate.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-      // 如果相差天數能被頻率整除，則這天該做
-      // 注意：diffDays 必須 >= 0，否則是在任務建立前的日期
       return diffDays >= 0 && diffDays % freqValue === 0;
     }
     
-    // 如果沒有 created_at (極少見)，退化為每天 (或預設不顯示紅點以防誤導，這裡選擇保守策略：不顯示)
     return false;
   }
   
   // 2. 每週任務：檢查特定星期
   if (task.frequency_unit === 'weekly') {
-    // 如果有指定星期幾 (DB: 1=Mon...7=Sun)
     if (task.specific_days_of_week && task.specific_days_of_week.length > 0) {
        const day = date.getDay(); // JS: 0=Sun...6=Sat
        const dbDay = day === 0 ? 7 : day;
        return task.specific_days_of_week.includes(dbDay);
     }
-    // 如果沒有指定星期 (例如"每週一次"但沒說是哪天)，無法判斷，回傳 false
     return false; 
   }
 
@@ -143,7 +160,28 @@ export function calculateNextDueDate(task: PatientHealthTask, fromDate?: Date): 
   return nextDueDate;
 }
 
-// ... (以下維持原樣的 isTaskOverdue, isTaskPendingToday 等函式，請確保不要遺失)
+// 解析時間字串
+function parseTimeString(timeStr: string): { hours: number; minutes: number } {
+  const standardMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (standardMatch) {
+    return {
+      hours: parseInt(standardMatch[1]),
+      minutes: parseInt(standardMatch[2])
+    };
+  }
+  const medicationMatch = timeStr.match(/^(\d{1,2})(?::(\d{2}))?([APN])$/);
+  if (medicationMatch) {
+    let hours = parseInt(medicationMatch[1]);
+    const minutes = parseInt(medicationMatch[2] || '0');
+    const period = medicationMatch[3];
+    if (period === 'A' && hours === 12) hours = 0;
+    if (period === 'P' && hours !== 12) hours += 12; 
+    if (period === 'N') hours = 12; 
+    return { hours, minutes };
+  }
+  return { hours: 8, minutes: 0 };
+}
+
 export function isTaskOverdue(task: PatientHealthTask): boolean {
   if (!task.next_due_at) return false;
   const now = new Date();
