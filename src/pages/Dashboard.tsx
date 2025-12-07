@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { usePatients } from '../context/PatientContext';
 import TaskModal from '../components/TaskModal';
-import { Hop as Home, Users, Calendar, Heart, SquareCheck as CheckSquare, TriangleAlert as AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight } from 'lucide-react';
+import { Hop as Home, Users, Calendar, Heart, SquareCheck as CheckSquare, TriangleAlert as AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight, CalendarDays } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { isTaskOverdue, isTaskPendingToday, isTaskDueSoon, getTaskStatus, isDocumentTask, isMonitoringTask, isNursingTask, isRestraintAssessmentOverdue, isRestraintAssessmentDueSoon, isHealthAssessmentOverdue, isHealthAssessmentDueSoon, calculateNextDueDate } from '../utils/taskScheduler';
 import { getPatientsWithOverdueWorkflow } from '../utils/workflowStatusHelper';
@@ -18,6 +18,8 @@ import OverdueWorkflowCard from '../components/OverdueWorkflowCard';
 import PendingPrescriptionCard from '../components/PendingPrescriptionCard';
 import PatientModal from '../components/PatientModal';
 import VaccinationRecordModal from '../components/VaccinationRecordModal';
+// [新增] 引入新建立的日曆組件
+import TaskHistoryModal from '../components/TaskHistoryModal';
 import { syncTaskStatus } from '../lib/database';
 
 interface Patient {
@@ -42,6 +44,8 @@ interface HealthTask {
   frequency_value?: number;
   end_date?: string;
   end_time?: string;
+  specific_days_of_week?: number[];
+  specific_days_of_month?: number[];
 }
 
 interface FollowUpAppointment {
@@ -98,6 +102,10 @@ const Dashboard: React.FC = () => {
   const [selectedPatientForEdit, setSelectedPatientForEdit] = useState<any>(null);
   const [showVaccinationModal, setShowVaccinationModal] = useState(false);
   const [selectedPatientForVaccination, setSelectedPatientForVaccination] = useState<any>(null);
+  
+  // [新增] 控制歷史日曆 Modal 的狀態
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedHistoryTask, setSelectedHistoryTask] = useState<{ task: HealthTask; patient: Patient } | null>(null);
 
   const uniquePatientHealthTasks = useMemo(() => {
     const seen = new Map<string, boolean>();
@@ -130,60 +138,16 @@ const Dashboard: React.FC = () => {
     setShowHealthRecordModal(true);
   };
 
-  const renderTaskHistory = (task: HealthTask) => {
-    if (!isMonitoringTask(task.health_record_type)) return null;
-
-    const historyDays = 7;
-    const today = new Date();
-    const dots = [];
-
-    for (let i = historyDays - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      
-      const hasRecord = healthRecords.some(r => {
-        if (r.task_id === task.id) return r.記錄日期 === dateStr;
-        return r.院友id.toString() === task.patient_id && 
-               r.記錄類型 === task.health_record_type && 
-               r.記錄日期 === dateStr;
-      });
-
-      let statusColor = 'bg-gray-200 border-gray-300';
-      let title = `${dateStr}: 待辦`;
-
-      if (hasRecord) {
-        statusColor = 'bg-green-500 border-green-600';
-        title = `${dateStr}: 已完成`;
-      } else {
-        if (d < new Date(today.setHours(0,0,0,0))) {
-          statusColor = 'bg-red-500 border-red-600';
-          title = `${dateStr}: 缺漏 (點擊補錄)`;
-        } else if (d.getDate() === new Date().getDate()) {
-           statusColor = 'bg-gray-300 border-gray-400';
-           title = `${dateStr}: 今日待辦`;
-        }
-      }
-
-      dots.push(
-        <div
-          key={i}
-          className={`w-3 h-3 rounded-full border cursor-pointer ${statusColor} hover:scale-125 transition-transform`}
-          title={title}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!hasRecord) {
-              handleTaskClick(task, dateStr);
-            }
-          }}
-        />
-      );
+  // [新增] 點擊歷史按鈕，打開日曆 Modal
+  const handleHistoryClick = (e: React.MouseEvent, task: HealthTask) => {
+    e.stopPropagation(); // 防止觸發卡片的點擊事件
+    const patient = patients.find(p => p.院友id === task.patient_id);
+    if (patient) {
+      setSelectedHistoryTask({ task, patient });
+      setShowHistoryModal(true);
     }
-
-    return <div className="flex space-x-1 mt-2">{dots}</div>;
   };
 
-  // [新增] 補回遺失的輔助函式
   const isAnnualCheckupOverdue = (checkup: any): boolean => {
     if (!checkup.next_due_date) return false;
     const today = new Date();
@@ -282,7 +246,7 @@ const Dashboard: React.FC = () => {
       else if (hour >= 13 && hour < 18) dinner.push(task);
       else if (hour >= 18 && hour <= 20) snack.push(task);
     });
-    return { breakfastTasks: breakfast, lunchTasks: lunch, dinnerTasks: dinner, snackTasks: snack };
+    return { breakfastTasks, lunchTasks, dinnerTasks, snackTasks };
   }, [urgentMonitoringTasks]);
 
   const { overdueDocumentTasks, pendingDocumentTasks, dueSoonDocumentTasks } = useMemo(() => {
@@ -518,10 +482,10 @@ const Dashboard: React.FC = () => {
                       return (
                         <div 
                           key={task.id} 
-                          className={`relative flex flex-col p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors dashboard-task-card`}
+                          className={`relative flex items-center justify-between p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors dashboard-task-card`}
                           onClick={() => handleTaskClick(task)}
                         >
-                          <div className="flex items-center space-x-3">
+                          <div className="flex items-center space-x-3 flex-1">
                             {task.notes && isMonitoringTask(task.health_record_type) && (
                               <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium task-note-badge ${getNotesBadgeClass(task.notes)}`}>
                                 {task.notes}
@@ -559,7 +523,17 @@ const Dashboard: React.FC = () => {
                               {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
                             </span>
                           </div>
-                          {renderTaskHistory(task)}
+                          
+                          {/* [新增] 獨立的日曆按鈕 (只針對監測任務) */}
+                          {isMonitoringTask(task.health_record_type) && (
+                            <button
+                              onClick={(e) => handleHistoryClick(e, task)}
+                              className="ml-2 p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-full transition-all"
+                              title="查看歷史/補錄"
+                            >
+                              <CalendarDays className="h-5 w-5" />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -624,7 +598,7 @@ const Dashboard: React.FC = () => {
                 } else {
                   const assessment = item.data;
                   const patient = patients.find(p => p.院友id === assessment.patient_id);
-                  
+                  // ... (評估類代碼保持不變) ...
                   if (item.type === 'restraint') {
                     const isOverdue = isRestraintAssessmentOverdue(assessment);
                     const isDueSoon = isRestraintAssessmentDueSoon(assessment);
@@ -634,7 +608,7 @@ const Dashboard: React.FC = () => {
                         className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg cursor-pointer hover:bg-yellow-100 transition-colors border border-yellow-200"
                         onClick={() => handleRestraintAssessmentClick(assessment)}
                       >
-                        <div className="w-10 h-10 bg-yellow-100 rounded-full overflow-hidden flex items-center justify-center">
+                         <div className="w-10 h-10 bg-yellow-100 rounded-full overflow-hidden flex items-center justify-center">
                           {patient?.院友相片 ? (
                             <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
                           ) : (
@@ -666,8 +640,7 @@ const Dashboard: React.FC = () => {
                       </div>
                     );
                   } else if (item.type === 'health-assessment') {
-                    const assessment = item.data;
-                    const isOverdue = isHealthAssessmentOverdue(assessment);
+                     const isOverdue = isHealthAssessmentOverdue(assessment);
                     const isDueSoon = isHealthAssessmentDueSoon(assessment);
                     return (
                       <div
@@ -675,7 +648,7 @@ const Dashboard: React.FC = () => {
                         className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors border border-red-200"
                         onClick={() => handleHealthAssessmentClick(assessment)}
                       >
-                        <div className="w-10 h-10 bg-red-100 rounded-full overflow-hidden flex items-center justify-center">
+                         <div className="w-10 h-10 bg-red-100 rounded-full overflow-hidden flex items-center justify-center">
                           {patient?.院友相片 ? (
                             <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
                           ) : (
@@ -821,6 +794,20 @@ const Dashboard: React.FC = () => {
           onTaskCompleted={(recordDateTime) => handleTaskCompleted(selectedHealthRecordInitialData.task.id, recordDateTime)}
         />
       )}
+      {/* [新增] 歷史日曆 Modal */}
+      {showHistoryModal && selectedHistoryTask && (
+        <TaskHistoryModal
+          task={selectedHistoryTask.task}
+          patient={selectedHistoryTask.patient}
+          healthRecords={healthRecords}
+          onClose={() => setShowHistoryModal(false)}
+          onDateSelect={(date) => {
+            handleTaskClick(selectedHistoryTask.task, date);
+            // 選擇日期後不關閉日曆，讓用戶可以看到更新後的狀態，或連續補錄
+            // 也可以選擇在這裡 setShowHistoryModal(false) 關閉它
+          }}
+        />
+      )}
       {showDocumentTaskModal && selectedDocumentTask && (
         <DocumentTaskModal
           isOpen={showDocumentTaskModal}
@@ -830,6 +817,7 @@ const Dashboard: React.FC = () => {
           onTaskCompleted={handleDocumentTaskCompleted}
         />
       )}
+      {/* 其他 Modal 保留 */}
       {showFollowUpModal && selectedFollowUp && <FollowUpModal isOpen={showFollowUpModal} onClose={() => { setShowFollowUpModal(false); setSelectedFollowUp(null); }} appointment={selectedFollowUp} onUpdate={refreshData} />}
       {showRestraintAssessmentModal && selectedRestraintAssessment && <RestraintAssessmentModal isOpen={showRestraintAssessmentModal} onClose={() => { setShowRestraintAssessmentModal(false); setSelectedRestraintAssessment(null); }} assessment={selectedRestraintAssessment} onUpdate={refreshData} />}
       {showHealthAssessmentModal && selectedHealthAssessment && <HealthAssessmentModal isOpen={showHealthAssessmentModal} onClose={() => { setShowHealthAssessmentModal(false); setSelectedHealthAssessment(null); }} assessment={selectedHealthAssessment} onUpdate={refreshData} />}
