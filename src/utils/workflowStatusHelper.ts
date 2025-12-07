@@ -257,8 +257,7 @@ export const getPatientsWithOverdueWorkflow = (
     earliestOverdueDate: string;
   }> = [];
 
-  patientOverdueMap.forEach((overdueRecords, patientId) => {
-    console.log(`🔍 查找院友 ID: ${patientId} (類型: ${typeof patientId})`);
+
 
     // 嘗試多種匹配方式
     const patient = patients.find(p => {
