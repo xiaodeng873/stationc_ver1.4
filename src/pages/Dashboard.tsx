@@ -46,7 +46,7 @@ interface HealthTask {
   specific_days_of_week?: number[];
   specific_days_of_month?: number[];
   specific_times?: string[];
-  created_at: string;
+  created_at: string; // [新增]
 }
 
 interface FollowUpAppointment {
@@ -139,16 +139,6 @@ const Dashboard: React.FC = () => {
     setShowHealthRecordModal(true);
   };
 
-  // 打開歷史日曆 Modal
-  const handleHistoryClick = (e: React.MouseEvent, task: HealthTask) => {
-    e.stopPropagation(); 
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    if (patient) {
-      setSelectedHistoryTask({ task, patient });
-      setShowHistoryModal(true);
-    }
-  };
-
   const isAnnualCheckupOverdue = (checkup: any): boolean => {
     if (!checkup.next_due_date) return false;
     const today = new Date();
@@ -219,17 +209,9 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = useMemo(() => patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)), [patientHealthTasks]);
   const documentTasks = useMemo(() => patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)), [patientHealthTasks]);
 
-  // [修改] 找出最近的一個缺漏日期 (傳入 taskRecords 進行動態判斷)
   const findMostRecentMissedDate = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
     
-    // 預先篩選出該任務的記錄，提升效能
-    const taskRecords = healthRecords.filter(r => {
-      if (r.task_id && r.task_id === task.id) return true;
-      return r.院友id.toString() == task.patient_id.toString() && 
-             r.記錄類型 === task.health_record_type;
-    });
-
     const today = new Date();
     today.setHours(0,0,0,0);
     
@@ -240,9 +222,13 @@ const Dashboard: React.FC = () => {
       
       if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
 
-      // [修改] 傳入 taskRecords
-      if (isTaskScheduledForDate(task, d, taskRecords)) {
-        const hasRecord = taskRecords.some(r => r.記錄日期 === dateStr);
+      if (isTaskScheduledForDate(task, d)) {
+        const hasRecord = healthRecords.some(r => {
+          if (r.task_id === task.id) return r.記錄日期 === dateStr;
+          return r.院友id.toString() == task.patient_id.toString() && 
+                 r.記錄類型 === task.health_record_type && 
+                 r.記錄日期 === dateStr;
+        });
         if (!hasRecord) return d;
       }
     }
@@ -583,6 +569,7 @@ const Dashboard: React.FC = () => {
                                 <p className="text-sm text-gray-600">{task.health_record_type}</p>
                               </div>
                               
+                              {/* [修改] 顯示頻率與時間，放同一行 */}
                               <div className="flex items-center mt-1 space-x-3 text-xs text-gray-600 font-medium">
                                 <div className="flex items-center space-x-1">
                                   <Repeat className="h-3 w-3" />
