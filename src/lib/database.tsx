@@ -1095,6 +1095,56 @@ export const deleteMedicationPrescription = async (prescriptionId: string): Prom
   if (error) throw error;
 };
 
+export interface PrescriptionTimeSlotDefinition {
+  id: string;
+  slot_name: string;
+  start_time?: string;
+  end_time?: string;
+  is_meal_related: boolean;
+  meal_type?: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const getPrescriptionTimeSlotDefinitions = async (): Promise<PrescriptionTimeSlotDefinition[]> => {
+  const { data, error } = await supabase
+    .from('prescription_time_slot_definitions')
+    .select('*')
+    .order('slot_name', { ascending: true });
+  if (error) throw error;
+  return data || [];
+};
+
+export const addPrescriptionTimeSlotDefinition = async (definition: Omit<PrescriptionTimeSlotDefinition, 'id' | 'created_at' | 'updated_at'>): Promise<PrescriptionTimeSlotDefinition> => {
+  const { data, error } = await supabase
+    .from('prescription_time_slot_definitions')
+    .insert([definition])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const updatePrescriptionTimeSlotDefinition = async (definition: PrescriptionTimeSlotDefinition): Promise<PrescriptionTimeSlotDefinition> => {
+  const { data, error } = await supabase
+    .from('prescription_time_slot_definitions')
+    .update(definition)
+    .eq('id', definition.id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const deletePrescriptionTimeSlotDefinition = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('prescription_time_slot_definitions')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
 export const getMedicationWorkflowSettings = async (userId: string): Promise<MedicationWorkflowSettings | null> => {
   const { data, error } = await supabase.from('medication_workflow_settings').select('*').eq('user_id', userId).single();
   if (error && error.code !== 'PGRST116') throw error;

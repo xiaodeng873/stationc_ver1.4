@@ -541,6 +541,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         prescriptionsData,
         drugDatabaseData,
         workflowRecordsData,
+        timeSlotDefinitionsData,
         annualHealthCheckupsData,
         incidentReportsData,
         diagnosisRecordsData,
@@ -569,6 +570,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getPrescriptions(),
         db.getDrugDatabase(),
         fetchPrescriptionWorkflowRecords(),
+        db.getPrescriptionTimeSlotDefinitions(),
         db.getAnnualHealthCheckups(),
         db.getIncidentReports(),
         db.getDiagnosisRecords(),
@@ -606,6 +608,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       setPrescriptions(prescriptionsData);
       setDrugDatabase(drugDatabaseData);
       setPrescriptionWorkflowRecords(workflowRecordsData || []);
+      setPrescriptionTimeSlotDefinitions(timeSlotDefinitionsData || []);
       setAnnualHealthCheckups(annualHealthCheckupsData || []);
       setIncidentReports(incidentReportsData || []);
       setDiagnosisRecords(diagnosisRecordsData || []);
@@ -1489,6 +1492,25 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const fetchLatestVitalSigns = async (pid: number, type: string) => { return null; };
   const batchSetDispenseFailure = async (pid: number, date: string, time: string, reason: string) => { /* Placeholder */ };
   const revertPrescriptionWorkflowStep = async (rid: string, step: any) => { /* Placeholder */ };
+
+  const loadPrescriptionTimeSlotDefinitions = async () => {
+    try {
+      const definitions = await db.getPrescriptionTimeSlotDefinitions();
+      setPrescriptionTimeSlotDefinitions(definitions);
+    } catch (error) {
+      console.error('Error loading prescription time slot definitions:', error);
+      throw error;
+    }
+  };
+
+  const fetchPrescriptionTimeSlotDefinitions = async (): Promise<PrescriptionTimeSlotDefinition[]> => {
+    try {
+      return await db.getPrescriptionTimeSlotDefinitions();
+    } catch (error) {
+      console.error('Error fetching prescription time slot definitions:', error);
+      throw error;
+    }
+  };
 
   const addPrescriptionTimeSlotDefinition = async (definition: Omit<PrescriptionTimeSlotDefinition, 'id' | 'created_at' | 'updated_at'>) => {
     try {
