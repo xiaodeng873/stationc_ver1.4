@@ -51,6 +51,8 @@ export interface Bed {
   bed_number: string;
   bed_name?: string;
   is_occupied: boolean;
+  qr_code_id: string;
+  qr_code_generated_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -647,6 +649,16 @@ export const updateBed = async (bed: Bed): Promise<Bed> => {
 export const deleteBed = async (bedId: string): Promise<void> => {
   const { error } = await supabase.from('beds').delete().eq('id', bedId);
   if (error) throw error;
+};
+
+export const getBedByQrCodeId = async (qrCodeId: string): Promise<Bed | null> => {
+  const { data, error } = await supabase
+    .from('beds')
+    .select('*')
+    .eq('qr_code_id', qrCodeId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 };
 
 export const assignPatientToBed = async (patientId: number, bedId: string): Promise<void> => {

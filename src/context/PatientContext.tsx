@@ -145,6 +145,7 @@ interface PatientContextType {
   assignPatientToBed: (patientId: number, bedId: string) => Promise<void>;
   swapPatientBeds: (patientId1: number, patientId2: number) => Promise<void>;
   moveBedToStation: (bedId: string, newStationId: string) => Promise<void>;
+  getBedByQrCodeId: (qrCodeId: string) => Promise<db.Bed | null>;
   addSchedule: (schedule: Omit<db.Schedule, '排程id'>) => Promise<void>;
   updateSchedule: (schedule: ScheduleWithDetails) => Promise<void>;
   deleteSchedule: (id: number) => Promise<void>;
@@ -2012,6 +2013,15 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
+  const getBedByQrCodeId = async (qrCodeId: string): Promise<db.Bed | null> => {
+    try {
+      return await db.getBedByQrCodeId(qrCodeId);
+    } catch (error) {
+      console.error('Error getting bed by QR code ID:', error);
+      throw error;
+    }
+  };
+
   // Drug database functions
   const addDrug = async (drug: Omit<any, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -2859,6 +2869,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       assignPatientToBed,
       swapPatientBeds,
       moveBedToStation,
+      getBedByQrCodeId,
       addSchedule,
       updateSchedule,
       deleteSchedule,
