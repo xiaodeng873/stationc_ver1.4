@@ -42,7 +42,16 @@ export const isWorkflowOverdue = (record: WorkflowRecord): boolean => {
   // 如果排程時間已經過去，則視為逾期
   const isOverdue = scheduledDateTime < hkTime;
 
-
+  // 調試日誌（僅在逾期時輸出）
+  if (isOverdue) {
+    console.log('⏰ 發現逾期流程:', {
+      日期: record.scheduled_date,
+      時間: record.scheduled_time,
+      排程時間: scheduledDateTime.toLocaleString('zh-TW'),
+      當前香港時間: hkTime.toLocaleString('zh-TW'),
+      派藥狀態: record.dispensing_status
+    });
+  }
 
   return isOverdue;
 };
@@ -257,23 +266,26 @@ export const getPatientsWithOverdueWorkflow = (
     earliestOverdueDate: string;
   }> = [];
 
-  patientOverdueMap.forEach((overdueRecords, patientId) => {
-    
+  patientOverdueMap.forEach((overdueRecords, patientId) => { 
+    console.log(`🔍 查找院友 ID: ${patientId} (類型: ${typeof patientId})`);
 
     // 嘗試多種匹配方式
     const patient = patients.find(p => {
       const pId = p.院友id;
       const match = parseInt(String(pId)) === parseInt(String(patientId));
-      if (match) 
+      if (match) {
+        console.log(`✅ 找到匹配院友: ${p.床號} - ${p.中文姓氏}${p.中文名字} (ID: ${pId}, 類型: ${typeof pId})`);
+      }
       return match;
     });
 
-    if (!patient) 
-
+    if (!patient) {
+      console.warn(`❌ 找不到院友 ID: ${patientId}`);
       return;
     }
 
     if (patient.在住狀態 !== '在住') {
+      console.log(`⚠️ 院友 ${patient.床號} 不是在住狀態: ${patient.在住狀態}`);
       return;
     }
 
