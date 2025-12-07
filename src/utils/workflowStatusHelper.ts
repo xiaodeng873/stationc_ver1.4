@@ -264,8 +264,7 @@ export const getPatientsWithOverdueWorkflow = (
     const patient = patients.find(p => {
       const pId = p.院友id;
       const match = parseInt(String(pId)) === parseInt(String(patientId));
-      if (match) {
-  
+      if (match) 
       return match;
     });
 
