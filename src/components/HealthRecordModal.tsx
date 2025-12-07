@@ -10,7 +10,7 @@ interface HealthRecordModalProps {
     patient?: { 院友id: number; 中文姓名?: string; 床號?: string };
     task?: { id: string; health_record_type: string; next_due_at: string };
     預設記錄類型?: string;
-    預設日期?: string; // [新增] 支援從日曆點擊傳入日期 (格式: YYYY-MM-DD)
+    預設日期?: string; 
   };
   onClose: () => void;
   onTaskCompleted?: (recordDateTime: Date) => void;
@@ -20,7 +20,6 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const { addHealthRecord, updateHealthRecord, patients, hospitalEpisodes } = usePatients();
   const { displayName } = useAuth();
 
-  // 香港時區輔助函數
   const getHongKongDateTime = (dateString?: string) => {
     const date = dateString ? new Date(dateString) : new Date();
     const hongKongTime = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Hong_Kong"}));
@@ -36,13 +35,12 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     };
   };
 
-  // 生成隨機預設值
   const generateRandomDefaults = (recordType: string) => {
     if (recordType === '生命表徵') {
       return {
-        體溫: (Math.random() * 0.9 + 36.0).toFixed(1), // 36.0-36.9
-        血含氧量: Math.floor(Math.random() * 5 + 95).toString(), // 95-99
-        呼吸頻率: Math.floor(Math.random() * 9 + 14).toString() // 14-22
+        體溫: (Math.random() * 0.9 + 36.0).toFixed(1), 
+        血含氧量: Math.floor(Math.random() * 5 + 95).toString(), 
+        呼吸頻率: Math.floor(Math.random() * 9 + 14).toString()
       };
     }
     return {};
@@ -63,8 +61,6 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   
   const initialIsPatientHospitalized = checkPatientHospitalized(initialPatientId);
 
-  // [修改] 初始化日期邏輯：優先使用 initialData.預設日期 (來自日曆點擊)
-  // 如果沒有，則使用 task.next_due_at 或 record 既有日期
   const { date: defaultRecordDate, time: defaultRecordTime } = record 
     ? { date: record.記錄日期, time: record.記錄時間 }
     : getHongKongDateTime(initialData?.預設日期 || initialData?.task?.next_due_at);
@@ -226,7 +222,6 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
     const recordData = {
       院友id: parseInt(formData.院友id),
-      // [重要] 寫入任務 ID，建立關聯，這是雙向綁定的關鍵
       task_id: initialData?.task?.id || record?.task_id || null, 
       記錄日期: formData.記錄日期,
       記錄時間: formData.記錄類型 === '體重控制' ? '00:00' : formData.記錄時間,
@@ -415,7 +410,6 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
               </div>
             </div>
 
-            {/* 生命表徵輸入區塊 */}
             {formData.記錄類型 === '生命表徵' && (
               <div className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -453,7 +447,6 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
               </div>
             )}
 
-            {/* 血糖輸入區塊 */}
             {formData.記錄類型 === '血糖控制' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div>
@@ -467,7 +460,6 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
               </div>
             )}
 
-            {/* 體重輸入區塊 */}
             {formData.記錄類型 === '體重控制' && (
               <div className="grid grid-cols-1 gap-4 mt-4">
                 <div>
