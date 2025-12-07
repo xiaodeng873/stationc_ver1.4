@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Heart,
   Plus,
@@ -31,7 +31,6 @@ import RecycleBinModal from '../components/RecycleBinModal';
 import { exportVitalSignsToExcel, type VitalSignExportData } from '../utils/vitalsignExcelGenerator';
 import { exportBloodSugarToExcel, type BloodSugarExportData } from '../utils/bloodSugarExcelGenerator';
 import PatientTooltip from '../components/PatientTooltip';
-// [新增] 引入同步函式
 import { syncTaskStatus } from '../lib/database';
 
 type RecordType = '生命表徵' | '血糖控制' | '體重控制' | 'all';
@@ -60,8 +59,14 @@ const HealthAssessment: React.FC = () => {
     checkEligiblePatientsForTemperature,
     findDuplicateHealthRecords,
     batchDeleteDuplicateRecords,
-    refreshData // [新增] 解構出 refreshData
+    refreshData,
+    loadFullHealthRecords // [新增]
   } = usePatients();
+  
+  // [新增] 進入頁面時，觸發載入完整歷史記錄
+  useEffect(() => {
+    loadFullHealthRecords();
+  }, [loadFullHealthRecords]);
   
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -92,7 +97,6 @@ const HealthAssessment: React.FC = () => {
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingTemperature, setIsGeneratingTemperature] = useState(false);
-  const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
   // Helper functions
   const hasAdvancedFilters = () => {
