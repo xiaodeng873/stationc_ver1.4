@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { isTaskScheduledForDate } from '../utils/taskScheduler';
 
 interface TaskHistoryModalProps {
   task: any;
   patient: any;
   healthRecords: any[];
+  initialDate?: Date | null; // [新增] 允許指定初始日期
   onClose: () => void;
   onDateSelect: (date: string) => void;
 }
@@ -13,10 +15,12 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
   task, 
   patient, 
   healthRecords, 
+  initialDate,
   onClose, 
   onDateSelect 
 }) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // 如果有 initialDate，就顯示該月，否則顯示當前月份
+  const [currentDate, setCurrentDate] = useState(initialDate || new Date());
 
   const getDaysInMonth = (year: number, month: number) => {
     return new Date(year, month + 1, 0).getDate();
@@ -55,31 +59,14 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     if (checkDate > today) return 'future';
 
     // 3. 檢查是否應該有任務 (紅點 - 缺漏)
-    let isScheduled = false;
-
-    if (task.frequency_unit === 'daily') {
-      isScheduled = true;
-    } else if (task.frequency_unit === 'weekly') {
-      if (task.specific_days_of_week && task.specific_days_of_week.length > 0) {
-         const jsDay = checkDate.getDay(); 
-         const dbDay = jsDay === 0 ? 7 : jsDay;
-         isScheduled = task.specific_days_of_week.includes(dbDay);
-      } else {
-         // 每週一次但沒指定星期，不顯示缺漏紅點
-         isScheduled = false; 
-      }
-    } else if (task.frequency_unit === 'monthly') {
-       if (task.specific_days_of_month && task.specific_days_of_month.length > 0) {
-         isScheduled = task.specific_days_of_month.includes(day);
-       }
-    }
+    const isScheduled = isTaskScheduledForDate(task, checkDate);
 
     if (isScheduled) {
       if (checkDate.getTime() === today.getTime()) return 'pending'; // 今天待辦
       return 'missed'; // 過去缺漏
     }
 
-    return 'none';
+    return 'none'; // 無排程
   };
 
   const renderCalendarDays = () => {
@@ -97,25 +84,34 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
       
       let statusStyle = '';
       let dot = null;
+      // 只有 缺漏(missed) 和 待辦(pending) 可點擊
+      let isClickable = false;
 
       switch (status) {
         case 'completed':
-          statusStyle = 'hover:bg-green-50 cursor-pointer';
+          // 已完成：不可點 (符合需求 "無需補錄的日子不能點開")
+          statusStyle = 'text-gray-400 cursor-default opacity-60';
           dot = <div className="w-1.5 h-1.5 rounded-full bg-green-500 mx-auto mt-1"></div>;
           break;
         case 'missed':
-          statusStyle = 'hover:bg-red-50 cursor-pointer';
+          // 缺漏：可點擊補錄
+          statusStyle = 'hover:bg-red-50 cursor-pointer font-medium text-red-700 bg-red-50/30';
           dot = <div className="w-1.5 h-1.5 rounded-full bg-red-500 mx-auto mt-1"></div>;
+          isClickable = true;
           break;
         case 'pending':
-          statusStyle = 'hover:bg-blue-50 cursor-pointer';
+          // 今天待辦：可點擊
+          statusStyle = 'hover:bg-blue-50 cursor-pointer font-medium text-blue-700';
           dot = <div className="w-1.5 h-1.5 rounded-full border border-blue-500 mx-auto mt-1"></div>;
+          isClickable = true;
           break;
         case 'future':
           statusStyle = 'text-gray-300 cursor-default';
           break;
+        case 'none':
         default:
-          statusStyle = 'text-gray-600 hover:bg-gray-50 cursor-pointer';
+          // 無排程：不可點
+          statusStyle = 'text-gray-300 cursor-default';
           break;
       }
 
@@ -123,7 +119,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
         <div 
           key={day} 
           onClick={() => {
-            if (status !== 'future') {
+            if (isClickable) {
               onDateSelect(dateStr);
             }
           }}
@@ -138,7 +134,15 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]"
+      onClick={(e) => {
+        // [修改] 點擊背景關閉
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
         {/* Header */}
         <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -146,7 +150,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
             <h3 className="font-semibold text-gray-900 text-sm">
               {patient.中文姓氏}{patient.中文名字} - {task.health_record_type}
             </h3>
-            <p className="text-xs text-gray-500">點擊日期進行補錄</p>
+            <p className="text-xs text-gray-500">點擊紅色日期進行補錄</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200">
             <X className="h-5 w-5" />
@@ -180,9 +184,9 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
 
         {/* Legend */}
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex justify-center space-x-4">
-          <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>已做</div>
-          <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-red-500 mr-1.5"></div>缺漏</div>
-          <div className="flex items-center"><div className="w-2 h-2 rounded-full border border-blue-500 mr-1.5"></div>待辦</div>
+          <div className="flex items-center opacity-60"><div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>已完成</div>
+          <div className="flex items-center text-red-600 font-medium"><div className="w-2 h-2 rounded-full bg-red-500 mr-1.5"></div>缺漏(可點)</div>
+          <div className="flex items-center text-blue-600"><div className="w-2 h-2 rounded-full border border-blue-500 mr-1.5"></div>待辦</div>
         </div>
       </div>
     </div>
