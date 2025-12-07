@@ -21,9 +21,8 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
   onClose, 
   onDateSelect 
 }) => {
-  // [修復] 安全檢查：如果沒有任務或沒有院友資料，直接不渲染，防止崩潰
+  // [安全檢查] 確保資料存在，防止崩潰
   if (!task || !patient) {
-    console.warn('TaskHistoryModal: Missing task or patient data');
     return null;
   }
 
@@ -45,20 +44,14 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-  // 判斷每一天的狀態
   const getDayStatus = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const checkDate = new Date(year, month, day);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // [增強] 檢查是否有記錄 (使用寬鬆 ID 比對 toString)
     const hasRecord = healthRecords.some(r => {
-      // 1. 優先檢查 task_id
       if (r.task_id && r.task_id === task.id) return r.記錄日期 === dateStr;
-      
-      // 2. 相容舊資料：檢查 病人+類型+日期
-      // 這裡轉成 string 確保數字與字串 ID 能正確比對
       return r.院友id.toString() == task.patient_id.toString() && 
              r.記錄類型 === task.health_record_type && 
              r.記錄日期 === dateStr;
@@ -66,18 +59,14 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
 
     if (hasRecord) return 'completed';
 
-    // Cutoff 檢查：早於 Cutoff 的如果不顯示為已完成，則視為無狀態 (不紅點)
     if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
-
-    // 未來日期不顯示狀態
     if (checkDate > today) return 'future';
 
-    // 檢查是否應該有任務 (紅點 - 缺漏)
     const isScheduled = isTaskScheduledForDate(task, checkDate);
 
     if (isScheduled) {
-      if (checkDate.getTime() === today.getTime()) return 'pending'; // 今天待辦
-      return 'missed'; // 過去缺漏
+      if (checkDate.getTime() === today.getTime()) return 'pending';
+      return 'missed';
     }
 
     return 'none';
@@ -146,11 +135,9 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
       }}
     >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
-        {/* Header */}
         <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-gray-900 text-sm">
-              {/* [修復] 使用 Optional Chaining 防止 undefined 錯誤 */}
               {patient?.中文姓氏}{patient?.中文名字} - {task?.health_record_type}
             </h3>
             <p className="text-xs text-gray-500">點擊紅色日期進行補錄</p>
@@ -160,7 +147,6 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
           </button>
         </div>
 
-        {/* Calendar Controls */}
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded-full">
@@ -185,7 +171,6 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
           </div>
         </div>
 
-        {/* Legend */}
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex justify-center space-x-4">
           <div className="flex items-center opacity-60"><div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>已完成</div>
           <div className="flex items-center text-red-600 font-medium"><div className="w-2 h-2 rounded-full bg-red-500 mr-1.5"></div>缺漏(可點)</div>
