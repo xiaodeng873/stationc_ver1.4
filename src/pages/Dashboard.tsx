@@ -543,7 +543,16 @@ const Dashboard: React.FC = () => {
                               {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
                             </span>
                           </div>
-                          {renderTaskHistory(task)}
+                          {/* [新增] 日曆按鈕 (只針對監測任務) */}
+                          {isMonitoringTask(task.health_record_type) && (
+                            <button
+                              onClick={(e) => handleHistoryClick(e, task)}
+                              className="ml-2 p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-full transition-all"
+                              title="查看歷史/補錄"
+                            >
+                              <CalendarDays className="h-5 w-5" />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -748,42 +757,28 @@ const Dashboard: React.FC = () => {
             <Link to="/follow-up" className="text-sm text-blue-600 hover:text-blue-700 font-medium">查看全部</Link>
           </div>
           <div className="space-y-3">
-            {upcomingFollowUps.length > 0 ? (
-              upcomingFollowUps.map(appointment => {
-                const patient = patients.find(p => p.院友id === appointment.院友id);
-                return (
-                  <div 
-                    key={appointment.覆診id} 
-                    className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                    onClick={() => handleFollowUpClick(appointment)}
-                  >
-                    <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
-                      {patient?.院友相片 ? (
-                        <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
-                      ) : (
-                        <User className="h-5 w-5 text-blue-600" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
-                        <span className="text-xs text-gray-500">({patient?.床號})</span>
-                      </div>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Calendar className="h-4 w-4 text-blue-600" />
-                        <p className="text-sm text-gray-600">{appointment.覆診專科}</p>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        {new Date(appointment.覆診日期).toLocaleDateString('zh-TW')} - {appointment.覆診地點}
-                      </p>
-                    </div>
-                    <span className={`status-badge ${getStatusBadgeClass(appointment.狀態)}`}>
-                      {appointment.狀態}
-                    </span>
+            {upcomingFollowUps.length > 0 ? upcomingFollowUps.map(appointment => {
+              const patient = patients.find(p => p.院友id === appointment.院友id);
+              return (
+                <div key={appointment.覆診id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleFollowUpClick(appointment)}>
+                  <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
+                    {patient?.院友相片 ? <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" /> : <User className="h-5 w-5 text-blue-600" />}
                   </div>
-                );
-              })
-            ) : (
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
+                      <span className="text-xs text-gray-500">({patient?.床號})</span>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <Calendar className="h-4 w-4 text-blue-600" />
+                      <p className="text-sm text-gray-600">{appointment.覆診專科}</p>
+                    </div>
+                    <p className="text-xs text-gray-500">{new Date(appointment.覆診日期).toLocaleDateString('zh-TW')} - {appointment.覆診地點}</p>
+                  </div>
+                  <span className={`status-badge ${getStatusBadgeClass(appointment.狀態)}`}>{appointment.狀態}</span>
+                </div>
+              );
+            }) : (
               <div className="text-center py-8 text-gray-500">
                 <Calendar className="h-12 w-12 mx-auto mb-2 text-gray-300" />
                 <p>無近期覆診</p>
@@ -828,6 +823,8 @@ const Dashboard: React.FC = () => {
           onClose={() => setShowHistoryModal(false)}
           onDateSelect={(date) => {
             handleTaskClick(selectedHistoryTask.task, date);
+            // 選擇日期後關閉日曆，方便操作
+            setShowHistoryModal(false); 
           }}
         />
       )}
@@ -844,9 +841,9 @@ const Dashboard: React.FC = () => {
       {showFollowUpModal && selectedFollowUp && <FollowUpModal isOpen={showFollowUpModal} onClose={() => { setShowFollowUpModal(false); setSelectedFollowUp(null); }} appointment={selectedFollowUp} onUpdate={refreshData} />}
       {showRestraintAssessmentModal && selectedRestraintAssessment && <RestraintAssessmentModal isOpen={showRestraintAssessmentModal} onClose={() => { setShowRestraintAssessmentModal(false); setSelectedRestraintAssessment(null); }} assessment={selectedRestraintAssessment} onUpdate={refreshData} />}
       {showHealthAssessmentModal && selectedHealthAssessment && <HealthAssessmentModal isOpen={showHealthAssessmentModal} onClose={() => { setShowHealthAssessmentModal(false); setSelectedHealthAssessment(null); }} assessment={selectedHealthAssessment} onUpdate={refreshData} />}
+      {showAnnualCheckupModal && <AnnualHealthCheckupModal checkup={selectedAnnualCheckup} onClose={() => { setShowAnnualCheckupModal(false); setSelectedAnnualCheckup(null); setPrefilledAnnualCheckupPatientId(null); }} onSave={refreshData} prefilledPatientId={prefilledAnnualCheckupPatientId} />}
       {showTaskModal && selectedPatientForTask && selectedTaskType && <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setSelectedPatientForTask(null); setSelectedTaskType(null); }} patient={selectedPatientForTask} defaultTaskType={selectedTaskType} defaultTaskData={{ health_record_type: selectedTaskType, notes: selectedTaskType === '生命表徵' ? '定期' : '', is_recurring: selectedTaskType === '生命表徵' }} onUpdate={refreshData} />}
       {showMealGuidanceModal && selectedPatientForMeal && <MealGuidanceModal isOpen={showMealGuidanceModal} onClose={() => { setShowMealGuidanceModal(false); setSelectedPatientForMeal(null); }} patient={selectedPatientForMeal} defaultGuidanceData={{ meal_combination: '正飯+正餸', special_diets: [], needs_thickener: false, thickener_amount: '', egg_quantity: undefined, remarks: '', guidance_date: '', guidance_source: '' }} onUpdate={refreshData} />}
-      {showAnnualCheckupModal && <AnnualHealthCheckupModal checkup={selectedAnnualCheckup} onClose={() => { setShowAnnualCheckupModal(false); setSelectedAnnualCheckup(null); setPrefilledAnnualCheckupPatientId(null); }} onSave={refreshData} prefilledPatientId={prefilledAnnualCheckupPatientId} />}
       {showPatientModal && <PatientModal patient={selectedPatientForEdit} onClose={() => { setShowPatientModal(false); setSelectedPatientForEdit(null); refreshData(); }} />}
       {showVaccinationModal && <VaccinationRecordModal patientId={selectedPatientForVaccination?.院友id} onClose={() => { setShowVaccinationModal(false); setSelectedPatientForVaccination(null); }} />}
     </div>
