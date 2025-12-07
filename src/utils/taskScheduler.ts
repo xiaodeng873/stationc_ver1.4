@@ -20,6 +20,33 @@ export function isEveningCarePlanTask(taskType: string): boolean {
   return taskType === '晚晴計劃';
 }
 
+// [新增] 判斷某一天是否應該有任務 (共用邏輯)
+export function isTaskScheduledForDate(task: any, date: Date): boolean {
+  // 1. 每日任務：每天都要做
+  if (task.frequency_unit === 'daily') return true;
+  
+  // 2. 每週任務：檢查特定星期
+  if (task.frequency_unit === 'weekly') {
+    // 如果有指定星期幾 (DB: 1=Mon...7=Sun)
+    if (task.specific_days_of_week && task.specific_days_of_week.length > 0) {
+       const day = date.getDay(); // JS: 0=Sun...6=Sat
+       const dbDay = day === 0 ? 7 : day;
+       return task.specific_days_of_week.includes(dbDay);
+    }
+    // 如果沒有指定星期 (例如"每週一次")，無法準確判斷過去哪天該做，回傳 false 避免誤判
+    return false; 
+  }
+
+  // 3. 每月任務：檢查特定日期
+  if (task.frequency_unit === 'monthly') {
+     if (task.specific_days_of_month && task.specific_days_of_month.length > 0) {
+       return task.specific_days_of_month.includes(date.getDate());
+     }
+  }
+
+  return false;
+}
+
 export function calculateNextDueDate(task: PatientHealthTask, fromDate?: Date): Date {
   if (!task.is_recurring) {
     return fromDate || new Date(); // 非循環任務，返回記錄時間
