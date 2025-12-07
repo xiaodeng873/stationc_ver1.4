@@ -42,7 +42,9 @@ export const isWorkflowOverdue = (record: WorkflowRecord): boolean => {
   // 如果排程時間已經過去，則視為逾期
   const isOverdue = scheduledDateTime < hkTime;
 
- 
+  // 調試日誌（僅在逾期時輸出）
+  if (isOverdue) {
+   });
   }
 
   return isOverdue;
