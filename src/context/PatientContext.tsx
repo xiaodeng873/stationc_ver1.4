@@ -106,7 +106,7 @@ interface PatientContextType {
   admissionRecords: db.PatientAdmissionRecord[];
   loading: boolean;
   
-  // 新增的處方工作流程相關屬性
+  // 處方工作流程相關屬性
   prescriptionWorkflowRecords: PrescriptionWorkflowRecord[];
   prescriptionTimeSlotDefinitions: PrescriptionTimeSlotDefinition[];
   checkEligiblePatientsForTemperature: (targetDate?: string) => {
@@ -256,7 +256,7 @@ interface PatientContextType {
   findDuplicateHealthRecords: () => Promise<db.DuplicateRecordGroup[]>;
   batchDeleteDuplicateRecords: (duplicateRecordIds: number[], deletedBy?: string) => Promise<void>;
 
-  // [新增] 載入所有歷史記錄
+  // 載入完整記錄
   loadFullHealthRecords: () => Promise<void>;
 }
 
@@ -269,12 +269,7 @@ const PatientContext = createContext<PatientContextType | undefined>(undefined);
 export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) => {
   const { user, authReady } = useAuth();
   
-  // 1. 狀態 State 定義 (Loading 放在這裡)
-  const [loading, setLoading] = useState(true);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [isAllHealthRecordsLoaded, setIsAllHealthRecordsLoaded] = useState(false);
-
-  // 資料狀態
+  // State definitions
   const [patients, setPatients] = useState<db.Patient[]>([]);
   const [stations, setStations] = useState<db.Station[]>([]);
   const [beds, setBeds] = useState<db.Bed[]>([]);
@@ -306,10 +301,16 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const [hospitalOutreachRecordHistory, setHospitalOutreachRecordHistory] = useState<any[]>([]);
   const [doctorVisitSchedule, setDoctorVisitSchedule] = useState<any[]>([]);
   const [prescriptionWorkflowRecords, setPrescriptionWorkflowRecords] = useState<any[]>([]);
+  
+  // Loading state
+  const [loading, setLoading] = useState(true);
+  
   const [prescriptionTimeSlotDefinitions, setPrescriptionTimeSlotDefinitions] = useState<PrescriptionTimeSlotDefinition[]>([]);
   const [dailySystemTasks, setDailySystemTasks] = useState<db.DailySystemTask[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [isAllHealthRecordsLoaded, setIsAllHealthRecordsLoaded] = useState(false);
 
-  // 2. 輔助函式定義 (放在這裡以避免 ReferenceError)
+  // Helper functions defined before usage
   const getHongKongDate = () => {
     const now = new Date();
     const hongKongTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
@@ -324,7 +325,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     return (Math.random() * 0.9 + 36.0).toFixed(1);
   };
 
-  // [核心] 檢查符合體溫測量的院友
   const checkEligiblePatientsForTemperature = (targetDate?: string) => {
     const today = targetDate || getHongKongDate();
     const eligiblePatients: db.Patient[] = [];
@@ -353,7 +353,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         return;
       }
       
-      // 符合條件的院友
       eligiblePatients.push(patient);
     });
 
@@ -364,7 +363,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     };
   };
 
-  // Fetch hospital outreach records - 使用 useCallback 記憶化
+  // Fetch functions using useCallback
   const fetchHospitalOutreachRecords = useCallback(async () => {
     try {
       const { data, error } = await supabase.from('hospital_outreach_records').select('*').order('medication_bag_date', { ascending: false });
@@ -376,7 +375,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   }, []);
 
-  // Fetch doctor visit schedule - 使用 useCallback 記憶化
   const fetchDoctorVisitSchedule = useCallback(async () => {
     try {
       const { data, error } = await supabase.from('doctor_visit_schedule').select('*').order('visit_date', { ascending: true });
@@ -387,44 +385,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       throw error;
     }
   }, []);
-
-  // Add doctor visit schedule
-  const addDoctorVisitSchedule = useCallback(async (scheduleData: any) => {
-    try {
-      const { data, error } = await supabase.from('doctor_visit_schedule').insert([scheduleData]).select().single();
-      if (error) throw error;
-      await fetchDoctorVisitSchedule();
-      return data;
-    } catch (error) {
-      console.error('新增醫生到診排程失敗:', error);
-      throw error;
-    }
-  }, [fetchDoctorVisitSchedule]);
-
-  // Update doctor visit schedule
-  const updateDoctorVisitSchedule = useCallback(async (scheduleData: any) => {
-    try {
-      const { data, error } = await supabase.from('doctor_visit_schedule').update(scheduleData).eq('id', scheduleData.id).select().single();
-      if (error) throw error;
-      await fetchDoctorVisitSchedule();
-      return data;
-    } catch (error) {
-      console.error('更新醫生到診排程失敗:', error);
-      throw error;
-    }
-  }, [fetchDoctorVisitSchedule]);
-
-  // Delete doctor visit schedule
-  const deleteDoctorVisitSchedule = useCallback(async (scheduleId: string) => {
-    try {
-      const { error } = await supabase.from('doctor_visit_schedule').delete().eq('id', scheduleId);
-      if (error) throw error;
-      await fetchDoctorVisitSchedule();
-    } catch (error) {
-      console.error('刪除醫生到診排程失敗:', error);
-      throw error;
-    }
-  }, [fetchDoctorVisitSchedule]);
 
   const fetchHospitalOutreachRecordHistory = async (patientId: number) => {
     try {
@@ -439,53 +399,8 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  const addHospitalOutreachRecord = useCallback(async (recordData: any) => {
-    try {
-      const { data: existingRecord, error: checkError } = await supabase.from('hospital_outreach_records').select('id').eq('patient_id', recordData.patient_id).single();
-      if (checkError && checkError.code !== 'PGRST116') throw checkError;
-      if (existingRecord) {
-        const patient = patients.find(p => p.院友id === recordData.patient_id);
-        const patientName = patient ? `${patient.中文姓氏}${patient.中文名字}` : '該院友';
-        alert(`${patientName} 已有醫院外展記錄，每位院友只能有一筆記錄。\n\n如需更新記錄，請使用編輯功能。`);
-        return null;
-      }
-      const { data, error } = await supabase.from('hospital_outreach_records').insert([recordData]).select().single();
-      if (error) throw error;
-      await fetchHospitalOutreachRecords();
-      return data;
-    } catch (error) {
-      console.error('新增醫院外展記錄失敗:', error);
-      throw error;
-    }
-  }, [patients, fetchHospitalOutreachRecords]);
-
-  const updateHospitalOutreachRecord = useCallback(async (recordData: any) => {
-    try {
-      const { data, error } = await supabase.from('hospital_outreach_records').update(recordData).eq('id', recordData.id).select().single();
-      if (error) throw error;
-      await fetchHospitalOutreachRecords();
-      return data;
-    } catch (error) {
-      console.error('更新醫院外展記錄失敗:', error);
-      throw error;
-    }
-  }, [fetchHospitalOutreachRecords]);
-
-  const deleteHospitalOutreachRecord = useCallback(async (recordId: string) => {
-    try {
-      const { error } = await supabase.from('hospital_outreach_records').delete().eq('id', recordId);
-      if (error) throw error;
-      await fetchHospitalOutreachRecords();
-    } catch (error) {
-      console.error('刪除醫院外展記錄失敗:', error);
-      throw error;
-    }
-  }, [fetchHospitalOutreachRecords]);
-
-  // 新增的處方工作流程相關函數
   const fetchPrescriptionWorkflowRecords = async (patientId?: number, scheduledDate?: string): Promise<PrescriptionWorkflowRecord[]> => {
     try {
-      // 嚴格的參數驗證和轉換
       const validPatientId = (patientId !== undefined && patientId !== null && !isNaN(patientId) && patientId > 0) ? patientId : null;
       const validScheduledDate = (scheduledDate && typeof scheduledDate === 'string' && scheduledDate.trim() !== '' && scheduledDate !== 'undefined') ? scheduledDate.trim() : null;
 
@@ -516,14 +431,58 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
   const memoizedFetchPrescriptionWorkflowRecords = useCallback(fetchPrescriptionWorkflowRecords, []);
 
-  // 3. 數據刷新邏輯
+  const fetchPrescriptionTimeSlotDefinitions = async (): Promise<PrescriptionTimeSlotDefinition[]> => {
+    try {
+      const { data, error } = await supabase.from('prescription_time_slot_definitions').select('*').order('slot_name');
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('獲取處方時段定義失敗:', error);
+      throw error;
+    }
+  };
+
+  const loadPrescriptionTimeSlotDefinitions = async () => {
+    try {
+      const { data, error } = await supabase.from('prescription_time_slot_definitions').select('*').order('slot_name');
+      if (error) throw error;
+      setPrescriptionTimeSlotDefinitions(data || []);
+    } catch (error) {
+      console.error('載入處方時段定義失敗:', error);
+      throw error;
+    }
+  };
+
+  const fetchDeletedHealthRecords = async () => {
+    try {
+      const records = await db.getDeletedHealthRecords();
+      setDeletedHealthRecords(records);
+    } catch (error) {
+      console.warn('回收筒暫時不可用:', error);
+      setDeletedHealthRecords([]);
+    }
+  };
+
+  const fetchHospitalEpisodes = async () => {
+    try {
+      const { data, error } = await supabase.from('hospital_episodes').select(`*, episode_events(*)`).order('created_at', { ascending: false });
+      if (error) throw error;
+      setHospitalEpisodes(data || []);
+      return data || [];
+    } catch (error) {
+      console.error('查詢住院事件失敗:', error);
+      setHospitalEpisodes([]);
+      return [];
+    }
+  };
+
+  // Main Data Refresh Function
   const refreshData = async () => {
     try {
-      // [優化] 決定是否只載入 60 天
       let startDateStr: string | undefined = undefined;
       if (!isAllHealthRecordsLoaded) {
         const today = new Date();
-        today.setDate(today.getDate() - 60); // [設定] 預設只抓最近 60 天
+        today.setDate(today.getDate() - 60);
         startDateStr = today.toISOString().split('T')[0];
         console.log(`🚀 優化模式：只載入 ${startDateStr} 之後的記錄`);
       } else {
@@ -564,7 +523,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getBeds(),
         db.getSchedules(),
         db.getReasons(),
-        db.getHealthRecords(undefined, startDateStr), // [應用] 傳入日期參數
+        db.getHealthRecords(undefined, startDateStr),
         db.getFollowUps(),
         db.getHealthTasks(),
         db.getMealGuidances(),
@@ -588,8 +547,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getPositionChangeRecords()
       ]);
 
-      
-      // 對 patientHealthTasksData 進行去重處理
       const uniqueTasksMap = new Map<string, any>();
       patientHealthTasksData.forEach(task => {
         if (!uniqueTasksMap.has(task.id)) {
@@ -656,30 +613,38 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  const initializeAndLoadData = async () => {
+  const refreshHealthData = async () => {
     try {
-      await generateDailyWorkflowRecords(new Date().toISOString().split('T')[0]);
-      await refreshData();
-      setDataLoaded(true);
-    } catch (error) {
-      console.error('Error initializing data:', error);
-      try {
-        await refreshData();
-        setDataLoaded(true);
-      } catch (refreshError) {
-        console.error('Refresh data also failed:', refreshError);
+      let startDateStr: string | undefined = undefined;
+      if (!isAllHealthRecordsLoaded) {
+        const today = new Date();
+        today.setDate(today.getDate() - 60);
+        startDateStr = today.toISOString().split('T')[0];
       }
-    } finally {
-      setLoading(false);
+
+      const [healthRecordsData, patientHealthTasksData] = await Promise.all([
+        db.getHealthRecords(undefined, startDateStr),
+        db.getHealthTasks()
+      ]);
+
+      const uniqueTasksMap = new Map<string, any>();
+      patientHealthTasksData.forEach(task => {
+        if (!uniqueTasksMap.has(task.id)) uniqueTasksMap.set(task.id, task);
+      });
+
+      setHealthRecords(healthRecordsData);
+      setPatientHealthTasks(Array.from(uniqueTasksMap.values()));
+    } catch (error) {
+      console.error('刷新健康數據失敗:', error);
+      throw error;
     }
   };
 
-  // [新增] 載入完整記錄的函式 (供 HealthAssessment.tsx 使用)
   const loadFullHealthRecords = useCallback(async () => {
     if (isAllHealthRecordsLoaded) return;
     try {
       console.log('📥 觸發：載入完整健康記錄 (歷史模式)...');
-      const allRecords = await db.getHealthRecords(); // 不傳參數 = 載入全部
+      const allRecords = await db.getHealthRecords();
       setHealthRecords(allRecords);
       setIsAllHealthRecordsLoaded(true);
       console.log('✅ 完整健康記錄載入完成，共', allRecords.length, '筆');
@@ -688,6 +653,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   }, [isAllHealthRecordsLoaded]);
 
+  // Initial Load Effect
   useEffect(() => {
     if (!authReady) return;
     if (!user) {
@@ -724,69 +690,89 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     loadData();
   }, [authReady, user, dataLoaded]);
 
-  // 輕量級刷新
-  const refreshHealthData = async () => {
+  // CRUD Functions
+
+  const addDoctorVisitSchedule = useCallback(async (scheduleData: any) => {
     try {
-      let startDateStr: string | undefined = undefined;
-      if (!isAllHealthRecordsLoaded) {
-        const today = new Date();
-        today.setDate(today.getDate() - 60);
-        startDateStr = today.toISOString().split('T')[0];
-      }
-
-      const [healthRecordsData, patientHealthTasksData] = await Promise.all([
-        db.getHealthRecords(undefined, startDateStr),
-        db.getHealthTasks()
-      ]);
-
-      const uniqueTasksMap = new Map<string, any>();
-      patientHealthTasksData.forEach(task => {
-        if (!uniqueTasksMap.has(task.id)) uniqueTasksMap.set(task.id, task);
-      });
-
-      setHealthRecords(healthRecordsData);
-      setPatientHealthTasks(Array.from(uniqueTasksMap.values()));
+      const { data, error } = await supabase.from('doctor_visit_schedule').insert([scheduleData]).select().single();
+      if (error) throw error;
+      await fetchDoctorVisitSchedule();
+      return data;
     } catch (error) {
-      console.error('刷新健康數據失敗:', error);
+      console.error('新增醫生到診排程失敗:', error);
       throw error;
     }
-  };
+  }, [fetchDoctorVisitSchedule]);
 
-  // ... (保留所有 CRUD 函式) ...
-  // 請將下方 CRUD 函式區塊直接替換為您原本檔案中的內容，或者使用以下提供的標準版
+  const updateDoctorVisitSchedule = useCallback(async (scheduleData: any) => {
+    try {
+      const { data, error } = await supabase.from('doctor_visit_schedule').update(scheduleData).eq('id', scheduleData.id).select().single();
+      if (error) throw error;
+      await fetchDoctorVisitSchedule();
+      return data;
+    } catch (error) {
+      console.error('更新醫生到診排程失敗:', error);
+      throw error;
+    }
+  }, [fetchDoctorVisitSchedule]);
+
+  const deleteDoctorVisitSchedule = useCallback(async (scheduleId: string) => {
+    try {
+      const { error } = await supabase.from('doctor_visit_schedule').delete().eq('id', scheduleId);
+      if (error) throw error;
+      await fetchDoctorVisitSchedule();
+    } catch (error) {
+      console.error('刪除醫生到診排程失敗:', error);
+      throw error;
+    }
+  }, [fetchDoctorVisitSchedule]);
+
+  const addHospitalOutreachRecord = useCallback(async (recordData: any) => {
+    try {
+      const { data: existingRecord, error: checkError } = await supabase.from('hospital_outreach_records').select('id').eq('patient_id', recordData.patient_id).single();
+      if (checkError && checkError.code !== 'PGRST116') throw checkError;
+      if (existingRecord) {
+        const patient = patients.find(p => p.院友id === recordData.patient_id);
+        const patientName = patient ? `${patient.中文姓氏}${patient.中文名字}` : '該院友';
+        alert(`${patientName} 已有醫院外展記錄，每位院友只能有一筆記錄。\n\n如需更新記錄，請使用編輯功能。`);
+        return null;
+      }
+      const { data, error } = await supabase.from('hospital_outreach_records').insert([recordData]).select().single();
+      if (error) throw error;
+      await fetchHospitalOutreachRecords();
+      return data;
+    } catch (error) {
+      console.error('新增醫院外展記錄失敗:', error);
+      throw error;
+    }
+  }, [patients, fetchHospitalOutreachRecords]);
+
+  const updateHospitalOutreachRecord = useCallback(async (recordData: any) => {
+    try {
+      const { data, error } = await supabase.from('hospital_outreach_records').update(recordData).eq('id', recordData.id).select().single();
+      if (error) throw error;
+      await fetchHospitalOutreachRecords();
+      return data;
+    } catch (error) {
+      console.error('更新醫院外展記錄失敗:', error);
+      throw error;
+    }
+  }, [fetchHospitalOutreachRecords]);
+
+  const deleteHospitalOutreachRecord = useCallback(async (recordId: string) => {
+    try {
+      const { error } = await supabase.from('hospital_outreach_records').delete().eq('id', recordId);
+      if (error) throw error;
+      await fetchHospitalOutreachRecords();
+    } catch (error) {
+      console.error('刪除醫院外展記錄失敗:', error);
+      throw error;
+    }
+  }, [fetchHospitalOutreachRecords]);
 
   const addPatient = async (patient: Omit<db.Patient, '院友id'>) => {
     try {
-      const { 中文姓氏, 中文名字, 英文姓氏, 英文名字, 床號, ...rest } = patient;
-      if (!中文姓氏 || !中文名字) throw new Error('中文姓氏和中文名字為必填欄位');
-      const 中文姓名 = `${中文姓氏}${中文名字}`;
-      let 英文姓名 = '';
-      if (英文姓氏 && 英文名字) 英文姓名 = `${英文姓氏}, ${英文名字}`;
-      else if (英文姓氏) 英文姓名 = 英文姓氏;
-      else if (英文名字) 英文姓名 = 英文名字;
-
-      const cleanedRest: any = { ...rest };
-      if (cleanedRest.退住日期 === '') cleanedRest.退住日期 = null;
-      if (cleanedRest.death_date === '') cleanedRest.death_date = null;
-      if (cleanedRest.入住日期 === '') cleanedRest.入住日期 = null;
-      if (cleanedRest.出生日期 === '') cleanedRest.出生日期 = null;
-      if (cleanedRest.discharge_reason === '') cleanedRest.discharge_reason = null;
-      if (cleanedRest.transfer_facility_name === '') cleanedRest.transfer_facility_name = null;
-      if (cleanedRest.院友相片 === '') cleanedRest.院友相片 = null;
-      if (cleanedRest.身份證號碼 === '') cleanedRest.身份證號碼 = null;
-
-      const patientWithFullName: Omit<db.Patient, '院友id'> = {
-        ...cleanedRest,
-        中文姓氏,
-        中文名字,
-        中文姓名,
-        英文姓氏,
-        英文名字,
-        英文姓名,
-        床號: 床號 || '待分配'
-      };
-      
-      const newPatient = await db.createPatient(patientWithFullName);
+      const newPatient = await db.createPatient(patient);
       await refreshData();
     } catch (error) {
       console.error('Error adding patient:', error);
@@ -796,17 +782,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
   const updatePatient = async (patient: db.Patient) => {
     try {
-      if (patient.bed_id) {
-        const bed = beds.find(b => b.id === patient.bed_id);
-        if (bed) patient.床號 = bed.bed_number;
-      }
-
-      const cleanedPatient: any = { ...patient };
-      Object.keys(cleanedPatient).forEach(key => {
-        if (cleanedPatient[key] === '') cleanedPatient[key] = null;
-      });
-
-      await db.updatePatient(cleanedPatient);
+      await db.updatePatient(patient);
       await refreshData();
     } catch (error) {
       console.error('Error updating patient:', error);
@@ -823,7 +799,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  // [修改] 樂觀更新 + 手動狀態管理 (不再依賴 refreshData 全量刷新)
   const addPatientHealthTask = async (task: Omit<db.PatientHealthTask, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       const newTask = await db.createPatientHealthTask(task);
@@ -888,41 +863,827 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  // ... (其餘 CRUD 函式請保持不變) ...
-  // 您可以將所有剩餘的 add/update/delete 函式保留
-  
-  // 處方相關
+  const addSchedule = async (schedule: Omit<db.Schedule, '排程id'>) => {
+    try {
+      await db.createSchedule(schedule);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding schedule:', error);
+    }
+  };
+
+  const updateSchedule = async (schedule: ScheduleWithDetails) => {
+    try {
+      await db.updateSchedule(schedule);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+    }
+  };
+
+  const deleteSchedule = async (id: number) => {
+    try {
+      await db.deleteSchedule(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+    }
+  };
+
+  const addPatientToSchedule = async (scheduleId: number, patientId: number, symptoms: string, notes: string, reasons: string[]) => {
+    try {
+      await db.addPatientToSchedule(scheduleId, patientId, symptoms, notes, reasons);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient to schedule:', error);
+    }
+  };
+
+  const updateScheduleDetail = async (detailData: { 細項id: number; 症狀說明: string; 備註: string; reasonIds: number[] }) => {
+    try {
+      const result = await db.updateScheduleDetail(detailData);
+      if (result?.error) throw new Error(result.error.message);
+      await refreshData();
+      return result;
+    } catch (error) {
+      console.error('Error updating schedule detail:', error);
+      throw error;
+    }
+  };
+
+  const deleteScheduleDetail = async (detailId: number) => {
+    try {
+      await db.deleteScheduleDetail(detailId);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting schedule detail:', error);
+    }
+  };
+
+  const addPrescription = async (prescription: Omit<db.Prescription, '處方id'>) => {
+    try {
+      await db.createPrescription(prescription);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding prescription:', error);
+      throw error;
+    }
+  };
+
+  const updatePrescription = async (prescription: any) => {
+    try {
+      await db.updatePrescription(prescription);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating prescription:', error);
+      throw error;
+    }
+  };
+
+  const deletePrescription = async (id: number) => {
+    try {
+      await db.deletePrescription(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting prescription:', error);
+      throw error;
+    }
+  };
+
+  const addFollowUpAppointment = async (appointment: Omit<db.FollowUpAppointment, '覆診id' | '創建時間' | '更新時間'>) => {
+    try {
+      await db.createFollowUp(appointment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding follow-up appointment:', error);
+      throw error;
+    }
+  };
+
+  const updateFollowUpAppointment = async (appointment: db.FollowUpAppointment) => {
+    try {
+      await db.updateFollowUp(appointment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating follow-up appointment:', error);
+      throw error;
+    }
+  };
+
+  const deleteFollowUpAppointment = async (id: string) => {
+    try {
+      await db.deleteFollowUp(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting follow-up appointment:', error);
+      throw error;
+    }
+  };
+
+  const addMealGuidance = async (guidance: Omit<db.MealGuidance, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createMealGuidance(guidance);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding meal guidance:', error);
+      throw error;
+    }
+  };
+
+  const updateMealGuidance = async (guidance: db.MealGuidance) => {
+    try {
+      await db.updateMealGuidance(guidance);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating meal guidance:', error);
+      throw error;
+    }
+  };
+
+  const deleteMealGuidance = async (id: string) => {
+    try {
+      await db.deleteMealGuidance(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting meal guidance:', error);
+      throw error;
+    }
+  };
+
+  const addPatientLog = async (log: Omit<db.PatientLog, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPatientLog(log);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient log:', error);
+      throw error;
+    }
+  };
+
+  const updatePatientLog = async (log: db.PatientLog) => {
+    try {
+      await db.updatePatientLog(log);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating patient log:', error);
+      throw error;
+    }
+  };
+
+  const deletePatientLog = async (id: string) => {
+    try {
+      await db.deletePatientLog(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patient log:', error);
+      throw error;
+    }
+  };
+
+  const addPatientRestraintAssessment = async (assessment: Omit<db.PatientRestraintAssessment, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createRestraintAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient restraint assessment:', error);
+      throw error;
+    }
+  };
+
+  const updatePatientRestraintAssessment = async (assessment: db.PatientRestraintAssessment) => {
+    try {
+      await db.updateRestraintAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating patient restraint assessment:', error);
+      throw error;
+    }
+  };
+
+  const deletePatientRestraintAssessment = async (id: string) => {
+    try {
+      await db.deleteRestraintAssessment(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patient restraint assessment:', error);
+      throw error;
+    }
+  };
+
+  const addHealthAssessment = async (assessment: Omit<db.HealthAssessment, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createHealthAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding health assessment:', error);
+      throw error;
+    }
+  };
+
+  const updateHealthAssessment = async (assessment: db.HealthAssessment) => {
+    try {
+      await db.updateHealthAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating health assessment:', error);
+      throw error;
+    }
+  };
+
+  const deleteHealthAssessment = async (id: string) => {
+    try {
+      await db.deleteHealthAssessment(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting health assessment:', error);
+      throw error;
+    }
+  };
+
+  const addWoundAssessment = async (assessment: Omit<db.WoundAssessment, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createWoundAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding wound assessment:', error);
+      throw error;
+    }
+  };
+
+  const updateWoundAssessment = async (assessment: db.WoundAssessment) => {
+    try {
+      await db.updateWoundAssessment(assessment);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating wound assessment:', error);
+      throw error;
+    }
+  };
+
+  const deleteWoundAssessment = async (id: string) => {
+    try {
+      await db.deleteWoundAssessment(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting wound assessment:', error);
+      throw error;
+    }
+  };
+
+  const addAnnualHealthCheckup = async (checkup: any) => {
+    try {
+      await db.createAnnualHealthCheckup(checkup);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding annual health checkup:', error);
+      throw error;
+    }
+  };
+
+  const updateAnnualHealthCheckup = async (checkup: any) => {
+    try {
+      await db.updateAnnualHealthCheckup(checkup);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating annual health checkup:', error);
+      throw error;
+    }
+  };
+
+  const deleteAnnualHealthCheckup = async (id: string) => {
+    try {
+      await db.deleteAnnualHealthCheckup(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting annual health checkup:', error);
+      throw error;
+    }
+  };
+
+  const addIncidentReport = async (report: Omit<db.IncidentReport, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createIncidentReport(report);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding incident report:', error);
+      throw error;
+    }
+  };
+
+  const updateIncidentReport = async (report: db.IncidentReport) => {
+    try {
+      await db.updateIncidentReport(report);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating incident report:', error);
+      throw error;
+    }
+  };
+
+  const deleteIncidentReport = async (id: string) => {
+    try {
+      await db.deleteIncidentReport(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting incident report:', error);
+      throw error;
+    }
+  };
+
+  const addDiagnosisRecord = async (record: Omit<db.DiagnosisRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createDiagnosisRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding diagnosis record:', error);
+      throw error;
+    }
+  };
+
+  const updateDiagnosisRecord = async (record: db.DiagnosisRecord) => {
+    try {
+      await db.updateDiagnosisRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating diagnosis record:', error);
+      throw error;
+    }
+  };
+
+  const deleteDiagnosisRecord = async (id: string) => {
+    try {
+      await db.deleteDiagnosisRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting diagnosis record:', error);
+      throw error;
+    }
+  };
+
+  const addVaccinationRecord = async (record: Omit<db.VaccinationRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createVaccinationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding vaccination record:', error);
+      throw error;
+    }
+  };
+
+  const updateVaccinationRecord = async (record: db.VaccinationRecord) => {
+    try {
+      await db.updateVaccinationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating vaccination record:', error);
+      throw error;
+    }
+  };
+
+  const deleteVaccinationRecord = async (id: string) => {
+    try {
+      await db.deleteVaccinationRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting vaccination record:', error);
+      throw error;
+    }
+  };
+
+  const addPatientNote = async (note: Omit<db.PatientNote, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPatientNote(note);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient note:', error);
+      throw error;
+    }
+  };
+
+  const updatePatientNote = async (note: db.PatientNote) => {
+    try {
+      await db.updatePatientNote(note);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating patient note:', error);
+      throw error;
+    }
+  };
+
+  const deletePatientNote = async (id: string) => {
+    try {
+      await db.deletePatientNote(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patient note:', error);
+      throw error;
+    }
+  };
+
+  const completePatientNote = async (id: string) => {
+    try {
+      await db.completePatientNote(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error completing patient note:', error);
+      throw error;
+    }
+  };
+
+  const createPatrolRound = async (round: Omit<db.PatrolRound, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPatrolRound(round);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating patrol round:', error);
+      throw error;
+    }
+  };
+
+  const deletePatrolRound = async (id: string) => {
+    try {
+      await db.deletePatrolRound(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patrol round:', error);
+      throw error;
+    }
+  };
+
+  const createDiaperChangeRecord = async (record: Omit<db.DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createDiaperChangeRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating diaper change record:', error);
+      throw error;
+    }
+  };
+
+  const updateDiaperChangeRecord = async (record: db.DiaperChangeRecord) => {
+    try {
+      await db.updateDiaperChangeRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating diaper change record:', error);
+      throw error;
+    }
+  };
+
+  const deleteDiaperChangeRecord = async (id: string) => {
+    try {
+      await db.deleteDiaperChangeRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting diaper change record:', error);
+      throw error;
+    }
+  };
+
+  const createRestraintObservationRecord = async (record: Omit<db.RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createRestraintObservationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating restraint observation record:', error);
+      throw error;
+    }
+  };
+
+  const updateRestraintObservationRecord = async (record: db.RestraintObservationRecord) => {
+    try {
+      await db.updateRestraintObservationRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating restraint observation record:', error);
+      throw error;
+    }
+  };
+
+  const deleteRestraintObservationRecord = async (id: string) => {
+    try {
+      await db.deleteRestraintObservationRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting restraint observation record:', error);
+      throw error;
+    }
+  };
+
+  const createPositionChangeRecord = async (record: Omit<db.PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPositionChangeRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error creating position change record:', error);
+      throw error;
+    }
+  };
+
+  const deletePositionChangeRecord = async (id: string) => {
+    try {
+      await db.deletePositionChangeRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting position change record:', error);
+      throw error;
+    }
+  };
+
+  const addPatientAdmissionRecord = async (record: Omit<db.PatientAdmissionRecord, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createPatientAdmissionRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding patient admission record:', error);
+      throw error;
+    }
+  };
+
+  const updatePatientAdmissionRecord = async (record: db.PatientAdmissionRecord) => {
+    try {
+      await db.updatePatientAdmissionRecord(record);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating patient admission record:', error);
+      throw error;
+    }
+  };
+
+  const deletePatientAdmissionRecord = async (id: string) => {
+    try {
+      await db.deletePatientAdmissionRecord(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting patient admission record:', error);
+      throw error;
+    }
+  };
+
+  const addHospitalEpisode = async (episodeData: any) => {
+    try {
+      await db.createHospitalEpisode(episodeData);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding hospital episode:', error);
+      throw error;
+    }
+  };
+
+  const updateHospitalEpisode = async (episodeData: any) => {
+    try {
+      await db.updateHospitalEpisode(episodeData);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating hospital episode:', error);
+      throw error;
+    }
+  };
+
+  const deleteHospitalEpisode = async (id: string) => {
+    try {
+      await db.deleteHospitalEpisode(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting hospital episode:', error);
+      throw error;
+    }
+  };
+
+  const generateRandomTemperaturesForActivePatients = async () => {
+    try {
+      await db.generateRandomTemperaturesForActivePatients();
+      await refreshData();
+    } catch (error) {
+      console.error('Error generating random temperatures:', error);
+      throw error;
+    }
+  };
+
+  const recordDailyTemperatureGenerationCompletion = async () => {
+    try {
+      await db.recordDailyTemperatureGenerationCompletion();
+      await refreshData();
+    } catch (error) {
+      console.error('Error recording daily temperature generation completion:', error);
+      throw error;
+    }
+  };
+
+  const getOverdueDailySystemTasks = async () => {
+    try {
+      return await db.getOverdueDailySystemTasks();
+    } catch (error) {
+      console.error('Error getting overdue daily system tasks:', error);
+      return [];
+    }
+  };
+
+  const recordPatientAdmissionEvent = async (eventData: any) => {
+    try {
+      await db.recordPatientAdmissionEvent(eventData);
+      await refreshData();
+    } catch (error) {
+      console.error('Error recording patient admission event:', error);
+      throw error;
+    }
+  };
+
   const createPrescriptionWorkflowRecord = async (recordData: Omit<PrescriptionWorkflowRecord, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       await db.createMedicationWorkflowRecord(recordData);
     } catch (error) {
-      console.error('建立處方工作流程記錄失敗:', error);
+      console.error('Error creating prescription workflow record:', error);
       throw error;
     }
   };
-  
+
   const updatePrescriptionWorkflowRecord = async (recordId: string, updateData: Partial<PrescriptionWorkflowRecord>) => {
     try {
       await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
-      await loadPrescriptionWorkflowRecords();
+      await fetchPrescriptionWorkflowRecords();
     } catch (error) {
-      console.error('更新處方工作流程記錄失敗:', error);
+      console.error('Error updating prescription workflow record:', error);
       throw error;
     }
   };
-  
-  const prepareMedication = async (recordId: string, staffId: string) => { /* ... */ };
-  const verifyMedication = async (recordId: string, staffId: string) => { /* ... */ };
-  const dispenseMedication = async (recordId: string, staffId: string) => { /* ... */ };
+
+  const prepareMedication = async (recordId: string, staffId: string) => { /* Placeholder */ };
+  const verifyMedication = async (recordId: string, staffId: string) => { /* Placeholder */ };
+  const dispenseMedication = async (recordId: string, staffId: string, failureReason?: string, customReason?: string, newVitalSignData?: Omit<db.HealthRecord, '記錄id'>) => { /* Placeholder */ };
   const checkPrescriptionInspectionRules = async (id: string, pid: number) => { return { canDispense: true, blockedRules: [], usedVitalSignData: {} }; };
   const fetchLatestVitalSigns = async (pid: number, type: string) => { return null; };
-  const batchSetDispenseFailure = async (pid: number, date: string, time: string, reason: string) => { /* ... */ };
-  const revertPrescriptionWorkflowStep = async (rid: string, step: any) => { /* ... */ };
-  
-  const fetchPrescriptionTimeSlotDefinitions = async () => [];
-  const addPrescriptionTimeSlotDefinition = async (def: any) => {};
-  const updatePrescriptionTimeSlotDefinition = async (def: any) => {};
-  const deletePrescriptionTimeSlotDefinition = async (id: string) => {};
+  const batchSetDispenseFailure = async (pid: number, date: string, time: string, reason: string) => { /* Placeholder */ };
+  const revertPrescriptionWorkflowStep = async (rid: string, step: any) => { /* Placeholder */ };
+
+  const addPrescriptionTimeSlotDefinition = async (definition: Omit<PrescriptionTimeSlotDefinition, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.addPrescriptionTimeSlotDefinition(definition);
+      await loadPrescriptionTimeSlotDefinitions();
+    } catch (error) {
+      console.error('Error adding prescription time slot definition:', error);
+      throw error;
+    }
+  };
+
+  const updatePrescriptionTimeSlotDefinition = async (definition: PrescriptionTimeSlotDefinition) => {
+    try {
+      await db.updatePrescriptionTimeSlotDefinition(definition);
+      await loadPrescriptionTimeSlotDefinitions();
+    } catch (error) {
+      console.error('Error updating prescription time slot definition:', error);
+      throw error;
+    }
+  };
+
+  const deletePrescriptionTimeSlotDefinition = async (id: string) => {
+    try {
+      await db.deletePrescriptionTimeSlotDefinition(id);
+      await loadPrescriptionTimeSlotDefinitions();
+    } catch (error) {
+      console.error('Error deleting prescription time slot definition:', error);
+      throw error;
+    }
+  };
+
+  const findDuplicateHealthRecords = async (): Promise<db.DuplicateRecordGroup[]> => {
+    try {
+      return await db.findDuplicateHealthRecords();
+    } catch (error) {
+      console.error('Error finding duplicate health records:', error);
+      throw error;
+    }
+  };
+
+  const batchDeleteDuplicateRecords = async (duplicateRecordIds: number[], deletedBy?: string) => {
+    try {
+      await db.batchMoveDuplicatesToRecycleBin(duplicateRecordIds, deletedBy);
+      await refreshData();
+    } catch (error) {
+      console.error('Error batch deleting duplicate records:', error);
+      throw error;
+    }
+  };
+
+  const addDrug = async (drug: Omit<any, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createDrug(drug);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding drug:', error);
+      throw error;
+    }
+  };
+
+  const updateDrug = async (drug: any) => {
+    try {
+      await db.updateDrug(drug);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating drug:', error);
+      throw error;
+    }
+  };
+
+  const deleteDrug = async (id: string) => {
+    try {
+      await db.deleteDrug(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting drug:', error);
+      throw error;
+    }
+  };
+
+  const addStation = async (station: Omit<db.Station, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createStation(station);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding station:', error);
+      throw error;
+    }
+  };
+
+  const updateStation = async (station: db.Station) => {
+    try {
+      await db.updateStation(station);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating station:', error);
+      throw error;
+    }
+  };
+
+  const deleteStation = async (id: string) => {
+    try {
+      await db.deleteStation(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting station:', error);
+      throw error;
+    }
+  };
+
+  const addBed = async (bed: Omit<db.Bed, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      await db.createBed(bed);
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding bed:', error);
+      throw error;
+    }
+  };
+
+  const updateBed = async (bed: db.Bed) => {
+    try {
+      await db.updateBed(bed);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating bed:', error);
+      throw error;
+    }
+  };
+
+  const deleteBed = async (id: string) => {
+    try {
+      await db.deleteBed(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting bed:', error);
+      throw error;
+    }
+  };
+
+  const assignPatientToBed = async (patientId: number, bedId: string) => {
+    try {
+      await db.assignPatientToBed(patientId, bedId);
+      await refreshData();
+    } catch (error) {
+      console.error('Error assigning patient to bed:', error);
+      throw error;
+    }
+  };
+
+  const swapPatientBeds = async (patientId1: number, patientId2: number) => {
+    try {
+      await db.swapPatientBeds(patientId1, patientId2);
+      await refreshData();
+    } catch (error) {
+      console.error('Error swapping patient beds:', error);
+      throw error;
+    }
+  };
+
+  const moveBedToStation = async (bedId: string, newStationId: string) => {
+    try {
+      await db.moveBedToStation(bedId, newStationId);
+      await refreshData();
+    } catch (error) {
+      console.error('Error moving bed to station:', error);
+      throw error;
+    }
+  };
 
   return (
     <PatientContext.Provider value={{
@@ -983,66 +1744,66 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       updatePatientHealthTask,
       deletePatientHealthTask,
       setPatientHealthTasks,
-      addPatientRestraintAssessment: async () => {}, // 暫位符，請使用完整代碼
-      updatePatientRestraintAssessment: async () => {},
-      deletePatientRestraintAssessment: async () => {},
-      addHealthAssessment: async () => {},
-      updateHealthAssessment: async () => {},
-      deleteHealthAssessment: async () => {},
-      addWoundAssessment: async () => {},
-      updateWoundAssessment: async () => {},
-      deleteWoundAssessment: async () => {},
-      addAnnualHealthCheckup: async () => {},
-      updateAnnualHealthCheckup: async () => {},
-      deleteAnnualHealthCheckup: async () => {},
+      addPatientRestraintAssessment,
+      updatePatientRestraintAssessment,
+      deletePatientRestraintAssessment,
+      addHealthAssessment,
+      updateHealthAssessment,
+      deleteHealthAssessment,
+      addWoundAssessment,
+      updateWoundAssessment,
+      deleteWoundAssessment,
+      addAnnualHealthCheckup,
+      updateAnnualHealthCheckup,
+      deleteAnnualHealthCheckup,
       incidentReports,
-      addIncidentReport: async () => {},
-      updateIncidentReport: async () => {},
-      deleteIncidentReport: async () => {},
+      addIncidentReport,
+      updateIncidentReport,
+      deleteIncidentReport,
       diagnosisRecords,
-      addDiagnosisRecord: async () => {},
-      updateDiagnosisRecord: async () => {},
-      deleteDiagnosisRecord: async () => {},
+      addDiagnosisRecord,
+      updateDiagnosisRecord,
+      deleteDiagnosisRecord,
       vaccinationRecords,
-      addVaccinationRecord: async () => {},
-      updateVaccinationRecord: async () => {},
-      deleteVaccinationRecord: async () => {},
+      addVaccinationRecord,
+      updateVaccinationRecord,
+      deleteVaccinationRecord,
       patientNotes,
-      addPatientNote: async () => {},
-      updatePatientNote: async () => {},
-      deletePatientNote: async () => {},
-      completePatientNote: async () => {},
+      addPatientNote,
+      updatePatientNote,
+      deletePatientNote,
+      completePatientNote,
       patrolRounds,
       diaperChangeRecords,
       restraintObservationRecords,
       positionChangeRecords,
       admissionRecords: patientAdmissionRecords,
-      createPatrolRound: async () => {},
-      deletePatrolRound: async () => {},
-      createDiaperChangeRecord: async () => {},
-      updateDiaperChangeRecord: async () => {},
-      deleteDiaperChangeRecord: async () => {},
-      createRestraintObservationRecord: async () => {},
-      updateRestraintObservationRecord: async () => {},
-      deleteRestraintObservationRecord: async () => {},
-      createPositionChangeRecord: async () => {},
-      deletePositionChangeRecord: async () => {},
-      addPatientAdmissionRecord: async () => {},
-      updatePatientAdmissionRecord: async () => {},
-      deletePatientAdmissionRecord: async () => {},
-      recordPatientAdmissionEvent: async () => {},
-      addHospitalEpisode: async () => {},
-      updateHospitalEpisode: async () => {},
-      deleteHospitalEpisode: async () => {},
-      addPrescription: async () => {},
-      updatePrescription: async () => {},
-      deletePrescription: async () => {},
-      addDrug: async () => {},
-      updateDrug: async () => {},
-      deleteDrug: async () => {},
-      generateRandomTemperaturesForActivePatients: async () => {},
-      recordDailyTemperatureGenerationCompletion: async () => {},
-      getOverdueDailySystemTasks: async () => [],
+      createPatrolRound,
+      deletePatrolRound,
+      createDiaperChangeRecord,
+      updateDiaperChangeRecord,
+      deleteDiaperChangeRecord,
+      createRestraintObservationRecord,
+      updateRestraintObservationRecord,
+      deleteRestraintObservationRecord,
+      createPositionChangeRecord,
+      deletePositionChangeRecord,
+      addPatientAdmissionRecord,
+      updatePatientAdmissionRecord,
+      deletePatientAdmissionRecord,
+      recordPatientAdmissionEvent,
+      addHospitalEpisode,
+      updateHospitalEpisode,
+      deleteHospitalEpisode,
+      addPrescription,
+      updatePrescription,
+      deletePrescription,
+      addDrug,
+      updateDrug,
+      deleteDrug,
+      generateRandomTemperaturesForActivePatients,
+      recordDailyTemperatureGenerationCompletion,
+      getOverdueDailySystemTasks,
       refreshData,
       refreshHealthData,
       fetchPrescriptionWorkflowRecords: memoizedFetchPrescriptionWorkflowRecords,
@@ -1055,6 +1816,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       fetchLatestVitalSigns,
       batchSetDispenseFailure,
       revertPrescriptionWorkflowStep,
+      
       hospitalOutreachRecords,
       hospitalOutreachRecordHistory,
       doctorVisitSchedule,
@@ -1071,13 +1833,15 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       updatePrescriptionTimeSlotDefinition,
       deletePrescriptionTimeSlotDefinition,
       fetchDoctorVisitSchedule,
+
       deletedHealthRecords,
       fetchDeletedHealthRecords,
       restoreHealthRecord,
       permanentlyDeleteHealthRecord,
-      findDuplicateHealthRecords: async () => [],
-      batchDeleteDuplicateRecords: async () => {},
-      loadFullHealthRecords // [新增]
+
+      findDuplicateHealthRecords,
+      batchDeleteDuplicateRecords,
+      loadFullHealthRecords
     }}>
       {children}
     </PatientContext.Provider>
