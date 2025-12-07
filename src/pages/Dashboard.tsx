@@ -131,7 +131,8 @@ const Dashboard: React.FC = () => {
       task: {
         id: task.id,
         health_record_type: task.health_record_type,
-        next_due_at: task.next_due_at
+        next_due_at: task.next_due_at,
+        specific_times: task.specific_times
       },
       預設日期: date
     };
@@ -628,12 +629,13 @@ const Dashboard: React.FC = () => {
                               </div>
                             </div>
                             <span className={`status-badge flex-shrink-0 ${
-                              status === 'overdue' ? 'bg-red-100 text-red-800' : 
+                              hasMissed ? 'bg-red-100 text-red-800' :
+                              status === 'overdue' ? 'bg-red-100 text-red-800' :
                               status === 'pending' ? 'bg-green-100 text-green-800' :
                               status === 'due_soon' ? 'bg-orange-100 text-orange-800' :
                               'bg-purple-100 text-purple-800'
                             }`}>
-                              {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
+                              {hasMissed ? '逾期' : status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
                             </span>
                           </div>
                           {/* [修改] 徹底移除日曆圖示按鈕 */}

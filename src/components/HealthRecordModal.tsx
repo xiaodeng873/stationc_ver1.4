@@ -8,7 +8,12 @@ interface HealthRecordModalProps {
   record?: any;
   initialData?: {
     patient?: { 院友id: number; 中文姓名?: string; 床號?: string };
-    task?: { id: string; health_record_type: string; next_due_at: string };
+    task?: {
+      id: string;
+      health_record_type: string;
+      next_due_at: string;
+      specific_times?: string[];
+    };
     預設記錄類型?: string;
     預設日期?: string;
   };
@@ -61,9 +66,23 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   
   const initialIsPatientHospitalized = checkPatientHospitalized(initialPatientId);
 
-  const { date: defaultRecordDate, time: defaultRecordTime } = record 
-    ? { date: record.記錄日期, time: record.記錄時間 }
-    : getHongKongDateTime(initialData?.預設日期 || initialData?.task?.next_due_at);
+  const getDefaultDateTime = () => {
+    if (record) {
+      return { date: record.記錄日期, time: record.記錄時間 };
+    }
+
+    const hongKongDateTime = getHongKongDateTime(initialData?.預設日期 || initialData?.task?.next_due_at);
+
+    // 优先使用任务的特定时间
+    const specificTime = initialData?.task?.specific_times?.[0];
+
+    return {
+      date: hongKongDateTime.date,
+      time: specificTime || hongKongDateTime.time
+    };
+  };
+
+  const { date: defaultRecordDate, time: defaultRecordTime } = getDefaultDateTime();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
