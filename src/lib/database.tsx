@@ -1597,10 +1597,10 @@ export const createBatchHealthRecords = async (records: Omit<HealthRecord, '記�
   return data || [];
 };
 
-// [新增] 核心同步功能
+// [新增] 核心同步功能 - 使用智能推進策略
 export const syncTaskStatus = async (taskId: string) => {
-  console.log('🔄 開始同步任務狀態:', taskId);
-  
+  console.log('🔄 開始同步任務狀態（智能推進）:', taskId);
+
   // 使用全域定義的 CUTOFF
   const SYNC_CUTOFF_DATE = new Date(SYNC_CUTOFF_DATE_STR);
 
@@ -1619,8 +1619,13 @@ export const syncTaskStatus = async (taskId: string) => {
       return;
     }
     const lastCompletedAt = new Date(`${latestRecord.記錄日期}T${latestRecord.記錄時間}`);
-    const nextDueAt = calculateNextDueDate(task, lastCompletedAt);
-    console.log(`✅ 找到最新記錄 (${latestRecord.記錄日期})，更新下次到期日為:`, nextDueAt);
+
+    // [策略2：智能推進] 從 next_due_at 開始找第一個未完成的日期
+    const { findFirstMissingDate } = await import('../utils/taskScheduler');
+    const startDate = task.next_due_at ? new Date(task.next_due_at) : new Date();
+    const nextDueAt = await findFirstMissingDate(task, startDate, supabase);
+
+    console.log(`✅ 找到最新記錄 (${latestRecord.記錄日期})，智能推進到:`, nextDueAt);
     updates = { last_completed_at: lastCompletedAt.toISOString(), next_due_at: nextDueAt.toISOString() };
   } else {
     console.log('⚠️ 該任務已無任何記錄，重置為初始狀態');

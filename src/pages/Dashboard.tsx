@@ -3,7 +3,7 @@ import { usePatients } from '../context/PatientContext';
 import TaskModal from '../components/TaskModal';
 import { Hop as Home, Users, Calendar, Heart, SquareCheck as CheckSquare, TriangleAlert as AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight, Repeat } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { isTaskOverdue, isTaskPendingToday, isTaskDueSoon, getTaskStatus, isDocumentTask, isMonitoringTask, isNursingTask, isRestraintAssessmentOverdue, isRestraintAssessmentDueSoon, isHealthAssessmentOverdue, isHealthAssessmentDueSoon, calculateNextDueDate, isTaskScheduledForDate, formatFrequencyDescription } from '../utils/taskScheduler';
+import { isTaskOverdue, isTaskPendingToday, isTaskDueSoon, getTaskStatus, isDocumentTask, isMonitoringTask, isNursingTask, isRestraintAssessmentOverdue, isRestraintAssessmentDueSoon, isHealthAssessmentOverdue, isHealthAssessmentDueSoon, calculateNextDueDate, isTaskScheduledForDate, formatFrequencyDescription, findFirstMissingDate } from '../utils/taskScheduler';
 import { getPatientsWithOverdueWorkflow } from '../utils/workflowStatusHelper';
 import HealthRecordModal from '../components/HealthRecordModal';
 import MealGuidanceModal from '../components/MealGuidanceModal';
@@ -19,7 +19,7 @@ import PendingPrescriptionCard from '../components/PendingPrescriptionCard';
 import PatientModal from '../components/PatientModal';
 import VaccinationRecordModal from '../components/VaccinationRecordModal';
 import TaskHistoryModal from '../components/TaskHistoryModal';
-import { syncTaskStatus, SYNC_CUTOFF_DATE_STR } from '../lib/database';
+import { syncTaskStatus, SYNC_CUTOFF_DATE_STR, supabase } from '../lib/database';
 
 interface Patient {
   院友id: string;
@@ -421,11 +421,11 @@ const Dashboard: React.FC = () => {
     // 1. 立即關閉模態框
     setShowHealthRecordModal(false);
 
-    // 2. 樂觀更新：立即更新本地狀態
+    // 2. 樂觀更新：立即更新本地狀態（使用智能推進）
     setPatientHealthTasks(prev => {
       return prev.map(task => {
         if (task.id === taskId) {
-          // 立即計算下次到期時間
+          // 暫時使用簡單計算，後台會用智能推進更新
           const nextDueDate = calculateNextDueDate(task, recordDateTime);
           return {
             ...task,
@@ -437,10 +437,10 @@ const Dashboard: React.FC = () => {
       });
     });
 
-    // 3. 在後台非同步執行數據同步
+    // 3. 在後台非同步執行數據同步（使用智能推進）
     setTimeout(async () => {
       try {
-        console.log('🔄 後台同步任務狀態...');
+        console.log('🔄 後台同步任務狀態（智能推進）...');
         await syncTaskStatus(taskId);
         await refreshData();
         console.log('✅ 後台同步完成');

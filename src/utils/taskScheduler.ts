@@ -88,7 +88,7 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
 
 export function calculateNextDueDate(task: PatientHealthTask, fromDate?: Date): Date {
   if (!task.is_recurring) {
-    return fromDate || new Date(); 
+    return fromDate || new Date();
   }
 
   let nextDueDate = new Date(fromDate || new Date());
@@ -123,7 +123,7 @@ export function calculateNextDueDate(task: PatientHealthTask, fromDate?: Date): 
         const currentDate = nextDueDate.getDate();
         const currentMonth = nextDueDate.getMonth();
         const futureTargetDays = task.specific_days_of_month.filter(day => day > currentDate);
-        
+
         if (futureTargetDays.length > 0) {
           const nextTargetDay = Math.min(...futureTargetDays);
           nextDueDate.setDate(nextTargetDay);
@@ -154,6 +154,68 @@ export function calculateNextDueDate(task: PatientHealthTask, fromDate?: Date): 
   }
 
   return nextDueDate;
+}
+
+// [策略2：智能推進] 找到從 startDate 開始的第一個未完成日期
+export async function findFirstMissingDate(
+  task: PatientHealthTask,
+  startDate: Date,
+  supabase: any,
+  maxDaysToCheck: number = 90
+): Promise<Date> {
+  console.log('🔍 開始查找第一個未完成日期，起點:', startDate);
+
+  const checkDate = new Date(startDate);
+  checkDate.setHours(0, 0, 0, 0);
+
+  let daysChecked = 0;
+
+  while (daysChecked < maxDaysToCheck) {
+    // 檢查這一天是否應該有任務
+    if (isTaskScheduledForDate(task, checkDate)) {
+      // 查詢數據庫確認該日期是否有記錄
+      const dateStr = checkDate.toISOString().split('T')[0];
+      const { data: records, error } = await supabase
+        .from('健康記錄主表')
+        .select('記錄id')
+        .eq('task_id', task.id)
+        .eq('記錄日期', dateStr)
+        .limit(1);
+
+      if (error) {
+        console.error('❌ 查詢記錄時出錯:', error);
+        break;
+      }
+
+      // 如果這一天沒有記錄，就是我們要找的日期
+      if (!records || records.length === 0) {
+        console.log('✅ 找到第一個未完成日期:', dateStr);
+
+        // 設置時間
+        if (task.specific_times && task.specific_times.length > 0) {
+          const timeStr = task.specific_times[0];
+          if (timeStr.includes(':')) {
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            checkDate.setHours(hours, minutes, 0, 0);
+          }
+        } else if (isMonitoringTask(task.health_record_type)) {
+          checkDate.setHours(8, 0, 0, 0);
+        }
+
+        return checkDate;
+      }
+
+      console.log(`   ✓ ${dateStr} 已有記錄，繼續檢查...`);
+    }
+
+    // 檢查下一天
+    checkDate.setDate(checkDate.getDate() + 1);
+    daysChecked++;
+  }
+
+  // 如果檢查了 maxDaysToCheck 天都有記錄，返回下一個應該完成的日期
+  console.log('⚠️ 已檢查', maxDaysToCheck, '天，都有記錄，返回下一個計劃日期');
+  return calculateNextDueDate(task, checkDate);
 }
 
 // 補回其他函式以避免錯誤
