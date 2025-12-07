@@ -19,7 +19,7 @@ import PendingPrescriptionCard from '../components/PendingPrescriptionCard';
 import PatientModal from '../components/PatientModal';
 import VaccinationRecordModal from '../components/VaccinationRecordModal';
 import TaskHistoryModal from '../components/TaskHistoryModal';
-import { syncTaskStatus } from '../lib/database';
+import { syncTaskStatus, SYNC_CUTOFF_DATE_STR } from '../lib/database';
 
 interface Patient {
   院友id: string;
@@ -436,7 +436,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // [新增] 找出最近的一個缺漏日期 (往回找 60 天)
+  // [新增] 找出最近的一個缺漏日期 (往回找 60 天，遇到 cutoff 停止)
   const findMostRecentMissedDate = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
     
@@ -449,6 +449,12 @@ const Dashboard: React.FC = () => {
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       
+      // [關鍵修改] 檢查是否早於或等於 Cutoff Date (2025-12-01)
+      // 如果是，則停止檢查，因為這些是舊資料，不應該算作"缺漏"
+      if (dateStr <= SYNC_CUTOFF_DATE_STR) {
+        return null;
+      }
+
       // 1. 檢查這天是否該做
       if (isTaskScheduledForDate(task, d)) {
         // 2. 檢查這天是否已做
@@ -467,7 +473,7 @@ const Dashboard: React.FC = () => {
     return null; // 都沒缺漏
   };
 
-  // [新增] 渲染任務歷史/補錄按鈕 (包含紅點邏輯)
+  // [修改] 渲染任務歷史/補錄按鈕 (只有缺漏時才顯示按鈕)
   const renderTaskHistoryButton = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
 
@@ -475,7 +481,7 @@ const Dashboard: React.FC = () => {
     const missedDate = findMostRecentMissedDate(task);
     const hasMissed = !!missedDate;
 
-    // 需求：如果沒有需要補錄 (沒缺漏)，完全不顯示按鈕
+    // 如果沒有缺漏，不顯示任何東西
     if (!hasMissed) return null;
 
     return (
@@ -494,7 +500,7 @@ const Dashboard: React.FC = () => {
               setShowHistoryModal(true);
             }
           }}
-          // 樣式：原色 (灰色)，Hover 變色
+          // 按鈕顏色為灰色 (原色)，Hover 變色
           className="p-2 rounded-full text-gray-400 hover:text-blue-600 hover:bg-gray-100 transition-all"
           title="有缺漏記錄，點擊補錄"
         >
@@ -542,10 +548,10 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="space-y-6 lg:space-y-3">
             {[
-              { title: "早餐 (07:00 - 09:59)", tasks: breakfastTasks },
-              { title: "午餐 (10:00 - 12:59)", tasks: lunchTasks },
-              { title: "晚餐 (13:00 - 17:59)", tasks: dinnerTasks },
-              { title: "夜宵 (18:00 - 20:00)", tasks: snackTasks }
+              { title: "早餐 (07:00 - 09:59)", tasks: taskGroups.breakfast },
+              { title: "午餐 (10:00 - 12:59)", tasks: taskGroups.lunch },
+              { title: "晚餐 (13:00 - 17:59)", tasks: taskGroups.dinner },
+              { title: "夜宵 (18:00 - 20:00)", tasks: taskGroups.snack }
             ].map((slot, idx) => (
               slot.tasks.length > 0 && (
                 <div key={idx}>
@@ -598,7 +604,6 @@ const Dashboard: React.FC = () => {
                               {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
                             </span>
                           </div>
-                          {/* 渲染補錄按鈕 */}
                           {renderTaskHistoryButton(task)}
                         </div>
                       );
@@ -868,6 +873,7 @@ const Dashboard: React.FC = () => {
           patient={selectedHistoryTask.patient}
           healthRecords={healthRecords}
           initialDate={selectedHistoryTask.initialDate}
+          cutoffDateStr={SYNC_CUTOFF_DATE_STR} // [新增] 傳入 Cutoff Date
           onClose={() => setShowHistoryModal(false)}
           onDateSelect={(date) => {
             handleTaskClick(selectedHistoryTask.task, date);
