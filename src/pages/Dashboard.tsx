@@ -133,10 +133,38 @@ const Dashboard: React.FC = () => {
         health_record_type: task.health_record_type,
         next_due_at: task.next_due_at
       },
-      預設日期: date 
+      預設日期: date
     };
     setSelectedHealthRecordInitialData(initialDataForModal);
     setShowHealthRecordModal(true);
+  };
+
+  const handleDocumentTaskClick = (task: HealthTask) => {
+    const patient = patients.find(p => p.院友id === task.patient_id);
+    if (patient) {
+      setSelectedDocumentTask({ task, patient });
+      setShowDocumentTaskModal(true);
+    }
+  };
+
+  const handleFollowUpClick = (appointment: FollowUpAppointment) => {
+    setSelectedFollowUp(appointment);
+    setShowFollowUpModal(true);
+  };
+
+  const handleRestraintAssessmentClick = (assessment: any) => {
+    setSelectedRestraintAssessment(assessment);
+    setShowRestraintAssessmentModal(true);
+  };
+
+  const handleHealthAssessmentClick = (assessment: any) => {
+    setSelectedHealthAssessment(assessment);
+    setShowHealthAssessmentModal(true);
+  };
+
+  const handleAnnualCheckupClick = (checkup: any) => {
+    setSelectedAnnualCheckup(checkup);
+    setShowAnnualCheckupModal(true);
   };
 
   // [效能優化] 建立健康記錄的快速查找表 (Set)
@@ -389,16 +417,38 @@ const Dashboard: React.FC = () => {
   };
 
   const handleTaskCompleted = async (taskId: string, recordDateTime: Date) => {
+    // 1. 立即關閉模態框
     setShowHealthRecordModal(false);
-    try {
-      console.log('正在同步任務狀態...');
-      await syncTaskStatus(taskId);
-      await refreshData();
-    } catch (error) {
-      console.error('任務完成處理失敗:', error);
-      alert(`任務完成失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-      await refreshData();
-    }
+
+    // 2. 樂觀更新：立即更新本地狀態
+    setPatientHealthTasks(prev => {
+      return prev.map(task => {
+        if (task.id === taskId) {
+          // 立即計算下次到期時間
+          const nextDueDate = calculateNextDueDate(task, recordDateTime);
+          return {
+            ...task,
+            last_completed_at: recordDateTime.toISOString(),
+            next_due_at: nextDueDate.toISOString()
+          };
+        }
+        return task;
+      });
+    });
+
+    // 3. 在後台非同步執行數據同步
+    setTimeout(async () => {
+      try {
+        console.log('🔄 後台同步任務狀態...');
+        await syncTaskStatus(taskId);
+        await refreshData();
+        console.log('✅ 後台同步完成');
+      } catch (error) {
+        console.error('❌ 後台同步失敗:', error);
+        // 失敗後從服務器獲取正確狀態
+        await refreshData();
+      }
+    }, 0);
   };
 
   const handleDocumentTaskCompleted = async (taskId: string, completionDate: string, nextDueDate: string, tubeType?: string, tubeSize?: string) => {
