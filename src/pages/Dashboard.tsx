@@ -425,37 +425,8 @@ const Dashboard: React.FC = () => {
     setPatientHealthTasks(prev => {
       return prev.map(task => {
         if (task.id === taskId) {
-          // [策略2：智能推進] 判斷是否應該推進 next_due_at
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const recordDate = new Date(recordDateTime);
-          recordDate.setHours(0, 0, 0, 0);
-
-          // 計算補錄日期與今天的差距（天數）
-          const daysDiff = Math.floor((today.getTime() - recordDate.getTime()) / (1000 * 60 * 60 * 24));
-
-          // 智能推進邏輯：
-          // - 如果補錄的是近期記錄（3天內），推進 next_due_at
-          // - 如果補錄的是久遠歷史（超過3天），不推進 next_due_at
-          const RECENT_THRESHOLD_DAYS = 3;
-          const shouldAdvanceNextDue = daysDiff <= RECENT_THRESHOLD_DAYS;
-
-          let nextDueDate: Date;
-          if (shouldAdvanceNextDue) {
-            // 近期補錄：從補錄日期計算下次任務
-            nextDueDate = calculateNextDueDate(task, recordDateTime);
-
-            // 確保 next_due_at 不會被設置成過去的日期
-            const now = new Date();
-            if (nextDueDate < now) {
-              // 如果計算出來的下次任務是過去，則從今天重新計算
-              nextDueDate = calculateNextDueDate(task, now);
-            }
-          } else {
-            // 久遠補錄：保持原有的 next_due_at 不變
-            nextDueDate = task.next_due_at ? new Date(task.next_due_at) : calculateNextDueDate(task, new Date());
-          }
-
+          // 立即計算下次到期時間
+          const nextDueDate = calculateNextDueDate(task, recordDateTime);
           return {
             ...task,
             last_completed_at: recordDateTime.toISOString(),
