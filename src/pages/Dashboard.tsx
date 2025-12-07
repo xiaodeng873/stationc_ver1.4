@@ -254,6 +254,7 @@ const Dashboard: React.FC = () => {
     }).slice(0, 100);
   }, [monitoringTasks, patientsMap]);
 
+  // [修正] 這裡修正了之前變數未初始化即回傳的問題
   const { breakfastTasks, lunchTasks, dinnerTasks, snackTasks } = useMemo(() => {
     const breakfast: typeof urgentMonitoringTasks = [];
     const lunch: typeof urgentMonitoringTasks = [];
@@ -266,7 +267,6 @@ const Dashboard: React.FC = () => {
       else if (hour >= 13 && hour < 18) dinner.push(task);
       else if (hour >= 18 && hour <= 20) snack.push(task);
     });
-    // [修復] 這裡之前錯誤引用了未初始化的變數，現已修正為正確的區域變數
     return { breakfastTasks: breakfast, lunchTasks: lunch, dinnerTasks: dinner, snackTasks: snack };
   }, [urgentMonitoringTasks]);
 
@@ -607,8 +607,8 @@ const Dashboard: React.FC = () => {
                     </div>
                   );
                 } else {
-                  // 評估類任務保留原樣
-                  return null;
+                  // ... (評估類任務保持原樣)
+                  return null; 
                 }
               })
             ) : (
