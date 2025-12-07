@@ -69,6 +69,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
       : getHongKongTime(),
   });
 
+  // ... (handleChange 等輔助函式保持不變) ...
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     
@@ -179,23 +180,29 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
       };
 
       if (task && task.id) {
+        // [Optimistic Update] 這裡會直接更新本地狀態，介面會立即反應
         await updatePatientHealthTask({
           ...task,
           ...taskData,
         });
       } else {
+        // [Optimistic Update] 這裡會等待 DB 回傳新 ID 後更新本地狀態
         await addPatientHealthTask(taskData);
       }
 
+      // [移除] 不再呼叫全量刷新，大幅提升速度
+      // await refreshData(); 
+      
       if (onUpdate) await onUpdate();
-      await refreshData();
       onClose();
     } catch (error) {
       console.error('儲存任務失敗:', error);
       alert('儲存任務失敗，請重試');
     }
   };
-
+  
+  // ... (其餘渲染代碼保持不變，與您之前提供的檔案一致) ...
+  // 為節省篇幅，這部分請使用您現有的 UI 代碼
   const getTypeIcon = (type: HealthTaskType) => {
     switch (type) {
       case '生命表徵': return <Activity className="h-5 w-5" />;
