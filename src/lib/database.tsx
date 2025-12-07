@@ -1618,14 +1618,47 @@ export const syncTaskStatus = async (taskId: string) => {
       console.log('⚠️ 最新記錄早於分界線，跳過同步:', latestRecord.記錄日期);
       return;
     }
+
     const lastCompletedAt = new Date(`${latestRecord.記錄日期}T${latestRecord.記錄時間}`);
-    const nextDueAt = calculateNextDueDate(task, lastCompletedAt);
-    console.log(`✅ 找到最新記錄 (${latestRecord.記錄日期})，更新下次到期日為:`, nextDueAt);
+
+    // [策略2：智能推進] 判斷是否應該推進 next_due_at
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const completedDate = new Date(lastCompletedAt);
+    completedDate.setHours(0, 0, 0, 0);
+
+    // 計算記錄日期與今天的差距（天數）
+    const daysDiff = Math.floor((today.getTime() - completedDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // 智能推進邏輯：
+    // - 如果記錄是近期的（3天內），推進 next_due_at
+    // - 如果記錄是久遠的（超過3天），不推進 next_due_at
+    const RECENT_THRESHOLD_DAYS = 3;
+    const shouldAdvanceNextDue = daysDiff <= RECENT_THRESHOLD_DAYS;
+
+    let nextDueAt: Date;
+    if (shouldAdvanceNextDue) {
+      // 近期記錄：從記錄日期計算下次任務
+      nextDueAt = calculateNextDueDate(task, lastCompletedAt);
+
+      // 確保 next_due_at 不會被設置成過去的日期
+      const now = new Date();
+      if (nextDueAt < now) {
+        // 如果計算出來的下次任務是過去，則從今天重新計算
+        nextDueAt = calculateNextDueDate(task, now);
+      }
+      console.log(`✅ 近期記錄 (${latestRecord.記錄日期})，推進下次到期日為:`, nextDueAt);
+    } else {
+      // 久遠記錄：保持原有的 next_due_at 不變
+      nextDueAt = task.next_due_at ? new Date(task.next_due_at) : calculateNextDueDate(task, new Date());
+      console.log(`⚠️ 久遠記錄 (${latestRecord.記錄日期})，保持下次到期日不變:`, nextDueAt);
+    }
+
     updates = { last_completed_at: lastCompletedAt.toISOString(), next_due_at: nextDueAt.toISOString() };
   } else {
     console.log('⚠️ 該任務已無任何記錄，重置為初始狀態');
     const resetDate = new Date();
-    resetDate.setHours(8, 0, 0, 0); 
+    resetDate.setHours(8, 0, 0, 0);
     updates = { last_completed_at: null, next_due_at: resetDate.toISOString() };
   }
 
