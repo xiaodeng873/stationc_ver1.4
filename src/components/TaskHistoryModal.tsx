@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { isTaskScheduledForDate } from '../utils/taskScheduler';
 
@@ -25,6 +25,17 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     return null;
   }
 
+  // [新增] ESC 鍵關閉功能
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const [currentDate, setCurrentDate] = useState(initialDate || new Date());
 
   const getDaysInMonth = (year: number, month: number) => {
@@ -43,30 +54,25 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-  // [修改] 篩選出該任務的歷史記錄
-  const taskRecords = healthRecords.filter(r => {
-    // 1. 優先檢查 task_id
-    if (r.task_id && r.task_id === task.id) return true;
-    // 2. 相容舊資料
-    return r.院友id.toString() == task.patient_id.toString() && 
-           r.記錄類型 === task.health_record_type;
-  });
-
   const getDayStatus = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const checkDate = new Date(year, month, day);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const hasRecord = taskRecords.some(r => r.記錄日期 === dateStr);
+    const hasRecord = healthRecords.some(r => {
+      if (r.task_id && r.task_id === task.id) return r.記錄日期 === dateStr;
+      return r.院友id.toString() == task.patient_id.toString() && 
+             r.記錄類型 === task.health_record_type && 
+             r.記錄日期 === dateStr;
+    });
 
     if (hasRecord) return 'completed';
 
     if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
     if (checkDate > today) return 'future';
 
-    // [修改] 傳入 taskRecords 進行動態判斷
-    const isScheduled = isTaskScheduledForDate(task, checkDate, taskRecords);
+    const isScheduled = isTaskScheduledForDate(task, checkDate);
 
     if (isScheduled) {
       if (checkDate.getTime() === today.getTime()) return 'pending';
