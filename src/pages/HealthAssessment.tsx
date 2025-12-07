@@ -12,7 +12,6 @@ import RecycleBinModal from '../components/RecycleBinModal';
 import { exportVitalSignsToExcel, type VitalSignExportData } from '../utils/vitalsignExcelGenerator';
 import { exportBloodSugarToExcel, type BloodSugarExportData } from '../utils/bloodSugarExcelGenerator';
 import PatientTooltip from '../components/PatientTooltip';
-// [重要] 引入同步函式
 import { syncTaskStatus } from '../lib/database';
 
 type RecordType = '生命表徵' | '血糖控制' | '體重控制' | 'all';
@@ -175,7 +174,6 @@ const HealthAssessment: React.FC = () => {
         setDeletingIds(prev => new Set(prev).add(id));
         await deleteHealthRecord(id);
         
-        // [重要] 刪除記錄後，如果有關聯任務，通知任務同步狀態
         if (record?.task_id) {
           console.log('刪除記錄觸發任務同步:', record.task_id);
           await syncTaskStatus(record.task_id);
