@@ -274,7 +274,6 @@ export const getPatientsWithOverdueWorkflow = (
     }
 
     if (patient.在住狀態 !== '在住') {
-
       return;
     }
 
