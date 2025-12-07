@@ -111,7 +111,6 @@ const Dashboard: React.FC = () => {
     return uniqueTasks;
   }, [patientHealthTasks]);
 
-  // [修改] handleTaskClick 增加 date 參數，用於補錄
   const handleTaskClick = (task: HealthTask, date?: string) => {
     const patient = patients.find(p => p.院友id === task.patient_id);
     const initialDataForModal = {
@@ -131,7 +130,6 @@ const Dashboard: React.FC = () => {
     setShowHealthRecordModal(true);
   };
 
-  // [新增] 渲染最近 7 天的任務歷史圓點
   const renderTaskHistory = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
 
@@ -144,7 +142,6 @@ const Dashboard: React.FC = () => {
       d.setDate(today.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       
-      // 檢查該日是否有記錄 (相容新舊數據：有 task_id 或 病人+類型+日期 匹配)
       const hasRecord = healthRecords.some(r => {
         if (r.task_id === task.id) return r.記錄日期 === dateStr;
         return r.院友id.toString() === task.patient_id && 
@@ -175,7 +172,6 @@ const Dashboard: React.FC = () => {
           title={title}
           onClick={(e) => {
             e.stopPropagation();
-            // 如果是紅色(缺漏)或灰色(待辦)，允許點擊補錄
             if (!hasRecord) {
               handleTaskClick(task, dateStr);
             }
@@ -270,7 +266,8 @@ const Dashboard: React.FC = () => {
       else if (hour >= 13 && hour < 18) dinner.push(task);
       else if (hour >= 18 && hour <= 20) snack.push(task);
     });
-    return { breakfastTasks, lunchTasks, dinnerTasks, snackTasks };
+    // [修復] 這裡之前錯誤引用了未初始化的變數，現已修正為正確的區域變數
+    return { breakfastTasks: breakfast, lunchTasks: lunch, dinnerTasks: dinner, snackTasks: snack };
   }, [urgentMonitoringTasks]);
 
   const { overdueDocumentTasks, pendingDocumentTasks, dueSoonDocumentTasks } = useMemo(() => {
@@ -367,12 +364,11 @@ const Dashboard: React.FC = () => {
     setShowVaccinationModal(true);
   };
 
-  // [修改] handleTaskCompleted 改用雙向同步
   const handleTaskCompleted = async (taskId: string, recordDateTime: Date) => {
     setShowHealthRecordModal(false);
     try {
       console.log('正在同步任務狀態...');
-      await syncTaskStatus(taskId); // 使用資料庫雙向同步
+      await syncTaskStatus(taskId);
       await refreshData();
     } catch (error) {
       console.error('任務完成處理失敗:', error);
@@ -548,7 +544,6 @@ const Dashboard: React.FC = () => {
                               {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
                             </span>
                           </div>
-                          {/* 渲染最近 7 天的歷史圓點 */}
                           {renderTaskHistory(task)}
                         </div>
                       );
@@ -612,8 +607,8 @@ const Dashboard: React.FC = () => {
                     </div>
                   );
                 } else {
-                  // 評估類任務顯示（保持原樣）
-                  return null; 
+                  // 評估類任務保留原樣
+                  return null;
                 }
               })
             ) : (
