@@ -268,13 +268,13 @@ export const getPatientsWithOverdueWorkflow = (
       return match;
     });
 
-    if (!patient) {
-      console.warn(`❌ 找不到院友 ID: ${patientId}`);
+    if (!patient) 
+
       return;
     }
 
     if (patient.在住狀態 !== '在住') {
-      console.log(`⚠️ 院友 ${patient.床號} 不是在住狀態: ${patient.在住狀態}`);
+
       return;
     }
 
