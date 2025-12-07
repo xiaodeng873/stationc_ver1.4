@@ -265,8 +265,7 @@ export const getPatientsWithOverdueWorkflow = (
       const pId = p.院友id;
       const match = parseInt(String(pId)) === parseInt(String(patientId));
       if (match) {
-        console.log(`✅ 找到匹配院友: ${p.床號} - ${p.中文姓氏}${p.中文名字} (ID: ${pId}, 類型: ${typeof pId})`);
-      }
+  
       return match;
     });
 
