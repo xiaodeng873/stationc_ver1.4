@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { usePatients } from '../context/PatientContext';
 import TaskModal from '../components/TaskModal';
-import { Hop as Home, Users, Calendar, Heart, SquareCheck as CheckSquare, TriangleAlert as AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight, CalendarDays, CalendarPlus, Repeat } from 'lucide-react';
+import { Hop as Home, Users, Calendar, Heart, SquareCheck as CheckSquare, TriangleAlert as AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight, CalendarDays, Repeat } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { isTaskOverdue, isTaskPendingToday, isTaskDueSoon, getTaskStatus, isDocumentTask, isMonitoringTask, isNursingTask, isRestraintAssessmentOverdue, isRestraintAssessmentDueSoon, isHealthAssessmentOverdue, isHealthAssessmentDueSoon, calculateNextDueDate, isTaskScheduledForDate, formatFrequencyDescription } from '../utils/taskScheduler';
 import { getPatientsWithOverdueWorkflow } from '../utils/workflowStatusHelper';
@@ -139,59 +139,6 @@ const Dashboard: React.FC = () => {
     setShowHealthRecordModal(true);
   };
 
-  // 打開歷史日曆 Modal
-  const handleHistoryClick = (e: React.MouseEvent, task: HealthTask) => {
-    e.stopPropagation(); 
-    const patient = patients.find(p => p.院友id === task.patient_id);
-    if (patient) {
-      setSelectedHistoryTask({ task, patient });
-      setShowHistoryModal(true);
-    }
-  };
-
-  // [效能優化] 建立健康記錄的快速查找表 (Set)
-  // 鍵值格式: 
-  // 1. "taskId_YYYY-MM-DD"
-  // 2. "patientId_healthType_YYYY-MM-DD" (兼容舊資料)
-  const recordLookup = useMemo(() => {
-    const lookup = new Set<string>();
-    healthRecords.forEach(r => {
-      if (r.task_id) {
-        lookup.add(`${r.task_id}_${r.記錄日期}`);
-      }
-      // 為了兼容性，也加入舊格式的鍵值
-      lookup.add(`${r.院友id}_${r.記錄類型}_${r.記錄日期}`);
-    });
-    return lookup;
-  }, [healthRecords]);
-
-  // [效能優化] 使用 recordLookup 進行 O(1) 查找，取代 array.some 的 O(N)
-  const findMostRecentMissedDate = (task: HealthTask) => {
-    if (!isMonitoringTask(task.health_record_type)) return null;
-    
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    
-    for (let i = 1; i <= 60; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      
-      if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
-
-      if (isTaskScheduledForDate(task, d)) {
-        // 使用 Set 查找，極速
-        const hasRecord = 
-          recordLookup.has(`${task.id}_${dateStr}`) || 
-          recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}`);
-
-        if (!hasRecord) return d;
-      }
-    }
-    return null;
-  };
-
-  // ... (其餘輔助函式保持不變) ...
   const isAnnualCheckupOverdue = (checkup: any): boolean => {
     if (!checkup.next_due_date) return false;
     const today = new Date();
@@ -262,13 +209,39 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = useMemo(() => patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)), [patientHealthTasks]);
   const documentTasks = useMemo(() => patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)), [patientHealthTasks]);
 
+  // 找出最近的一個缺漏日期 (往回找 60 天，遇到 cutoff 停止)
+  const findMostRecentMissedDate = (task: HealthTask) => {
+    if (!isMonitoringTask(task.health_record_type)) return null;
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    for (let i = 1; i <= 60; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      
+      if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
+
+      if (isTaskScheduledForDate(task, d)) {
+        const hasRecord = healthRecords.some(r => {
+          if (r.task_id === task.id) return r.記錄日期 === dateStr;
+          return r.院友id.toString() == task.patient_id.toString() && 
+                 r.記錄類型 === task.health_record_type && 
+                 r.記錄日期 === dateStr;
+        });
+        if (!hasRecord) return d;
+      }
+    }
+    return null;
+  };
+
   const urgentMonitoringTasks = useMemo(() => {
     const urgent: typeof monitoringTasks = [];
     monitoringTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
       if (patient && patient.在住狀態 === '在住') {
         const isPending = isTaskPendingToday(task) || isTaskOverdue(task);
-        // findMostRecentMissedDate 現在使用 Set 查找，非常快
         const hasMissed = !!findMostRecentMissedDate(task);
         
         if (isPending || hasMissed) {
@@ -282,7 +255,7 @@ const Dashboard: React.FC = () => {
       if (timeA === timeB) return 0;
       return timeA - timeB;
     }).slice(0, 100);
-  }, [monitoringTasks, patientsMap, recordLookup]); // 依賴 recordLookup
+  }, [monitoringTasks, patientsMap, healthRecords]); 
 
   const taskGroups = useMemo(() => {
     const breakfast: typeof urgentMonitoringTasks = [];
@@ -487,33 +460,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // [修改] 渲染任務歷史/補錄按鈕 (只有缺漏時才顯示按鈕，並且放在右下角)
-  const renderTaskHistoryButton = (task: HealthTask) => {
-    if (!isMonitoringTask(task.health_record_type)) return null;
-
-    // 計算是否有缺漏
-    const missedDate = findMostRecentMissedDate(task);
-    const hasMissed = !!missedDate;
-
-    // 如果沒有缺漏，不顯示任何東西
-    if (!hasMissed) return null;
-
-    return (
-      <div className="absolute bottom-2 right-2">
-        <div 
-          className="text-gray-400"
-          title="有缺漏記錄"
-        >
-          <div className="relative">
-            <CalendarPlus className="h-5 w-5" />
-            {/* 只有紅點是紅色 */}
-            <span className="absolute -top-1 -right-1 block h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white" />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6 lg:space-y-4">
       <div className="flex items-center justify-between">
@@ -622,8 +568,6 @@ const Dashboard: React.FC = () => {
                               {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
                             </span>
                           </div>
-                          
-                          {renderTaskHistoryButton(task)}
                         </div>
                       );
                     })}
@@ -836,13 +780,20 @@ const Dashboard: React.FC = () => {
           onClose={() => setShowHistoryModal(false)}
           onDateSelect={(date) => {
             handleTaskClick(selectedHistoryTask.task, date);
-            // 選擇日期後關閉日曆
             setShowHistoryModal(false); 
           }}
         />
       )}
 
-      {showDocumentTaskModal && selectedDocumentTask && <DocumentTaskModal isOpen={showDocumentTaskModal} onClose={() => { setShowDocumentTaskModal(false); setSelectedDocumentTask(null); }} task={selectedDocumentTask.task} patient={selectedDocumentTask.patient} onTaskCompleted={handleDocumentTaskCompleted} />}
+      {showDocumentTaskModal && selectedDocumentTask && (
+        <DocumentTaskModal
+          isOpen={showDocumentTaskModal}
+          onClose={() => { setShowDocumentTaskModal(false); setSelectedDocumentTask(null); }}
+          task={selectedDocumentTask.task}
+          patient={selectedDocumentTask.patient}
+          onTaskCompleted={handleDocumentTaskCompleted}
+        />
+      )}
       {showFollowUpModal && selectedFollowUp && <FollowUpModal isOpen={showFollowUpModal} onClose={() => { setShowFollowUpModal(false); setSelectedFollowUp(null); }} appointment={selectedFollowUp} onUpdate={refreshData} />}
       {showRestraintAssessmentModal && selectedRestraintAssessment && <RestraintAssessmentModal isOpen={showRestraintAssessmentModal} onClose={() => { setShowRestraintAssessmentModal(false); setSelectedRestraintAssessment(null); }} assessment={selectedRestraintAssessment} onUpdate={refreshData} />}
       {showHealthAssessmentModal && selectedHealthAssessment && <HealthAssessmentModal isOpen={showHealthAssessmentModal} onClose={() => { setShowHealthAssessmentModal(false); setSelectedHealthAssessment(null); }} assessment={selectedHealthAssessment} onUpdate={refreshData} />}
