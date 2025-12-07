@@ -449,18 +449,17 @@ const Dashboard: React.FC = () => {
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       
-      // [關鍵修改] 檢查是否早於或等於 Cutoff Date (2025-12-01)
-      // 如果是，則停止檢查，因為這些是舊資料，不應該算作"缺漏"
+      // 檢查是否早於或等於 Cutoff Date
       if (dateStr <= SYNC_CUTOFF_DATE_STR) {
         return null;
       }
 
       // 1. 檢查這天是否該做
       if (isTaskScheduledForDate(task, d)) {
-        // 2. 檢查這天是否已做
+        // 2. 檢查這天是否已做 (使用 toString() 確保 ID 比對正確)
         const hasRecord = healthRecords.some(r => {
           if (r.task_id === task.id) return r.記錄日期 === dateStr;
-          return r.院友id.toString() === task.patient_id && 
+          return r.院友id.toString() == task.patient_id.toString() && 
                  r.記錄類型 === task.health_record_type && 
                  r.記錄日期 === dateStr;
         });
@@ -604,6 +603,7 @@ const Dashboard: React.FC = () => {
                               {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
                             </span>
                           </div>
+                          {/* 渲染補錄按鈕 */}
                           {renderTaskHistoryButton(task)}
                         </div>
                       );
