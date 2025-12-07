@@ -45,7 +45,7 @@ interface HealthTask {
   end_time?: string;
   specific_days_of_week?: number[];
   specific_days_of_month?: number[];
-  specific_times?: string[]; // 確保介面有包含此欄位
+  specific_times?: string[];
 }
 
 interface FollowUpAppointment {
@@ -138,6 +138,7 @@ const Dashboard: React.FC = () => {
     setShowHealthRecordModal(true);
   };
 
+  // 打開歷史日曆 Modal
   const handleHistoryClick = (e: React.MouseEvent, task: HealthTask) => {
     e.stopPropagation(); 
     const patient = patients.find(p => p.院友id === task.patient_id);
@@ -147,7 +148,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // ... (保留評估類函式 checkup functions) ...
   const isAnnualCheckupOverdue = (checkup: any): boolean => {
     if (!checkup.next_due_date) return false;
     const today = new Date();
@@ -162,8 +162,7 @@ const Dashboard: React.FC = () => {
     const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     return daysDiff <= 14 && daysDiff > 0;
   };
-  
-  // ... (保留 missingTasks, workflows 等 useMemo) ...
+
   const missingTasks = useMemo(() => {
     const activePatients = patients.filter(p => p.在住狀態 === '在住');
     const result: { patient: any; missingTaskTypes: string[] }[] = [];
@@ -219,50 +218,12 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = useMemo(() => patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)), [patientHealthTasks]);
   const documentTasks = useMemo(() => patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)), [patientHealthTasks]);
 
-  // [修改] 找出最近的一個缺漏日期
-  // 這個函式現在被 urgentMonitoringTasks 依賴，所以要移到上面或用 useCallback，但這裡為了簡便直接定義在 Component 內，
-  // 因為它依賴 healthRecords，放在 useMemo 裡是安全的。
-  const findMostRecentMissedDate = (task: HealthTask) => {
-    if (!isMonitoringTask(task.health_record_type)) return null;
-    
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    
-    for (let i = 1; i <= 60; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      
-      if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
-
-      if (isTaskScheduledForDate(task, d)) {
-        const hasRecord = healthRecords.some(r => {
-          if (r.task_id === task.id) return r.記錄日期 === dateStr;
-          return r.院友id.toString() == task.patient_id.toString() && 
-                 r.記錄類型 === task.health_record_type && 
-                 r.記錄日期 === dateStr;
-        });
-        if (!hasRecord) return d;
-      }
-    }
-    return null;
-  };
-
-  // [修改] 緊急任務篩選邏輯：
-  // 1. 今天該做 (pending/overdue)
-  // 2. OR 有歷史缺漏 (missed catch-up)
   const urgentMonitoringTasks = useMemo(() => {
     const urgent: typeof monitoringTasks = [];
     monitoringTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
       if (patient && patient.在住狀態 === '在住') {
-        const isPending = isTaskPendingToday(task) || isTaskOverdue(task);
-        const hasMissed = !!findMostRecentMissedDate(task);
-        
-        // 只要符合其中一項，就顯示卡片
-        if (isPending || hasMissed) {
-          urgent.push(task);
-        }
+        if (isTaskOverdue(task) || isTaskPendingToday(task)) urgent.push(task);
       }
     });
     return urgent.sort((a, b) => {
@@ -271,7 +232,7 @@ const Dashboard: React.FC = () => {
       if (timeA === timeB) return 0;
       return timeA - timeB;
     }).slice(0, 100);
-  }, [monitoringTasks, patientsMap, healthRecords]); // 依賴 healthRecords 以便重新計算缺漏
+  }, [monitoringTasks, patientsMap]);
 
   const taskGroups = useMemo(() => {
     const breakfast: typeof urgentMonitoringTasks = [];
@@ -280,8 +241,6 @@ const Dashboard: React.FC = () => {
     const snack: typeof urgentMonitoringTasks = [];
     
     urgentMonitoringTasks.forEach(task => {
-      // 這裡的分組邏輯維持使用 next_due_at，
-      // 因為即使是補錄任務，通常也會有特定的執行時間段
       const hour = new Date(task.next_due_at).getHours();
       if (hour >= 7 && hour < 10) breakfast.push(task);
       else if (hour >= 10 && hour < 13) lunch.push(task);
@@ -294,7 +253,6 @@ const Dashboard: React.FC = () => {
 
   const { breakfast: breakfastTasks, lunch: lunchTasks, dinner: dinnerTasks, snack: snackTasks } = taskGroups;
 
-  // ... (其他任務類型的 useMemo 保持不變) ...
   const { overdueDocumentTasks, pendingDocumentTasks, dueSoonDocumentTasks } = useMemo(() => {
     const overdue: typeof documentTasks = [];
     const pending: typeof documentTasks = [];
@@ -351,7 +309,6 @@ const Dashboard: React.FC = () => {
     return dateA.getTime() - dateB.getTime();
   });
 
-  // ... (保持原有的 handle 函式不變) ...
   const handleCreateMissingTask = (patient: any, taskType: '年度體檢' | '生命表徵') => {
     if (taskType === '年度體檢') {
       setPrefilledAnnualCheckupPatientId(patient.院友id);
@@ -478,6 +435,42 @@ const Dashboard: React.FC = () => {
       case '取消': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  // [新增] 找出最近的一個缺漏日期 (往回找 60 天，遇到 cutoff 停止)
+  const findMostRecentMissedDate = (task: HealthTask) => {
+    if (!isMonitoringTask(task.health_record_type)) return null;
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    // 往回檢查 60 天
+    for (let i = 1; i <= 60; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      
+      // 檢查是否早於或等於 Cutoff Date
+      if (dateStr <= SYNC_CUTOFF_DATE_STR) {
+        return null;
+      }
+
+      // 1. 檢查這天是否該做
+      if (isTaskScheduledForDate(task, d)) {
+        // 2. 檢查這天是否已做 (使用 toString() 確保 ID 比對正確)
+        const hasRecord = healthRecords.some(r => {
+          if (r.task_id === task.id) return r.記錄日期 === dateStr;
+          return r.院友id.toString() == task.patient_id.toString() && 
+                 r.記錄類型 === task.health_record_type && 
+                 r.記錄日期 === dateStr;
+        });
+
+        if (!hasRecord) {
+          return d; // 找到最近的缺漏日
+        }
+      }
+    }
+    return null; // 都沒缺漏
   };
 
   // [修改] 渲染任務歷史/補錄按鈕 (只有缺漏時才顯示按鈕)
@@ -681,13 +674,131 @@ const Dashboard: React.FC = () => {
                     </div>
                  )
                } else {
-                 // ... Assessment rendering ...
-                  const assessment = item.data;
+                 const assessment = item.data;
                   const patient = patients.find(p => p.院友id === assessment.patient_id);
                   // ... (Assessment logic stays same) ...
-                  // 為避免過長，這裡省略 assessment 的渲染邏輯，請確保這部分未被刪除
-                  // ...
-                  return null; 
+                  if (item.type === 'restraint') {
+                    const isOverdue = isRestraintAssessmentOverdue(assessment);
+                    const isDueSoon = isRestraintAssessmentDueSoon(assessment);
+                    return (
+                      <div 
+                        key={`restraint-${assessment.id}`} 
+                        className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg cursor-pointer hover:bg-yellow-100 transition-colors border border-yellow-200"
+                        onClick={() => handleRestraintAssessmentClick(assessment)}
+                      >
+                         <div className="w-10 h-10 bg-yellow-100 rounded-full overflow-hidden flex items-center justify-center">
+                          {patient?.院友相片 ? (
+                            <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="h-5 w-5 text-yellow-600" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
+                            <span className="text-xs text-gray-500">({patient?.床號})</span>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Shield className="h-4 w-4 text-yellow-600" />
+                            <p className="text-sm text-gray-600">約束物品評估</p>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            到期: {assessment.next_due_date ? new Date(assessment.next_due_date).toLocaleDateString('zh-TW') : '未設定'}
+                          </p>
+                        </div>
+                        <span className={`status-badge ${
+                          isOverdue ? 'bg-red-100 text-red-800' : 
+                          isDueSoon ? 'bg-orange-100 text-orange-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {isOverdue ? '逾期' : 
+                           isDueSoon ? '即將到期' :
+                           '排程中'}
+                        </span>
+                      </div>
+                    );
+                  } else if (item.type === 'health-assessment') {
+                     const isOverdue = isHealthAssessmentOverdue(assessment);
+                    const isDueSoon = isHealthAssessmentDueSoon(assessment);
+                    return (
+                      <div
+                        key={`health-assessment-${assessment.id}`}
+                        className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors border border-red-200"
+                        onClick={() => handleHealthAssessmentClick(assessment)}
+                      >
+                         <div className="w-10 h-10 bg-red-100 rounded-full overflow-hidden flex items-center justify-center">
+                          {patient?.院友相片 ? (
+                            <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="h-5 w-5 text-red-600" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
+                            <span className="text-xs text-gray-500">({patient?.床號})</span>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Stethoscope className="h-4 w-4 text-red-600" />
+                            <p className="text-sm text-gray-600">健康評估</p>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            到期: {assessment.next_due_date ? new Date(assessment.next_due_date).toLocaleDateString('zh-TW') : '未設定'}
+                          </p>
+                        </div>
+                        <span className={`status-badge ${
+                          isOverdue ? 'bg-red-100 text-red-800' :
+                          isDueSoon ? 'bg-orange-100 text-orange-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {isOverdue ? '逾期' :
+                           isDueSoon ? '即將到期' :
+                           '排程中'}
+                        </span>
+                      </div>
+                    );
+                  } else {
+                    const checkup = item.data;
+                    const isOverdue = isAnnualCheckupOverdue(checkup);
+                    const isDueSoon = isAnnualCheckupDueSoon(checkup);
+                    return (
+                      <div
+                        key={`annual-checkup-${checkup.id}`}
+                        className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors border border-blue-200"
+                        onClick={() => handleAnnualCheckupClick(checkup)}
+                      >
+                        <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
+                          {patient?.院友相片 ? (
+                            <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="h-5 w-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
+                            <span className="text-xs text-gray-500">({patient?.床號})</span>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <CalendarCheck className="h-4 w-4 text-blue-600" />
+                            <p className="text-sm text-gray-600">年度體檢</p>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            到期: {checkup.next_due_date ? new Date(checkup.next_due_date).toLocaleDateString('zh-TW') : '未設定'}
+                          </p>
+                        </div>
+                        <span className={`status-badge ${
+                          isOverdue ? 'bg-red-100 text-red-800' :
+                          isDueSoon ? 'bg-orange-100 text-orange-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {isOverdue ? '逾期' :
+                           isDueSoon ? '即將到期' :
+                           '排程中'}
+                        </span>
+                      </div>
+                    );
+                  }
                }
              })}
           </div>
@@ -699,57 +810,95 @@ const Dashboard: React.FC = () => {
             <Link to="/follow-up" className="text-sm text-blue-600 hover:text-blue-700 font-medium">查看全部</Link>
           </div>
           <div className="space-y-3">
-             {upcomingFollowUps.map(appointment => {
-                const patient = patients.find(p => p.院友id === appointment.院友id);
-                return (
-                   <div key={appointment.覆診id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleFollowUpClick(appointment)}>
-                      {/* ... Content ... */}
-                      <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
-                        {patient?.院友相片 ? <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" /> : <User className="h-5 w-5 text-blue-600" />}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
-                          <span className="text-xs text-gray-500">({patient?.床號})</span>
-                        </div>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Calendar className="h-4 w-4 text-blue-600" />
-                          <p className="text-sm text-gray-600">{appointment.覆診專科}</p>
-                        </div>
-                        <p className="text-xs text-gray-500">{new Date(appointment.覆診日期).toLocaleDateString('zh-TW')} - {appointment.覆診地點}</p>
-                      </div>
-                      <span className={`status-badge ${getStatusBadgeClass(appointment.狀態)}`}>{appointment.狀態}</span>
-                   </div>
-                )
-             })}
+            {upcomingFollowUps.length > 0 ? upcomingFollowUps.map(appointment => {
+              const patient = patients.find(p => p.院友id === appointment.院友id);
+              return (
+                <div key={appointment.覆診id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleFollowUpClick(appointment)}>
+                  <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center task-avatar">
+                    {patient?.院友相片 ? <img src={patient.院友相片} alt={patient.中文姓名} className="w-full h-full object-cover" /> : <User className="h-5 w-5 text-blue-600" />}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <p className="font-medium text-gray-900">{patient ? `${patient.中文姓氏}${patient.中文名字}` : ''}</p>
+                      <span className="text-xs text-gray-500">({patient?.床號})</span>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <Calendar className="h-4 w-4 text-blue-600" />
+                      <p className="text-sm text-gray-600">{appointment.覆診專科}</p>
+                    </div>
+                    <p className="text-xs text-gray-500">{new Date(appointment.覆診日期).toLocaleDateString('zh-TW')} - {appointment.覆診地點}</p>
+                  </div>
+                  <span className={`status-badge ${getStatusBadgeClass(appointment.狀態)}`}>{appointment.狀態}</span>
+                </div>
+              );
+            }) : (
+              <div className="text-center py-8 text-gray-500">
+                <Calendar className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                <p>無近期覆診</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {showTaskModal && <TaskModal task={prefilledTaskData} onClose={() => { setShowTaskModal(false); setPrefilledTaskData(null); }} onUpdate={refreshData} />}
-      {showMealGuidanceModal && <MealGuidanceModal guidance={prefilledMealData} onClose={() => { setShowMealGuidanceModal(false); setPrefilledMealData(null); }} onUpdate={refreshData} />}
-      {showHealthRecordModal && <HealthRecordModal initialData={selectedHealthRecordInitialData} onClose={() => { setShowHealthRecordModal(false); setTimeout(() => setSelectedHealthRecordInitialData({}), 150); }} onTaskCompleted={(date) => handleTaskCompleted(selectedHealthRecordInitialData.task.id, date)} />}
+      {showTaskModal && (
+        <TaskModal
+          task={prefilledTaskData}
+          onClose={() => { setShowTaskModal(false); setPrefilledTaskData(null); }}
+          onUpdate={refreshData}
+        />
+      )}
+      {showMealGuidanceModal && (
+        <MealGuidanceModal
+          guidance={prefilledMealData}
+          onClose={() => { setShowMealGuidanceModal(false); setPrefilledMealData(null); }}
+          onUpdate={refreshData}
+        />
+      )}
+      {showHealthRecordModal && (
+        <HealthRecordModal
+          initialData={selectedHealthRecordInitialData}
+          onClose={() => {
+            console.log('關閉 HealthRecordModal');
+            setShowHealthRecordModal(false);
+            setTimeout(() => { setSelectedHealthRecordInitialData({}); }, 150);
+          }}
+          onTaskCompleted={(recordDateTime) => handleTaskCompleted(selectedHealthRecordInitialData.task.id, recordDateTime)}
+        />
+      )}
       
+      {/* 歷史日曆 Modal */}
       {showHistoryModal && selectedHistoryTask && (
         <TaskHistoryModal
           task={selectedHistoryTask.task}
           patient={selectedHistoryTask.patient}
           healthRecords={healthRecords}
           initialDate={selectedHistoryTask.initialDate}
-          cutoffDateStr={SYNC_CUTOFF_DATE_STR}
+          cutoffDateStr={SYNC_CUTOFF_DATE_STR} // [新增] 傳入 Cutoff Date
           onClose={() => setShowHistoryModal(false)}
           onDateSelect={(date) => {
             handleTaskClick(selectedHistoryTask.task, date);
+            // 選擇日期後關閉日曆
             setShowHistoryModal(false); 
           }}
         />
       )}
 
-      {showDocumentTaskModal && selectedDocumentTask && <DocumentTaskModal isOpen={showDocumentTaskModal} onClose={() => { setShowDocumentTaskModal(false); setSelectedDocumentTask(null); }} task={selectedDocumentTask.task} patient={selectedDocumentTask.patient} onTaskCompleted={handleDocumentTaskCompleted} />}
+      {showDocumentTaskModal && selectedDocumentTask && (
+        <DocumentTaskModal
+          isOpen={showDocumentTaskModal}
+          onClose={() => { setShowDocumentTaskModal(false); setSelectedDocumentTask(null); }}
+          task={selectedDocumentTask.task}
+          patient={selectedDocumentTask.patient}
+          onTaskCompleted={handleDocumentTaskCompleted}
+        />
+      )}
       {showFollowUpModal && selectedFollowUp && <FollowUpModal isOpen={showFollowUpModal} onClose={() => { setShowFollowUpModal(false); setSelectedFollowUp(null); }} appointment={selectedFollowUp} onUpdate={refreshData} />}
       {showRestraintAssessmentModal && selectedRestraintAssessment && <RestraintAssessmentModal isOpen={showRestraintAssessmentModal} onClose={() => { setShowRestraintAssessmentModal(false); setSelectedRestraintAssessment(null); }} assessment={selectedRestraintAssessment} onUpdate={refreshData} />}
       {showHealthAssessmentModal && selectedHealthAssessment && <HealthAssessmentModal isOpen={showHealthAssessmentModal} onClose={() => { setShowHealthAssessmentModal(false); setSelectedHealthAssessment(null); }} assessment={selectedHealthAssessment} onUpdate={refreshData} />}
       {showAnnualCheckupModal && <AnnualHealthCheckupModal checkup={selectedAnnualCheckup} onClose={() => { setShowAnnualCheckupModal(false); setSelectedAnnualCheckup(null); setPrefilledAnnualCheckupPatientId(null); }} onSave={refreshData} prefilledPatientId={prefilledAnnualCheckupPatientId} />}
+      {showTaskModal && selectedPatientForTask && selectedTaskType && <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setSelectedPatientForTask(null); setSelectedTaskType(null); }} patient={selectedPatientForTask} defaultTaskType={selectedTaskType} defaultTaskData={{ health_record_type: selectedTaskType, notes: selectedTaskType === '生命表徵' ? '定期' : '', is_recurring: selectedTaskType === '生命表徵' }} onUpdate={refreshData} />}
+      {showMealGuidanceModal && selectedPatientForMeal && <MealGuidanceModal isOpen={showMealGuidanceModal} onClose={() => { setShowMealGuidanceModal(false); setSelectedPatientForMeal(null); }} patient={selectedPatientForMeal} defaultGuidanceData={{ meal_combination: '正飯+正餸', special_diets: [], needs_thickener: false, thickener_amount: '', egg_quantity: undefined, remarks: '', guidance_date: '', guidance_source: '' }} onUpdate={refreshData} />}
       {showPatientModal && <PatientModal patient={selectedPatientForEdit} onClose={() => { setShowPatientModal(false); setSelectedPatientForEdit(null); refreshData(); }} />}
       {showVaccinationModal && <VaccinationRecordModal patientId={selectedPatientForVaccination?.院友id} onClose={() => { setShowVaccinationModal(false); setSelectedPatientForVaccination(null); }} />}
     </div>
