@@ -1,7 +1,8 @@
 import { supabase } from './supabase';
 import { calculateNextDueDate } from '../utils/taskScheduler';
 
-// Core data types
+// --- 介面定義 (Interfaces) ---
+
 export interface Patient {
   院友id: number;
   床號: string;
@@ -85,10 +86,11 @@ export interface Prescription {
   服用時間: string[];
 }
 
+// [重要] HealthRecord 介面增加 task_id
 export interface HealthRecord {
   記錄id: number;
   院友id: number;
-  task_id?: string;
+  task_id?: string; // 關聯的任務ID
   記錄日期: string;
   記錄時間: string;
   記錄類型: '生命表徵' | '血糖控制' | '體重控制';
@@ -361,7 +363,6 @@ export interface VaccinationRecord {
   created_by?: string;
 }
 
-// Care Records types
 export interface PatrolRound {
   id: string;
   patient_id: number;
@@ -426,7 +427,6 @@ export interface PatientCareTab {
   updated_at: string;
 }
 
-// Drug Database types
 export interface DrugData {
   id: string;
   drug_name: string;
@@ -440,7 +440,6 @@ export interface DrugData {
   updated_at: string;
 }
 
-// Medication Inspection Rule types
 export type VitalSignType = '上壓' | '下壓' | '脈搏' | '血糖值' | '呼吸' | '血含氧量' | '體溫';
 export type ConditionOperatorType = 'gt' | 'lt' | 'gte' | 'lte';
 
@@ -455,7 +454,6 @@ export interface MedicationInspectionRule {
   updated_at: string;
 }
 
-// Medication Prescription types
 export type MedicationFrequencyType = 'daily' | 'every_x_days' | 'every_x_months' | 'weekly_days' | 'odd_even_days';
 export type OddEvenDayType = 'odd' | 'even' | 'none';
 export type PreparationMethodType = 'immediate' | 'advanced' | 'custom';
@@ -487,7 +485,6 @@ export interface MedicationPrescription {
   updated_at: string;
 }
 
-// Medication Workflow Record types
 export type WorkflowStatusEnum = 'pending' | 'completed' | 'failed';
 export type DispensingFailureReasonEnum = '回家' | '入院' | '拒服' | '略去' | '藥物不足' | '其他';
 
@@ -513,7 +510,6 @@ export interface MedicationWorkflowRecord {
   updated_at: string;
 }
 
-// Patient Notes types and functions
 export interface PatientNote {
   id: string;
   patient_id?: number;
@@ -526,7 +522,6 @@ export interface PatientNote {
   created_by?: string;
 }
 
-// Medication Workflow Settings
 export interface MedicationWorkflowSettings {
   id: string;
   user_id: string;
@@ -536,7 +531,8 @@ export interface MedicationWorkflowSettings {
   default_preparation_lead_time: number;
 }
 
-// Core database functions
+// --- 核心函式庫 (Functions) ---
+
 export const getPatients = async (): Promise<Patient[]> => {
   const { data, error } = await supabase.from('院友主表').select('*').order('床號', { ascending: true });
   if (error) throw error;
@@ -697,7 +693,6 @@ export const getReasons = async (): Promise<ServiceReason[]> => {
   return data || [];
 };
 
-// Health Records
 export const getHealthRecords = async (limit?: number): Promise<HealthRecord[]> => {
   const pageSize = 1000;
   let allRecords: HealthRecord[] = [];
@@ -725,44 +720,165 @@ export const getHealthRecords = async (limit?: number): Promise<HealthRecord[]> 
 };
 
 export const createHealthRecord = async (record: Omit<HealthRecord, '記錄id'>): Promise<HealthRecord> => {
-  const { data, error } = await supabase
-    .from('健康記錄主表')
-    .insert([record])
-    .select('記錄id')
-    .single();
-
-  if (error) {
-    console.error('Error creating health record:', error);
-    throw error;
-  }
-
+  const { data, error } = await supabase.from('健康記錄主表').insert([record]).select('記錄id').single();
+  if (error) { console.error('Error creating health record:', error); throw error; }
   return { ...record, ...data } as HealthRecord;
 };
 
 export const updateHealthRecord = async (record: HealthRecord): Promise<HealthRecord> => {
-  const { error } = await supabase
-    .from('健康記錄主表')
-    .update(record)
-    .eq('記錄id', record.記錄id);
-
-  if (error) {
-    console.error('Error updating health record:', error);
-    throw error;
-  }
-
+  const { error } = await supabase.from('健康記錄主表').update(record).eq('記錄id', record.記錄id);
+  if (error) { console.error('Error updating health record:', error); throw error; }
   return record;
 };
 
 export const deleteHealthRecord = async (recordId: number): Promise<void> => {
-  const { error } = await supabase
-    .from('健康記錄主表')
-    .delete()
-    .eq('記錄id', recordId);
+  const { error } = await supabase.from('健康記錄主表').delete().eq('記錄id', recordId);
+  if (error) { console.error('Error deleting health record:', error); throw error; }
+};
 
+// 回收筒功能
+export const moveHealthRecordToRecycleBin = async (record: HealthRecord, deletedBy?: string, deletionReason: string = '記錄去重'): Promise<void> => {
+  const { error: insertError } = await supabase.from('deleted_health_records').insert({
+    original_record_id: record.記錄id,
+    院友id: record.院友id,
+    記錄日期: record.記錄日期,
+    記錄時間: record.記錄時間,
+    記錄類型: record.記錄類型,
+    血壓收縮壓: record.血壓收縮壓,
+    血壓舒張壓: record.血壓舒張壓,
+    脈搏: record.脈搏,
+    體溫: record.體溫,
+    血含氧量: record.血含氧量,
+    呼吸頻率: record.呼吸頻率,
+    血糖值: record.血糖值,
+    體重: record.體重,
+    備註: record.備註,
+    記錄人員: record.記錄人員,
+    created_at: record.created_at,
+    deleted_by: deletedBy,
+    deletion_reason: deletionReason
+  });
+  if (insertError) console.warn('Recycle bin error:', insertError);
+  const { error: deleteError } = await supabase.from('健康記錄主表').delete().eq('記錄id', record.記錄id);
+  if (deleteError) throw deleteError;
+};
+
+export const getDeletedHealthRecords = async (): Promise<DeletedHealthRecord[]> => {
+  const { data, error } = await supabase.from('deleted_health_records').select('*').order('deleted_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
+export const restoreHealthRecordFromRecycleBin = async (deletedRecordId: string): Promise<void> => {
+  const { data: deletedRecord, error: fetchError } = await supabase.from('deleted_health_records').select('*').eq('id', deletedRecordId).single();
+  if (fetchError || !deletedRecord) throw fetchError || new Error('Record not found');
+  const { error: insertError } = await supabase.from('健康記錄主表').insert({
+    院友id: deletedRecord.院友id,
+    記錄日期: deletedRecord.記錄日期,
+    記錄時間: deletedRecord.記錄時間,
+    記錄類型: deletedRecord.記錄類型,
+    血壓收縮壓: deletedRecord.血壓收縮壓,
+    血壓舒張壓: deletedRecord.血壓舒張壓,
+    脈搏: deletedRecord.脈搏,
+    體溫: deletedRecord.體溫,
+    血含氧量: deletedRecord.血含氧量,
+    呼吸頻率: deletedRecord.呼吸頻率,
+    血糖值: deletedRecord.血糖值,
+    體重: deletedRecord.體重,
+    備註: deletedRecord.備註,
+    記錄人員: deletedRecord.記錄人員
+  });
+  if (insertError) throw insertError;
+  const { error: deleteError } = await supabase.from('deleted_health_records').delete().eq('id', deletedRecordId);
+  if (deleteError) throw deleteError;
+};
+
+export const permanentlyDeleteHealthRecord = async (deletedRecordId: string): Promise<void> => {
+  const { error } = await supabase.from('deleted_health_records').delete().eq('id', deletedRecordId);
+  if (error) throw error;
+};
+
+export const findDuplicateHealthRecords = async (): Promise<DuplicateRecordGroup[]> => {
+  let records: any[] = [];
+  const { data, error } = await supabase.from('健康記錄主表').select('*').order('created_at', { ascending: false }).limit(1000);
   if (error) {
-    console.error('Error deleting health record:', error);
-    throw error;
+    if (error.code === '42703') {
+      const result2 = await supabase.from('健康記錄主表').select('*').order('記錄id', { ascending: false }).limit(1000);
+      records = result2.data || [];
+    } else throw error;
+  } else records = data || [];
+
+  const recordGroups = new Map<string, HealthRecord[]>();
+  records.forEach((record) => {
+    const key = `${record.院友id}_${record.記錄日期}_${record.記錄時間}`;
+    if (!recordGroups.has(key)) recordGroups.set(key, []);
+    recordGroups.get(key)!.push(record);
+  });
+
+  const duplicateGroups: DuplicateRecordGroup[] = [];
+  recordGroups.forEach((groupRecords, key) => {
+    if (groupRecords.length < 2) return;
+    const valueGroups = new Map<string, HealthRecord[]>();
+    groupRecords.forEach((record) => {
+      const values = [];
+      if (record.血壓收縮壓 != null) values.push(`bp_sys:${record.血壓收縮壓}`);
+      if (record.血壓舒張壓 != null) values.push(`bp_dia:${record.血壓舒張壓}`);
+      if (record.脈搏 != null) values.push(`pulse:${record.脈搏}`);
+      if (record.體溫 != null) values.push(`temp:${record.體溫}`);
+      if (record.呼吸頻率 != null) values.push(`resp:${record.呼吸頻率}`);
+      if (record.血含氧量 != null) values.push(`spo2:${record.血含氧量}`);
+      if (record.血糖值 != null) values.push(`glucose:${record.血糖值}`);
+      if (record.體重 != null) values.push(`weight:${record.體重}`);
+      const valueKey = values.sort().join('|') || 'no_values';
+      if (!valueGroups.has(valueKey)) valueGroups.set(valueKey, []);
+      valueGroups.get(valueKey)!.push(record);
+    });
+    valueGroups.forEach((valueGroupRecords, valueKey) => {
+      if (valueGroupRecords.length >= 2) {
+        const sortedRecords = valueGroupRecords.sort((a, b) => (a.created_at && b.created_at) ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime() : a.記錄id - b.記錄id);
+        duplicateGroups.push({ key: `${key}_${valueKey}`, records: sortedRecords, keepRecord: sortedRecords[0], duplicateRecords: sortedRecords.slice(1) });
+      }
+    });
+  });
+  return duplicateGroups;
+};
+
+export const batchMoveDuplicatesToRecycleBin = async (duplicateRecordIds: number[], deletedBy?: string): Promise<void> => {
+  for (const recordId of duplicateRecordIds) {
+    const { data: record, error } = await supabase.from('健康記錄主表').select('*').eq('記錄id', recordId).maybeSingle();
+    if (record) await moveHealthRecordToRecycleBin(record, deletedBy, '記錄去重');
   }
+};
+
+export const createBatchHealthRecords = async (records: Omit<HealthRecord, '記錄id'>[]): Promise<HealthRecord[]> => {
+  const { data, error } = await supabase.from('健康記錄主表').insert(records).select();
+  if (error) { console.error('Error creating batch health records:', error); throw error; }
+  return data || [];
+};
+
+// [重要] 這裡恢復了您的 getFollowUps 函式
+export const getFollowUps = async (): Promise<FollowUpAppointment[]> => {
+  const { data, error } = await supabase.from('覆診安排主表').select('*').order('覆診日期', { ascending: true });
+  if (error) { console.error('Error fetching follow-ups:', error); throw error; }
+  return data || [];
+};
+
+export const createFollowUp = async (appointment: Omit<FollowUpAppointment, '覆診id' | '創建時間' | '更新時間'>): Promise<FollowUpAppointment> => {
+  const { data, error } = await supabase.from('覆診安排主表').insert([appointment]).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const updateFollowUp = async (appointment: FollowUpAppointment): Promise<FollowUpAppointment> => {
+  const { 覆診id, 創建時間, 更新時間, ...updateData } = appointment;
+  const { data, error } = await supabase.from('覆診安排主表').update(updateData).eq('覆診id', 覆診id).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteFollowUp = async (appointmentId: string): Promise<void> => {
+  const { error } = await supabase.from('覆診安排主表').delete().eq('覆診id', appointmentId);
+  if (error) throw error;
 };
 
 export const getHealthTasks = async (): Promise<PatientHealthTask[]> => {
@@ -785,36 +901,6 @@ export const updatePatientHealthTask = async (task: PatientHealthTask): Promise<
 
 export const deletePatientHealthTask = async (taskId: string): Promise<void> => {
   const { error } = await supabase.from('patient_health_tasks').delete().eq('id', taskId);
-  if (error) throw error;
-};
-
-// ... (Rest of existing functions from database.tsx like getFollowUps, createFollowUp etc)
-// Note: To avoid making this response too huge and causing copy-paste errors, 
-// I must include all other functions that were in your original file. 
-// However, since I cannot read your full file content at once, 
-// I am including ALL standard functions I see in your context.
-
-export const getFollowUps = async (): Promise<FollowUpAppointment[]> => {
-  const { data, error } = await supabase.from('覆診安排主表').select('*').order('覆診日期', { ascending: true });
-  if (error) throw error;
-  return data || [];
-};
-
-export const createFollowUp = async (appointment: Omit<FollowUpAppointment, '覆診id' | '創建時間' | '更新時間'>): Promise<FollowUpAppointment> => {
-  const { data, error } = await supabase.from('覆診安排主表').insert([appointment]).select().single();
-  if (error) throw error;
-  return data;
-};
-
-export const updateFollowUp = async (appointment: FollowUpAppointment): Promise<FollowUpAppointment> => {
-  const { 覆診id, 創建時間, 更新時間, ...updateData } = appointment;
-  const { data, error } = await supabase.from('覆診安排主表').update(updateData).eq('覆診id', 覆診id).select().single();
-  if (error) throw error;
-  return data;
-};
-
-export const deleteFollowUp = async (appointmentId: string): Promise<void> => {
-  const { error } = await supabase.from('覆診安排主表').delete().eq('覆診id', appointmentId);
   if (error) throw error;
 };
 
@@ -1082,13 +1168,17 @@ export const deleteMedicationInspectionRule = async (ruleId: string): Promise<vo
   if (error) throw error;
 };
 
-export const getMedicationPrescriptions = async (patientId?: number): Promise<MedicationPrescription[]> => {
+// [重要] 恢復了您的 getPrescriptions 函式 (之前被我誤刪)
+export const getPrescriptions = async (patientId?: number): Promise<MedicationPrescription[]> => {
   let query = supabase.from('new_medication_prescriptions').select('*').order('created_at', { ascending: false });
   if (patientId) query = query.eq('patient_id', patientId);
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
 };
+
+// 保留此別名以相容新代碼
+export const getMedicationPrescriptions = getPrescriptions;
 
 export const createMedicationPrescription = async (prescriptionData: any): Promise<MedicationPrescription> => {
   const { data, error } = await supabase.from('new_medication_prescriptions').insert([prescriptionData]).select().single();
@@ -1153,6 +1243,7 @@ export const updateMedicationWorkflowRecord = async (record: MedicationWorkflowR
 export const deleteMedicationWorkflowRecord = async (recordId: string): Promise<void> => {
   const { error } = await supabase.from('medication_workflow_records').delete().eq('id', recordId);
   if (error) throw error;
+  return;
 };
 
 export const getAnnualHealthCheckups = async (): Promise<any[]> => {
@@ -1281,133 +1372,195 @@ export const completePatientNote = async (noteId: string): Promise<PatientNote> 
   return data;
 };
 
-// Recycle bin functions
-export const moveHealthRecordToRecycleBin = async (record: HealthRecord, deletedBy?: string, deletionReason: string = '记录去重'): Promise<void> => {
-  const { error: insertError } = await supabase.from('deleted_health_records').insert({
-    original_record_id: record.記錄id,
-    院友id: record.院友id,
-    記錄日期: record.記錄日期,
-    記錄時間: record.記錄時間,
-    記錄類型: record.記錄類型,
-    血壓收縮壓: record.血壓收縮壓,
-    血壓舒張壓: record.血壓舒張壓,
-    脈搏: record.脈搏,
-    體溫: record.體溫,
-    血含氧量: record.血含氧量,
-    呼吸頻率: record.呼吸頻率,
-    血糖值: record.血糖值,
-    體重: record.體重,
-    備註: record.備註,
-    記錄人員: record.記錄人員,
-    created_at: record.created_at,
-    deleted_by: deletedBy,
-    deletion_reason: deletionReason
-  });
-  if (insertError) console.warn('Recycle bin error:', insertError);
-  const { error: deleteError } = await supabase.from('健康記錄主表').delete().eq('記錄id', record.記錄id);
-  if (deleteError) throw deleteError;
-};
-
-export const getDeletedHealthRecords = async (): Promise<DeletedHealthRecord[]> => {
-  const { data, error } = await supabase.from('deleted_health_records').select('*').order('deleted_at', { ascending: false });
+// Care Records
+export const getPatrolRounds = async (): Promise<PatrolRound[]> => {
+  const { data, error } = await supabase.from('patrol_rounds').select('*').order('patrol_date', { ascending: false }).order('scheduled_time', { ascending: false });
   if (error) throw error;
   return data || [];
 };
 
-export const restoreHealthRecordFromRecycleBin = async (deletedRecordId: string): Promise<void> => {
-  const { data: deletedRecord, error: fetchError } = await supabase.from('deleted_health_records').select('*').eq('id', deletedRecordId).single();
-  if (fetchError || !deletedRecord) throw fetchError || new Error('Record not found');
-  const { error: insertError } = await supabase.from('健康記錄主表').insert({
-    院友id: deletedRecord.院友id,
-    記錄日期: deletedRecord.記錄日期,
-    記錄時間: deletedRecord.記錄時間,
-    記錄類型: deletedRecord.記錄類型,
-    血壓收縮壓: deletedRecord.血壓收縮壓,
-    血壓舒張壓: deletedRecord.血壓舒張壓,
-    脈搏: deletedRecord.脈搏,
-    體溫: deletedRecord.體溫,
-    血含氧量: deletedRecord.血含氧量,
-    呼吸頻率: deletedRecord.呼吸頻率,
-    血糖值: deletedRecord.血糖值,
-    體重: deletedRecord.體重,
-    備註: deletedRecord.備註,
-    記錄人員: deletedRecord.記錄人員
-  });
-  if (insertError) throw insertError;
-  const { error: deleteError } = await supabase.from('deleted_health_records').delete().eq('id', deletedRecordId);
-  if (deleteError) throw deleteError;
+export const createPatrolRound = async (round: Omit<PatrolRound, 'id' | 'created_at' | 'updated_at'>): Promise<PatrolRound> => {
+  const { data, error } = await supabase.from('patrol_rounds').insert([round]).select().single();
+  if (error) throw error;
+  return data;
 };
 
-export const permanentlyDeleteHealthRecord = async (deletedRecordId: string): Promise<void> => {
-  const { error } = await supabase.from('deleted_health_records').delete().eq('id', deletedRecordId);
+export const updatePatrolRound = async (round: PatrolRound): Promise<PatrolRound> => {
+  const { id, created_at, updated_at, ...updateData } = round;
+  const { data, error } = await supabase.from('patrol_rounds').update(updateData).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const deletePatrolRound = async (roundId: string): Promise<void> => {
+  const { error } = await supabase.from('patrol_rounds').delete().eq('id', roundId);
   if (error) throw error;
 };
 
-// Duplicate detection
-export const findDuplicateHealthRecords = async (): Promise<DuplicateRecordGroup[]> => {
-  let records: any[] = [];
-  const { data, error } = await supabase.from('健康記錄主表').select('*').order('created_at', { ascending: false }).limit(1000);
-  if (error) {
-    if (error.code === '42703') {
-      const result2 = await supabase.from('健康記錄主表').select('*').order('記錄id', { ascending: false }).limit(1000);
-      records = result2.data || [];
-    } else throw error;
-  } else records = data || [];
-
-  const recordGroups = new Map<string, HealthRecord[]>();
-  records.forEach((record) => {
-    const key = `${record.院友id}_${record.記錄日期}_${record.記錄時間}`;
-    if (!recordGroups.has(key)) recordGroups.set(key, []);
-    recordGroups.get(key)!.push(record);
-  });
-
-  const duplicateGroups: DuplicateRecordGroup[] = [];
-  recordGroups.forEach((groupRecords, key) => {
-    if (groupRecords.length < 2) return;
-    const valueGroups = new Map<string, HealthRecord[]>();
-    groupRecords.forEach((record) => {
-      const values = [];
-      if (record.血壓收縮壓 != null) values.push(`bp_sys:${record.血壓收縮壓}`);
-      if (record.血壓舒張壓 != null) values.push(`bp_dia:${record.血壓舒張壓}`);
-      if (record.脈搏 != null) values.push(`pulse:${record.脈搏}`);
-      if (record.體溫 != null) values.push(`temp:${record.體溫}`);
-      if (record.呼吸頻率 != null) values.push(`resp:${record.呼吸頻率}`);
-      if (record.血含氧量 != null) values.push(`spo2:${record.血含氧量}`);
-      if (record.血糖值 != null) values.push(`glucose:${record.血糖值}`);
-      if (record.體重 != null) values.push(`weight:${record.體重}`);
-      const valueKey = values.sort().join('|') || 'no_values';
-      if (!valueGroups.has(valueKey)) valueGroups.set(valueKey, []);
-      valueGroups.get(valueKey)!.push(record);
-    });
-    valueGroups.forEach((valueGroupRecords, valueKey) => {
-      if (valueGroupRecords.length >= 2) {
-        const sortedRecords = valueGroupRecords.sort((a, b) => (a.created_at && b.created_at) ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime() : a.記錄id - b.記錄id);
-        duplicateGroups.push({ key: `${key}_${valueKey}`, records: sortedRecords, keepRecord: sortedRecords[0], duplicateRecords: sortedRecords.slice(1) });
-      }
-    });
-  });
-  return duplicateGroups;
+export const getDiaperChangeRecords = async (): Promise<DiaperChangeRecord[]> => {
+  const { data, error } = await supabase.from('diaper_change_records').select('*').order('change_date', { ascending: false }).order('time_slot', { ascending: false });
+  if (error) throw error;
+  return data || [];
 };
 
-export const batchMoveDuplicatesToRecycleBin = async (duplicateRecordIds: number[], deletedBy?: string): Promise<void> => {
-  for (const recordId of duplicateRecordIds) {
-    const { data: record, error } = await supabase.from('健康記錄主表').select('*').eq('記錄id', recordId).maybeSingle();
-    if (record) await moveHealthRecordToRecycleBin(record, deletedBy, '記錄去重');
-  }
+export const createDiaperChangeRecord = async (record: Omit<DiaperChangeRecord, 'id' | 'created_at' | 'updated_at'>): Promise<DiaperChangeRecord> => {
+  const { data, error } = await supabase.from('diaper_change_records').insert([record]).select().single();
+  if (error) throw error;
+  return data;
 };
 
-// [新增] 核心功能：根據最新的有效記錄，重新計算任務狀態
+export const updateDiaperChangeRecord = async (record: DiaperChangeRecord): Promise<DiaperChangeRecord> => {
+  const { id, created_at, updated_at, ...updateData } = record;
+  const { data, error } = await supabase.from('diaper_change_records').update(updateData).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteDiaperChangeRecord = async (recordId: string): Promise<void> => {
+  const { error } = await supabase.from('diaper_change_records').delete().eq('id', recordId);
+  if (error) throw error;
+};
+
+export const getRestraintObservationRecords = async (): Promise<RestraintObservationRecord[]> => {
+  const { data, error } = await supabase.from('restraint_observation_records').select('*').order('observation_date', { ascending: false }).order('scheduled_time', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
+export const createRestraintObservationRecord = async (record: Omit<RestraintObservationRecord, 'id' | 'created_at' | 'updated_at'>): Promise<RestraintObservationRecord> => {
+  const { data, error } = await supabase.from('restraint_observation_records').insert([record]).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const updateRestraintObservationRecord = async (record: RestraintObservationRecord): Promise<RestraintObservationRecord> => {
+  const { id, created_at, updated_at, ...updateData } = record;
+  const { data, error } = await supabase.from('restraint_observation_records').update(updateData).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteRestraintObservationRecord = async (recordId: string): Promise<void> => {
+  const { error } = await supabase.from('restraint_observation_records').delete().eq('id', recordId);
+  if (error) throw error;
+};
+
+export const getPositionChangeRecords = async (): Promise<PositionChangeRecord[]> => {
+  const { data, error } = await supabase.from('position_change_records').select('*').order('change_date', { ascending: false }).order('scheduled_time', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
+export const createPositionChangeRecord = async (record: Omit<PositionChangeRecord, 'id' | 'created_at' | 'updated_at'>): Promise<PositionChangeRecord> => {
+  const { data, error } = await supabase.from('position_change_records').insert([record]).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const deletePositionChangeRecord = async (recordId: string): Promise<void> => {
+  const { error } = await supabase.from('position_change_records').delete().eq('id', recordId);
+  if (error) throw error;
+};
+
+// Date range filters for Care Records
+export const getPatrolRoundsInDateRange = async (startDate: string, endDate: string): Promise<PatrolRound[]> => {
+  const { data, error } = await supabase.from('patrol_rounds').select('*').gte('patrol_date', startDate).lte('patrol_date', endDate).order('patrol_date', { ascending: false }).order('scheduled_time', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
+export const getDiaperChangeRecordsInDateRange = async (startDate: string, endDate: string): Promise<DiaperChangeRecord[]> => {
+  const { data, error } = await supabase.from('diaper_change_records').select('*').gte('change_date', startDate).lte('change_date', endDate).order('change_date', { ascending: false }).order('time_slot', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
+export const getRestraintObservationRecordsInDateRange = async (startDate: string, endDate: string): Promise<RestraintObservationRecord[]> => {
+  const { data, error } = await supabase.from('restraint_observation_records').select('*').gte('observation_date', startDate).lte('observation_date', endDate).order('observation_date', { ascending: false }).order('scheduled_time', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
+export const getPositionChangeRecordsInDateRange = async (startDate: string, endDate: string): Promise<PositionChangeRecord[]> => {
+  const { data, error } = await supabase.from('position_change_records').select('*').gte('change_date', startDate).lte('change_date', endDate).order('change_date', { ascending: false }).order('scheduled_time', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
+// Template management
+export const getTemplatesMetadata = async () => {
+  const { data, error } = await supabase.from('templates_metadata').select('*').order('upload_date', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
+export const uploadTemplateFile = async (file: File, storagePath: string): Promise<string> => {
+  const { data, error } = await supabase.storage.from('templates').upload(storagePath, file, { cacheControl: '3600', upsert: false });
+  if (error) throw error;
+  return data.path;
+};
+
+export const createTemplateMetadata = async (metadata: any) => {
+  const { data, error } = await supabase.from('templates_metadata').insert([metadata]).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteTemplateMetadata = async (templateId: number): Promise<void> => {
+  const { error } = await supabase.from('templates_metadata').delete().eq('id', templateId);
+  if (error) throw error;
+};
+
+export const deleteFileFromStorage = async (storagePath: string): Promise<void> => {
+  const { error } = await supabase.storage.from('templates').remove([storagePath]);
+  if (error) throw error;
+};
+
+export const downloadTemplateFile = async (storagePath: string, originalName: string): Promise<void> => {
+  const { data, error } = await supabase.storage.from('templates').download(storagePath);
+  if (error) throw error;
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = originalName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+// Drug Database functions
+export async function getDrugDatabase() {
+  const { data, error } = await supabase.from('medication_drug_database').select('*').order('drug_name');
+  if (error) throw error;
+  return data || [];
+};
+
+export async function createDrug(drug: any) {
+  const { data, error } = await supabase.from('medication_drug_database').insert([drug]).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export async function updateDrug(drug: any) {
+  const { data, error } = await supabase.from('medication_drug_database').update(drug).eq('id', drug.id).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export async function deleteDrug(id: string) {
+  const { error } = await supabase.from('medication_drug_database').delete().eq('id', id);
+  if (error) throw error;
+};
+
+// [重要] 核心同步功能
 export const syncTaskStatus = async (taskId: string) => {
   console.log('🔄 開始同步任務狀態:', taskId);
-  
-  // [分界線設定] 早於此日期的記錄不參與同步計算
   const SYNC_CUTOFF_DATE = new Date('2025-01-01');
 
-  // 1. 獲取任務設定
   const { data: task, error: taskError } = await supabase.from('patient_health_tasks').select('*').eq('id', taskId).single();
   if (taskError || !task) { console.error('無法找到任務:', taskId); return; }
 
-  // 2. 找出這個任務「最新」的一筆有效記錄
   const { data: latestRecord } = await supabase.from('健康記錄主表').select('記錄日期, 記錄時間').eq('task_id', taskId).order('記錄日期', { ascending: false }).order('記錄時間', { ascending: false }).limit(1).maybeSingle();
 
   let updates = {};
@@ -1429,7 +1582,6 @@ export const syncTaskStatus = async (taskId: string) => {
     updates = { last_completed_at: null, next_due_at: resetDate.toISOString() };
   }
 
-  // 3. 更新資料庫
   const { error: updateError } = await supabase.from('patient_health_tasks').update(updates).eq('id', taskId);
   if (updateError) console.error('更新任務狀態失敗:', updateError);
 };
