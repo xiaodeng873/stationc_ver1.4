@@ -137,6 +137,16 @@ const Dashboard: React.FC = () => {
     setShowHealthRecordModal(true);
   };
 
+  // 打開歷史日曆 Modal
+  const handleHistoryClick = (e: React.MouseEvent, task: HealthTask) => {
+    e.stopPropagation(); 
+    const patient = patients.find(p => p.院友id === task.patient_id);
+    if (patient) {
+      setSelectedHistoryTask({ task, patient });
+      setShowHistoryModal(true);
+    }
+  };
+
   const isAnnualCheckupOverdue = (checkup: any): boolean => {
     if (!checkup.next_due_date) return false;
     const today = new Date();
@@ -223,7 +233,6 @@ const Dashboard: React.FC = () => {
     }).slice(0, 100);
   }, [monitoringTasks, patientsMap]);
 
-  // [修改] 使用 taskGroups 物件，不解構，避免 ReferenceError
   const taskGroups = useMemo(() => {
     const breakfast: typeof urgentMonitoringTasks = [];
     const lunch: typeof urgentMonitoringTasks = [];
@@ -240,6 +249,8 @@ const Dashboard: React.FC = () => {
     
     return { breakfast, lunch, dinner, snack };
   }, [urgentMonitoringTasks]);
+
+  const { breakfast: breakfastTasks, lunch: lunchTasks, dinner: dinnerTasks, snack: snackTasks } = taskGroups;
 
   const { overdueDocumentTasks, pendingDocumentTasks, dueSoonDocumentTasks } = useMemo(() => {
     const overdue: typeof documentTasks = [];
@@ -464,6 +475,9 @@ const Dashboard: React.FC = () => {
     const missedDate = findMostRecentMissedDate(task);
     const hasMissed = !!missedDate;
 
+    // 需求：如果沒有需要補錄 (沒缺漏)，完全不顯示按鈕
+    if (!hasMissed) return null;
+
     return (
       <div className="flex items-center ml-2 relative">
         <button
@@ -471,28 +485,23 @@ const Dashboard: React.FC = () => {
             e.stopPropagation(); 
             const patient = patients.find(p => p.院友id === task.patient_id);
             if (patient) {
-              // 如果有缺漏，傳入該日期，讓日曆顯示該月
+              // 傳入缺漏日期，讓日曆打開時顯示該月份
               setSelectedHistoryTask({ 
                 task, 
                 patient,
-                initialDate: missedDate // 傳給 Modal，讓它自動跳轉
+                initialDate: missedDate 
               });
               setShowHistoryModal(true);
             }
           }}
-          className={`p-2 rounded-full transition-all ${
-            hasMissed 
-              ? 'text-red-500 bg-red-50 hover:bg-red-100' 
-              : 'text-gray-400 hover:text-blue-600 hover:bg-white'
-          }`}
-          title={hasMissed ? "有缺漏記錄，點擊補錄" : "查看歷史記錄"}
+          // 樣式：原色 (灰色)，Hover 變色
+          className="p-2 rounded-full text-gray-400 hover:text-blue-600 hover:bg-gray-100 transition-all"
+          title="有缺漏記錄，點擊補錄"
         >
-          {/* 如果有缺漏，顯示 CalendarPlus 且有紅點 */}
           <div className="relative">
-            {hasMissed ? <CalendarPlus className="h-5 w-5" /> : <CalendarDays className="h-5 w-5" />}
-            {hasMissed && (
-              <span className="absolute -top-1 -right-1 block h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white" />
-            )}
+            <CalendarPlus className="h-5 w-5" />
+            {/* 只有紅點是紅色 */}
+            <span className="absolute -top-1 -right-1 block h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white" />
           </div>
         </button>
       </div>
@@ -533,10 +542,10 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="space-y-6 lg:space-y-3">
             {[
-              { title: "早餐 (07:00 - 09:59)", tasks: taskGroups.breakfast },
-              { title: "午餐 (10:00 - 12:59)", tasks: taskGroups.lunch },
-              { title: "晚餐 (13:00 - 17:59)", tasks: taskGroups.dinner },
-              { title: "夜宵 (18:00 - 20:00)", tasks: taskGroups.snack }
+              { title: "早餐 (07:00 - 09:59)", tasks: breakfastTasks },
+              { title: "午餐 (10:00 - 12:59)", tasks: lunchTasks },
+              { title: "晚餐 (13:00 - 17:59)", tasks: dinnerTasks },
+              { title: "夜宵 (18:00 - 20:00)", tasks: snackTasks }
             ].map((slot, idx) => (
               slot.tasks.length > 0 && (
                 <div key={idx}>
@@ -589,6 +598,7 @@ const Dashboard: React.FC = () => {
                               {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
                             </span>
                           </div>
+                          {/* 渲染補錄按鈕 */}
                           {renderTaskHistoryButton(task)}
                         </div>
                       );
@@ -597,7 +607,7 @@ const Dashboard: React.FC = () => {
                 </div>
               )
             ))}
-            {taskGroups.breakfast.length === 0 && taskGroups.lunch.length === 0 && taskGroups.dinner.length === 0 && taskGroups.snack.length === 0 && (
+            {breakfastTasks.length === 0 && lunchTasks.length === 0 && dinnerTasks.length === 0 && snackTasks.length === 0 && (
               <div className="text-center py-8 text-gray-500">
                 <CheckSquare className="h-12 w-12 mx-auto mb-2 text-gray-300" />
                 <p>無待處理任務</p>
@@ -861,7 +871,7 @@ const Dashboard: React.FC = () => {
           onClose={() => setShowHistoryModal(false)}
           onDateSelect={(date) => {
             handleTaskClick(selectedHistoryTask.task, date);
-            // 選擇日期後關閉日曆，方便操作
+            // 選擇日期後關閉日曆
             setShowHistoryModal(false); 
           }}
         />
@@ -879,9 +889,9 @@ const Dashboard: React.FC = () => {
       {showFollowUpModal && selectedFollowUp && <FollowUpModal isOpen={showFollowUpModal} onClose={() => { setShowFollowUpModal(false); setSelectedFollowUp(null); }} appointment={selectedFollowUp} onUpdate={refreshData} />}
       {showRestraintAssessmentModal && selectedRestraintAssessment && <RestraintAssessmentModal isOpen={showRestraintAssessmentModal} onClose={() => { setShowRestraintAssessmentModal(false); setSelectedRestraintAssessment(null); }} assessment={selectedRestraintAssessment} onUpdate={refreshData} />}
       {showHealthAssessmentModal && selectedHealthAssessment && <HealthAssessmentModal isOpen={showHealthAssessmentModal} onClose={() => { setShowHealthAssessmentModal(false); setSelectedHealthAssessment(null); }} assessment={selectedHealthAssessment} onUpdate={refreshData} />}
+      {showAnnualCheckupModal && <AnnualHealthCheckupModal checkup={selectedAnnualCheckup} onClose={() => { setShowAnnualCheckupModal(false); setSelectedAnnualCheckup(null); setPrefilledAnnualCheckupPatientId(null); }} onSave={refreshData} prefilledPatientId={prefilledAnnualCheckupPatientId} />}
       {showTaskModal && selectedPatientForTask && selectedTaskType && <TaskModal isOpen={showTaskModal} onClose={() => { setShowTaskModal(false); setSelectedPatientForTask(null); setSelectedTaskType(null); }} patient={selectedPatientForTask} defaultTaskType={selectedTaskType} defaultTaskData={{ health_record_type: selectedTaskType, notes: selectedTaskType === '生命表徵' ? '定期' : '', is_recurring: selectedTaskType === '生命表徵' }} onUpdate={refreshData} />}
       {showMealGuidanceModal && selectedPatientForMeal && <MealGuidanceModal isOpen={showMealGuidanceModal} onClose={() => { setShowMealGuidanceModal(false); setSelectedPatientForMeal(null); }} patient={selectedPatientForMeal} defaultGuidanceData={{ meal_combination: '正飯+正餸', special_diets: [], needs_thickener: false, thickener_amount: '', egg_quantity: undefined, remarks: '', guidance_date: '', guidance_source: '' }} onUpdate={refreshData} />}
-      {showAnnualCheckupModal && <AnnualHealthCheckupModal checkup={selectedAnnualCheckup} onClose={() => { setShowAnnualCheckupModal(false); setSelectedAnnualCheckup(null); setPrefilledAnnualCheckupPatientId(null); }} onSave={refreshData} prefilledPatientId={prefilledAnnualCheckupPatientId} />}
       {showPatientModal && <PatientModal patient={selectedPatientForEdit} onClose={() => { setShowPatientModal(false); setSelectedPatientForEdit(null); refreshData(); }} />}
       {showVaccinationModal && <VaccinationRecordModal patientId={selectedPatientForVaccination?.院友id} onClose={() => { setShowVaccinationModal(false); setSelectedPatientForVaccination(null); }} />}
     </div>
