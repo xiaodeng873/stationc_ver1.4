@@ -7,7 +7,7 @@ interface TaskHistoryModalProps {
   patient: any;
   healthRecords: any[];
   initialDate?: Date | null;
-  cutoffDateStr?: string; // [新增]
+  cutoffDateStr?: string;
   onClose: () => void;
   onDateSelect: (date: string) => void;
 }
@@ -17,7 +17,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
   patient, 
   healthRecords, 
   initialDate,
-  cutoffDateStr, // [新增]
+  cutoffDateStr,
   onClose, 
   onDateSelect 
 }) => {
@@ -39,44 +39,39 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
+  // 判斷每一天的狀態
   const getDayStatus = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const checkDate = new Date(year, month, day);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // [新增] 早於 Cutoff Date 的日子視為無排程 (除非已完成)
-    if (cutoffDateStr && dateStr <= cutoffDateStr) {
-       // 檢查是否已完成，如果是，顯示綠點
-       const hasRecord = healthRecords.some(r => {
-        if (r.task_id === task.id) return r.記錄日期 === dateStr;
-        return r.院友id.toString() === task.patient_id && 
-               r.記錄類型 === task.health_record_type && 
-               r.記錄日期 === dateStr;
-      });
-      if (hasRecord) return 'completed';
-      return 'none';
-    }
-
-    // 1. 檢查是否有記錄 (綠點 - 已完成)
+    // [增強] 檢查是否有記錄 (使用寬鬆 ID 比對 toString)
     const hasRecord = healthRecords.some(r => {
-      if (r.task_id === task.id) return r.記錄日期 === dateStr;
-      return r.院友id.toString() === task.patient_id && 
+      // 1. 優先檢查 task_id
+      if (r.task_id && r.task_id === task.id) return r.記錄日期 === dateStr;
+      
+      // 2. 相容舊資料：檢查 病人+類型+日期
+      // 這裡轉成 string 確保數字與字串 ID 能正確比對
+      return r.院友id.toString() == task.patient_id.toString() && 
              r.記錄類型 === task.health_record_type && 
              r.記錄日期 === dateStr;
     });
 
     if (hasRecord) return 'completed';
 
-    // 2. 未來日期不顯示狀態
+    // Cutoff 檢查：早於 Cutoff 的如果不顯示為已完成，則視為無狀態 (不紅點)
+    if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
+
+    // 未來日期不顯示狀態
     if (checkDate > today) return 'future';
 
-    // 3. 檢查是否應該有任務 (紅點 - 缺漏)
+    // 檢查是否應該有任務 (紅點 - 缺漏)
     const isScheduled = isTaskScheduledForDate(task, checkDate);
 
     if (isScheduled) {
-      if (checkDate.getTime() === today.getTime()) return 'pending';
-      return 'missed';
+      if (checkDate.getTime() === today.getTime()) return 'pending'; // 今天待辦
+      return 'missed'; // 過去缺漏
     }
 
     return 'none';
