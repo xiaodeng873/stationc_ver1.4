@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { isTaskScheduledForDate } from '../utils/taskScheduler';
 
@@ -6,7 +6,7 @@ interface TaskHistoryModalProps {
   task: any;
   patient: any;
   healthRecords: any[];
-  initialDate?: Date | null; // [新增] 允許指定初始日期
+  initialDate?: Date | null;
   onClose: () => void;
   onDateSelect: (date: string) => void;
 }
@@ -19,7 +19,6 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
   onClose, 
   onDateSelect 
 }) => {
-  // 如果有 initialDate，就顯示該月，否則顯示當前月份
   const [currentDate, setCurrentDate] = useState(initialDate || new Date());
 
   const getDaysInMonth = (year: number, month: number) => {
@@ -66,7 +65,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
       return 'missed'; // 過去缺漏
     }
 
-    return 'none'; // 無排程
+    return 'none';
   };
 
   const renderCalendarDays = () => {
@@ -84,23 +83,19 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
       
       let statusStyle = '';
       let dot = null;
-      // 只有 缺漏(missed) 和 待辦(pending) 可點擊
       let isClickable = false;
 
       switch (status) {
         case 'completed':
-          // 已完成：不可點 (符合需求 "無需補錄的日子不能點開")
           statusStyle = 'text-gray-400 cursor-default opacity-60';
           dot = <div className="w-1.5 h-1.5 rounded-full bg-green-500 mx-auto mt-1"></div>;
           break;
         case 'missed':
-          // 缺漏：可點擊補錄
           statusStyle = 'hover:bg-red-50 cursor-pointer font-medium text-red-700 bg-red-50/30';
           dot = <div className="w-1.5 h-1.5 rounded-full bg-red-500 mx-auto mt-1"></div>;
           isClickable = true;
           break;
         case 'pending':
-          // 今天待辦：可點擊
           statusStyle = 'hover:bg-blue-50 cursor-pointer font-medium text-blue-700';
           dot = <div className="w-1.5 h-1.5 rounded-full border border-blue-500 mx-auto mt-1"></div>;
           isClickable = true;
@@ -108,9 +103,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
         case 'future':
           statusStyle = 'text-gray-300 cursor-default';
           break;
-        case 'none':
         default:
-          // 無排程：不可點
           statusStyle = 'text-gray-300 cursor-default';
           break;
       }
@@ -137,10 +130,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     <div 
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]"
       onClick={(e) => {
-        // [修改] 點擊背景關閉
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
+        if (e.target === e.currentTarget) onClose();
       }}
     >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
