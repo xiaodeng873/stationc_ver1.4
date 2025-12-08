@@ -789,7 +789,7 @@ const HealthAssessment: React.FC = () => {
                   </span>
                 )}
               </button>
-              <span>顯示 {startIndex + 1}-{Math.min(endIndex, totalItems)} / {totalItems} 筆監測記錄</span>
+             
               {(searchTerm || hasAdvancedFilters()) && (
                 <button
                   onClick={clearFilters}
