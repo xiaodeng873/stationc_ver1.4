@@ -1485,13 +1485,228 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  const prepareMedication = async (recordId: string, staffId: string) => { /* Placeholder */ };
-  const verifyMedication = async (recordId: string, staffId: string) => { /* Placeholder */ };
-  const dispenseMedication = async (recordId: string, staffId: string, failureReason?: string, customReason?: string, newVitalSignData?: Omit<db.HealthRecord, '記錄id'>) => { /* Placeholder */ };
-  const checkPrescriptionInspectionRules = async (id: string, pid: number) => { return { canDispense: true, blockedRules: [], usedVitalSignData: {} }; };
-  const fetchLatestVitalSigns = async (pid: number, type: string) => { return null; };
-  const batchSetDispenseFailure = async (pid: number, date: string, time: string, reason: string) => { /* Placeholder */ };
-  const revertPrescriptionWorkflowStep = async (rid: string, step: any) => { /* Placeholder */ };
+  const prepareMedication = async (
+    recordId: string,
+    staffId: string,
+    _unused1?: any,
+    _unused2?: any,
+    patientId?: number,
+    scheduledDate?: string
+  ) => {
+    try {
+      const updateData = {
+        preparation_status: 'completed' as const,
+        preparation_staff: staffId,
+        preparation_time: new Date().toISOString()
+      };
+
+      await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
+      await fetchPrescriptionWorkflowRecords();
+    } catch (error) {
+      console.error('執藥操作失敗:', error);
+      throw error;
+    }
+  };
+
+  const verifyMedication = async (
+    recordId: string,
+    staffId: string,
+    _unused1?: any,
+    _unused2?: any,
+    patientId?: number,
+    scheduledDate?: string
+  ) => {
+    try {
+      const updateData = {
+        verification_status: 'completed' as const,
+        verification_staff: staffId,
+        verification_time: new Date().toISOString()
+      };
+
+      await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
+      await fetchPrescriptionWorkflowRecords();
+    } catch (error) {
+      console.error('核藥操作失敗:', error);
+      throw error;
+    }
+  };
+
+  const dispenseMedication = async (
+    recordId: string,
+    staffId: string,
+    failureReason?: string,
+    customReason?: string,
+    patientId?: number,
+    scheduledDate?: string,
+    notes?: string,
+    inspectionCheckResult?: any
+  ) => {
+    try {
+      const updateData: any = {
+        dispensing_staff: staffId,
+        dispensing_time: new Date().toISOString()
+      };
+
+      if (failureReason) {
+        updateData.dispensing_status = 'failed';
+        updateData.dispensing_failure_reason = failureReason;
+        if (customReason) {
+          updateData.custom_failure_reason = customReason;
+        }
+      } else {
+        updateData.dispensing_status = 'completed';
+        updateData.dispensing_failure_reason = null;
+        updateData.custom_failure_reason = null;
+      }
+
+      if (notes) {
+        updateData.notes = notes;
+      }
+
+      if (inspectionCheckResult) {
+        updateData.inspection_check_result = inspectionCheckResult;
+      }
+
+      await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
+      await fetchPrescriptionWorkflowRecords();
+    } catch (error) {
+      console.error('派藥操作失敗:', error);
+      throw error;
+    }
+  };
+
+  const checkPrescriptionInspectionRules = async (prescriptionId: string, patientId: number) => {
+    try {
+      const prescription = prescriptions.find(p => p.id === prescriptionId);
+      if (!prescription || !prescription.inspection_rules || prescription.inspection_rules.length === 0) {
+        return { canDispense: true, blockedRules: [], usedVitalSignData: {} };
+      }
+
+      const latestVitalSigns = await db.getHealthRecords(patientId);
+      if (!latestVitalSigns || latestVitalSigns.length === 0) {
+        return { canDispense: false, blockedRules: [], usedVitalSignData: {} };
+      }
+
+      const blockedRules: any[] = [];
+      const usedVitalSignData: any = {};
+
+      for (const rule of prescription.inspection_rules) {
+        const vitalSign = latestVitalSigns.find(vs => vs.生命表徵類型 === rule.vital_sign_type);
+        if (vitalSign) {
+          usedVitalSignData[rule.vital_sign_type] = vitalSign.數值;
+
+          const value = parseFloat(vitalSign.數值 || '0');
+          const min = rule.min_value !== null ? parseFloat(rule.min_value) : null;
+          const max = rule.max_value !== null ? parseFloat(rule.max_value) : null;
+
+          if ((min !== null && value < min) || (max !== null && value > max)) {
+            blockedRules.push({
+              vital_sign_type: rule.vital_sign_type,
+              actual_value: vitalSign.數值,
+              min_value: rule.min_value,
+              max_value: rule.max_value
+            });
+          }
+        }
+      }
+
+      return {
+        canDispense: blockedRules.length === 0,
+        blockedRules,
+        usedVitalSignData
+      };
+    } catch (error) {
+      console.error('檢查檢測規則失敗:', error);
+      return { canDispense: false, blockedRules: [], usedVitalSignData: {} };
+    }
+  };
+
+  const fetchLatestVitalSigns = async (patientId: number, vitalSignType: string) => {
+    try {
+      const records = await db.getHealthRecords(patientId);
+      const filtered = records.filter(r => r.生命表徵類型 === vitalSignType);
+      if (filtered.length === 0) return null;
+
+      filtered.sort((a, b) => {
+        const dateA = new Date(`${a.量度日期}T${a.量度時間 || '00:00:00'}`);
+        const dateB = new Date(`${b.量度日期}T${b.量度時間 || '00:00:00'}`);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      return filtered[0];
+    } catch (error) {
+      console.error('獲取最新生命表徵失敗:', error);
+      return null;
+    }
+  };
+
+  const batchSetDispenseFailure = async (
+    patientId: number,
+    date: string,
+    time: string,
+    reason: string,
+    customReason?: string
+  ) => {
+    try {
+      const records = prescriptionWorkflowRecords.filter(
+        r => r.patient_id === patientId &&
+        r.scheduled_date === date &&
+        r.scheduled_time === time &&
+        r.dispensing_status === 'pending'
+      );
+
+      await Promise.all(
+        records.map(record =>
+          dispenseMedication(
+            record.id,
+            displayName || '未知',
+            reason,
+            customReason,
+            patientId,
+            date
+          )
+        )
+      );
+    } catch (error) {
+      console.error('批量設定派藥失敗:', error);
+      throw error;
+    }
+  };
+
+  const revertPrescriptionWorkflowStep = async (
+    recordId: string,
+    step: 'preparation' | 'verification' | 'dispensing',
+    patientId?: number,
+    scheduledDate?: string
+  ) => {
+    try {
+      const updateData: any = {};
+
+      if (step === 'preparation') {
+        updateData.preparation_status = 'pending';
+        updateData.preparation_staff = null;
+        updateData.preparation_time = null;
+      } else if (step === 'verification') {
+        updateData.verification_status = 'pending';
+        updateData.verification_staff = null;
+        updateData.verification_time = null;
+      } else if (step === 'dispensing') {
+        updateData.dispensing_status = 'pending';
+        updateData.dispensing_staff = null;
+        updateData.dispensing_time = null;
+        updateData.dispensing_failure_reason = null;
+        updateData.custom_failure_reason = null;
+        updateData.notes = null;
+        updateData.inspection_check_result = null;
+      }
+
+      await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
+      await fetchPrescriptionWorkflowRecords();
+    } catch (error) {
+      console.error('撤銷步驟失敗:', error);
+      throw error;
+    }
+  };
 
   const loadPrescriptionTimeSlotDefinitions = async () => {
     try {
