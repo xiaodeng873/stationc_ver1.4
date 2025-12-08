@@ -290,7 +290,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg max-w-4xl w-full p-6">
+        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               {formData.記錄類型 === '生命表徵' && <Activity className="h-5 w-5 text-blue-600" />}
@@ -398,7 +398,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                   {formData.isAbsent && (
                     <div className="mt-3 space-y-2">
                       <div className="flex items-center space-x-2">
-                        <label className={`text-sm whitespace-nowrap ${currentIsPatientHospitalized ? 'text-red-700' : 'text-orange-700'}`}>原因:</label>
+                        <label className={`text-sm ${currentIsPatientHospitalized ? 'text-red-700' : 'text-orange-700'}`}>原因:</label>
                         <select
                           value={formData.absenceReason}
                           onChange={(e) => handleAbsenceReasonChange(e.target.value)}
