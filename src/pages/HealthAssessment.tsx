@@ -627,15 +627,15 @@ const HealthAssessment: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="sticky top-0 bg-white z-30 py-4 border-b border-gray-200 shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-900">監測記錄</h1>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2 justify-end">
             {/* 匯出Excel按鈕 - 只在有選定時顯示 */}
             {selectedRows.size > 0 && (
               <div className="relative group">
                 <button
-                  className="btn-primary flex items-center space-x-2"
+                  className="btn-primary flex items-center space-x-2 whitespace-nowrap"
                   disabled={isExporting}
                 >
                   {isExporting ? (
@@ -676,42 +676,11 @@ const HealthAssessment: React.FC = () => {
               </div>
             )}
 
-            {/* 批量上傳按鈕 */}
-            <div className="relative group">
-              <button className="btn-secondary flex items-center space-x-2">
-                <Upload className="h-4 w-4" />
-                <span>批量上傳</span>
-              </button>
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                <button
-                  onClick={() => handleBatchUpload('生命表徵')}
-                  className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Activity className="h-4 w-4 text-blue-600" />
-                  <span>批量新增生命表徵</span>
-                </button>
-                <button
-                  onClick={() => handleBatchUpload('血糖控制')}
-                  className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Droplets className="h-4 w-4 text-red-600" />
-                  <span>批量新增血糖記錄</span>
-                </button>
-                <button
-                  onClick={() => handleBatchUpload('體重控制')}
-                  className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Scale className="h-4 w-4 text-green-600" />
-                  <span>批量新增體重記錄</span>
-                </button>
-              </div>
-            </div>
-
             {/* 其他功能下拉選單 */}
             <div className="relative">
               <button
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className="btn-secondary flex items-center space-x-2"
+                className="btn-secondary flex items-center space-x-2 whitespace-nowrap"
                 title="其他功能"
               >
                 <MoreVertical className="h-4 w-4" />
@@ -724,57 +693,97 @@ const HealthAssessment: React.FC = () => {
                     className="fixed inset-0 z-40"
                     onClick={() => setShowMoreMenu(false)}
                   />
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-[180px]">
-                    <button
-                      onClick={() => {
-                        handleDeduplicateRecords();
-                        setShowMoreMenu(false);
-                      }}
-                      disabled={isAnalyzingDuplicates}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 first:rounded-t-lg flex items-center space-x-2 disabled:opacity-50"
-                    >
-                      {isAnalyzingDuplicates ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                          <span>分析中...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-4 w-4" />
-                          <span>記錄去重</span>
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowRecycleBin(true);
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                    >
-                      <Recycle className="h-4 w-4" />
-                      <span>回收筒</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleGenerateRandomTemperatures();
-                        setShowMoreMenu(false);
-                      }}
-                      disabled={isGeneratingTemperature}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 last:rounded-b-lg flex items-center space-x-2 disabled:opacity-50"
-                    >
-                      {isGeneratingTemperature ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
-                          <span>生成中...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Thermometer className="h-4 w-4" />
-                          <span>一鍵生成體溫</span>
-                        </>
-                      )}
-                    </button>
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[70vh] overflow-y-auto">
+                    {/* 批量上傳子選單 */}
+                    <div className="border-b border-gray-200">
+                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        批量上傳
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleBatchUpload('生命表徵');
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <Activity className="h-4 w-4 text-blue-600" />
+                        <span>批量新增生命表徵</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleBatchUpload('血糖控制');
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <Droplets className="h-4 w-4 text-red-600" />
+                        <span>批量新增血糖記錄</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleBatchUpload('體重控制');
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <Scale className="h-4 w-4 text-green-600" />
+                        <span>批量新增體重記錄</span>
+                      </button>
+                    </div>
+
+                    {/* 其他功能 */}
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          handleDeduplicateRecords();
+                          setShowMoreMenu(false);
+                        }}
+                        disabled={isAnalyzingDuplicates}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2 disabled:opacity-50"
+                      >
+                        {isAnalyzingDuplicates ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                            <span>分析中...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4" />
+                            <span>記錄去重</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowRecycleBin(true);
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <Recycle className="h-4 w-4" />
+                        <span>回收筒</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleGenerateRandomTemperatures();
+                          setShowMoreMenu(false);
+                        }}
+                        disabled={isGeneratingTemperature}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 last:rounded-b-lg flex items-center space-x-2 disabled:opacity-50"
+                      >
+                        {isGeneratingTemperature ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
+                            <span>生成中...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Thermometer className="h-4 w-4" />
+                            <span>一鍵生成體溫</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
@@ -785,7 +794,7 @@ const HealthAssessment: React.FC = () => {
                 setSelectedRecord(null);
                 setShowModal(true);
               }}
-              className="btn-primary flex items-center space-x-2"
+              className="btn-primary flex items-center space-x-2 whitespace-nowrap"
             >
               <Plus className="h-4 w-4" />
               <span>新增記錄</span>
