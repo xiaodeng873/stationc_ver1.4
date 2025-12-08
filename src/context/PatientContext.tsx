@@ -1502,12 +1502,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
 
-      // 只重新獲取該院友的記錄，避免破壞週內過濾
-      if (patientId) {
-        await fetchPrescriptionWorkflowRecords(patientId);
-      } else {
-        await fetchPrescriptionWorkflowRecords();
-      }
+      // 直接更新內存中的記錄，避免重新查詢引入週外記錄
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(r => r.id === recordId ? { ...r, ...updateData } : r)
+      );
     } catch (error) {
       console.error('執藥操作失敗:', error);
       throw error;
@@ -1531,12 +1529,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
 
-      // 只重新獲取該院友的記錄，避免破壞週內過濾
-      if (patientId) {
-        await fetchPrescriptionWorkflowRecords(patientId);
-      } else {
-        await fetchPrescriptionWorkflowRecords();
-      }
+      // 直接更新內存中的記錄，避免重新查詢引入週外記錄
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(r => r.id === recordId ? { ...r, ...updateData } : r)
+      );
     } catch (error) {
       console.error('核藥操作失敗:', error);
       throw error;
@@ -1581,12 +1577,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
 
-      // 只重新獲取該院友的記錄，避免破壞週內過濾
-      if (patientId) {
-        await fetchPrescriptionWorkflowRecords(patientId);
-      } else {
-        await fetchPrescriptionWorkflowRecords();
-      }
+      // 直接更新內存中的記錄，避免重新查詢引入週外記錄
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(r => r.id === recordId ? { ...r, ...updateData } : r)
+      );
     } catch (error) {
       console.error('派藥操作失敗:', error);
       throw error;
@@ -1720,12 +1714,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
       await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
 
-      // 只重新獲取該院友的記錄，避免破壞週內過濾
-      if (patientId) {
-        await fetchPrescriptionWorkflowRecords(patientId);
-      } else {
-        await fetchPrescriptionWorkflowRecords();
-      }
+      // 直接更新內存中的記錄，避免重新查詢引入週外記錄
+      setPrescriptionWorkflowRecords(prev =>
+        prev.map(r => r.id === recordId ? { ...r, ...updateData } : r)
+      );
     } catch (error) {
       console.error('撤銷步驟失敗:', error);
       throw error;
