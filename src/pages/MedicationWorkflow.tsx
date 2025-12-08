@@ -806,7 +806,7 @@ const MedicationWorkflow: React.FC = () => {
     }
   }, [selectedPatientId, JSON.stringify(weekDates)]);
 
-  // 監聽 context 的 prescriptionWorkflowRecords 改變，合併/替換到本地 allWorkflowRecords
+  // 監聽 context 的 prescriptionWorkflowRecords 改變，只更新已存在的記錄，不引入週外記錄
   useEffect(() => {
     if (selectedPatientId) {
       setAllWorkflowRecords(prev => {
@@ -822,19 +822,27 @@ const MedicationWorkflow: React.FC = () => {
           return prev;
         }
 
-        // 獲取這次更新涉及的所有日期
-        const updatedDates = [...new Set(newRecords.map(r => r.scheduled_date))];
-        console.log(`📅 更新涉及的日期 (${updatedDates.length} 個):`, updatedDates);
+        // 只更新已存在的記錄（通過 ID 匹配），不引入新記錄
+        const prevIds = new Set(prev.map(r => r.id));
+        const recordsToUpdate = newRecords.filter(r => prevIds.has(r.id));
 
-        // 移除這些日期的舊記錄
-        const filteredPrev = prev.filter(r => !updatedDates.includes(r.scheduled_date));
-        console.log(`  移除舊記錄後: ${prev.length} -> ${filteredPrev.length}`);
+        console.log(`📝 需要更新的記錄數: ${recordsToUpdate.length}`);
 
-        const merged = [...filteredPrev, ...newRecords];
-        console.log(`📝 合併後記錄數: ${merged.length}`);
-        console.log(`  合併記錄的日期分布:`, [...new Set(merged.map(r => r.scheduled_date))]);
+        if (recordsToUpdate.length === 0) {
+          console.log('⚠️ 沒有需要更新的記錄，保持現有記錄');
+          return prev;
+        }
 
-        return merged;
+        // 創建更新映射
+        const updateMap = new Map(recordsToUpdate.map(r => [r.id, r]));
+
+        // 更新現有記錄
+        const updated = prev.map(r => updateMap.has(r.id) ? updateMap.get(r.id)! : r);
+
+        console.log(`✅ 更新後記錄數: ${updated.length} (保持不變)`);
+        console.log(`  記錄的日期範圍:`, [...new Set(updated.map(r => r.scheduled_date))]);
+
+        return updated;
       });
     }
   }, [prescriptionWorkflowRecords, selectedPatientId]);
