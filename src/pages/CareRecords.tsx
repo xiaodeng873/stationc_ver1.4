@@ -12,12 +12,7 @@ import {
   Droplets,
   GraduationCap,
   Plus,
-  X,
-  MoreVertical,
-  Download,
-  Trash2,
-  Copy,
-  Thermometer
+  X
 } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
@@ -81,8 +76,6 @@ const CareRecords: React.FC = () => {
 
   const [patientCareTabs, setPatientCareTabs] = useState<PatientCareTab[]>([]);
   const [showAddTabMenu, setShowAddTabMenu] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set());
 
   const weekDates = useMemo(() => generateWeekDates(weekStartDate), [weekStartDate]);
 
@@ -241,25 +234,6 @@ const CareRecords: React.FC = () => {
     } else if (sortedActivePatients.length > 0) {
       setSelectedPatientId(sortedActivePatients[0].院友id.toString());
     }
-  };
-
-  const handleDeduplicate = () => {
-    alert('記錄去重功能開發中...');
-    setShowMoreMenu(false);
-  };
-
-  const handleRecycleBin = () => {
-    alert('回收筒功能開發中...');
-    setShowMoreMenu(false);
-  };
-
-  const handleGenerateTemperature = () => {
-    alert('一鍵生成體溫功能開發中...');
-    setShowMoreMenu(false);
-  };
-
-  const handleExportExcel = () => {
-    alert('匯出Excel功能開發中...');
   };
 
   const calculateAge = (birthDate: string) => {
@@ -768,62 +742,6 @@ const CareRecords: React.FC = () => {
               <RefreshCw className="h-4 w-4" />
               <span>重新整理</span>
             </button>
-
-            {/* 匯出Excel按鈕 - 只在有選定時顯示 */}
-            {selectedRecords.size > 0 && (
-              <button
-                onClick={handleExportExcel}
-                className="btn-primary flex items-center space-x-1"
-                title="匯出選定記錄"
-              >
-                <Download className="h-4 w-4" />
-                <span>匯出Excel</span>
-              </button>
-            )}
-
-            {/* 其他功能下拉選單 */}
-            <div className="relative">
-              <button
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className="btn-secondary flex items-center space-x-1"
-                title="其他功能"
-              >
-                <MoreVertical className="h-4 w-4" />
-                <span>其他功能</span>
-              </button>
-
-              {showMoreMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowMoreMenu(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-[180px]">
-                    <button
-                      onClick={handleDeduplicate}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 first:rounded-t-lg flex items-center space-x-2"
-                    >
-                      <Copy className="h-4 w-4" />
-                      <span>記錄去重</span>
-                    </button>
-                    <button
-                      onClick={handleRecycleBin}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>回收筒</span>
-                    </button>
-                    <button
-                      onClick={handleGenerateTemperature}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 last:rounded-b-lg flex items-center space-x-2"
-                    >
-                      <Thermometer className="h-4 w-4" />
-                      <span>一鍵生成體溫</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
           </div>
         </div>
       </div>
