@@ -1501,7 +1501,13 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       };
 
       await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
-      await fetchPrescriptionWorkflowRecords();
+
+      // 只重新獲取該院友的記錄，避免破壞週內過濾
+      if (patientId) {
+        await fetchPrescriptionWorkflowRecords(patientId);
+      } else {
+        await fetchPrescriptionWorkflowRecords();
+      }
     } catch (error) {
       console.error('執藥操作失敗:', error);
       throw error;
@@ -1524,7 +1530,13 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       };
 
       await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
-      await fetchPrescriptionWorkflowRecords();
+
+      // 只重新獲取該院友的記錄，避免破壞週內過濾
+      if (patientId) {
+        await fetchPrescriptionWorkflowRecords(patientId);
+      } else {
+        await fetchPrescriptionWorkflowRecords();
+      }
     } catch (error) {
       console.error('核藥操作失敗:', error);
       throw error;
@@ -1568,7 +1580,13 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
 
       await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
-      await fetchPrescriptionWorkflowRecords();
+
+      // 只重新獲取該院友的記錄，避免破壞週內過濾
+      if (patientId) {
+        await fetchPrescriptionWorkflowRecords(patientId);
+      } else {
+        await fetchPrescriptionWorkflowRecords();
+      }
     } catch (error) {
       console.error('派藥操作失敗:', error);
       throw error;
@@ -1701,7 +1719,13 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
 
       await db.updateMedicationWorkflowRecord({ id: recordId, ...updateData } as any);
-      await fetchPrescriptionWorkflowRecords();
+
+      // 只重新獲取該院友的記錄，避免破壞週內過濾
+      if (patientId) {
+        await fetchPrescriptionWorkflowRecords(patientId);
+      } else {
+        await fetchPrescriptionWorkflowRecords();
+      }
     } catch (error) {
       console.error('撤銷步驟失敗:', error);
       throw error;
