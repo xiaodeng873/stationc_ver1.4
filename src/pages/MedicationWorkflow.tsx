@@ -449,6 +449,13 @@ const MedicationWorkflow: React.FC = () => {
   const dateMenuRef = useRef<HTMLDivElement>(null);
   const generationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  // 拖曳滑動相關狀態
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startTime, setStartTime] = useState(0);
+  const [dragVelocity, setDragVelocity] = useState(0);
+
   // 計算一週日期（周日開始）
   const computeWeekDates = (dateStr: string): string[] => {
     const date = new Date(dateStr);
@@ -2631,6 +2638,90 @@ const MedicationWorkflow: React.FC = () => {
     setSelectedDate(getTodayLocalDate());
   };
 
+  // 週次導航
+  const goToPreviousWeek = () => {
+    const date = new Date(selectedDate);
+    date.setDate(date.getDate() - 7);
+    setSelectedDate(date.toISOString().split('T')[0]);
+  };
+
+  const goToNextWeek = () => {
+    const date = new Date(selectedDate);
+    date.setDate(date.getDate() + 7);
+    setSelectedDate(date.toISOString().split('T')[0]);
+  };
+
+  // 拖曳滑動事件處理
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setStartX(e.clientX);
+    setStartTime(Date.now());
+    if (tableContainerRef.current) {
+      tableContainerRef.current.style.cursor = 'grabbing';
+      tableContainerRef.current.style.userSelect = 'none';
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    const deltaX = e.clientX - startX;
+    const deltaTime = Date.now() - startTime;
+    if (deltaTime > 0) {
+      setDragVelocity(deltaX / deltaTime);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    if (tableContainerRef.current) {
+      tableContainerRef.current.style.cursor = 'grab';
+      tableContainerRef.current.style.userSelect = 'auto';
+    }
+
+    // 檢測慣性滑動
+    const velocityThreshold = 0.5;
+    if (Math.abs(dragVelocity) > velocityThreshold) {
+      if (dragVelocity > 0) {
+        goToPreviousWeek();
+      } else {
+        goToNextWeek();
+      }
+    }
+    setDragVelocity(0);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsDragging(true);
+    setStartX(e.touches[0].clientX);
+    setStartTime(Date.now());
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    const deltaX = e.touches[0].clientX - startX;
+    const deltaTime = Date.now() - startTime;
+    if (deltaTime > 0) {
+      setDragVelocity(deltaX / deltaTime);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+
+    // 檢測慣性滑動
+    const velocityThreshold = 0.5;
+    if (Math.abs(dragVelocity) > velocityThreshold) {
+      if (dragVelocity > 0) {
+        goToPreviousWeek();
+      } else {
+        goToNextWeek();
+      }
+    }
+    setDragVelocity(0);
+  };
+
   // 診斷工作流程顯示問題
   const handleDiagnose = async () => {
     const patientIdNum = parseInt(selectedPatientId);
@@ -2841,75 +2932,24 @@ const MedicationWorkflow: React.FC = () => {
               </div>
             </div>
 
-            {/* 第二行：藥物安全資訊 */}
+            {/* 第二行：院友資訊卡（包含藥物安全資訊） */}
             {selectedPatient && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Shield className="h-4 w-4 text-blue-600" />
-                  <h3 className="text-sm font-semibold text-gray-900">藥物安全資訊</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {/* 藥物敏感 */}
-                  <div>
-                    <div className="flex items-center space-x-2 flex-wrap">
-                      <AlertTriangle className="h-4 w-4 text-orange-600 flex-shrink-0" />
-                      <h4 className="text-sm font-medium text-orange-900">藥物敏感</h4>
-                      {(!selectedPatient.藥物敏感 || selectedPatient.藥物敏感.length === 0) ? (
-                        <span className="text-xs text-gray-500 ml-2">無記錄</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1 ml-2">
-                          {selectedPatient.藥物敏感.map((allergy: string, index: number) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800 border border-orange-200"
-                            >
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              {allergy}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 不良藥物反應 */}
-                  <div>
-                    <div className="flex items-center space-x-2 flex-wrap">
-                      <Heart className="h-4 w-4 text-red-600 flex-shrink-0" />
-                      <h4 className="text-sm font-medium text-red-900">不良藥物反應</h4>
-                      {(!selectedPatient.不良藥物反應 || selectedPatient.不良藥物反應.length === 0) ? (
-                        <span className="text-xs text-gray-500 ml-2">無記錄</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1 ml-2">
-                          {selectedPatient.不良藥物反應.map((reaction: string, index: number) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800 border border-red-200"
-                            >
-                              <Heart className="h-3 w-3 mr-1" />
-                              {reaction}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 第三行：院友資訊卡 */}
-            <div>
               <PatientInfoCard
                 patient={selectedPatient}
-                onToggleCrushMedication={(patientId, needsCrushing) => {
-                  if (selectedPatient) {
+                onToggleCrushMedication={async (patientId, needsCrushing) => {
+                  const { data: updatedPatient } = await supabase
+                    .from('院友主表')
+                    .select('*')
+                    .eq('院友id', patientId)
+                    .single();
+
+                  if (updatedPatient && selectedPatient) {
                     selectedPatient.needs_medication_crushing = needsCrushing;
+                    setSelectedPatientId(patientId.toString());
                   }
                 }}
               />
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -2965,7 +3005,36 @@ const MedicationWorkflow: React.FC = () => {
               </div>
 
               {filteredPrescriptions.length > 0 ? (
-                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)]">
+                <div className="relative">
+                  {/* 左側週次導航按鈕 */}
+                  <button
+                    onClick={goToPreviousWeek}
+                    className="fixed left-4 top-1/2 -translate-y-1/2 z-20 bg-white/80 hover:bg-white shadow-lg rounded-full p-3 transition-all duration-200 hover:scale-110"
+                    title="上週"
+                  >
+                    <ChevronLeft className="h-6 w-6 text-gray-700" />
+                  </button>
+
+                  {/* 右側週次導航按鈕 */}
+                  <button
+                    onClick={goToNextWeek}
+                    className="fixed right-4 top-1/2 -translate-y-1/2 z-20 bg-white/80 hover:bg-white shadow-lg rounded-full p-3 transition-all duration-200 hover:scale-110"
+                    title="下週"
+                  >
+                    <ChevronRight className="h-6 w-6 text-gray-700" />
+                  </button>
+
+                  <div
+                    ref={tableContainerRef}
+                    className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)] cursor-grab transition-transform duration-300"
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                  >
                 <table className="min-w-full">
                   <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                     <tr>
@@ -3021,40 +3090,27 @@ const MedicationWorkflow: React.FC = () => {
                       return (
                         <th
                           key={date}
-                          className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider transition-colors relative ${
+                          className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider transition-colors relative cursor-pointer ${
                             isSelectedDate ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-blue-50'
                           }`}
+                          onClick={() => {
+                            if (isMenuOpen) {
+                              setIsDateMenuOpen(false);
+                              setSelectedDateForMenu(null);
+                            } else {
+                              setIsDateMenuOpen(true);
+                              setSelectedDateForMenu(date);
+                            }
+                          }}
+                          title={`點擊展開選單 ${month}/${dayOfMonth}${hasOverdue ? ' (有逾期未完成流程)' : ''}`}
                         >
-                          <div
-                            className="cursor-pointer"
-                            onClick={() => setSelectedDate(date)}
-                            title={`點擊跳轉到 ${month}/${dayOfMonth}${hasOverdue ? ' (有逾期未完成流程)' : ''}`}
-                          >
+                          <div>
                             {month}/{dayOfMonth}<br/>({weekday})
                           </div>
 
-                          {/* 下拉選單按鈕 */}
-                          <div className="relative inline-block" ref={isMenuOpen ? dateMenuRef : null}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (isMenuOpen) {
-                                  setIsDateMenuOpen(false);
-                                  setSelectedDateForMenu(null);
-                                } else {
-                                  setIsDateMenuOpen(true);
-                                  setSelectedDateForMenu(date);
-                                }
-                              }}
-                              className="mt-1 p-1 rounded hover:bg-gray-200 transition-colors"
-                              title="一鍵操作選單"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
-
-                            {/* 下拉選單（向上展開） */}
-                            {isMenuOpen && (
-                              <div className="absolute bottom-full right-0 mb-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                          {/* 下拉選單（向上展開） */}
+                          {isMenuOpen && (
+                            <div className="absolute bottom-full right-0 mb-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999]" ref={dateMenuRef}>
                                 <div className="py-1">
                                   <button
                                     onClick={(e) => {
@@ -3134,7 +3190,6 @@ const MedicationWorkflow: React.FC = () => {
                                 </div>
                               </div>
                             )}
-                          </div>
 
                           {hasOverdue && (
                             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
@@ -3355,6 +3410,7 @@ const MedicationWorkflow: React.FC = () => {
                 </tbody>
               </table>
               </div>
+                </div>
               ) : (
                 <div className="text-center py-12">
                   <Filter className="h-16 w-16 mx-auto mb-4 text-gray-300" />
