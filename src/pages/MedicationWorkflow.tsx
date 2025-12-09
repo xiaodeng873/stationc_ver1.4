@@ -396,6 +396,7 @@ const MedicationWorkflow: React.FC = () => {
     dispenseMedication,
     checkPrescriptionInspectionRules,
     hospitalEpisodes,
+    refreshData,
     loading
   } = usePatients();
   const { displayName } = useAuth();
@@ -2942,9 +2943,7 @@ const MedicationWorkflow: React.FC = () => {
               <PatientInfoCard
                 patient={selectedPatient}
                 onToggleCrushMedication={async (patientId, needsCrushing) => {
-                  if (selectedPatient) {
-                    selectedPatient.needs_medication_crushing = needsCrushing;
-                  }
+                  await refreshData();
                 }}
               />
             )}
@@ -3109,7 +3108,7 @@ const MedicationWorkflow: React.FC = () => {
 
                           {/* 下拉選單（向上展開，使用固定定位避免被 overflow 裁切） */}
                           {isMenuOpen && (
-                            <div className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 z-[9999] mb-1"
+                            <div className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 z-[99999] mb-1"
                                  ref={dateMenuRef}
                                  style={{
                                    bottom: `${window.innerHeight - ((document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().top || 0)}px`,
