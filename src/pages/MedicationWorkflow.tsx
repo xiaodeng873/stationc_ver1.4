@@ -3029,9 +3029,7 @@ const MedicationWorkflow: React.FC = () => {
                 </div>
                 {/* 院友導航指示器 */}
                 {sortedActivePatients.length > 0 && selectedPatient && (
-                  <div className="mt-1 text-xs text-gray-600">
-                    第 {sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId) + 1} / {sortedActivePatients.length} 位 | 床號: {selectedPatient.床號}
-                  </div>
+            
                 )}
               </div>
 
