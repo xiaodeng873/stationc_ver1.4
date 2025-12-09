@@ -455,6 +455,7 @@ const MedicationWorkflow: React.FC = () => {
   const [startX, setStartX] = useState(0);
   const [startTime, setStartTime] = useState(0);
   const [dragVelocity, setDragVelocity] = useState(0);
+  const [dragDistance, setDragDistance] = useState(0);
 
   // 計算一週日期（周日開始）
   const computeWeekDates = (dateStr: string): string[] => {
@@ -2656,6 +2657,7 @@ const MedicationWorkflow: React.FC = () => {
     setIsDragging(true);
     setStartX(e.clientX);
     setStartTime(Date.now());
+    setDragDistance(0);
     if (tableContainerRef.current) {
       tableContainerRef.current.style.cursor = 'grabbing';
       tableContainerRef.current.style.userSelect = 'none';
@@ -2665,6 +2667,7 @@ const MedicationWorkflow: React.FC = () => {
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
     const deltaX = e.clientX - startX;
+    setDragDistance(Math.abs(deltaX));
     const deltaTime = Date.now() - startTime;
     if (deltaTime > 0) {
       setDragVelocity(deltaX / deltaTime);
@@ -2679,27 +2682,33 @@ const MedicationWorkflow: React.FC = () => {
       tableContainerRef.current.style.userSelect = 'auto';
     }
 
-    // 檢測慣性滑動
+    // 只有在拖動距離大於 50px 才觸發週次切換
+    const dragThreshold = 50;
     const velocityThreshold = 0.5;
-    if (Math.abs(dragVelocity) > velocityThreshold) {
+
+    if (dragDistance > dragThreshold && Math.abs(dragVelocity) > velocityThreshold) {
       if (dragVelocity > 0) {
         goToPreviousWeek();
       } else {
         goToNextWeek();
       }
     }
+
     setDragVelocity(0);
+    setDragDistance(0);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setIsDragging(true);
     setStartX(e.touches[0].clientX);
     setStartTime(Date.now());
+    setDragDistance(0);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging) return;
     const deltaX = e.touches[0].clientX - startX;
+    setDragDistance(Math.abs(deltaX));
     const deltaTime = Date.now() - startTime;
     if (deltaTime > 0) {
       setDragVelocity(deltaX / deltaTime);
@@ -2710,16 +2719,20 @@ const MedicationWorkflow: React.FC = () => {
     if (!isDragging) return;
     setIsDragging(false);
 
-    // 檢測慣性滑動
+    // 只有在拖動距離大於 50px 才觸發週次切換
+    const dragThreshold = 50;
     const velocityThreshold = 0.5;
-    if (Math.abs(dragVelocity) > velocityThreshold) {
+
+    if (dragDistance > dragThreshold && Math.abs(dragVelocity) > velocityThreshold) {
       if (dragVelocity > 0) {
         goToPreviousWeek();
       } else {
         goToNextWeek();
       }
     }
+
     setDragVelocity(0);
+    setDragDistance(0);
   };
 
   // 診斷工作流程顯示問題
@@ -3026,14 +3039,7 @@ const MedicationWorkflow: React.FC = () => {
 
                   <div
                     ref={tableContainerRef}
-                    className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)] cursor-grab transition-transform duration-300"
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
+                    className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)]"
                   >
                 <table className="min-w-full">
                   <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
@@ -3090,21 +3096,28 @@ const MedicationWorkflow: React.FC = () => {
                       return (
                         <th
                           key={date}
-                          className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider transition-colors relative cursor-pointer ${
+                          className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider transition-colors relative ${
                             isSelectedDate ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-blue-50'
                           }`}
-                          onClick={() => {
-                            if (isMenuOpen) {
-                              setIsDateMenuOpen(false);
-                              setSelectedDateForMenu(null);
-                            } else {
-                              setIsDateMenuOpen(true);
-                              setSelectedDateForMenu(date);
-                            }
-                          }}
-                          title={`點擊展開選單 ${month}/${dayOfMonth}${hasOverdue ? ' (有逾期未完成流程)' : ''}`}
                         >
-                          <div>
+                          <div
+                            className="cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log('日期欄位被點擊:', date);
+                              console.log('當前選單狀態:', isMenuOpen);
+                              if (isMenuOpen) {
+                                console.log('關閉選單');
+                                setIsDateMenuOpen(false);
+                                setSelectedDateForMenu(null);
+                              } else {
+                                console.log('開啟選單');
+                                setIsDateMenuOpen(true);
+                                setSelectedDateForMenu(date);
+                              }
+                            }}
+                            title={`點擊展開選單 ${month}/${dayOfMonth}${hasOverdue ? ' (有逾期未完成流程)' : ''}`}
+                          >
                             {month}/{dayOfMonth}<br/>({weekday})
                           </div>
 
