@@ -445,6 +445,11 @@ const MedicationWorkflow: React.FC = () => {
   const [selectedDateForMenu, setSelectedDateForMenu] = useState<string | null>(null);
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
   const [optimisticCrushState, setOptimisticCrushState] = useState<Map<number, boolean>>(new Map());
+  const [optimisticWorkflowUpdates, setOptimisticWorkflowUpdates] = useState<Map<string, {
+    preparation_status?: string;
+    verification_status?: string;
+    dispensing_status?: string;
+  }>>(new Map());
 
   // 防抖控制：使用 ref 追蹤生成狀態，防止併發
   const isGeneratingRef = React.useRef(false);
@@ -697,6 +702,17 @@ const MedicationWorkflow: React.FC = () => {
       .sort((a, b) => a.床號.localeCompare(b.床號, 'zh-Hant', { numeric: true }));
   }, [patients]);
 
+  // 應用樂觀更新到工作流程記錄
+  const applyOptimisticUpdates = useCallback((records: any[]) => {
+    return records.map(record => {
+      const optimisticUpdate = optimisticWorkflowUpdates.get(record.id);
+      if (optimisticUpdate) {
+        return { ...record, ...optimisticUpdate };
+      }
+      return record;
+    });
+  }, [optimisticWorkflowUpdates]);
+
   // 預設選擇第一個在住院友
   useEffect(() => {
     if (!selectedPatientId && sortedActivePatients.length > 0) {
@@ -936,8 +952,15 @@ const MedicationWorkflow: React.FC = () => {
     });
     console.log(`📋 其中提前備藥記錄: ${advancedRecords.length} 筆`);
 
-    return filtered;
-  }, [allWorkflowRecords, selectedDate, selectedPatientId, prescriptions]);
+    // 應用樂觀更新
+    return filtered.map(record => {
+      const optimisticUpdate = optimisticWorkflowUpdates.get(record.id);
+      if (optimisticUpdate) {
+        return { ...record, ...optimisticUpdate };
+      }
+      return record;
+    });
+  }, [allWorkflowRecords, selectedDate, selectedPatientId, prescriptions, optimisticWorkflowUpdates]);
 
   // 獲取選中院友的在服處方（基於選取日期）
   const selectedPatient = useMemo(() => {
@@ -1373,11 +1396,38 @@ const MedicationWorkflow: React.FC = () => {
 
     const scheduledDate = record.scheduled_date;
 
+    // 樂觀更新：立即更新 UI
+    if (step === 'preparation') {
+      setOptimisticWorkflowUpdates(prev => {
+        const next = new Map(prev);
+        next.set(recordId, { ...prev.get(recordId), preparation_status: 'completed' });
+        return next;
+      });
+    } else if (step === 'verification') {
+      setOptimisticWorkflowUpdates(prev => {
+        const next = new Map(prev);
+        next.set(recordId, { ...prev.get(recordId), verification_status: 'completed' });
+        return next;
+      });
+    }
+
     try {
       if (step === 'preparation') {
         await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
+        // 清除樂觀更新狀態
+        setOptimisticWorkflowUpdates(prev => {
+          const next = new Map(prev);
+          next.delete(recordId);
+          return next;
+        });
       } else if (step === 'verification') {
         await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
+        // 清除樂觀更新狀態
+        setOptimisticWorkflowUpdates(prev => {
+          const next = new Map(prev);
+          next.delete(recordId);
+          return next;
+        });
       } else if (step === 'dispensing') {
         const prescription = prescriptions.find(p => p.id === record.prescription_id);
         const patient = patients.find(p => p.院友id === record.patient_id);
@@ -1398,6 +1448,13 @@ const MedicationWorkflow: React.FC = () => {
 
         // 如果在入院期間，直接寫入"入院"失敗，不彈出任何對話框
         if (inHospitalizationPeriod) {
+          // 樂觀更新
+          setOptimisticWorkflowUpdates(prev => {
+            const next = new Map(prev);
+            next.set(recordId, { ...prev.get(recordId), dispensing_status: 'failed' });
+            return next;
+          });
+
           const inspectionResult = {
             canDispense: false,
             isHospitalized: true,
@@ -1405,21 +1462,44 @@ const MedicationWorkflow: React.FC = () => {
             usedVitalSignData: {}
           };
 
-          await dispenseMedication(
-            record.id,
-            displayName || '未知',
-            '入院',
-            undefined,
-            patientIdNum,
-            scheduledDate,
-            undefined,
-            inspectionResult
-          );
+          try {
+            await dispenseMedication(
+              record.id,
+              displayName || '未知',
+              '入院',
+              undefined,
+              patientIdNum,
+              scheduledDate,
+              undefined,
+              inspectionResult
+            );
+            // 清除樂觀更新狀態
+            setOptimisticWorkflowUpdates(prev => {
+              const next = new Map(prev);
+              next.delete(recordId);
+              return next;
+            });
+          } catch (error) {
+            // 回滾樂觀更新
+            setOptimisticWorkflowUpdates(prev => {
+              const next = new Map(prev);
+              next.delete(recordId);
+              return next;
+            });
+            throw error;
+          }
           return;
         }
 
         // 如果在渡假期間，直接寫入"回家"失敗，不彈出任何對話框
         if (inVacationPeriod) {
+          // 樂觀更新
+          setOptimisticWorkflowUpdates(prev => {
+            const next = new Map(prev);
+            next.set(recordId, { ...prev.get(recordId), dispensing_status: 'failed' });
+            return next;
+          });
+
           const inspectionResult = {
             canDispense: false,
             isOnVacation: true,
@@ -1427,16 +1507,32 @@ const MedicationWorkflow: React.FC = () => {
             usedVitalSignData: {}
           };
 
-          await dispenseMedication(
-            record.id,
-            displayName || '未知',
-            '回家',
-            undefined,
-            patientIdNum,
-            scheduledDate,
-            undefined,
-            inspectionResult
-          );
+          try {
+            await dispenseMedication(
+              record.id,
+              displayName || '未知',
+              '回家',
+              undefined,
+              patientIdNum,
+              scheduledDate,
+              undefined,
+              inspectionResult
+            );
+            // 清除樂觀更新狀態
+            setOptimisticWorkflowUpdates(prev => {
+              const next = new Map(prev);
+              next.delete(recordId);
+              return next;
+            });
+          } catch (error) {
+            // 回滾樂觀更新
+            setOptimisticWorkflowUpdates(prev => {
+              const next = new Map(prev);
+              next.delete(recordId);
+              return next;
+            });
+            throw error;
+          }
           return;
         }
 
@@ -1459,6 +1555,14 @@ const MedicationWorkflow: React.FC = () => {
       }
     } catch (error) {
       console.error(`執行${step}失敗:`, error);
+      // 回滾樂觀更新
+      if (step === 'preparation' || step === 'verification') {
+        setOptimisticWorkflowUpdates(prev => {
+          const next = new Map(prev);
+          next.delete(recordId);
+          return next;
+        });
+      }
     }
   };
 
