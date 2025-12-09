@@ -3015,15 +3015,7 @@ const MedicationWorkflow: React.FC = () => {
               </div>
             </div>
 
-            {/* 遷移按鈕 */}
-            <button
-              onClick={() => {/* 遷移功能待實現 */}}
-              className="btn-secondary flex items-center gap-2 px-4 py-2 whitespace-nowrap"
-              title="處方遷移"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>遷移</span>
-            </button>
+         
           </div>
         </div>
       </div>
