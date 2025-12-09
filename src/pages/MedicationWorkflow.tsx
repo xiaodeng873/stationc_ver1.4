@@ -3030,7 +3030,7 @@ const MedicationWorkflow: React.FC = () => {
 
       {/* 院友資訊卡 */}
       {selectedPatient && (
-        <div className="sticky top-24 bg-white z-[15] shadow-sm">
+        <div className="sticky top-24 bg-white z-[5] shadow-sm">
           <div className="card p-4">
             <PatientInfoCard
               patient={selectedPatient}
@@ -3062,53 +3062,52 @@ const MedicationWorkflow: React.FC = () => {
         <div className="card overflow-hidden">
           {activePrescriptions.length > 0 ? (
             <>
-              {/* 備藥方式分類標籤（固定位置） */}
-              <div className="sticky top-48 z-10 bg-white border-b border-gray-200 shadow-sm">
-                <div className="flex space-x-1 p-2">
-                  <button
-                    onClick={() => setPreparationFilter('all')}
-                    className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      preparationFilter === 'all'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    全部 ({activePrescriptions.length})
-                    {preparationMethodOverdueCounts.all > 0 && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setPreparationFilter('advanced')}
-                    className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      preparationFilter === 'advanced'
-                        ? 'bg-green-100 text-green-700'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    提前備藥 ({activePrescriptions.filter(p => p.preparation_method === 'advanced').length})
-                    {preparationMethodOverdueCounts.advanced > 0 && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setPreparationFilter('immediate')}
-                    className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      preparationFilter === 'immediate'
-                        ? 'bg-orange-100 text-orange-700'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    即時備藥 ({activePrescriptions.filter(p => p.preparation_method === 'immediate').length})
-                    {preparationMethodOverdueCounts.immediate > 0 && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                    )}
-                  </button>
-                </div>
-              </div>
-
               {filteredPrescriptions.length > 0 ? (
                 <div className="relative">
+                  {/* 備藥方式分類標籤 - 在表格上方 */}
+                  <div className="border-b border-gray-200 bg-gray-50">
+                    <div className="flex space-x-1 p-2">
+                      <button
+                        onClick={() => setPreparationFilter('all')}
+                        className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          preparationFilter === 'all'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        全部 ({activePrescriptions.length})
+                        {preparationMethodOverdueCounts.all > 0 && (
+                          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setPreparationFilter('advanced')}
+                        className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          preparationFilter === 'advanced'
+                            ? 'bg-green-100 text-green-700'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        提前備藥 ({activePrescriptions.filter(p => p.preparation_method === 'advanced').length})
+                        {preparationMethodOverdueCounts.advanced > 0 && (
+                          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setPreparationFilter('immediate')}
+                        className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          preparationFilter === 'immediate'
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        即時備藥 ({activePrescriptions.filter(p => p.preparation_method === 'immediate').length})
+                        {preparationMethodOverdueCounts.immediate > 0 && (
+                          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                   {/* 左側週次導航按鈕 */}
                   <button
                     onClick={goToPreviousWeek}
