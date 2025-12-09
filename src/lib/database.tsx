@@ -791,6 +791,48 @@ export const deleteHealthRecord = async (recordId: number): Promise<void> => {
   if (error) { console.error('Error deleting health record:', error); throw error; }
 };
 
+export const getHealthRecordByDateTime = async (
+  patientId: number,
+  recordDate: string,
+  recordTime: string,
+  vitalSignType: string
+): Promise<HealthRecord | null> => {
+  const vitalSignTypeMap: Record<string, { recordType: '生命表徵' | '血糖控制' | '體重控制', field: keyof HealthRecord }> = {
+    '上壓': { recordType: '生命表徵', field: '血壓收縮壓' },
+    '下壓': { recordType: '生命表徵', field: '血壓舒張壓' },
+    '脈搏': { recordType: '生命表徵', field: '脈搏' },
+    '血糖值': { recordType: '血糖控制', field: '血糖值' },
+    '呼吸': { recordType: '生命表徵', field: '呼吸頻率' },
+    '血含氧量': { recordType: '生命表徵', field: '血含氧量' },
+    '體溫': { recordType: '生命表徵', field: '體溫' }
+  };
+
+  const mapping = vitalSignTypeMap[vitalSignType];
+  if (!mapping) {
+    console.warn(`Unknown vital sign type: ${vitalSignType}`);
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('健康記錄主表')
+    .select('*')
+    .eq('院友id', patientId)
+    .eq('記錄日期', recordDate)
+    .eq('記錄時間', recordTime)
+    .eq('記錄類型', mapping.recordType)
+    .not(mapping.field as string, 'is', null)
+    .order('記錄id', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching health record by date time:', error);
+    throw error;
+  }
+
+  return data as HealthRecord | null;
+};
+
 export const getHealthTasks = async (): Promise<PatientHealthTask[]> => {
   const { data, error } = await supabase.from('patient_health_tasks').select('*').order('next_due_at', { ascending: true });
   if (error) throw error;

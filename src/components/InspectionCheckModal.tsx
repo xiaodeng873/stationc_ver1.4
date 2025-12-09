@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { X, Activity, Droplets, Heart, Thermometer, Wind, Eye, AlertTriangle, CheckCircle, Plus, XCircle } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
+import HealthRecordModal from './HealthRecordModal';
 
 interface InspectionCheckModalProps {
   workflowRecord: any;
   onClose: () => void;
   onResult: (canDispense: boolean, failureReason?: string, inspectionCheckResult?: any) => void;
-  isBatchMode?: boolean; // 是否為批量派藥模式
-  batchProgress?: { current: number; total: number }; // 批量檢測進度
+  isBatchMode?: boolean;
+  batchProgress?: { current: number; total: number };
 }
 
 const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
@@ -23,37 +24,34 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     prescriptions,
     checkPrescriptionInspectionRules,
     fetchLatestVitalSigns,
-    addHealthRecord,
     dispenseMedication,
     hospitalEpisodes
   } = usePatients();
   const { displayName } = useAuth();
 
-  const [latestVitalSigns, setLatestVitalSigns] = useState<any>(null);
-  const [newVitalSignData, setNewVitalSignData] = useState<any>({});
-  const [useNewData, setUseNewData] = useState(false);
+  const [matchedRecords, setMatchedRecords] = useState<Record<string, { record: any; isMatched: boolean }>>({});
+  const [missingVitalSigns, setMissingVitalSigns] = useState<string[]>([]);
   const [checkResult, setCheckResult] = useState<any>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasNoRulesAndHandled, setHasNoRulesAndHandled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showHealthRecordModal, setShowHealthRecordModal] = useState(false);
+  const [currentAddingVitalSign, setCurrentAddingVitalSign] = useState<string | null>(null);
   const isMountedRef = React.useRef(true);
 
   const patient = patients.find(p => p.院友id === workflowRecord.patient_id);
   const prescription = prescriptions.find(p => p.id === workflowRecord.prescription_id);
   const isHospitalized = patient?.is_hospitalized || false;
 
-  // 判斷患者是否在渡假中
   const isOnVacation = hospitalEpisodes.some(episode => {
     if (episode.patient_id !== workflowRecord.patient_id || !episode.episode_events) {
       return false;
     }
 
-    // 找出所有渡假開始和結束事件
     const vacationStartEvents = episode.episode_events.filter((e: any) => e.event_type === 'vacation_start');
     const vacationEndEvents = episode.episode_events.filter((e: any) => e.event_type === 'vacation_end');
 
-    // 如果有渡假開始但沒有對應的渡假結束，表示仍在渡假中
     if (vacationStartEvents.length > vacationEndEvents.length) {
       return true;
     }
@@ -61,7 +59,6 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     return false;
   });
 
-  // 檢測項圖標映射
   const getVitalSignIcon = (type: string) => {
     switch (type) {
       case '上壓':
@@ -82,37 +79,30 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     }
   };
 
-  // 組件卸載時清理
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
     };
   }, []);
 
-  // 當 workflowRecord 變化時，重置檢測狀態
   useEffect(() => {
-
     setCheckResult(null);
-    setNewVitalSignData({});
-    setUseNewData(false);
+    setMatchedRecords({});
+    setMissingVitalSigns([]);
     setIsChecking(false);
     setLoading(true);
     setHasNoRulesAndHandled(false);
   }, [workflowRecord.id]);
 
-  // 初始化檢查（不自動執行檢測，只檢查特殊情況）
   useEffect(() => {
     const initializeCheck = async () => {
-      // 如果沒有檢測規則，在批量模式下直接回傳結果，在單個模式下直接允許派藥
       if (!prescription?.inspection_rules || prescription.inspection_rules.length === 0) {
         if (!hasNoRulesAndHandled) {
           setHasNoRulesAndHandled(true);
 
-          // 在批量模式下，仍然通過 onResult 回傳，但不自動關閉
-          // 使用 setTimeout 確保狀態穩定後再回調
           setTimeout(() => {
             if (isMountedRef.current) {
-              onResult(true, undefined, { canDispense: true, blockedRules: [], usedVitalSignData: {} });
+              onResult(true, undefined, { canDispense: true, blockedRules: [], usedVitalSignData: {}, missingVitalSigns: [] });
             }
           }, 100);
         }
@@ -120,27 +110,24 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
         return;
       }
 
-      // 如果院友入院中，直接標記為"入院"失敗，不執行檢測
       if (isHospitalized) {
         try {
           const inspectionResult = {
             canDispense: false,
             isHospitalized: true,
             blockedRules: [],
-            usedVitalSignData: {}
+            usedVitalSignData: {},
+            missingVitalSigns: []
           };
 
           if (isBatchMode) {
-            // 批量模式：通過 onResult 回傳，不直接寫入數據庫
             setHasNoRulesAndHandled(true);
-            // 使用 setTimeout 確保狀態穩定後再回調
             setTimeout(() => {
               if (isMountedRef.current) {
                 onResult(false, '入院', inspectionResult);
               }
             }, 100);
           } else {
-            // 單個派藥模式：直接寫入數據庫並關閉
             await dispenseMedication(
               workflowRecord.id,
               displayName || '未知',
@@ -163,27 +150,24 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
         return;
       }
 
-      // 如果院友渡假中，直接標記為"回家"失敗，不執行檢測
       if (isOnVacation) {
         try {
           const inspectionResult = {
             canDispense: false,
             isOnVacation: true,
             blockedRules: [],
-            usedVitalSignData: {}
+            usedVitalSignData: {},
+            missingVitalSigns: []
           };
 
           if (isBatchMode) {
-            // 批量模式：通過 onResult 回傳，不直接寫入數據庫
             setHasNoRulesAndHandled(true);
-            // 使用 setTimeout 確保狀態穩定後再回調
             setTimeout(() => {
               if (isMountedRef.current) {
                 onResult(false, '回家', inspectionResult);
               }
             }, 100);
           } else {
-            // 單個派藥模式：直接寫入數據庫並關閉
             await dispenseMedication(
               workflowRecord.id,
               displayName || '未知',
@@ -206,109 +190,68 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
         return;
       }
 
-      // 載入最新監測記錄供參考（不自動執行檢測）
       try {
-        const vitalSignTypes = prescription.inspection_rules.map((rule: any) => rule.vital_sign_type);
-        const latestData: any = {};
-
-        for (const type of vitalSignTypes) {
-          const data = await fetchLatestVitalSigns(workflowRecord.patient_id, type);
-          if (data) {
-            latestData[type] = data;
-          }
-        }
-
-        setLatestVitalSigns(latestData);
-
+        await loadMatchedRecords();
       } catch (error) {
-        console.error('載入最新監測記錄失敗:', error);
+        console.error('載入監測記錄失敗:', error);
       } finally {
         setLoading(false);
       }
     };
 
     initializeCheck();
-  }, [prescription, workflowRecord.patient_id, fetchLatestVitalSigns, hasNoRulesAndHandled, onResult, isHospitalized, dispenseMedication, displayName, workflowRecord, onClose, isBatchMode]);
+  }, [prescription, workflowRecord.patient_id, workflowRecord.scheduled_date, workflowRecord.scheduled_time, hasNoRulesAndHandled, onResult, isHospitalized, dispenseMedication, displayName, workflowRecord, onClose, isBatchMode]);
 
-  // 處理沒有檢測規則的情況
-  useEffect(() => {
-    if (hasNoRulesAndHandled) {
-      return;
+  const loadMatchedRecords = async () => {
+    if (!prescription?.inspection_rules) return;
+
+    const vitalSignTypes = prescription.inspection_rules.map((rule: any) => rule.vital_sign_type);
+    const matchedData: Record<string, { record: any; isMatched: boolean }> = {};
+    const missing: string[] = [];
+
+    for (const type of vitalSignTypes) {
+      const result = await fetchLatestVitalSigns(
+        workflowRecord.patient_id,
+        type,
+        workflowRecord.scheduled_date,
+        workflowRecord.scheduled_time
+      );
+
+      if (result.record && result.isExactMatch) {
+        matchedData[type] = { record: result.record, isMatched: true };
+      } else {
+        missing.push(type);
+        matchedData[type] = { record: null, isMatched: false };
+      }
     }
-  }, [hasNoRulesAndHandled]);
 
-  // 執行檢測檢查
+    setMatchedRecords(matchedData);
+    setMissingVitalSigns(missing);
+  };
+
   const performInspectionCheck = async () => {
     if (isChecking || isSubmitting) {
+      return;
+    }
 
+    if (missingVitalSigns.length > 0) {
+      alert(`請先新增以下檢測項的監測記錄：${missingVitalSigns.join('、')}`);
       return;
     }
 
     setIsChecking(true);
 
     try {
-
-      // 如果用戶選擇使用新數據，先新增監測記錄
-      if (useNewData && Object.keys(newVitalSignData).length > 0) {
-
-        // 確定記錄類型：如果只有血糖值，使用血糖控制；否則使用生命表徵
-        const hasBloodSugar = newVitalSignData.血糖值 !== undefined && newVitalSignData.血糖值 !== '';
-        const hasVitalSigns = ['上壓', '下壓', '脈搏', '體溫', '血含氧量', '呼吸'].some(
-          key => newVitalSignData[key] !== undefined && newVitalSignData[key] !== ''
-        );
-
-        const savePromises: Promise<any>[] = [];
-
-        // 如果有血糖值，需要保存血糖控制記錄
-        if (hasBloodSugar) {
-          const bloodSugarRecord = {
-            院友id: workflowRecord.patient_id,
-            記錄日期: workflowRecord.scheduled_date,
-            記錄時間: workflowRecord.scheduled_time,
-            記錄類型: '血糖控制' as const,
-            血糖值: parseFloat(newVitalSignData.血糖值),
-            備註: '派藥前檢測',
-            記錄人員: displayName || '系統'
-          };
-
-          savePromises.push(addHealthRecord(bloodSugarRecord, true));
-        }
-
-        // 如果有生命表徵數據，需要保存生命表徵記錄
-        if (hasVitalSigns) {
-          const vitalSignsRecord = {
-            院友id: workflowRecord.patient_id,
-            記錄日期: workflowRecord.scheduled_date,
-            記錄時間: workflowRecord.scheduled_time,
-            記錄類型: '生命表徵' as const,
-            血壓收縮壓: newVitalSignData.上壓 ? parseInt(newVitalSignData.上壓) : null,
-            血壓舒張壓: newVitalSignData.下壓 ? parseInt(newVitalSignData.下壓) : null,
-            脈搏: newVitalSignData.脈搏 ? parseInt(newVitalSignData.脈搏) : null,
-            體溫: newVitalSignData.體溫 ? parseFloat(newVitalSignData.體溫) : null,
-            血含氧量: newVitalSignData.血含氧量 ? parseInt(newVitalSignData.血含氧量) : null,
-            呼吸頻率: newVitalSignData.呼吸 ? parseInt(newVitalSignData.呼吸) : null,
-            備註: '派藥前檢測',
-            記錄人員: displayName || '系統'
-          };
-
-          savePromises.push(addHealthRecord(vitalSignsRecord, true));
-        }
-
-        // 並行保存所有記錄，無需等待
-        await Promise.all(savePromises);
-
-      }
-
-      // 執行檢測規則檢查（不再傳遞 vitalSignDataToUse，因為數據已經保存到數據庫）
-
       const result = await checkPrescriptionInspectionRules(
         workflowRecord.prescription_id,
-        workflowRecord.patient_id
+        workflowRecord.patient_id,
+        workflowRecord.scheduled_date,
+        workflowRecord.scheduled_time
       );
 
       setCheckResult(result);
     } catch (error) {
-      console.error('[InspectionCheckModal] 檢測檢查失敗:', error);
+      console.error('檢測檢查失敗:', error);
       const errorMessage = error instanceof Error ? error.message : '未知錯誤';
       alert(`檢測檢查失敗: ${errorMessage}\n\n請檢查網絡連接或聯繫技術支持。`);
     } finally {
@@ -316,7 +259,6 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     }
   };
 
-  // 處理確認派藥
   const handleConfirmDispense = async () => {
     if (!checkResult || isSubmitting) return;
 
@@ -324,10 +266,8 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
 
     try {
       if (checkResult.canDispense) {
-        // 檢測合格：將檢測結果通過 onResult 傳遞給父組件
         onResult(true, undefined, checkResult);
       } else {
-        // 檢測不合格：直接寫入失敗狀態，不彈出派藥確認對話框
         await dispenseMedication(
           workflowRecord.id,
           displayName || '未知',
@@ -349,12 +289,53 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     }
   };
 
-  // 處理新數據輸入
-  const handleNewDataChange = (vitalSignType: string, value: string) => {
-    setNewVitalSignData(prev => ({
-      ...prev,
-      [vitalSignType]: value
-    }));
+  const handleAddRecord = (vitalSignType: string) => {
+    setCurrentAddingVitalSign(vitalSignType);
+    setShowHealthRecordModal(true);
+  };
+
+  const handleHealthRecordSaved = async () => {
+    setShowHealthRecordModal(false);
+    setCurrentAddingVitalSign(null);
+    setLoading(true);
+    try {
+      await loadMatchedRecords();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getRecordType = (vitalSignType: string): string => {
+    if (vitalSignType === '血糖值') {
+      return '血糖控制';
+    }
+    return '生命表徵';
+  };
+
+  const getFocusField = (vitalSignType: string): string => {
+    const fieldMap: Record<string, string> = {
+      '上壓': '血壓收縮壓',
+      '下壓': '血壓舒張壓',
+      '脈搏': '脈搏',
+      '血糖值': '血糖值',
+      '呼吸': '呼吸頻率',
+      '血含氧量': '血含氧量',
+      '體溫': '體溫'
+    };
+    return fieldMap[vitalSignType] || '';
+  };
+
+  const getVitalSignValue = (record: any, vitalSignType: string): any => {
+    const fieldMap: Record<string, string> = {
+      '上壓': '血壓收縮壓',
+      '下壓': '血壓舒張壓',
+      '脈搏': '脈搏',
+      '血糖值': '血糖值',
+      '呼吸': '呼吸頻率',
+      '血含氧量': '血含氧量',
+      '體溫': '體溫'
+    };
+    return record?.[fieldMap[vitalSignType]];
   };
 
   if (loading) {
@@ -368,262 +349,272 @@ const InspectionCheckModal: React.FC<InspectionCheckModalProps> = ({
     );
   }
 
-  // 如果沒有檢測規則且已處理，不渲染模態框
   if (hasNoRulesAndHandled) {
     return null;
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-lg bg-orange-100">
-                <AlertTriangle className="h-6 w-6 text-orange-600" />
-              </div>
-              <div>
-                <div className="flex items-center space-x-3">
-                  <h2 className="text-xl font-semibold text-gray-900">派藥前檢測</h2>
-                  {batchProgress && (
-                    <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">
-                      第 {batchProgress.current} / {batchProgress.total} 筆
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-gray-600">
-                  {patient?.中文姓氏}{patient?.中文名字} - {prescription?.medication_name}
-                  {workflowRecord?.scheduled_time && (
-                    <span className="ml-2 text-blue-600 font-medium">
-                      ({workflowRecord.scheduled_time.substring(0, 5)})
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
-              disabled={isChecking || isSubmitting}
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-6">
-          {/* 檢測規則顯示 */}
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <h3 className="text-lg font-medium text-orange-900 mb-3">此處方的檢測規則</h3>
-            <div className="space-y-2">
-              {prescription.inspection_rules.map((rule: any, index: number) => (
-                <div key={index} className="flex items-center space-x-2 text-sm">
-                  {getVitalSignIcon(rule.vital_sign_type)}
-                  <span className="font-medium">{rule.vital_sign_type}</span>
-                  <span>
-                    {rule.condition_operator === 'gt' ? '>' :
-                     rule.condition_operator === 'lt' ? '<' :
-                     rule.condition_operator === 'gte' ? '≥' :
-                     rule.condition_operator === 'lte' ? '≤' : ''}
-                  </span>
-                  <span className="font-medium">{rule.condition_value}</span>
-                  <span className="text-orange-700">
-                    → {rule.action_if_met === 'block_dispensing' ? '阻止派藥' : '僅警告'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 最新監測記錄 */}
-          <div className="space-y-4">
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">最新監測記錄</h3>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="use-new-data"
-                  checked={useNewData}
-                  onChange={(e) => setUseNewData(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="use-new-data" className="text-sm text-gray-700">
-                  輸入新的監測數據
-                </label>
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-lg bg-orange-100">
+                  <AlertTriangle className="h-6 w-6 text-orange-600" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-3">
+                    <h2 className="text-xl font-semibold text-gray-900">派藥前檢測</h2>
+                    {batchProgress && (
+                      <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">
+                        第 {batchProgress.current} / {batchProgress.total} 筆
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {patient?.中文姓氏}{patient?.中文名字} - {prescription?.medication_name}
+                    {workflowRecord?.scheduled_time && (
+                      <span className="ml-2 text-blue-600 font-medium">
+                        ({workflowRecord.scheduled_time.substring(0, 5)})
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600"
+                disabled={isChecking || isSubmitting}
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <h3 className="text-lg font-medium text-orange-900 mb-3">此處方的檢測規則</h3>
+              <div className="space-y-2">
+                {prescription.inspection_rules.map((rule: any, index: number) => (
+                  <div key={index} className="flex items-center space-x-2 text-sm">
+                    {getVitalSignIcon(rule.vital_sign_type)}
+                    <span className="font-medium">{rule.vital_sign_type}</span>
+                    <span>
+                      {rule.condition_operator === 'gt' ? '>' :
+                       rule.condition_operator === 'lt' ? '<' :
+                       rule.condition_operator === 'gte' ? '≥' :
+                       rule.condition_operator === 'lte' ? '≤' : ''}
+                    </span>
+                    <span className="font-medium">{rule.condition_value}</span>
+                    <span className="text-orange-700">
+                      → {rule.action_if_met === 'block_dispensing' ? '阻止派藥' : '僅警告'}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {prescription.inspection_rules.map((rule: any, index: number) => {
-                const latestData = latestVitalSigns?.[rule.vital_sign_type];
-                
-                return (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex items-center space-x-2 mb-3">
-                      {getVitalSignIcon(rule.vital_sign_type)}
-                      <h4 className="font-medium text-gray-900">{rule.vital_sign_type}</h4>
-                    </div>
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                監測記錄狀態 ({workflowRecord.scheduled_date} {workflowRecord.scheduled_time?.substring(0, 5)})
+              </h3>
 
-                    {/* 最新記錄 */}
-                    <div className="mb-3">
-                      <label className="text-sm text-gray-600">最新記錄：</label>
-                      {latestData ? (
-                        <div className="text-sm">
-                          <div className="font-medium">
-                            {latestData[rule.vital_sign_type === '上壓' ? '血壓收縮壓' :
-                                      rule.vital_sign_type === '下壓' ? '血壓舒張壓' :
-                                      rule.vital_sign_type === '脈搏' ? '脈搏' :
-                                      rule.vital_sign_type === '血糖值' ? '血糖值' :
-                                      rule.vital_sign_type === '呼吸' ? '呼吸頻率' :
-                                      rule.vital_sign_type === '血含氧量' ? '血含氧量' :
-                                      rule.vital_sign_type === '體溫' ? '體溫' : '']}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {prescription.inspection_rules.map((rule: any, index: number) => {
+                  const matchedData = matchedRecords[rule.vital_sign_type];
+                  const isMatched = matchedData?.isMatched || false;
+                  const record = matchedData?.record;
+                  const value = record ? getVitalSignValue(record, rule.vital_sign_type) : null;
+
+                  return (
+                    <div key={index} className={`border rounded-lg p-4 ${
+                      isMatched ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+                    }`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          {getVitalSignIcon(rule.vital_sign_type)}
+                          <h4 className="font-medium text-gray-900">{rule.vital_sign_type}</h4>
+                        </div>
+                        {isMatched ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-600" />
+                        )}
+                      </div>
+
+                      {isMatched && record ? (
+                        <div>
+                          <div className="flex items-center space-x-2 text-sm text-green-700 mb-2">
+                            <CheckCircle className="h-4 w-4" />
+                            <span className="font-medium">已有監測記錄</span>
                           </div>
-                          <div className="text-gray-500">
-                            {new Date(latestData.記錄日期).toLocaleDateString('zh-TW')} {latestData.記錄時間}
+                          <div className="text-sm">
+                            <div className="font-medium text-gray-900">
+                              數值: {value}
+                            </div>
+                            <div className="text-gray-600">
+                              {new Date(record.記錄日期).toLocaleDateString('zh-TW')} {record.記錄時間}
+                            </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="text-sm text-gray-500">無記錄</div>
+                        <div>
+                          <div className="flex items-center space-x-2 text-sm text-red-700 mb-3">
+                            <XCircle className="h-4 w-4" />
+                            <span className="font-medium">無監測記錄（需新增）</span>
+                          </div>
+                          <button
+                            onClick={() => handleAddRecord(rule.vital_sign_type)}
+                            className="w-full btn-primary flex items-center justify-center space-x-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>新增記錄</span>
+                          </button>
+                        </div>
                       )}
                     </div>
-
-                    {/* 新數據輸入 */}
-                    {useNewData && (
-                      <div>
-                        <label className="text-sm text-gray-600">新數據：</label>
-                        <input
-                          type="number"
-                          value={newVitalSignData[rule.vital_sign_type] || ''}
-                          onChange={(e) => handleNewDataChange(rule.vital_sign_type, e.target.value)}
-                          className="form-input mt-1"
-                          placeholder={`輸入${rule.vital_sign_type}數值`}
-                          step={rule.vital_sign_type === '體溫' || rule.vital_sign_type === '血糖值' ? '0.1' : '1'}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 檢測結果 */}
-          {checkResult && (
-            <div className={`border rounded-lg p-4 ${
-              checkResult.canDispense ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-            }`}>
-              <div className="flex items-center space-x-2 mb-3">
-                {checkResult.canDispense ? (
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                ) : (
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
-                )}
-                <h3 className={`font-medium ${
-                  checkResult.canDispense ? 'text-green-900' : 'text-red-900'
-                }`}>
-                  檢測結果
-                </h3>
+                  );
+                })}
               </div>
+            </div>
 
-              <div className={`text-sm ${
-                checkResult.canDispense ? 'text-green-800' : 'text-red-800'
+            {checkResult && (
+              <div className={`border rounded-lg p-4 ${
+                checkResult.canDispense ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
               }`}>
-                {checkResult.canDispense ? (
-                  <p>✅ 所有檢測項目均符合安全條件，可以派藥</p>
-                ) : (
-                  <div>
-                    <p>❌ 以下檢測項目不符合安全條件：</p>
-                    <ul className="list-disc list-inside mt-2 space-y-1">
-                      {checkResult.blockedRules?.map((rule: any, index: number) => (
-                        <li key={index}>
-                          {rule.vital_sign_type}: {rule.actualValue} {
-                            rule.condition_operator === 'gt' ? '≤' :
-                            rule.condition_operator === 'lt' ? '≥' :
-                            rule.condition_operator === 'gte' ? '<' :
-                            rule.condition_operator === 'lte' ? '>' : ''
-                          } {rule.condition_value} (不符合 {
-                            rule.condition_operator === 'gt' ? '>' :
-                            rule.condition_operator === 'lt' ? '<' :
-                            rule.condition_operator === 'gte' ? '≥' :
-                            rule.condition_operator === 'lte' ? '≤' : ''
-                          } {rule.condition_value} 的要求)
-                        </li>
-                      ))}
-                    </ul>
+                <div className="flex items-center space-x-2 mb-3">
+                  {checkResult.canDispense ? (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                  )}
+                  <h3 className={`font-medium ${
+                    checkResult.canDispense ? 'text-green-900' : 'text-red-900'
+                  }`}>
+                    檢測結果
+                  </h3>
+                </div>
+
+                <div className={`text-sm ${
+                  checkResult.canDispense ? 'text-green-800' : 'text-red-800'
+                }`}>
+                  {checkResult.canDispense ? (
+                    <p>所有檢測項目均符合安全條件，可以派藥</p>
+                  ) : (
+                    <div>
+                      <p>以下檢測項目不符合安全條件：</p>
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        {checkResult.blockedRules?.map((rule: any, index: number) => (
+                          <li key={index}>
+                            {rule.vital_sign_type}: {rule.actual_value} {
+                              rule.condition_operator === 'gt' ? '≤' :
+                              rule.condition_operator === 'lt' ? '≥' :
+                              rule.condition_operator === 'gte' ? '<' :
+                              rule.condition_operator === 'lte' ? '>' : ''
+                            } {rule.condition_value} (不符合 {
+                              rule.condition_operator === 'gt' ? '>' :
+                              rule.condition_operator === 'lt' ? '<' :
+                              rule.condition_operator === 'gte' ? '≥' :
+                              rule.condition_operator === 'lte' ? '≤' : ''
+                            } {rule.condition_value} 的要求)
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {checkResult.usedVitalSignData && Object.keys(checkResult.usedVitalSignData).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-600">
+                      使用的監測數據: {Object.entries(checkResult.usedVitalSignData).map(([type, value]) =>
+                        `${type}: ${value}`
+                      ).join(', ')}
+                    </p>
                   </div>
                 )}
               </div>
-
-              {checkResult.usedVitalSigns && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <p className="text-xs text-gray-600">
-                    使用的監測數據: {Object.entries(checkResult.usedVitalSigns).map(([type, value]) => 
-                      `${type}: ${value}`
-                    ).join(', ')}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 操作按鈕 */}
-          <div className="flex space-x-3 pt-4 border-t border-gray-200">
-            {!checkResult ? (
-              <button
-                onClick={performInspectionCheck}
-                disabled={isChecking || isSubmitting}
-                className="btn-primary flex-1 flex items-center justify-center space-x-2"
-              >
-                {isChecking || isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>{isChecking ? '檢測中...' : '處理中...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>執行檢測</span>
-                  </>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={handleConfirmDispense}
-                disabled={isSubmitting}
-                className={`flex-1 flex items-center justify-center space-x-2 ${
-                  checkResult.canDispense ? 'btn-primary' : 'btn-danger'
-                }`}
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>處理中...</span>
-                  </>
-                ) : checkResult.canDispense ? (
-                  <>
-                    <CheckCircle className="h-4 w-4" />
-                    <span>確認派藥</span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="h-4 w-4" />
-                    <span>無法派藥</span>
-                  </>
-                )}
-              </button>
             )}
-            
-            <button
-              onClick={onClose}
-              className="btn-secondary flex-1"
-              disabled={isChecking || isSubmitting}
-            >
-              取消
-            </button>
+
+            <div className="flex space-x-3 pt-4 border-t border-gray-200">
+              {!checkResult ? (
+                <button
+                  onClick={performInspectionCheck}
+                  disabled={isChecking || isSubmitting || missingVitalSigns.length > 0}
+                  className="btn-primary flex-1 flex items-center justify-center space-x-2"
+                  title={missingVitalSigns.length > 0 ? '請先新增所有監測記錄' : ''}
+                >
+                  {isChecking || isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>{isChecking ? '檢測中...' : '處理中...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>{missingVitalSigns.length > 0 ? '請先新增所有監測記錄' : '執行檢測'}</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleConfirmDispense}
+                  disabled={isSubmitting}
+                  className={`flex-1 flex items-center justify-center space-x-2 ${
+                    checkResult.canDispense ? 'btn-primary' : 'btn-danger'
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>處理中...</span>
+                    </>
+                  ) : checkResult.canDispense ? (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      <span>確認派藥</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-4 w-4" />
+                      <span>無法派藥</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              <button
+                onClick={onClose}
+                className="btn-secondary flex-1"
+                disabled={isChecking || isSubmitting}
+              >
+                取消
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {showHealthRecordModal && currentAddingVitalSign && (
+        <HealthRecordModal
+          initialData={{
+            patient: patient ? {
+              院友id: patient.院友id,
+              中文姓名: `${patient.中文姓氏}${patient.中文名字}`,
+              床號: patient.床號
+            } : undefined,
+            預設記錄類型: getRecordType(currentAddingVitalSign),
+            預設日期: `${workflowRecord.scheduled_date}T${workflowRecord.scheduled_time || '00:00:00'}`
+          }}
+          onClose={() => {
+            setShowHealthRecordModal(false);
+            setCurrentAddingVitalSign(null);
+          }}
+          onTaskCompleted={handleHealthRecordSaved}
+        />
+      )}
+    </>
   );
 };
 

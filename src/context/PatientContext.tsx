@@ -1587,68 +1587,146 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  const checkPrescriptionInspectionRules = async (prescriptionId: string, patientId: number) => {
+  const checkPrescriptionInspectionRules = async (
+    prescriptionId: string,
+    patientId: number,
+    scheduledDate?: string,
+    scheduledTime?: string
+  ) => {
     try {
       const prescription = prescriptions.find(p => p.id === prescriptionId);
       if (!prescription || !prescription.inspection_rules || prescription.inspection_rules.length === 0) {
-        return { canDispense: true, blockedRules: [], usedVitalSignData: {} };
-      }
-
-      const latestVitalSigns = await db.getHealthRecords(patientId);
-      if (!latestVitalSigns || latestVitalSigns.length === 0) {
-        return { canDispense: false, blockedRules: [], usedVitalSignData: {} };
+        return { canDispense: true, blockedRules: [], usedVitalSignData: {}, missingVitalSigns: [] };
       }
 
       const blockedRules: any[] = [];
       const usedVitalSignData: any = {};
+      const missingVitalSigns: string[] = [];
 
       for (const rule of prescription.inspection_rules) {
-        const vitalSign = latestVitalSigns.find(vs => vs.生命表徵類型 === rule.vital_sign_type);
-        if (vitalSign) {
-          usedVitalSignData[rule.vital_sign_type] = vitalSign.數值;
+        let healthRecord: db.HealthRecord | null = null;
 
-          const value = parseFloat(vitalSign.數值 || '0');
-          const min = rule.min_value !== null ? parseFloat(rule.min_value) : null;
-          const max = rule.max_value !== null ? parseFloat(rule.max_value) : null;
+        if (scheduledDate && scheduledTime) {
+          healthRecord = await db.getHealthRecordByDateTime(
+            patientId,
+            scheduledDate,
+            scheduledTime,
+            rule.vital_sign_type
+          );
+        }
 
-          if ((min !== null && value < min) || (max !== null && value > max)) {
-            blockedRules.push({
-              vital_sign_type: rule.vital_sign_type,
-              actual_value: vitalSign.數值,
-              min_value: rule.min_value,
-              max_value: rule.max_value
-            });
-          }
+        if (!healthRecord) {
+          missingVitalSigns.push(rule.vital_sign_type);
+          continue;
+        }
+
+        const vitalSignFieldMap: Record<string, keyof db.HealthRecord> = {
+          '上壓': '血壓收縮壓',
+          '下壓': '血壓舒張壓',
+          '脈搏': '脈搏',
+          '血糖值': '血糖值',
+          '呼吸': '呼吸頻率',
+          '血含氧量': '血含氧量',
+          '體溫': '體溫'
+        };
+
+        const fieldName = vitalSignFieldMap[rule.vital_sign_type];
+        const fieldValue = healthRecord[fieldName];
+
+        if (fieldValue === null || fieldValue === undefined) {
+          missingVitalSigns.push(rule.vital_sign_type);
+          continue;
+        }
+
+        const value = typeof fieldValue === 'number' ? fieldValue : parseFloat(String(fieldValue));
+        usedVitalSignData[rule.vital_sign_type] = value;
+
+        const conditionValue = parseFloat(String(rule.condition_value));
+        let isBlocked = false;
+
+        switch (rule.condition_operator) {
+          case 'gt':
+            isBlocked = value <= conditionValue;
+            break;
+          case 'lt':
+            isBlocked = value >= conditionValue;
+            break;
+          case 'gte':
+            isBlocked = value < conditionValue;
+            break;
+          case 'lte':
+            isBlocked = value > conditionValue;
+            break;
+        }
+
+        if (isBlocked) {
+          blockedRules.push({
+            vital_sign_type: rule.vital_sign_type,
+            actual_value: value,
+            condition_operator: rule.condition_operator,
+            condition_value: conditionValue
+          });
         }
       }
 
       return {
-        canDispense: blockedRules.length === 0,
+        canDispense: blockedRules.length === 0 && missingVitalSigns.length === 0,
         blockedRules,
-        usedVitalSignData
+        usedVitalSignData,
+        missingVitalSigns
       };
     } catch (error) {
       console.error('檢查檢測規則失敗:', error);
-      return { canDispense: false, blockedRules: [], usedVitalSignData: {} };
+      return { canDispense: false, blockedRules: [], usedVitalSignData: {}, missingVitalSigns: [] };
     }
   };
 
-  const fetchLatestVitalSigns = async (patientId: number, vitalSignType: string) => {
+  const fetchLatestVitalSigns = async (
+    patientId: number,
+    vitalSignType: string,
+    targetDate?: string,
+    targetTime?: string
+  ) => {
     try {
-      const records = await db.getHealthRecords(patientId);
-      const filtered = records.filter(r => r.生命表徵類型 === vitalSignType);
-      if (filtered.length === 0) return null;
+      if (targetDate && targetTime) {
+        const record = await db.getHealthRecordByDateTime(
+          patientId,
+          targetDate,
+          targetTime,
+          vitalSignType
+        );
+
+        return record ? { record, isExactMatch: true } : { record: null, isExactMatch: false };
+      }
+
+      const records = await db.getHealthRecords();
+      const filtered = records.filter(r => r.院友id === patientId);
+
+      if (filtered.length === 0) return { record: null, isExactMatch: false };
 
       filtered.sort((a, b) => {
-        const dateA = new Date(`${a.量度日期}T${a.量度時間 || '00:00:00'}`);
-        const dateB = new Date(`${b.量度日期}T${b.量度時間 || '00:00:00'}`);
+        const dateA = new Date(`${a.記錄日期}T${a.記錄時間 || '00:00:00'}`);
+        const dateB = new Date(`${b.記錄日期}T${b.記錄時間 || '00:00:00'}`);
         return dateB.getTime() - dateA.getTime();
       });
 
-      return filtered[0];
+      const vitalSignFieldMap: Record<string, keyof db.HealthRecord> = {
+        '上壓': '血壓收縮壓',
+        '下壓': '血壓舒張壓',
+        '脈搏': '脈搏',
+        '血糖值': '血糖值',
+        '呼吸': '呼吸頻率',
+        '血含氧量': '血含氧量',
+        '體溫': '體溫'
+      };
+
+      const fieldName = vitalSignFieldMap[vitalSignType];
+      const recordWithValue = filtered.find(r => r[fieldName] !== null && r[fieldName] !== undefined);
+
+      return { record: recordWithValue || null, isExactMatch: false };
     } catch (error) {
-      console.error('獲取最新生命表徵失敗:', error);
-      return null;
+      console.error('獲取生命表徵失敗:', error);
+      return { record: null, isExactMatch: false };
     }
   };
 
