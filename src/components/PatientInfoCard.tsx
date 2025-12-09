@@ -23,10 +23,6 @@ const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient, onToggleCrus
     e.stopPropagation();
 
     const newValue = !patient.needs_medication_crushing;
-    console.log('碎藥切換按鈕被點擊');
-    console.log('當前值:', patient.needs_medication_crushing);
-    console.log('新值:', newValue);
-    console.log('院友ID:', patient.院友id);
 
     try {
       const { error } = await supabase
@@ -39,16 +35,9 @@ const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient, onToggleCrus
         throw error;
       }
 
-      console.log('✅ 資料庫更新成功');
-
       if (onToggleCrushMedication) {
-        console.log('呼叫 onToggleCrushMedication 回調');
         onToggleCrushMedication(patient.院友id, newValue);
-      } else {
-        console.warn('⚠️ onToggleCrushMedication 回調未定義');
       }
-
-      window.location.reload();
     } catch (error) {
       console.error('❌ 更新碎藥狀態失敗:', error);
       alert('更新失敗，請稍後再試');

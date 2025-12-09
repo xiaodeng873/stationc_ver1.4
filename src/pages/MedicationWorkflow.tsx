@@ -2954,11 +2954,13 @@ const MedicationWorkflow: React.FC = () => {
                     .from('院友主表')
                     .select('*')
                     .eq('院友id', patientId)
-                    .single();
+                    .maybeSingle();
 
-                  if (updatedPatient && selectedPatient) {
-                    selectedPatient.needs_medication_crushing = needsCrushing;
-                    setSelectedPatientId(patientId.toString());
+                  if (updatedPatient) {
+                    setSelectedPatientId('');
+                    setTimeout(() => {
+                      setSelectedPatientId(patientId.toString());
+                    }, 10);
                   }
                 }}
               />
@@ -3096,6 +3098,7 @@ const MedicationWorkflow: React.FC = () => {
                       return (
                         <th
                           key={date}
+                          data-date={date}
                           className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider transition-colors relative ${
                             isSelectedDate ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-blue-50'
                           }`}
@@ -3121,9 +3124,14 @@ const MedicationWorkflow: React.FC = () => {
                             {month}/{dayOfMonth}<br/>({weekday})
                           </div>
 
-                          {/* 下拉選單（向上展開） */}
+                          {/* 下拉選單（向下展開，使用固定定位避免被 overflow 裁切） */}
                           {isMenuOpen && (
-                            <div className="absolute bottom-full right-0 mb-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999]" ref={dateMenuRef}>
+                            <div className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 z-[9999] mt-1"
+                                 ref={dateMenuRef}
+                                 style={{
+                                   top: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().bottom || 0}px`,
+                                   left: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().left || 0}px`
+                                 }}>
                                 <div className="py-1">
                                   <button
                                     onClick={(e) => {
