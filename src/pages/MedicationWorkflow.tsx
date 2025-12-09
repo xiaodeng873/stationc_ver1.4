@@ -2,8 +2,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Pill,
   Calendar,
-  ChevronLeft,
-  ChevronRight,
   User,
   Clock,
   CheckCircle,
@@ -36,6 +34,7 @@ import InspectionCheckModal from '../components/InspectionCheckModal';
 import InjectionSiteModal from '../components/InjectionSiteModal';
 import RevertConfirmModal from '../components/RevertConfirmModal';
 import WorkflowDeduplicateModal from '../components/WorkflowDeduplicateModal';
+import { Portal } from '../components/Portal';
 import { generateDailyWorkflowRecords, generateBatchWorkflowRecords } from '../utils/workflowGenerator';
 import { diagnoseWorkflowDisplayIssue } from '../utils/diagnoseTool';
 import { supabase } from '../lib/supabase';
@@ -2779,52 +2778,7 @@ const MedicationWorkflow: React.FC = () => {
     setSelectedDate(date.toISOString().split('T')[0]);
   };
 
-  // 拖曳滑動事件處理
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
-    setStartX(e.clientX);
-    setStartTime(Date.now());
-    setDragDistance(0);
-    if (tableContainerRef.current) {
-      tableContainerRef.current.style.cursor = 'grabbing';
-      tableContainerRef.current.style.userSelect = 'none';
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const deltaX = e.clientX - startX;
-    setDragDistance(Math.abs(deltaX));
-    const deltaTime = Date.now() - startTime;
-    if (deltaTime > 0) {
-      setDragVelocity(deltaX / deltaTime);
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    if (tableContainerRef.current) {
-      tableContainerRef.current.style.cursor = 'grab';
-      tableContainerRef.current.style.userSelect = 'auto';
-    }
-
-    // 只有在拖動距離大於 50px 才觸發週次切換
-    const dragThreshold = 50;
-    const velocityThreshold = 0.5;
-
-    if (dragDistance > dragThreshold && Math.abs(dragVelocity) > velocityThreshold) {
-      if (dragVelocity > 0) {
-        goToPreviousWeek();
-      } else {
-        goToNextWeek();
-      }
-    }
-
-    setDragVelocity(0);
-    setDragDistance(0);
-  };
-
+  // 觸控拖曳事件處理（保留觸控功能）
   const handleTouchStart = (e: React.TouchEvent) => {
     setIsDragging(true);
     setStartX(e.touches[0].clientX);
@@ -3100,23 +3054,6 @@ const MedicationWorkflow: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  {/* 左側週次導航按鈕 */}
-                  <button
-                    onClick={goToPreviousWeek}
-                    className="fixed left-4 top-1/2 -translate-y-1/2 z-20 bg-white/80 hover:bg-white shadow-lg rounded-full p-3 transition-all duration-200 hover:scale-110"
-                    title="上週"
-                  >
-                    <ChevronLeft className="h-6 w-6 text-gray-700" />
-                  </button>
-
-                  {/* 右側週次導航按鈕 */}
-                  <button
-                    onClick={goToNextWeek}
-                    className="fixed right-4 top-1/2 -translate-y-1/2 z-20 bg-white/80 hover:bg-white shadow-lg rounded-full p-3 transition-all duration-200 hover:scale-110"
-                    title="下週"
-                  >
-                    <ChevronRight className="h-6 w-6 text-gray-700" />
-                  </button>
 
                   <div
                     ref={tableContainerRef}
@@ -3203,15 +3140,18 @@ const MedicationWorkflow: React.FC = () => {
                             {month}/{dayOfMonth}<br/>({weekday})
                           </div>
 
-                          {/* 下拉選單（向上展開，使用固定定位，最高 z-index 確保在所有元素之上） */}
+                          {/* 下拉選單（使用 Portal 渲染到 body，確保在所有元素之上） */}
                           {isMenuOpen && (
-                            <div className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 mb-1"
-                                 ref={dateMenuRef}
-                                 style={{
-                                   bottom: `${window.innerHeight - ((document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().top || 0)}px`,
-                                   left: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().left || 0}px`,
-                                   zIndex: 9999
-                                 }}>
+                            <Portal>
+                              <div
+                                className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 mb-1"
+                                ref={dateMenuRef}
+                                style={{
+                                  bottom: `${window.innerHeight - ((document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().top || 0)}px`,
+                                  left: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().left || 0}px`,
+                                  zIndex: 9999
+                                }}
+                              >
                                 <div className="py-1">
                                   <button
                                     onClick={(e) => {
@@ -3254,7 +3194,6 @@ const MedicationWorkflow: React.FC = () => {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      // 直接調用一鍵派藥，打開確認對話框
                                       handleOneClickDispense(date);
                                       setIsDateMenuOpen(false);
                                       setSelectedDateForMenu(null);
@@ -3291,7 +3230,8 @@ const MedicationWorkflow: React.FC = () => {
                                   </button>
                                 </div>
                               </div>
-                            )}
+                            </Portal>
+                          )}
 
                           {hasOverdue && (
                             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
