@@ -2933,175 +2933,137 @@ const MedicationWorkflow: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* 頁面標題 */}
-      <div className="sticky top-0 bg-white z-30 py-4 border-b border-gray-200 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
+      {/* 頁面標題與控制區 */}
+      <div className="sticky top-0 bg-white z-[25] py-4 border-b border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          {/* 左側：標題 */}
+          <div className="flex-shrink-0">
             <h1 className="text-2xl font-bold text-gray-900">藥物工作流程</h1>
             <p className="text-sm text-gray-600 mt-1">管理院友的執藥、核藥、派藥流程</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleDiagnose}
-              disabled={!selectedPatientId}
-              className="btn-secondary flex items-center space-x-2"
-              title="診斷工作流程記錄顯示問題"
-            >
-              <Settings className="h-4 w-4" />
-              <span>診斷</span>
-            </button>
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing || !selectedPatientId}
-              className="btn-secondary flex items-center space-x-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              <span>刷新</span>
-            </button>
-            <button
-              onClick={handleGenerateWorkflow}
-              disabled={generating || !selectedPatientId}
-              className="btn-primary flex items-center space-x-2"
-              title="為選定院友生成本週（7天）的藥物工作流程"
-            >
-              {generating ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>生成中...</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="h-4 w-4" />
-                  <span>生成本週工作流程</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => setShowDeduplicateModal(true)}
-              className="btn-secondary flex items-center space-x-2"
-              title="檢測並清理重複的工作流程記錄"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>清理重複記錄</span>
-            </button>
-          </div>
-        </div>
-      </div> 
 
-      {/* 改進佈局 - 院友選擇與日期選擇平分、藥物安全資訊、院友資訊卡 */}
-      <div className="sticky top-16 bg-white shadow-sm">
-        <div className="card p-4">
-          <div className="space-y-3">
-            {/* 第一行：院友選擇（左50%）+ 日期控制（右50%） */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* 左側：院友選擇 */}
-              <div>
-                <label className="form-label text-xs mb-1">
-                  <User className="h-3 w-3 inline mr-1" />
-                  選擇院友
-                </label>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={goToPreviousPatient}
-                    disabled={sortedActivePatients.length <= 1}
-                    className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
-                    title="上一位院友"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <PatientAutocomplete
-                      value={selectedPatientId}
-                      onChange={setSelectedPatientId}
-                      placeholder="搜索院友..."
-                      showResidencyFilter={true}
-                      defaultResidencyStatus="在住"
-                    />
-                  </div>
-                  <button
-                    onClick={goToNextPatient}
-                    disabled={sortedActivePatients.length <= 1}
-                    className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
-                    title="下一位院友"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-          
-              </div>
-
-              {/* 右側：日期控制 */}
-              <div>
-                <label className="form-label text-xs mb-1">
-                  <Calendar className="h-3 w-3 inline mr-1" />
-                  選擇日期
-                </label>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={goToPreviousDay}
-                    className="btn-secondary p-1.5"
-                    title="前一日"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="form-input flex-1 text-sm"
+          {/* 右側：院友選擇、日期選擇、遷移按鈕 */}
+          <div className="flex items-end gap-3 flex-1 max-w-4xl">
+            {/* 院友選擇 */}
+            <div className="flex-1 min-w-[200px] max-w-md">
+              <label className="form-label text-xs mb-1 block">
+                <User className="h-3 w-3 inline mr-1" />
+                選擇院友
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={goToPreviousPatient}
+                  disabled={sortedActivePatients.length <= 1}
+                  className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
+                  title="上一位院友"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <PatientAutocomplete
+                    value={selectedPatientId}
+                    onChange={setSelectedPatientId}
+                    placeholder="搜索院友..."
+                    showResidencyFilter={true}
+                    defaultResidencyStatus="在住"
                   />
-                  <button
-                    onClick={goToNextDay}
-                    className="btn-secondary p-1.5"
-                    title="後一日"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={goToToday}
-                    className="btn-secondary text-xs px-2"
-                  >
-                    今天
-                  </button>
                 </div>
+                <button
+                  onClick={goToNextPatient}
+                  disabled={sortedActivePatients.length <= 1}
+                  className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
+                  title="下一位院友"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             </div>
 
-            {/* 第二行：院友資訊卡（包含藥物安全資訊） */}
-            {selectedPatient && (
-              <PatientInfoCard
-                patient={selectedPatient}
-                onOptimisticUpdate={(patientId, needsCrushing) => {
-                  // 立即更新 UI（樂觀更新）
-                  setOptimisticCrushState(prev => {
-                    const next = new Map(prev);
-                    next.set(patientId, needsCrushing);
-                    return next;
-                  });
-                }}
-                onToggleCrushMedication={async (patientId, needsCrushing) => {
-                  // 資料庫更新成功後刷新數據
-                  await refreshData();
-                  // 清除樂觀更新狀態
-                  setOptimisticCrushState(prev => {
-                    const next = new Map(prev);
-                    next.delete(patientId);
-                    return next;
-                  });
-                }}
-              />
-            )}
+            {/* 日期選擇 */}
+            <div className="flex-1 min-w-[250px] max-w-sm">
+              <label className="form-label text-xs mb-1 block">
+                <Calendar className="h-3 w-3 inline mr-1" />
+                選擇日期
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={goToPreviousDay}
+                  className="btn-secondary p-1.5"
+                  title="前一日"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="form-input flex-1 text-sm"
+                />
+                <button
+                  onClick={goToNextDay}
+                  className="btn-secondary p-1.5"
+                  title="後一日"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={goToToday}
+                  className="btn-secondary text-xs px-2 py-1.5 whitespace-nowrap"
+                >
+                  今天
+                </button>
+              </div>
+            </div>
+
+            {/* 遷移按鈕 */}
+            <button
+              onClick={() => {/* 遷移功能待實現 */}}
+              className="btn-secondary flex items-center gap-2 px-4 py-2 whitespace-nowrap"
+              title="處方遷移"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>遷移</span>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* 院友資訊卡 */}
+      {selectedPatient && (
+        <div className="sticky top-24 bg-white z-[15] shadow-sm">
+          <div className="card p-4">
+            <PatientInfoCard
+              patient={selectedPatient}
+              onOptimisticUpdate={(patientId, needsCrushing) => {
+                // 立即更新 UI（樂觀更新）
+                setOptimisticCrushState(prev => {
+                  const next = new Map(prev);
+                  next.set(patientId, needsCrushing);
+                  return next;
+                });
+              }}
+              onToggleCrushMedication={async (patientId, needsCrushing) => {
+                // 資料庫更新成功後刷新數據
+                await refreshData();
+                // 清除樂觀更新狀態
+                setOptimisticCrushState(prev => {
+                  const next = new Map(prev);
+                  next.delete(patientId);
+                  return next;
+                });
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 工作流程表格 */}
       {selectedPatientId ? (
         <div className="card overflow-hidden">
           {activePrescriptions.length > 0 ? (
             <>
-              {/* 備藥方式分類標籤 */}
-              <div className="border-b border-gray-200">
+              {/* 備藥方式分類標籤（固定位置） */}
+              <div className="sticky top-48 z-10 bg-white border-b border-gray-200 shadow-sm">
                 <div className="flex space-x-1 p-2">
                   <button
                     onClick={() => setPreparationFilter('all')}
@@ -3250,13 +3212,14 @@ const MedicationWorkflow: React.FC = () => {
                             {month}/{dayOfMonth}<br/>({weekday})
                           </div>
 
-                          {/* 下拉選單（向上展開，使用固定定位避免被 overflow 裁切） */}
+                          {/* 下拉選單（向上展開，使用固定定位，最高 z-index 確保在所有元素之上） */}
                           {isMenuOpen && (
-                            <div className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 z-[99999] mb-1"
+                            <div className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 mb-1"
                                  ref={dateMenuRef}
                                  style={{
                                    bottom: `${window.innerHeight - ((document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().top || 0)}px`,
-                                   left: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().left || 0}px`
+                                   left: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().left || 0}px`,
+                                   zIndex: 9999
                                  }}>
                                 <div className="py-1">
                                   <button
