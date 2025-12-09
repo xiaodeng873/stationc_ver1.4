@@ -113,6 +113,7 @@ const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient, onToggleCrus
             {/* 基本資訊 */}
             <div className="flex-1 min-w-0 text-sm">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="font-medium text-blue-600">床號: {patient.床號}</span>
                 <span className="font-bold text-gray-900 text-base">{patient.中文姓名}</span>
                 {patient.英文姓名 && (
                   <span className="text-gray-600">{patient.英文姓名}</span>
@@ -129,7 +130,7 @@ const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient, onToggleCrus
                 {patient.身份證號碼 && (
                   <span>身份證: {patient.身份證號碼}</span>
                 )}
-                <span className="font-medium text-blue-600">床號: {patient.床號}</span>
+            
               </div>
             </div>
           </div>
