@@ -6,9 +6,10 @@ import { supabase } from '../lib/supabase';
 interface PatientInfoCardProps {
   patient: Patient | null;
   onToggleCrushMedication?: (patientId: number, needsCrushing: boolean) => void;
+  onOptimisticUpdate?: (patientId: number, needsCrushing: boolean) => void;
 }
 
-const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient, onToggleCrushMedication }) => {
+const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient, onToggleCrushMedication, onOptimisticUpdate }) => {
   if (!patient) {
     return (
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-center justify-center text-gray-500">
@@ -24,6 +25,11 @@ const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient, onToggleCrus
 
     const newValue = !patient.needs_medication_crushing;
 
+    // 樂觀更新 UI
+    if (onOptimisticUpdate) {
+      onOptimisticUpdate(patient.院友id, newValue);
+    }
+
     try {
       const { error } = await supabase
         .from('院友主表')
@@ -35,12 +41,18 @@ const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient, onToggleCrus
         throw error;
       }
 
+      // 資料庫更新成功，刷新數據確保一致性
       if (onToggleCrushMedication) {
         onToggleCrushMedication(patient.院友id, newValue);
       }
     } catch (error) {
       console.error('❌ 更新碎藥狀態失敗:', error);
       alert('更新失敗，請稍後再試');
+
+      // 更新失敗，回滾 UI（再次刷新數據）
+      if (onToggleCrushMedication) {
+        onToggleCrushMedication(patient.院友id, !newValue);
+      }
     }
   };
 

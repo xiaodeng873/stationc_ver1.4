@@ -444,6 +444,7 @@ const MedicationWorkflow: React.FC = () => {
   const [showDeduplicateModal, setShowDeduplicateModal] = useState(false);
   const [selectedDateForMenu, setSelectedDateForMenu] = useState<string | null>(null);
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
+  const [optimisticCrushState, setOptimisticCrushState] = useState<Map<number, boolean>>(new Map());
 
   // 防抖控制：使用 ref 追蹤生成狀態，防止併發
   const isGeneratingRef = React.useRef(false);
@@ -939,7 +940,20 @@ const MedicationWorkflow: React.FC = () => {
   }, [allWorkflowRecords, selectedDate, selectedPatientId, prescriptions]);
 
   // 獲取選中院友的在服處方（基於選取日期）
-  const selectedPatient = sortedActivePatients.find(p => p.院友id.toString() === selectedPatientId);
+  const selectedPatient = useMemo(() => {
+    const patient = sortedActivePatients.find(p => p.院友id.toString() === selectedPatientId);
+    if (!patient) return undefined;
+
+    // 應用樂觀更新
+    if (optimisticCrushState.has(patient.院友id)) {
+      return {
+        ...patient,
+        needs_medication_crushing: optimisticCrushState.get(patient.院友id)
+      };
+    }
+
+    return patient;
+  }, [sortedActivePatients, selectedPatientId, optimisticCrushState]);
 
   // 院友導航函數
   const goToPreviousPatient = () => {
@@ -2855,7 +2869,7 @@ const MedicationWorkflow: React.FC = () => {
       </div> 
 
       {/* 改進佈局 - 院友選擇與日期選擇平分、藥物安全資訊、院友資訊卡 */}
-      <div className="sticky top-16 bg-white z-20 shadow-sm">
+      <div className="sticky top-16 bg-white shadow-sm">
         <div className="card p-4">
           <div className="space-y-3">
             {/* 第一行：院友選擇（左50%）+ 日期控制（右50%） */}
@@ -2942,8 +2956,23 @@ const MedicationWorkflow: React.FC = () => {
             {selectedPatient && (
               <PatientInfoCard
                 patient={selectedPatient}
+                onOptimisticUpdate={(patientId, needsCrushing) => {
+                  // 立即更新 UI（樂觀更新）
+                  setOptimisticCrushState(prev => {
+                    const next = new Map(prev);
+                    next.set(patientId, needsCrushing);
+                    return next;
+                  });
+                }}
                 onToggleCrushMedication={async (patientId, needsCrushing) => {
+                  // 資料庫更新成功後刷新數據
                   await refreshData();
+                  // 清除樂觀更新狀態
+                  setOptimisticCrushState(prev => {
+                    const next = new Map(prev);
+                    next.delete(patientId);
+                    return next;
+                  });
                 }}
               />
             )}
