@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Pill,
   Calendar,
@@ -1836,8 +1836,13 @@ const MedicationWorkflow: React.FC = () => {
   };
 
   // 一鍵派藥（僅當日）- 打開確認對話框
-  const handleOneClickDispense = () => {
-    if (!selectedPatientId || !selectedDate) {
+  const handleOneClickDispense = (targetDate?: string) => {
+    if (!selectedPatientId) {
+      return;
+    }
+
+    const dateToUse = targetDate || selectedDate;
+    if (!dateToUse) {
       return;
     }
 
@@ -1846,11 +1851,22 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
+    // 如果傳入了目標日期，先更新 selectedDate
+    if (targetDate && targetDate !== selectedDate) {
+      setSelectedDate(targetDate);
+    }
+
     console.log('=== 一鍵派藥過濾邏輯 ===');
-    console.log('當天工作流程記錄總數:', currentDayWorkflowRecords.length);
+
+    // 獲取指定日期的工作流程記錄
+    const dayRecords = targetDate
+      ? allWorkflowRecords.filter(r => r.scheduled_date === targetDate)
+      : currentDayWorkflowRecords;
+
+    console.log('當天工作流程記錄總數:', dayRecords.length);
 
     // 找到所有可派藥的記錄（包含有檢測項要求的處方）
-    const eligibleRecords = currentDayWorkflowRecords.filter(r => {
+    const eligibleRecords = dayRecords.filter(r => {
       const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
       if (!prescription) {
@@ -3289,7 +3305,8 @@ const MedicationWorkflow: React.FC = () => {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDateOneClickDispense(date);
+                                      // 直接調用一鍵派藥，打開確認對話框
+                                      handleOneClickDispense(date);
                                       setIsDateMenuOpen(false);
                                       setSelectedDateForMenu(null);
                                     }}
