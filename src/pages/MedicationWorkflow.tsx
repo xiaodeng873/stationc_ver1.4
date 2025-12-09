@@ -3028,6 +3028,7 @@ const MedicationWorkflow: React.FC = () => {
                   </button>
                 </div>
           
+              </div>
 
               {/* 右側：日期控制 */}
               <div>
