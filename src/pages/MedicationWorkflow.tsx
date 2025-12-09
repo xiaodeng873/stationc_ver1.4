@@ -1831,7 +1831,6 @@ const MedicationWorkflow: React.FC = () => {
 
       if (pendingPreparationRecords.length === 0) {
         console.log('沒有需要執藥的記錄');
-        alert(`${targetDate} 沒有待執藥記錄`);
         return;
       }
 
@@ -1848,7 +1847,6 @@ const MedicationWorkflow: React.FC = () => {
       const failCount = results.filter(r => r.status === 'rejected').length;
 
       console.log(`一鍵執藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
-      alert(`${targetDate} 執藥完成：成功 ${successCount} 筆${failCount > 0 ? `, 失敗 ${failCount} 筆` : ''}`);
 
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
@@ -1889,7 +1887,6 @@ const MedicationWorkflow: React.FC = () => {
 
       if (pendingVerificationRecords.length === 0) {
         console.log('沒有需要核藥的記錄');
-        alert(`${targetDate} 沒有待核藥記錄`);
         return;
       }
 
@@ -1906,7 +1903,6 @@ const MedicationWorkflow: React.FC = () => {
       const failCount = results.filter(r => r.status === 'rejected').length;
 
       console.log(`一鍵核藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
-      alert(`${targetDate} 核藥完成：成功 ${successCount} 筆${failCount > 0 ? `, 失敗 ${failCount} 筆` : ''}`);
 
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
@@ -1948,7 +1944,6 @@ const MedicationWorkflow: React.FC = () => {
 
       if (eligibleRecords.length === 0) {
         console.log('沒有可派藥的記錄');
-        alert(`${targetDate} 沒有可派藥記錄`);
         return;
       }
 
@@ -1985,7 +1980,6 @@ const MedicationWorkflow: React.FC = () => {
       const failCount = results.filter(r => r.status === 'rejected').length;
 
       console.log(`一鍵派藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
-      alert(`${targetDate} 派藥完成：成功 ${successCount} 筆${failCount > 0 ? `, 失敗 ${failCount} 筆` : ''}`);
 
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
@@ -2024,7 +2018,6 @@ const MedicationWorkflow: React.FC = () => {
 
       if (eligibleRecords.length === 0) {
         console.log('沒有符合一鍵全程條件的記錄');
-        alert(`${targetDate} 沒有可全程處理的記錄`);
         return;
       }
 
@@ -2106,7 +2099,6 @@ const MedicationWorkflow: React.FC = () => {
       });
 
       console.log(`一鍵全程完成: 成功 ${successCount} 筆, 入院 ${hospitalizedCount} 筆, 渡假 ${vacationCount} 筆, 失敗 ${failCount} 筆`);
-      alert(`${targetDate} 全程處理完成：成功 ${successCount} 筆${hospitalizedCount > 0 ? `, 入院 ${hospitalizedCount} 筆` : ''}${vacationCount > 0 ? `, 渡假 ${vacationCount} 筆` : ''}${failCount > 0 ? `, 失敗 ${failCount} 筆` : ''}`);
 
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
@@ -2950,17 +2942,8 @@ const MedicationWorkflow: React.FC = () => {
               <PatientInfoCard
                 patient={selectedPatient}
                 onToggleCrushMedication={async (patientId, needsCrushing) => {
-                  const { data: updatedPatient } = await supabase
-                    .from('院友主表')
-                    .select('*')
-                    .eq('院友id', patientId)
-                    .maybeSingle();
-
-                  if (updatedPatient) {
-                    setSelectedPatientId('');
-                    setTimeout(() => {
-                      setSelectedPatientId(patientId.toString());
-                    }, 10);
+                  if (selectedPatient) {
+                    selectedPatient.needs_medication_crushing = needsCrushing;
                   }
                 }}
               />
@@ -3124,12 +3107,12 @@ const MedicationWorkflow: React.FC = () => {
                             {month}/{dayOfMonth}<br/>({weekday})
                           </div>
 
-                          {/* 下拉選單（向下展開，使用固定定位避免被 overflow 裁切） */}
+                          {/* 下拉選單（向上展開，使用固定定位避免被 overflow 裁切） */}
                           {isMenuOpen && (
-                            <div className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 z-[9999] mt-1"
+                            <div className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 z-[9999] mb-1"
                                  ref={dateMenuRef}
                                  style={{
-                                   top: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().bottom || 0}px`,
+                                   bottom: `${window.innerHeight - ((document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().top || 0)}px`,
                                    left: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().left || 0}px`
                                  }}>
                                 <div className="py-1">
