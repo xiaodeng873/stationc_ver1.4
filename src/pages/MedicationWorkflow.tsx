@@ -3027,11 +3027,7 @@ const MedicationWorkflow: React.FC = () => {
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
-                {/* 院友導航指示器 */}
-                {sortedActivePatients.length > 0 && selectedPatient && (
-            
-                )}
-              </div>
+          
 
               {/* 右側：日期控制 */}
               <div>
