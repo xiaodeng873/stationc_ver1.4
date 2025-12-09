@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Pill,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
   User,
   Clock,
   CheckCircle,

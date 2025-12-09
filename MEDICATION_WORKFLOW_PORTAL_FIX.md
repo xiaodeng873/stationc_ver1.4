@@ -115,7 +115,7 @@ export function Portal({ children, container }: PortalProps) {
 
 **移除的元素：**
 
-1. **左側週次導航按鈕**
+1. **左側週次導航按鈕（固定在屏幕左側的大按鈕）**
 ```tsx
 // 已刪除
 <button onClick={goToPreviousWeek} className="fixed left-4 top-1/2...">
@@ -123,7 +123,7 @@ export function Portal({ children, container }: PortalProps) {
 </button>
 ```
 
-2. **右側週次導航按鈕**
+2. **右側週次導航按鈕（固定在屏幕右側的大按鈕）**
 ```tsx
 // 已刪除
 <button onClick={goToNextWeek} className="fixed right-4 top-1/2...">
@@ -136,8 +136,17 @@ export function Portal({ children, container }: PortalProps) {
 - 刪除 `handleMouseMove`
 - 刪除 `handleMouseUp`
 
-4. **移除未使用的圖標引入**
-- 從 `lucide-react` 移除 `ChevronLeft` 和 `ChevronRight`
+**保留的元素：**
+
+✅ **院友選擇的左右箭頭按鈕**
+- 用於快速切換上一位/下一位院友
+- 這些按鈕很小，位於院友選擇框旁邊
+- 仍然使用 `ChevronLeft` 和 `ChevronRight` 圖標
+
+✅ **日期選擇的左右箭頭按鈕**
+- 用於快速切換前一日/後一日
+- 這些按鈕很小，位於日期選擇框旁邊
+- 仍然使用 `ChevronLeft` 和 `ChevronRight` 圖標
 
 **保留的功能：**
 - ✅ 觸控拖曳切換週次（`handleTouchStart`, `handleTouchMove`, `handleTouchEnd`）
