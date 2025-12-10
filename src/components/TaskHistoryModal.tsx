@@ -62,23 +62,32 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // [修正] 如果日期早於分界線，不應顯示任何狀態（任務還未開始）
+    if (cutoffDateStr && dateStr < cutoffDateStr) {
+      return 'none';
+    }
+
     // [修改] 如果指定了 specificTime，只檢查那個時間點
     if (specificTime) {
       const hasRecord = healthRecords.some(r => {
         if (r.task_id && r.task_id === task.id) {
           return r.記錄日期 === dateStr && r.記錄時間 === specificTime;
         }
-        return r.院友id.toString() == task.patient_id.toString() &&
-               r.記錄類型 === task.health_record_type &&
-               r.記錄日期 === dateStr &&
-               r.記錄時間 === specificTime;
+        // [增強] 更容錯的匹配邏輯
+        const patientMatch = r.院友id?.toString() === task.patient_id?.toString();
+        const typeMatch = r.記錄類型 === task.health_record_type;
+        const dateMatch = r.記錄日期 === dateStr;
+        const timeMatch = r.記錄時間 === specificTime;
+
+        return patientMatch && typeMatch && dateMatch && timeMatch;
       });
 
       if (hasRecord) return 'completed';
 
-      if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
+      // 未來日期不顯示為逾期
       if (checkDate > today) return 'future';
 
+      // 檢查是否應該排程在這一天
       const isScheduled = isTaskScheduledForDate(task, checkDate);
       if (isScheduled) {
         if (checkDate.getTime() === today.getTime()) return 'pending';
@@ -94,9 +103,12 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
         if (r.task_id && r.task_id === task.id) {
           return r.記錄日期 === dateStr;
         }
-        return r.院友id.toString() == task.patient_id.toString() &&
-               r.記錄類型 === task.health_record_type &&
-               r.記錄日期 === dateStr;
+        // [增強] 更容錯的匹配邏輯
+        const patientMatch = r.院友id?.toString() === task.patient_id?.toString();
+        const typeMatch = r.記錄類型 === task.health_record_type;
+        const dateMatch = r.記錄日期 === dateStr;
+
+        return patientMatch && typeMatch && dateMatch;
       });
 
       // 檢查所有時間點是否都有記錄
@@ -107,10 +119,10 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
         return 'completed';
       }
 
-      // 部分時間點完成或沒有完成
-      if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
+      // 未來日期不顯示為逾期
       if (checkDate > today) return 'future';
 
+      // 檢查是否應該排程在這一天
       const isScheduled = isTaskScheduledForDate(task, checkDate);
       if (isScheduled) {
         if (checkDate.getTime() === today.getTime()) return 'pending';
@@ -119,22 +131,40 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
 
       return 'none';
     } else {
-      // 單時間點任務，保持原有邏輯
+      // 單時間點任務
       const hasRecord = healthRecords.some(r => {
-        if (r.task_id && r.task_id === task.id) return r.記錄日期 === dateStr;
-        return r.院友id.toString() == task.patient_id.toString() &&
-               r.記錄類型 === task.health_record_type &&
-               r.記錄日期 === dateStr;
+        if (r.task_id && r.task_id === task.id) {
+          return r.記錄日期 === dateStr;
+        }
+        // [增強] 更容錯的匹配邏輯，並添加調試信息
+        const patientMatch = r.院友id?.toString() === task.patient_id?.toString();
+        const typeMatch = r.記錄類型 === task.health_record_type;
+        const dateMatch = r.記錄日期 === dateStr;
+
+        // [調試] 記錄匹配失敗的原因
+        if (dateMatch && !patientMatch) {
+          console.log(`[日曆調試] ${dateStr} 院友ID不匹配: 記錄=${r.院友id}, 任務=${task.patient_id}`);
+        }
+        if (dateMatch && patientMatch && !typeMatch) {
+          console.log(`[日曆調試] ${dateStr} 記錄類型不匹配: 記錄="${r.記錄類型}", 任務="${task.health_record_type}"`);
+        }
+
+        return patientMatch && typeMatch && dateMatch;
       });
 
       if (hasRecord) return 'completed';
 
-      if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
+      // 未來日期不顯示為逾期
       if (checkDate > today) return 'future';
 
+      // 檢查是否應該排程在這一天
       const isScheduled = isTaskScheduledForDate(task, checkDate);
 
       if (isScheduled) {
+        // [調試] 記錄為什麼判定為逾期
+        if (checkDate.getTime() !== today.getTime()) {
+          console.log(`[日曆調試] ${dateStr} 判定為逾期 - 任務類型: ${task.health_record_type}, 院友: ${task.patient_id}`);
+        }
         if (checkDate.getTime() === today.getTime()) return 'pending';
         return 'missed';
       }
