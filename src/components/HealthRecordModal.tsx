@@ -27,16 +27,34 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const { addHealthRecord, updateHealthRecord, patients, hospitalEpisodes, admissionRecords } = usePatients();
   const { displayName } = useAuth();
 
-  // ESC 鍵關閉模態框
+  // ESC 鍵關閉主模態框
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !showDateWarningModal) {
         onClose();
       }
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
+  }, [onClose, showDateWarningModal]);
+
+  // 日期確認模態框鍵盤事件 (Enter 確認, ESC 取消)
+  React.useEffect(() => {
+    if (!showDateWarningModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleDateWarningConfirm();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleDateWarningCancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showDateWarningModal, handleDateWarningConfirm, handleDateWarningCancel]);
 
   const getHongKongDateTime = (dateString?: string) => {
     const date = dateString ? new Date(dateString) : new Date();
@@ -379,16 +397,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     }
   };
 
-  const handleDateWarningConfirm = async () => {
+  const handleDateWarningConfirm = React.useCallback(async () => {
     setShowDateWarningModal(false);
     setIsDateWarningConfirmed(true);
     await saveRecord();
-  };
+  }, [saveRecord]);
 
-  const handleDateWarningCancel = () => {
+  const handleDateWarningCancel = React.useCallback(() => {
     setShowDateWarningModal(false);
     setIsDateWarningConfirmed(false);
-  };
+  }, []);
 
   return (
     <>
@@ -610,8 +628,14 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       </div>
 
       {showDateWarningModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]"
+          onClick={handleDateWarningCancel}
+        >
+          <div
+            className="bg-white rounded-lg max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className="p-2 rounded-lg bg-orange-100">
