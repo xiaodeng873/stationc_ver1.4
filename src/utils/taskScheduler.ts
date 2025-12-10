@@ -97,9 +97,19 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
     if (task.specific_days_of_week && task.specific_days_of_week.length > 0) {
        const day = date.getDay(); // JS: 0=Sun...6=Sat
        const dbDay = day === 0 ? 7 : day;
-       return task.specific_days_of_week.includes(dbDay);
+       const isScheduled = task.specific_days_of_week.includes(dbDay);
+
+       if (DEBUG_TASK_ID) {
+         console.log(`  [weekly 檢查] 檢查日期: ${date.toISOString().split('T')[0]}`);
+         console.log(`    date.getDay(): ${day} (0=週日, 5=週五, 6=週六)`);
+         console.log(`    dbDay: ${dbDay}`);
+         console.log(`    specific_days_of_week: ${JSON.stringify(task.specific_days_of_week)}`);
+         console.log(`    結果: ${isScheduled ? '✅ 該做' : '❌ 不該做'}`);
+       }
+
+       return isScheduled;
     }
-    return false; 
+    return false;
   }
 
   // 3. 每月任務：檢查特定日期
