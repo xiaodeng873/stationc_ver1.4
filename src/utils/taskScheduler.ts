@@ -103,12 +103,30 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
   // 2. 每週任務：檢查特定星期
   if (task.frequency_unit === 'weekly') {
     if (task.specific_days_of_week && task.specific_days_of_week.length > 0) {
+       const targetDate = new Date(date);
+       targetDate.setHours(0, 0, 0, 0);
+       const targetDateStr = formatLocalDate(targetDate);
+
+       // [修復] 先檢查該日期是否在任務創建日期之後
+       if (task.created_at) {
+         const createdDate = new Date(task.created_at);
+         createdDate.setHours(0, 0, 0, 0);
+
+         if (targetDate < createdDate) {
+           if (DEBUG_TASK_ID) {
+             console.log(`  [weekly 檢查] 檢查日期: ${targetDateStr}`);
+             console.log(`    ❌ 該日期在任務創建日期 ${formatLocalDate(createdDate)} 之前，不該做`);
+           }
+           return false;
+         }
+       }
+
        const day = date.getDay(); // JS: 0=Sun...6=Sat
        const dbDay = day === 0 ? 7 : day;
        const isScheduled = task.specific_days_of_week.includes(dbDay);
 
        if (DEBUG_TASK_ID) {
-         console.log(`  [weekly 檢查] 檢查日期: ${formatLocalDate(date)}`);  // 🔧 修復：使用本地時間
+         console.log(`  [weekly 檢查] 檢查日期: ${targetDateStr}`);
          console.log(`    date.getDay(): ${day} (0=週日, 5=週五, 6=週六)`);
          console.log(`    dbDay: ${dbDay}`);
          console.log(`    specific_days_of_week: ${JSON.stringify(task.specific_days_of_week)}`);
@@ -123,6 +141,23 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
   // 3. 每月任務：檢查特定日期
   if (task.frequency_unit === 'monthly') {
      if (task.specific_days_of_month && task.specific_days_of_month.length > 0) {
+       const targetDate = new Date(date);
+       targetDate.setHours(0, 0, 0, 0);
+
+       // [修復] 先檢查該日期是否在任務創建日期之後
+       if (task.created_at) {
+         const createdDate = new Date(task.created_at);
+         createdDate.setHours(0, 0, 0, 0);
+
+         if (targetDate < createdDate) {
+           if (DEBUG_TASK_ID) {
+             console.log(`  [monthly 檢查] 檢查日期: ${formatLocalDate(targetDate)}`);
+             console.log(`    ❌ 該日期在任務創建日期 ${formatLocalDate(createdDate)} 之前，不該做`);
+           }
+           return false;
+         }
+       }
+
        return task.specific_days_of_month.includes(date.getDate());
      }
   }
