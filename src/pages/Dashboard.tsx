@@ -450,13 +450,15 @@ const Dashboard: React.FC = () => {
       // [用戶需求] 只有「過去逾期/錯過」或「現在該做但沒做」才顯示卡片
       // 不應該因為「未來還有排程」就顯示「排程中」狀態
 
-      // 1. 檢查過去是否有錯過（紅點）
-      const hasMissed = !!findMostRecentMissedDate(task);
-      console.log(`  hasMissed (過去錯過): ${hasMissed}`);
-
-      // 2. 檢查現在是否有逾期（紅點）
+      // [方案B：保守雙重檢查] 合併邏輯避免重複顯示
+      // 1. 先檢查基於 next_due_at 的逾期（主要檢查，真相來源）
       const isOverdue = isTaskOverdue(task, recordLookup, todayStr);
       console.log(`  isTaskOverdue (現在逾期): ${isOverdue}`);
+
+      // 2. 只有在不逾期時，才回溯檢查過去是否有錯過（次要檢查，捕捉邊緣情況）
+      // 這確保了安全性，同時避免重複顯示
+      const hasMissed = !isOverdue ? !!findMostRecentMissedDate(task) : false;
+      console.log(`  hasMissed (過去錯過): ${hasMissed} ${isOverdue ? '(已被 isOverdue 覆蓋，避免重複)' : ''}`);
 
       // 3. 檢查今天是否該做但沒做（當前時刻已過但未完成）
       let hasCurrentPending = false;
@@ -808,8 +810,11 @@ const Dashboard: React.FC = () => {
                         }
                       }
 
-                      // [修復可能性5] 只有在今天未完成時才檢查過去的錯過
-                      const missedDate = !isTodayCompleted ? findMostRecentMissedDate(task) : null;
+                      // [方案B：保守雙重檢查] 與顯示邏輯保持一致
+                      // 先檢查是否逾期（基於 next_due_at）
+                      const isOverdueForCard = isTaskOverdue(task, recordLookup, todayStr);
+                      // 只有在不逾期且今天未完成時，才回溯檢查過去的錯過
+                      const missedDate = !isOverdueForCard && !isTodayCompleted ? findMostRecentMissedDate(task) : null;
                       const hasMissed = !!missedDate;
 
                       return (
