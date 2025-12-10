@@ -21,30 +21,45 @@ export function isEveningCarePlanTask(taskType: string): boolean {
   return taskType === '晚晴計劃';
 }
 
-// [核心修正] 判斷某一天是否應該有任務
+// [核心修正+調試] 判斷某一天是否應該有任務
 export function isTaskScheduledForDate(task: any, date: Date): boolean {
+  const DEBUG_TASK_ID = task.patient_id === 52 && task.health_record_type === '生命表徵'; // 調試院友 ID 52 的生命表徵任務
+
   // 1. 每日任務：需考慮頻率數值 (例如每 2 天)
   if (task.frequency_unit === 'daily') {
     const freqValue = task.frequency_value || 1;
-    
+
     // 如果是「每天」，則每天都回傳 true
     if (freqValue === 1) return true;
 
     // 如果是「每 X 天」，需要一個基準日來計算週期
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
-    
+    const targetDateStr = targetDate.toISOString().split('T')[0];
+
     let anchorDate: Date | null = null;
+
+    if (DEBUG_TASK_ID) {
+      console.log(`  [isTaskScheduledForDate] 檢查日期: ${targetDateStr}`);
+      console.log(`    任務ID: ${task.id}, 院友ID: ${task.patient_id}`);
+      console.log(`    頻率: 每 ${freqValue} 天`);
+      console.log(`    last_completed_at: ${task.last_completed_at || '無'}`);
+      console.log(`    created_at: ${task.created_at || '無'}`);
+    }
 
     // [關鍵修正] 優先使用 last_completed_at 作為基準點 (針對未來/未完成的日期)
     // 這確保了如果用戶在 2號 做了(打破規律)，下次會自動變 4號，而不是死板的 3號
     if (task.last_completed_at) {
        const lastCompleted = new Date(task.last_completed_at);
        lastCompleted.setHours(0, 0, 0, 0);
-       
+       const lastCompletedStr = lastCompleted.toISOString().split('T')[0];
+
        // 只有當目標日期在最後完成日「之後」，才使用它作為基準
        if (targetDate > lastCompleted) {
          anchorDate = lastCompleted;
+         if (DEBUG_TASK_ID) console.log(`    ✓ 使用 last_completed_at 作為基準: ${lastCompletedStr}`);
+       } else {
+         if (DEBUG_TASK_ID) console.log(`    ✗ 目標日期 ${targetDateStr} 不在 last_completed_at ${lastCompletedStr} 之後，不使用`);
        }
     }
 
@@ -52,18 +67,28 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
     if (!anchorDate && task.created_at) {
       anchorDate = new Date(task.created_at);
       anchorDate.setHours(0, 0, 0, 0);
+      if (DEBUG_TASK_ID) console.log(`    ✓ 使用 created_at 作為基準: ${anchorDate.toISOString().split('T')[0]}`);
     }
-    
+
     if (anchorDate) {
       // 計算相差天數
       const diffTime = targetDate.getTime() - anchorDate.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const canDivide = diffDays % freqValue === 0;
+      const isScheduled = diffDays >= 0 && canDivide;
+
+      if (DEBUG_TASK_ID) {
+        console.log(`    相差天數: ${diffDays}`);
+        console.log(`    ${diffDays} % ${freqValue} = ${diffDays % freqValue} (能整除: ${canDivide})`);
+        console.log(`    最終結果: ${isScheduled ? '✅ 該做' : '❌ 不該做'}`);
+      }
 
       // 1. diffDays 必須 >= 0 (不能早於基準日)
       // 2. 能夠被頻率整除
-      return diffDays >= 0 && diffDays % freqValue === 0;
+      return isScheduled;
     }
-    
+
+    if (DEBUG_TASK_ID) console.log(`    ❌ 無法確定基準日期，返回 false`);
     return false;
   }
   

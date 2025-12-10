@@ -270,11 +270,21 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // [修復可能性5] 改進錯過日期檢查邏輯
+  // [修復可能性5+調試] 改進錯過日期檢查邏輯
   const findMostRecentMissedDate = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
 
-    console.log(`  🔍 [findMostRecentMissedDate] 檢查任務 ${task.id} 過去是否有錯過`);
+    const isDebugTask = task.patient_id === 52 && task.health_record_type === '生命表徵';
+
+    if (isDebugTask) {
+      console.log(`\n  🔍 [findMostRecentMissedDate] 檢查任務 ${task.id} 過去是否有錯過`);
+      console.log(`    院友ID: ${task.patient_id}`);
+      console.log(`    任務類型: ${task.health_record_type}`);
+      console.log(`    頻率: ${task.frequency_value} ${task.frequency_unit}`);
+      console.log(`    last_completed_at: ${task.last_completed_at || '無'}`);
+      console.log(`    created_at: ${task.created_at || '無'}`);
+    }
+
     const today = new Date();
     today.setHours(0,0,0,0);
 
@@ -286,21 +296,21 @@ const Dashboard: React.FC = () => {
 
       // 遇到 Cutoff Date 停止
       if (dateStr <= SYNC_CUTOFF_DATE_STR) {
-        console.log(`    ⏹️ 到達分界日期 ${SYNC_CUTOFF_DATE_STR}，停止檢查`);
+        if (isDebugTask) console.log(`    ⏹️ 到達分界日期 ${SYNC_CUTOFF_DATE_STR}，停止檢查`);
         return null;
       }
 
       // 如果這天該做但沒有記錄，就是錯過了
       if (isTaskScheduledForDate(task, d)) {
         const hasRecord = hasRecordForDateTime(task, dateStr);
-        console.log(`    ${dateStr}: 該做=${true}, 有記錄=${hasRecord}`);
+        if (isDebugTask) console.log(`    ${dateStr}: 該做=${true}, 有記錄=${hasRecord}`);
         if (!hasRecord) {
-          console.log(`    ❌ 找到錯過日期: ${dateStr}`);
+          if (isDebugTask) console.log(`    ❌ 找到錯過日期: ${dateStr}`);
           return d;
         }
       }
     }
-    console.log(`    ✅ 過去14天沒有錯過`);
+    if (isDebugTask) console.log(`    ✅ 過去14天沒有錯過`);
     return null;
   };
 
