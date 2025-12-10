@@ -9,16 +9,16 @@ interface PortalProps {
 export function Portal({ children, container }: PortalProps) {
   const defaultContainer = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!container && !defaultContainer.current) {
-      const div = document.createElement('div');
-      div.setAttribute('data-portal-container', 'true');
-      document.body.appendChild(div);
-      defaultContainer.current = div;
-    }
+  if (!container && !defaultContainer.current) {
+    const div = document.createElement('div');
+    div.setAttribute('data-portal-container', 'true');
+    document.body.appendChild(div);
+    defaultContainer.current = div;
+  }
 
+  useEffect(() => {
     return () => {
-      if (defaultContainer.current) {
+      if (defaultContainer.current && !container) {
         document.body.removeChild(defaultContainer.current);
         defaultContainer.current = null;
       }
@@ -26,10 +26,6 @@ export function Portal({ children, container }: PortalProps) {
   }, [container]);
 
   const targetContainer = container || defaultContainer.current;
-
-  if (!targetContainer) {
-    return null;
-  }
 
   return createPortal(children, targetContainer);
 }

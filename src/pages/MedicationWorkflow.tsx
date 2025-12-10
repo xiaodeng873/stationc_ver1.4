@@ -445,6 +445,7 @@ const MedicationWorkflow: React.FC = () => {
   const [showDeduplicateModal, setShowDeduplicateModal] = useState(false);
   const [selectedDateForMenu, setSelectedDateForMenu] = useState<string | null>(null);
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top?: number; bottom?: number; left: number }>({ left: 0 });
   const [optimisticCrushState, setOptimisticCrushState] = useState<Map<number, boolean>>(new Map());
   const [optimisticWorkflowUpdates, setOptimisticWorkflowUpdates] = useState<Map<string, {
     preparation_status?: string;
@@ -897,6 +898,25 @@ const MedicationWorkflow: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isDateMenuOpen]);
+
+  // 計算日期選單位置（向上展開）
+  useEffect(() => {
+    if (isDateMenuOpen && selectedDateForMenu) {
+      requestAnimationFrame(() => {
+        const element = document.querySelector(`[data-date="${selectedDateForMenu}"]`) as HTMLElement;
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          console.log('計算菜單位置:', { date: selectedDateForMenu, rect });
+
+          // 向上展開：使用 bottom 定位，菜單顯示在日期上方
+          setMenuPosition({
+            bottom: window.innerHeight - rect.top + 4,
+            left: rect.left
+          });
+        }
+      });
+    }
+  }, [isDateMenuOpen, selectedDateForMenu]);
 
   // 獲取當前日期的工作流程記錄（用於一鍵操作等）
   // 重要：包含在服處方(status='active')和有效期內的停用處方(status='inactive')的記錄
@@ -3142,15 +3162,15 @@ const MedicationWorkflow: React.FC = () => {
                             {month}/{dayOfMonth}<br/>({weekday})
                           </div>
 
-                          {/* 下拉選單（使用 Portal 渲染到 body，確保在所有元素之上） */}
+                          {/* 下拉選單（使用 Portal 渲染到 body，確保在所有元素之上，向上展開） */}
                           {isMenuOpen && (
                             <Portal>
                               <div
                                 className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300"
                                 ref={dateMenuRef}
                                 style={{
-                                  top: `${((document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().bottom || 0) + 4}px`,
-                                  left: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().left || 0}px`,
+                                  bottom: menuPosition.bottom !== undefined ? `${menuPosition.bottom}px` : 'auto',
+                                  left: `${menuPosition.left}px`,
                                   zIndex: 99999
                                 }}
                               >
