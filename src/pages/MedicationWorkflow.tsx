@@ -3523,8 +3523,8 @@ const MedicationWorkflow: React.FC = () => {
                             </div>
 
                             
-                       
-                              </div>
+                            {prescription.is_prn && (
+                          
                             )}
 
                             {prescription.preparation_method === 'immediate' && (
