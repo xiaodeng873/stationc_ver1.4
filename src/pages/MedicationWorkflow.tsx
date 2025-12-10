@@ -1234,6 +1234,23 @@ const MedicationWorkflow: React.FC = () => {
     for (const episode of patientEpisodes) {
       console.log('📌 檢查住院事件:', episode);
 
+      // 如果有 episode_start_date 和 episode_end_date，直接檢查（簡單方式）
+      if (episode.episode_start_date && episode.episode_end_date) {
+        const startDate = new Date(`${episode.episode_start_date}T00:00:00`);
+        const endDate = new Date(`${episode.episode_end_date}T23:59:59`);
+
+        if (medicationDateTime >= startDate && medicationDateTime <= endDate) {
+          console.log('  ✅ 服藥時間在住院期間內（簡單方式）:', {
+            startDate: episode.episode_start_date,
+            endDate: episode.episode_end_date
+          });
+          return true;
+        }
+        console.log('  ❌ 服藥時間不在此住院期間內（簡單方式）');
+        continue;
+      }
+
+      // 否則檢查 episode_events（詳細方式）
       if (!episode.episode_events || episode.episode_events.length === 0) {
         console.log('  ⚠️ 此事件沒有事件記錄，跳過');
         continue;

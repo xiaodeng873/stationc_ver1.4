@@ -186,16 +186,44 @@ export const isInHospital = (
   patient: Patient,
   targetDate: string,
   targetTime: string,
-  admissionRecords: PatientAdmissionRecord[]
+  admissionRecords: PatientAdmissionRecord[],
+  hospitalEpisodes: any[] = []
 ): boolean => {
   console.log('[isInHospital] 開始檢查:', {
     patientId: patient.院友id,
     patientName: patient.中文姓名,
     targetDate,
     targetTime,
-    admissionRecordsCount: admissionRecords.length
+    admissionRecordsCount: admissionRecords.length,
+    hospitalEpisodesCount: hospitalEpisodes.length
   });
 
+  // 1. 先檢查 hospital_episodes 表（新的住院事件記錄）
+  const patientEpisodes = hospitalEpisodes.filter(ep => ep.patient_id === patient.院友id);
+  console.log('[isInHospital] 該院友的住院事件:', patientEpisodes);
+
+  const target = new Date(`${targetDate}T${targetTime}:00`);
+
+  for (const episode of patientEpisodes) {
+    if (episode.episode_start_date && episode.episode_end_date) {
+      const startDate = new Date(`${episode.episode_start_date}T00:00:00`);
+      const endDate = new Date(`${episode.episode_end_date}T23:59:59`);
+
+      if (target >= startDate && target <= endDate) {
+        console.log('[isInHospital] ✅ 在住院事件期間內:', {
+          episodeId: episode.id,
+          startDate: episode.episode_start_date,
+          endDate: episode.episode_end_date,
+          hospital: episode.primary_hospital
+        });
+        return true;
+      }
+    }
+  }
+
+  console.log('[isInHospital] ❌ 不在任何住院事件期間內');
+
+  // 2. 檢查 patient_admission_records 表（舊的入院/出院記錄）
   const patientAdmissions = admissionRecords.filter(r => r.patient_id === patient.院友id);
   console.log('[isInHospital] 該院友的入院記錄:', patientAdmissions);
 
@@ -219,7 +247,6 @@ export const isInHospital = (
   );
   console.log('[isInHospital] 對應的出院記錄:', discharge);
 
-  const target = new Date(`${targetDate}T${targetTime}:00`);
   const admitTime = new Date(`${latestAdmission.event_date}T${latestAdmission.event_time || '00:00'}:00`);
 
   console.log('[isInHospital] 時間比較:', {

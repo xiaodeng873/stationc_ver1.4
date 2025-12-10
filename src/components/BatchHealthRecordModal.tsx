@@ -56,7 +56,7 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
     if (!patient) return false;
 
     // 檢查是否在入院期間（使用 careRecordHelper 的 isInHospital 函數）
-    const inHospital = isInHospital(patient, recordDate, recordTime, admissionRecords);
+    const inHospital = isInHospital(patient, recordDate, recordTime, admissionRecords, hospitalEpisodes);
 
     return inHospital;
   };

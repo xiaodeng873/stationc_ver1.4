@@ -48,7 +48,8 @@ const CareRecords: React.FC = () => {
     patients,
     patientRestraintAssessments,
     healthAssessments,
-    admissionRecords
+    admissionRecords,
+    hospitalEpisodes
   } = usePatients();
 
   // 本地狀態管理護理記錄數據
@@ -410,7 +411,7 @@ const CareRecords: React.FC = () => {
                       return match;
                     }
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords, hospitalEpisodes);
 
                   return (
                     <td
@@ -479,7 +480,7 @@ const CareRecords: React.FC = () => {
                     r => r.change_date === dateString && r.time_slot === slot.time
                   );
                   const timeStr = slot.time.split('-')[0];
-                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeStr, admissionRecords);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeStr, admissionRecords, hospitalEpisodes);
 
                   return (
                     <td
@@ -559,7 +560,7 @@ const CareRecords: React.FC = () => {
                   const record = patientRestraintObservations.find(
                     r => r.observation_date === dateString && r.scheduled_time === timeSlot
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords, hospitalEpisodes);
 
                   return (
                     <td
@@ -637,7 +638,7 @@ const CareRecords: React.FC = () => {
                   const record = patientPositionChanges.find(
                     r => r.change_date === dateString && r.scheduled_time === timeSlot
                   );
-                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords);
+                  const inHospital = selectedPatient && isInHospital(selectedPatient, dateString, timeSlot, admissionRecords, hospitalEpisodes);
                   const expectedPosition = getPositionSequence(index);
 
                   return (
