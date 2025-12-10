@@ -59,12 +59,25 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
   // 檢查院友在指定日期時間是否入院中（包括住院和外出就醫）
   const checkPatientAbsent = (patientId: string, recordDate: string, recordTime: string): boolean => {
-    if (!patientId || !recordDate || !recordTime) return false;
+    console.log('[checkPatientAbsent] 開始檢查:', { patientId, recordDate, recordTime });
+
+    if (!patientId || !recordDate || !recordTime) {
+      console.log('[checkPatientAbsent] 缺少必要參數，返回 false');
+      return false;
+    }
+
     const patient = patients.find(p => p.院友id.toString() === patientId.toString());
-    if (!patient) return false;
+    if (!patient) {
+      console.log('[checkPatientAbsent] 找不到院友，返回 false');
+      return false;
+    }
+
+    console.log('[checkPatientAbsent] 找到院友:', patient.姓名);
 
     // 檢查是否在入院期間（使用 careRecordHelper 的 isInHospital 函數）
     const inHospital = isInHospital(patient, recordDate, recordTime, admissionRecords);
+
+    console.log('[checkPatientAbsent] isInHospital 結果:', inHospital);
 
     return inHospital;
   };
@@ -87,11 +100,22 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
   const { date: defaultRecordDate, time: defaultRecordTime } = getDefaultDateTime();
 
+  console.log('[HealthRecordModal] 準備計算 initialIsPatientAbsent:', {
+    initialPatientId,
+    defaultRecordDate,
+    defaultRecordTime,
+    預設日期: initialData?.預設日期,
+    預設時間: initialData?.預設時間,
+    hasRecord: !!record
+  });
+
   const initialIsPatientAbsent = checkPatientAbsent(
     initialPatientId,
     initialData?.預設日期 || initialData?.task?.next_due_at?.split('T')[0] || defaultRecordDate,
     initialData?.預設時間 || initialData?.task?.specific_times?.[0] || defaultRecordTime
   );
+
+  console.log('[HealthRecordModal] initialIsPatientAbsent 結果:', initialIsPatientAbsent);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -118,18 +142,58 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const [showDateWarningModal, setShowDateWarningModal] = useState(false);
   const [isDateWarningConfirmed, setIsDateWarningConfirmed] = useState(false);
 
+  // 組件掛載時記錄初始狀態
+  React.useEffect(() => {
+    console.log('[HealthRecordModal] 組件掛載，初始表單數據:', {
+      院友id: formData.院友id,
+      記錄日期: formData.記錄日期,
+      記錄時間: formData.記錄時間,
+      isAbsent: formData.isAbsent,
+      absenceReason: formData.absenceReason,
+      備註: formData.備註,
+      initialIsPatientAbsent
+    });
+  }, []);
+
   // 計算當前院友是否在指定日期時間處於入院狀態（用於 UI 顯示）
   const currentIsPatientAbsent = React.useMemo(() => {
-    return checkPatientAbsent(formData.院友id, formData.記錄日期, formData.記錄時間);
+    console.log('[HealthRecordModal] 計算 currentIsPatientAbsent:', {
+      院友id: formData.院友id,
+      記錄日期: formData.記錄日期,
+      記錄時間: formData.記錄時間,
+      admissionRecordsCount: admissionRecords.length,
+      admissionRecords: admissionRecords.filter(r => r.patient_id === formData.院友id)
+    });
+    const result = checkPatientAbsent(formData.院友id, formData.記錄日期, formData.記錄時間);
+    console.log('[HealthRecordModal] currentIsPatientAbsent 結果:', result);
+    return result;
   }, [formData.院友id, formData.記錄日期, formData.記錄時間, admissionRecords]);
 
   // 當院友ID、日期或時間改變時，檢查是否在入院期間並自動設定
   React.useEffect(() => {
+    console.log('[HealthRecordModal] useEffect 觸發 - 檢查入院狀態:', {
+      院友id: formData.院友id,
+      記錄日期: formData.記錄日期,
+      記錄時間: formData.記錄時間,
+      hasRecord: !!record,
+      currentIsPatientAbsent,
+      currentFormIsAbsent: formData.isAbsent,
+      currentAbsenceReason: formData.absenceReason
+    });
+
     if (formData.院友id && formData.記錄日期 && formData.記錄時間 && !record) {
       const isAbsent = currentIsPatientAbsent;
 
+      console.log('[HealthRecordModal] 條件檢查通過，準備自動設定:', {
+        isAbsent,
+        currentFormIsAbsent: formData.isAbsent,
+        shouldAutoSet: isAbsent && !formData.isAbsent,
+        shouldClear: !isAbsent && formData.isAbsent && formData.absenceReason === '入院'
+      });
+
       if (isAbsent && !formData.isAbsent) {
         // 在入院期間，自動設定為無法量度
+        console.log('[HealthRecordModal] 🔴 自動設定為入院狀態');
         setFormData(prev => ({
           ...prev,
           isAbsent: true,
@@ -139,13 +203,18 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
         }));
       } else if (!isAbsent && formData.isAbsent && formData.absenceReason === '入院') {
         // 不在入院期間，清除自動設定的入院狀態
+        console.log('[HealthRecordModal] 🟢 清除入院狀態');
         setFormData(prev => ({
           ...prev,
           isAbsent: false,
           absenceReason: '',
           備註: ''
         }));
+      } else {
+        console.log('[HealthRecordModal] ⚪ 無需改變狀態');
       }
+    } else {
+      console.log('[HealthRecordModal] 條件未通過，不執行自動設定');
     }
   }, [formData.院友id, formData.記錄日期, formData.記錄時間, record, currentIsPatientAbsent]);
 

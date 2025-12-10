@@ -160,6 +160,9 @@ const Dashboard: React.FC = () => {
       預設日期: date,
       預設時間: selectedTime
     };
+
+    console.log('[Dashboard] 準備打開 HealthRecordModal，初始數據:', initialDataForModal);
+
     setSelectedHealthRecordInitialData(initialDataForModal);
     setShowHealthRecordModal(true);
   };

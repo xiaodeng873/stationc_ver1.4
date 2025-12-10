@@ -188,30 +188,56 @@ export const isInHospital = (
   targetTime: string,
   admissionRecords: PatientAdmissionRecord[]
 ): boolean => {
+  console.log('[isInHospital] 開始檢查:', {
+    patientId: patient.院友id,
+    patientName: patient.姓名,
+    targetDate,
+    targetTime,
+    admissionRecordsCount: admissionRecords.length
+  });
+
   const patientAdmissions = admissionRecords.filter(r => r.patient_id === patient.院友id);
+  console.log('[isInHospital] 該院友的入院記錄:', patientAdmissions);
 
   const admissions = patientAdmissions
     .filter(r => r.event_type === 'hospital_admission')
     .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
 
-  if (admissions.length === 0) return false;
+  console.log('[isInHospital] 入院事件記錄:', admissions);
+
+  if (admissions.length === 0) {
+    console.log('[isInHospital] 沒有入院記錄，返回 false');
+    return false;
+  }
 
   const latestAdmission = admissions[0];
+  console.log('[isInHospital] 最近的入院記錄:', latestAdmission);
 
   const discharge = patientAdmissions.find(r =>
     r.event_type === 'hospital_discharge' &&
     new Date(r.event_date) > new Date(latestAdmission.event_date)
   );
+  console.log('[isInHospital] 對應的出院記錄:', discharge);
 
   const target = new Date(`${targetDate}T${targetTime}:00`);
   const admitTime = new Date(`${latestAdmission.event_date}T${latestAdmission.event_time || '00:00'}:00`);
 
+  console.log('[isInHospital] 時間比較:', {
+    targetTime: target.toISOString(),
+    admitTime: admitTime.toISOString(),
+    dischargeTime: discharge ? new Date(`${discharge.event_date}T${discharge.event_time || '23:59'}:00`).toISOString() : 'N/A'
+  });
+
   if (discharge) {
     const dischargeTime = new Date(`${discharge.event_date}T${discharge.event_time || '23:59'}:00`);
-    return target >= admitTime && target <= dischargeTime;
+    const result = target >= admitTime && target <= dischargeTime;
+    console.log('[isInHospital] 有出院記錄，檢查是否在入院期間內:', result);
+    return result;
   }
 
-  return target >= admitTime;
+  const result = target >= admitTime;
+  console.log('[isInHospital] 無出院記錄，檢查是否在入院時間之後:', result);
+  return result;
 };
 
 export const formatObservationStatus = (status: 'N' | 'P' | 'S'): string => {
