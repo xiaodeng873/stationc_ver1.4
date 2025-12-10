@@ -288,11 +288,19 @@ const Dashboard: React.FC = () => {
     const today = new Date();
     today.setHours(0,0,0,0);
 
+    // 輔助函數：正確格式化本地日期為 YYYY-MM-DD（避免時區偏移）
+    const formatLocalDate = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     // [優化問題4] 檢查範圍縮短為過去 14 天（避免過度追溯）
     for (let i = 1; i <= 14; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = formatLocalDate(d);  // 🔧 修復：使用本地時間格式化
 
       // 遇到 Cutoff Date 停止
       if (dateStr <= SYNC_CUTOFF_DATE_STR) {

@@ -62,6 +62,14 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // 輔助函數：正確格式化本地日期為 YYYY-MM-DD（避免時區偏移）
+    const formatLocalDate = (date: Date): string => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
     // [調試] 記錄基本信息
     console.log(`[日曆調試] ===== 檢查日期: ${dateStr} =====`);
     console.log(`[日曆調試] 任務類型: ${task.health_record_type}`);
@@ -69,7 +77,7 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     console.log(`[日曆調試] 分界日期: ${cutoffDateStr}`);
     console.log(`[日曆調試] 指定時間: ${specificTime}`);
     console.log(`[日曆調試] 任務時間點: ${JSON.stringify(task.specific_times)}`);
-    console.log(`[日曆調試] 今天: ${today.toISOString().split('T')[0]}`);
+    console.log(`[日曆調試] 今天: ${formatLocalDate(today)}`);
 
     // [修正] 如果日期早於分界線，不應顯示任何狀態（任務還未開始）
     if (cutoffDateStr && dateStr < cutoffDateStr) {

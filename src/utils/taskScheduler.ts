@@ -25,6 +25,14 @@ export function isEveningCarePlanTask(taskType: string): boolean {
 export function isTaskScheduledForDate(task: any, date: Date): boolean {
   const DEBUG_TASK_ID = task.patient_id === 52 && task.health_record_type === '生命表徵'; // 調試院友 ID 52 的生命表徵任務
 
+  // 輔助函數：正確格式化本地日期為 YYYY-MM-DD（避免時區偏移）
+  const formatLocalDate = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   // 1. 每日任務：需考慮頻率數值 (例如每 2 天)
   if (task.frequency_unit === 'daily') {
     const freqValue = task.frequency_value || 1;
@@ -35,7 +43,7 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
     // 如果是「每 X 天」，需要一個基準日來計算週期
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
-    const targetDateStr = targetDate.toISOString().split('T')[0];
+    const targetDateStr = formatLocalDate(targetDate);  // 🔧 修復：使用本地時間
 
     let anchorDate: Date | null = null;
 
@@ -52,7 +60,7 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
     if (task.last_completed_at) {
        const lastCompleted = new Date(task.last_completed_at);
        lastCompleted.setHours(0, 0, 0, 0);
-       const lastCompletedStr = lastCompleted.toISOString().split('T')[0];
+       const lastCompletedStr = formatLocalDate(lastCompleted);  // 🔧 修復：使用本地時間
 
        // 只有當目標日期在最後完成日「之後」，才使用它作為基準
        if (targetDate > lastCompleted) {
@@ -67,7 +75,7 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
     if (!anchorDate && task.created_at) {
       anchorDate = new Date(task.created_at);
       anchorDate.setHours(0, 0, 0, 0);
-      if (DEBUG_TASK_ID) console.log(`    ✓ 使用 created_at 作為基準: ${anchorDate.toISOString().split('T')[0]}`);
+      if (DEBUG_TASK_ID) console.log(`    ✓ 使用 created_at 作為基準: ${formatLocalDate(anchorDate)}`);
     }
 
     if (anchorDate) {
@@ -100,7 +108,7 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
        const isScheduled = task.specific_days_of_week.includes(dbDay);
 
        if (DEBUG_TASK_ID) {
-         console.log(`  [weekly 檢查] 檢查日期: ${date.toISOString().split('T')[0]}`);
+         console.log(`  [weekly 檢查] 檢查日期: ${formatLocalDate(date)}`);  // 🔧 修復：使用本地時間
          console.log(`    date.getDay(): ${day} (0=週日, 5=週五, 6=週六)`);
          console.log(`    dbDay: ${dbDay}`);
          console.log(`    specific_days_of_week: ${JSON.stringify(task.specific_days_of_week)}`);
