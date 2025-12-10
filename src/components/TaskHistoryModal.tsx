@@ -60,26 +60,59 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const hasRecord = healthRecords.some(r => {
-      if (r.task_id && r.task_id === task.id) return r.記錄日期 === dateStr;
-      return r.院友id.toString() == task.patient_id.toString() && 
-             r.記錄類型 === task.health_record_type && 
-             r.記錄日期 === dateStr;
-    });
+    // [關鍵修正] 對於多時間點任務，需要檢查每個時間點
+    if (task.specific_times && task.specific_times.length > 0) {
+      const timeRecords = healthRecords.filter(r => {
+        if (r.task_id && r.task_id === task.id) {
+          return r.記錄日期 === dateStr;
+        }
+        return r.院友id.toString() == task.patient_id.toString() &&
+               r.記錄類型 === task.health_record_type &&
+               r.記錄日期 === dateStr;
+      });
 
-    if (hasRecord) return 'completed';
+      // 檢查所有時間點是否都有記錄
+      const completedTimes = new Set(timeRecords.map(r => r.記錄時間));
+      const allTimesCompleted = task.specific_times.every(time => completedTimes.has(time));
 
-    if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
-    if (checkDate > today) return 'future';
+      if (allTimesCompleted) {
+        return 'completed';
+      }
 
-    const isScheduled = isTaskScheduledForDate(task, checkDate);
+      // 部分時間點完成或沒有完成
+      if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
+      if (checkDate > today) return 'future';
 
-    if (isScheduled) {
-      if (checkDate.getTime() === today.getTime()) return 'pending';
-      return 'missed';
+      const isScheduled = isTaskScheduledForDate(task, checkDate);
+      if (isScheduled) {
+        if (checkDate.getTime() === today.getTime()) return 'pending';
+        return 'missed';
+      }
+
+      return 'none';
+    } else {
+      // 單時間點任務，保持原有邏輯
+      const hasRecord = healthRecords.some(r => {
+        if (r.task_id && r.task_id === task.id) return r.記錄日期 === dateStr;
+        return r.院友id.toString() == task.patient_id.toString() &&
+               r.記錄類型 === task.health_record_type &&
+               r.記錄日期 === dateStr;
+      });
+
+      if (hasRecord) return 'completed';
+
+      if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
+      if (checkDate > today) return 'future';
+
+      const isScheduled = isTaskScheduledForDate(task, checkDate);
+
+      if (isScheduled) {
+        if (checkDate.getTime() === today.getTime()) return 'pending';
+        return 'missed';
+      }
+
+      return 'none';
     }
-
-    return 'none';
   };
 
   const renderCalendarDays = () => {

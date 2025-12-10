@@ -122,6 +122,27 @@ const Dashboard: React.FC = () => {
 
   const handleTaskClick = (task: HealthTask, date?: string) => {
     const patient = patients.find(p => p.院友id === task.patient_id);
+
+    // [新增] 智能選擇時間點：如果是補錄且有多個時間點，自動選擇第一個未完成的時間
+    let selectedTime: string | undefined = undefined;
+    if (date && task.specific_times && task.specific_times.length > 0) {
+      // 查找該日期的所有記錄
+      const dateRecords = healthRecords.filter(r => {
+        if (r.task_id && r.task_id === task.id) {
+          return r.記錄日期 === date;
+        }
+        return r.院友id.toString() === task.patient_id.toString() &&
+               r.記錄類型 === task.health_record_type &&
+               r.記錄日期 === date;
+      });
+
+      // 找出已完成的時間點
+      const completedTimes = new Set(dateRecords.map(r => r.記錄時間));
+
+      // 找出第一個未完成的時間點
+      selectedTime = task.specific_times.find(time => !completedTimes.has(time));
+    }
+
     const initialDataForModal = {
       patient: patient ? {
         院友id: patient.院友id,
@@ -134,7 +155,8 @@ const Dashboard: React.FC = () => {
         next_due_at: task.next_due_at,
         specific_times: task.specific_times
       },
-      預設日期: date
+      預設日期: date,
+      預設時間: selectedTime
     };
     setSelectedHealthRecordInitialData(initialDataForModal);
     setShowHealthRecordModal(true);
@@ -170,42 +192,70 @@ const Dashboard: React.FC = () => {
 
   // [效能優化] 建立健康記錄的快速查找表 (Set)
   // 解決 "速度沒有變快" 的核心：將 O(N) 查找轉為 O(1)
+  // [修正] 支持時間點區分：記錄格式改為包含時間
   const recordLookup = useMemo(() => {
     const lookup = new Set<string>();
     healthRecords.forEach(r => {
       if (r.task_id) {
+        // 帶時間的記錄鍵值（用於多時間點任務）
+        lookup.add(`${r.task_id}_${r.記錄日期}_${r.記錄時間}`);
+        // 不帶時間的記錄鍵值（向後兼容，用於單時間點任務）
         lookup.add(`${r.task_id}_${r.記錄日期}`);
       }
       // 兼容舊資料格式
+      lookup.add(`${r.院友id}_${r.記錄類型}_${r.記錄日期}_${r.記錄時間}`);
       lookup.add(`${r.院友id}_${r.記錄類型}_${r.記錄日期}`);
     });
     return lookup;
   }, [healthRecords]);
 
+  // [輔助函數] 檢查特定日期和時間是否有記錄
+  const hasRecordForDateTime = (task: HealthTask, dateStr: string, timeStr?: string) => {
+    if (timeStr) {
+      // 檢查特定時間點
+      return recordLookup.has(`${task.id}_${dateStr}_${timeStr}`) ||
+             recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}_${timeStr}`);
+    } else {
+      // 檢查整天（不分時間）
+      return recordLookup.has(`${task.id}_${dateStr}`) ||
+             recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}`);
+    }
+  };
+
   // [效能優化] 使用 recordLookup 進行極速查找
+  // [修正] 支持多時間點任務的檢查
   const findMostRecentMissedDate = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
-    
+
     const today = new Date();
     today.setHours(0,0,0,0);
-    
+
     // 檢查過去 60 天
     for (let i = 1; i <= 60; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      
+
       // 遇到 Cutoff Date 停止
       if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
 
       // 如果這天該做...
       if (isTaskScheduledForDate(task, d)) {
-        // 使用 Set 查找是否已做 (O(1) 操作)
-        const hasRecord = 
-          recordLookup.has(`${task.id}_${dateStr}`) || 
-          recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}`);
-
-        if (!hasRecord) return d;
+        // [關鍵修正] 如果任務有多個時間點，需要檢查每個時間點
+        if (task.specific_times && task.specific_times.length > 0) {
+          for (const timeStr of task.specific_times) {
+            if (!hasRecordForDateTime(task, dateStr, timeStr)) {
+              // 找到第一個未完成的時間點，返回該日期
+              return d;
+            }
+          }
+          // 所有時間點都完成了，繼續檢查下一天
+        } else {
+          // 單時間點任務，檢查整天
+          if (!hasRecordForDateTime(task, dateStr)) {
+            return d;
+          }
+        }
       }
     }
     return null;

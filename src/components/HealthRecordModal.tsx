@@ -16,6 +16,7 @@ interface HealthRecordModalProps {
     };
     預設記錄類型?: string;
     預設日期?: string;
+    預設時間?: string;
   };
   onClose: () => void;
   onTaskCompleted?: (recordDateTime: Date) => void;
@@ -73,8 +74,8 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
     const hongKongDateTime = getHongKongDateTime(initialData?.預設日期 || initialData?.task?.next_due_at);
 
-    // 优先使用任务的特定时间
-    const specificTime = initialData?.task?.specific_times?.[0];
+    // [修正] 優先順序：預設時間 > 任務的第一個時間點 > 當前時間
+    const specificTime = initialData?.預設時間 || initialData?.task?.specific_times?.[0];
 
     return {
       date: hongKongDateTime.date,
