@@ -1242,6 +1242,16 @@ export const getAnnualHealthCheckups = async (): Promise<any[]> => {
   return data || [];
 };
 
+export const getAnnualHealthCheckupByPatientId = async (patientId: number): Promise<any | null> => {
+  const { data, error } = await supabase
+    .from('annual_health_checkups')
+    .select('*')
+    .eq('patient_id', patientId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+};
+
 export const createAnnualHealthCheckup = async (checkup: any): Promise<any> => {
   const { data, error } = await supabase.from('annual_health_checkups').insert([checkup]).select().single();
   if (error) throw error;

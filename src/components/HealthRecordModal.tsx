@@ -27,6 +27,17 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const { addHealthRecord, updateHealthRecord, patients, hospitalEpisodes, admissionRecords } = usePatients();
   const { displayName } = useAuth();
 
+  // ESC 鍵關閉模態框
+  React.useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   const getHongKongDateTime = (dateString?: string) => {
     const date = dateString ? new Date(dateString) : new Date();
     const hongKongTime = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Hong_Kong"}));
@@ -381,8 +392,14 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               {formData.記錄類型 === '生命表徵' && <Activity className="h-5 w-5 text-blue-600" />}
