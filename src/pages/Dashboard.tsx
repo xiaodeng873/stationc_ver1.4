@@ -219,15 +219,15 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // [核心修復] 使用 recordLookup 進行極速查找
+  // [核心修復+優化] 使用 recordLookup 進行極速查找
   const findMostRecentMissedDate = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
 
     const today = new Date();
     today.setHours(0,0,0,0);
 
-    // 檢查過去 60 天
-    for (let i = 1; i <= 60; i++) {
+    // [優化問題4] 檢查範圍縮短為過去 14 天（避免過度追溯）
+    for (let i = 1; i <= 14; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
@@ -319,16 +319,33 @@ const Dashboard: React.FC = () => {
   const urgentMonitoringTasks = useMemo(() => {
     const urgent: typeof monitoringTasks = [];
     const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     monitoringTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
       if (patient && patient.在住狀態 === '在住') {
-        // [核心修復] 優先檢查今天是否已完成
-        if (recordLookup.has(`${task.id}_${todayStr}`)) {
-          return; // 今天已完成，不顯示卡片
+        // [修復問題2] 檢查今天是否該做這個任務
+        const isTodayScheduled = isTaskScheduledForDate(task, today);
+
+        if (isTodayScheduled) {
+          // [修復問題2] 對於多時間點任務，檢查所有時間點是否都完成
+          if (task.specific_times && task.specific_times.length > 0) {
+            const allTimesCompleted = task.specific_times.every(time =>
+              recordLookup.has(`${task.id}_${todayStr}_${time}`)
+            );
+            if (allTimesCompleted) {
+              return; // 今天所有時間點都完成，不顯示卡片
+            }
+          } else {
+            // 無特定時間點的任務，只要今天有記錄就算完成
+            if (recordLookup.has(`${task.id}_${todayStr}`)) {
+              return; // 今天已完成，不顯示卡片
+            }
+          }
         }
 
-        // 今天未完成，繼續檢查其他條件
+        // 今天未完成或今天不是排程日，繼續檢查其他條件
         const isPending = isTaskPendingToday(task, recordLookup, todayStr) ||
                           isTaskOverdue(task, recordLookup, todayStr);
         const hasMissed = !!findMostRecentMissedDate(task);
@@ -610,14 +627,33 @@ const Dashboard: React.FC = () => {
                     {slot.tasks.map((task) => {
                       const patient = patients.find(p => p.院友id === task.patient_id);
                       const todayStr = new Date().toISOString().split('T')[0];
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
                       const status = getTaskStatus(task, recordLookup, todayStr);
 
-                      const missedDate = findMostRecentMissedDate(task);
+                      // [修復問題3+問題1] 檢查今天是否已完成（考慮多時間點）
+                      let isTodayCompleted = false;
+                      const isTodayScheduled = isTaskScheduledForDate(task, today);
+
+                      if (isTodayScheduled) {
+                        if (task.specific_times && task.specific_times.length > 0) {
+                          // 多時間點任務：檢查所有時間點是否都完成
+                          isTodayCompleted = task.specific_times.every(time =>
+                            recordLookup.has(`${task.id}_${todayStr}_${time}`)
+                          );
+                        } else {
+                          // 無特定時間點的任務：檢查今天是否有記錄
+                          isTodayCompleted = recordLookup.has(`${task.id}_${todayStr}`);
+                        }
+                      }
+
+                      // [修復問題3] 只有在今天未完成時才檢查過去的錯過
+                      const missedDate = !isTodayCompleted ? findMostRecentMissedDate(task) : null;
                       const hasMissed = !!missedDate;
 
                       return (
-                        <div 
-                          key={task.id} 
+                        <div
+                          key={task.id}
                           className={`relative flex items-center justify-between p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors dashboard-task-card`}
                           onClick={() => {
                              if (hasMissed && patient) {
@@ -665,13 +701,13 @@ const Dashboard: React.FC = () => {
                               </div>
                             </div>
                             <span className={`status-badge flex-shrink-0 ${
-                              hasMissed ? 'bg-red-100 text-red-800' :
                               status === 'overdue' ? 'bg-red-100 text-red-800' :
                               status === 'pending' ? 'bg-green-100 text-green-800' :
+                              hasMissed ? 'bg-red-100 text-red-800' :
                               status === 'due_soon' ? 'bg-orange-100 text-orange-800' :
                               'bg-purple-100 text-purple-800'
                             }`}>
-                              {hasMissed ? '逾期' : status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
+                              {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : hasMissed ? '逾期' : status === 'due_soon' ? '即將到期' : '排程中'}
                             </span>
                           </div>
                           {/* [修改] 徹底移除日曆圖示按鈕 */}
