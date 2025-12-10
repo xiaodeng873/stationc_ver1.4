@@ -1,4 +1,5 @@
 import type { PatientHealthTask, FrequencyUnit } from '../lib/database';
+import { SYNC_CUTOFF_DATE_STR } from '../lib/database';
 
 // 判斷是否為文件任務
 export function isDocumentTask(taskType: string): boolean {
@@ -222,6 +223,15 @@ export async function findFirstMissingDate(
 export function isTaskOverdue(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): boolean {
   if (!task.next_due_at) return false;
 
+  // [分界線檢查] 如果 next_due_at 在分界線之前或當天，視為「歷史任務」，不算逾期
+  const CUTOFF_DATE = new Date(SYNC_CUTOFF_DATE_STR);
+  const dueDate = new Date(task.next_due_at);
+  const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const cutoffDateOnly = new Date(CUTOFF_DATE.getFullYear(), CUTOFF_DATE.getMonth(), CUTOFF_DATE.getDate());
+  if (dueDateOnly <= cutoffDateOnly) {
+    return false;
+  }
+
   // [優先檢查] 如果提供了 recordLookup，先檢查今天是否已完成
   if (recordLookup && todayStr) {
     const todayKey = `${task.id}_${todayStr}`;
@@ -231,7 +241,6 @@ export function isTaskOverdue(task: PatientHealthTask, recordLookup?: Set<string
   }
 
   const now = new Date();
-  const dueDate = new Date(task.next_due_at);
   if (isDocumentTask(task.health_record_type)) {
     const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
@@ -254,6 +263,15 @@ export function isTaskOverdue(task: PatientHealthTask, recordLookup?: Set<string
 export function isTaskPendingToday(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): boolean {
   if (!task.next_due_at) return false;
 
+  // [分界線檢查] 如果 next_due_at 在分界線之前或當天，視為「歷史任務」，不算今天待辦
+  const CUTOFF_DATE = new Date(SYNC_CUTOFF_DATE_STR);
+  const dueDate = new Date(task.next_due_at);
+  const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const cutoffDateOnly = new Date(CUTOFF_DATE.getFullYear(), CUTOFF_DATE.getMonth(), CUTOFF_DATE.getDate());
+  if (dueDateOnly <= cutoffDateOnly) {
+    return false;
+  }
+
   // [優先檢查] 如果提供了 recordLookup，先檢查今天是否已完成
   if (recordLookup && todayStr) {
     const todayKey = `${task.id}_${todayStr}`;
@@ -263,7 +281,6 @@ export function isTaskPendingToday(task: PatientHealthTask, recordLookup?: Set<s
   }
 
   const now = new Date();
-  const dueDate = new Date(task.next_due_at);
   if (isDocumentTask(task.health_record_type)) {
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
@@ -287,6 +304,15 @@ export function isTaskPendingToday(task: PatientHealthTask, recordLookup?: Set<s
 export function isTaskDueSoon(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): boolean {
   if (!task.next_due_at) return false;
 
+  // [分界線檢查] 如果 next_due_at 在分界線之前或當天，視為「歷史任務」，不算即將到期
+  const CUTOFF_DATE = new Date(SYNC_CUTOFF_DATE_STR);
+  const dueDate = new Date(task.next_due_at);
+  const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const cutoffDateOnly = new Date(CUTOFF_DATE.getFullYear(), CUTOFF_DATE.getMonth(), CUTOFF_DATE.getDate());
+  if (dueDateOnly <= cutoffDateOnly) {
+    return false;
+  }
+
   // [優先檢查] 如果提供了 recordLookup，先檢查今天是否已完成
   if (recordLookup && todayStr) {
     const todayKey = `${task.id}_${todayStr}`;
@@ -296,7 +322,6 @@ export function isTaskDueSoon(task: PatientHealthTask, recordLookup?: Set<string
   }
 
   const now = new Date();
-  const dueDate = new Date(task.next_due_at);
   if (isDocumentTask(task.health_record_type)) {
     const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     const twoWeeksLater = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14);
