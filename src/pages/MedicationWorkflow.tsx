@@ -446,6 +446,8 @@ const MedicationWorkflow: React.FC = () => {
   const [selectedDateForMenu, setSelectedDateForMenu] = useState<string | null>(null);
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top?: number; bottom?: number; left: number }>({ left: 0 });
+  const [hoveredPrescriptionId, setHoveredPrescriptionId] = useState<number | null>(null);
+  const [medicationInfoPosition, setMedicationInfoPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [optimisticCrushState, setOptimisticCrushState] = useState<Map<number, boolean>>(new Map());
   const [optimisticWorkflowUpdates, setOptimisticWorkflowUpdates] = useState<Map<string, {
     preparation_status?: string;
@@ -3303,40 +3305,36 @@ const MedicationWorkflow: React.FC = () => {
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                           {index + 1}
                         </td>
-                        <td className="px-4 py-4">
-                          <div className="space-y-1">
-                            <div className="font-medium text-gray-900">{prescription.medication_name}</div>
-                            <div className="text-xs text-gray-600">
-                              開始: {new Date(prescription.start_date).toLocaleDateString('zh-TW')}
-                            </div>
-                            {prescription.end_date && (
-                              <div className="text-xs text-gray-600">
-                                結束: {new Date(prescription.end_date).toLocaleDateString('zh-TW')}
-                              </div>
-                            )}
-                            <div className="text-xs text-gray-600">
-                              處方: {new Date(prescription.prescription_date).toLocaleDateString('zh-TW')}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              來源: {prescription.medication_source || '未指定'}
-                            </div>
-                            {prescription.notes && (
-                              <div className="text-xs text-red-600">
-                                注意: {prescription.notes}
-                              </div>
-                            )}
-                            {prescription.inspection_rules && prescription.inspection_rules.length > 0 && (
-                              <div className="text-xs text-orange-600">
-                                <AlertTriangle className="h-3 w-3 inline mr-1" />
-                                有檢測項要求
-                              </div>
-                            )}
-                            {prescription.preparation_method === 'immediate' && (
-                              <div className="text-xs text-blue-600">
-                                <Zap className="h-3 w-3 inline mr-1" />
-                                即時備藥
-                              </div>
-                            )}
+                        <td
+                          className="px-4 py-4 relative"
+                          data-prescription-id={prescription.id}
+                          onMouseEnter={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setMedicationInfoPosition({
+                              top: rect.top,
+                              left: rect.right + 10
+                            });
+                            setHoveredPrescriptionId(prescription.id);
+                          }}
+                          onMouseLeave={() => {
+                            setHoveredPrescriptionId(null);
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setMedicationInfoPosition({
+                              top: rect.top,
+                              left: rect.right + 10
+                            });
+                            setHoveredPrescriptionId(hoveredPrescriptionId === prescription.id ? null : prescription.id);
+                          }}
+                        >
+                          <div className="font-medium text-gray-900 cursor-pointer hover:text-blue-600 transition-colors">
+                            {prescription.medication_name}
+                            <span className="ml-2 text-xs text-gray-400">
+                              {(prescription.inspection_rules && prescription.inspection_rules.length > 0) && '⚠️'}
+                              {prescription.preparation_method === 'immediate' && '⚡'}
+                            </span>
                           </div>
                         </td>
                         <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-900 w-auto landscape:w-10">
@@ -3473,6 +3471,95 @@ const MedicationWorkflow: React.FC = () => {
                   })}
                 </tbody>
               </table>
+
+              {/* 藥物資訊懸浮清單 */}
+              {hoveredPrescriptionId && (
+                <Portal>
+                  <div
+                    className="fixed bg-white rounded-lg shadow-2xl border-2 border-blue-300 p-4 z-[99999] w-80"
+                    style={{
+                      top: `${medicationInfoPosition.top}px`,
+                      left: `${medicationInfoPosition.left}px`,
+                    }}
+                    onMouseEnter={() => setHoveredPrescriptionId(hoveredPrescriptionId)}
+                    onMouseLeave={() => setHoveredPrescriptionId(null)}
+                  >
+                    {(() => {
+                      const prescription = prescriptions.find(p => p.id === hoveredPrescriptionId);
+                      if (!prescription) return null;
+
+                      return (
+                        <div className="space-y-3">
+                          <div className="font-bold text-lg text-gray-900 border-b pb-2">
+                            {prescription.medication_name}
+                          </div>
+
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">開始日期:</span>
+                              <span className="font-medium">{new Date(prescription.start_date).toLocaleDateString('zh-TW')}</span>
+                            </div>
+
+                            {prescription.end_date && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">結束日期:</span>
+                                <span className="font-medium">{new Date(prescription.end_date).toLocaleDateString('zh-TW')}</span>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">處方日期:</span>
+                              <span className="font-medium">{new Date(prescription.prescription_date).toLocaleDateString('zh-TW')}</span>
+                            </div>
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">藥物來源:</span>
+                              <span className="font-medium">{prescription.medication_source || '未指定'}</span>
+                            </div>
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">給藥途徑:</span>
+                              <span className="font-medium">{prescription.administration_route}</span>
+                            </div>
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">每次劑量:</span>
+                              <span className="font-medium">{prescription.dosage_per_time} {prescription.dosage_unit}</span>
+                            </div>
+
+                            {prescription.is_prn && (
+                              <div className="bg-red-50 border border-red-200 rounded p-2">
+                                <span className="text-red-600 font-bold">PRN (按需使用)</span>
+                              </div>
+                            )}
+
+                            {prescription.preparation_method === 'immediate' && (
+                              <div className="bg-blue-50 border border-blue-200 rounded p-2 flex items-center">
+                                <Zap className="h-4 w-4 text-blue-600 mr-2" />
+                                <span className="text-blue-600 font-medium">即時備藥</span>
+                              </div>
+                            )}
+
+                            {prescription.inspection_rules && prescription.inspection_rules.length > 0 && (
+                              <div className="bg-orange-50 border border-orange-200 rounded p-2 flex items-center">
+                                <AlertTriangle className="h-4 w-4 text-orange-600 mr-2" />
+                                <span className="text-orange-600 font-medium">有檢測項要求</span>
+                              </div>
+                            )}
+
+                            {prescription.notes && (
+                              <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
+                                <div className="text-yellow-800 font-medium mb-1">注意事項:</div>
+                                <div className="text-yellow-700">{prescription.notes}</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </Portal>
+              )}
               </div>
                 </div>
               ) : (
