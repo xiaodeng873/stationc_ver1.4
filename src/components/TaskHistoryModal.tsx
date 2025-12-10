@@ -81,6 +81,12 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     if (specificTime) {
       console.log(`[日曆調試] 進入 specificTime 分支 - 檢查時間: ${specificTime}`);
 
+      // [修正] 標準化時間格式為 HH:MM
+      const normalizeTime = (time: string) => {
+        if (!time) return '';
+        return time.substring(0, 5); // 取前5個字符 "HH:MM"
+      };
+
       const matchingRecords = healthRecords.filter(r => {
         const match = r.記錄日期 === dateStr;
         if (match) {
@@ -95,15 +101,19 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
       });
       console.log(`[日曆調試] ${dateStr} 該日期共有 ${matchingRecords.length} 筆記錄`);
 
+      const normalizedSpecificTime = normalizeTime(specificTime);
+
       const hasRecord = healthRecords.some(r => {
+        const normalizedRecordTime = normalizeTime(r.記錄時間);
+
         if (r.task_id && r.task_id === task.id) {
-          return r.記錄日期 === dateStr && r.記錄時間 === specificTime;
+          return r.記錄日期 === dateStr && normalizedRecordTime === normalizedSpecificTime;
         }
         // [增強] 更容錯的匹配邏輯
         const patientMatch = r.院友id?.toString() === task.patient_id?.toString();
         const typeMatch = r.記錄類型 === task.health_record_type;
         const dateMatch = r.記錄日期 === dateStr;
-        const timeMatch = r.記錄時間 === specificTime;
+        const timeMatch = normalizedRecordTime === normalizedSpecificTime;
 
         return patientMatch && typeMatch && dateMatch && timeMatch;
       });
@@ -160,10 +170,18 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
       }
 
       // 檢查所有時間點是否都有記錄
-      const completedTimes = new Set(timeRecords.map(r => r.記錄時間));
-      const allTimesCompleted = task.specific_times.every(time => completedTimes.has(time));
+      // [修正] 標準化時間格式為 HH:MM (去掉秒數)
+      const normalizeTime = (time: string) => {
+        if (!time) return '';
+        return time.substring(0, 5); // 取前5個字符 "HH:MM"
+      };
+
+      const completedTimes = new Set(timeRecords.map(r => normalizeTime(r.記錄時間)));
+      const normalizedTaskTimes = task.specific_times.map(normalizeTime);
+      const allTimesCompleted = normalizedTaskTimes.every(time => completedTimes.has(time));
 
       console.log(`[日曆調試] 已完成時間點: ${Array.from(completedTimes).join(', ')}`);
+      console.log(`[日曆調試] 標準化後的任務時間點: ${normalizedTaskTimes.join(', ')}`);
       console.log(`[日曆調試] allTimesCompleted = ${allTimesCompleted}`);
 
       if (allTimesCompleted) {
