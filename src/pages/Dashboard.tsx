@@ -187,6 +187,13 @@ const Dashboard: React.FC = () => {
     setShowAnnualCheckupModal(true);
   };
 
+  // [核心修復] 標準化時間格式的輔助函數
+  const normalizeTime = (time: string | undefined): string => {
+    if (!time) return '';
+    // 統一轉換為 HH:MM 格式（去除秒數）
+    return time.split(':').slice(0, 2).join(':');
+  };
+
   // [效能優化] 建立健康記錄的快速查找表 (Set)
   // 解決 "速度沒有變快" 的核心：將 O(N) 查找轉為 O(1)
   // [修正] 支持時間點區分：記錄格式改為包含時間
@@ -194,13 +201,16 @@ const Dashboard: React.FC = () => {
     const lookup = new Set<string>();
     healthRecords.forEach(r => {
       if (r.task_id) {
+        // [關鍵修復] 標準化時間格式：07:30:00 → 07:30
+        const normalizedTime = normalizeTime(r.記錄時間);
         // 帶時間的記錄鍵值（用於多時間點任務）
-        lookup.add(`${r.task_id}_${r.記錄日期}_${r.記錄時間}`);
+        lookup.add(`${r.task_id}_${r.記錄日期}_${normalizedTime}`);
         // 不帶時間的記錄鍵值（向後兼容，用於單時間點任務）
         lookup.add(`${r.task_id}_${r.記錄日期}`);
       }
       // 兼容舊資料格式
-      lookup.add(`${r.院友id}_${r.記錄類型}_${r.記錄日期}_${r.記錄時間}`);
+      const normalizedTime = normalizeTime(r.記錄時間);
+      lookup.add(`${r.院友id}_${r.記錄類型}_${r.記錄日期}_${normalizedTime}`);
       lookup.add(`${r.院友id}_${r.記錄類型}_${r.記錄日期}`);
     });
     return lookup;
@@ -208,14 +218,32 @@ const Dashboard: React.FC = () => {
 
   // [輔助函數] 檢查特定日期和時間是否有記錄
   const hasRecordForDateTime = (task: HealthTask, dateStr: string, timeStr?: string) => {
-    if (timeStr) {
-      // 檢查特定時間點
-      return recordLookup.has(`${task.id}_${dateStr}_${timeStr}`) ||
-             recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}_${timeStr}`);
+    // [修復] 如果任務有多個時間點，需要檢查所有時間點
+    if (task.specific_times && task.specific_times.length > 0) {
+      if (timeStr) {
+        // 檢查特定時間點（標準化格式）
+        const normalizedTime = normalizeTime(timeStr);
+        return recordLookup.has(`${task.id}_${dateStr}_${normalizedTime}`) ||
+               recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}_${normalizedTime}`);
+      } else {
+        // 檢查所有時間點是否都完成
+        return task.specific_times.every(time => {
+          const normalizedTime = normalizeTime(time);
+          return recordLookup.has(`${task.id}_${dateStr}_${normalizedTime}`) ||
+                 recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}_${normalizedTime}`);
+        });
+      }
     } else {
-      // 檢查整天（不分時間）
-      return recordLookup.has(`${task.id}_${dateStr}`) ||
-             recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}`);
+      if (timeStr) {
+        // 有時間但任務沒有定義時間點（標準化格式）
+        const normalizedTime = normalizeTime(timeStr);
+        return recordLookup.has(`${task.id}_${dateStr}_${normalizedTime}`) ||
+               recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}_${normalizedTime}`);
+      } else {
+        // 檢查整天（不分時間）
+        return recordLookup.has(`${task.id}_${dateStr}`) ||
+               recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}`);
+      }
     }
   };
 
