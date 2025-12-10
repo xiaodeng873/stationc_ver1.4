@@ -178,8 +178,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       hasRecord: !!record,
       currentIsPatientAbsent,
       currentFormIsAbsent: formData.isAbsent,
-      currentAbsenceReason: formData.absenceReason
+      currentAbsenceReason: formData.absenceReason,
+      hospitalEpisodesCount: hospitalEpisodes.length,
+      admissionRecordsCount: admissionRecords.length
     });
+
+    // [診斷] 打印該院友的所有住院事件
+    if (formData.院友id) {
+      const patientEpisodes = hospitalEpisodes.filter(ep => ep.patient_id === formData.院友id);
+      console.log('[HealthRecordModal] 🏥 該院友的住院事件:', patientEpisodes);
+    }
 
     if (formData.院友id && formData.記錄日期 && formData.記錄時間 && !record) {
       const isAbsent = currentIsPatientAbsent;
@@ -216,7 +224,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     } else {
       console.log('[HealthRecordModal] 條件未通過，不執行自動設定');
     }
-  }, [formData.院友id, formData.記錄日期, formData.記錄時間, record, currentIsPatientAbsent]);
+  }, [formData.院友id, formData.記錄日期, formData.記錄時間, record, currentIsPatientAbsent, hospitalEpisodes]);
 
   React.useEffect(() => {
     if (record?.備註?.includes('無法量度原因:')) {
