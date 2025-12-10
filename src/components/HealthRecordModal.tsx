@@ -118,10 +118,15 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const [showDateWarningModal, setShowDateWarningModal] = useState(false);
   const [isDateWarningConfirmed, setIsDateWarningConfirmed] = useState(false);
 
+  // 計算當前院友是否在指定日期時間處於入院狀態（用於 UI 顯示）
+  const currentIsPatientAbsent = React.useMemo(() => {
+    return checkPatientAbsent(formData.院友id, formData.記錄日期, formData.記錄時間);
+  }, [formData.院友id, formData.記錄日期, formData.記錄時間, admissionRecords]);
+
   // 當院友ID、日期或時間改變時，檢查是否在入院期間並自動設定
   React.useEffect(() => {
     if (formData.院友id && formData.記錄日期 && formData.記錄時間 && !record) {
-      const isAbsent = checkPatientAbsent(formData.院友id, formData.記錄日期, formData.記錄時間);
+      const isAbsent = currentIsPatientAbsent;
 
       if (isAbsent && !formData.isAbsent) {
         // 在入院期間，自動設定為無法量度
@@ -142,7 +147,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
         }));
       }
     }
-  }, [formData.院友id, formData.記錄日期, formData.記錄時間, record]);
+  }, [formData.院友id, formData.記錄日期, formData.記錄時間, record, currentIsPatientAbsent]);
 
   React.useEffect(() => {
     if (record?.備註?.includes('無法量度原因:')) {
@@ -385,7 +390,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
               <div>
                 <label className="form-label">監測狀態</label>
                 <div className={`p-3 rounded-lg border ${
-                  currentIsPatientHospitalized ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'
+                  currentIsPatientAbsent ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'
                 }`}>
                   <div className="flex items-center space-x-2">
                     <input
@@ -393,27 +398,27 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                       checked={formData.isAbsent}
                       onChange={(e) => handleAbsenceChange(e.target.checked)}
                       className={`h-4 w-4 focus:ring-orange-500 border-gray-300 rounded ${
-                        currentIsPatientHospitalized ? 'text-red-600 focus:ring-red-500' : 'text-orange-600 focus:ring-orange-500'
+                        currentIsPatientAbsent ? 'text-red-600 focus:ring-red-500' : 'text-orange-600 focus:ring-orange-500'
                       }`}
                     />
                     <label className={`text-sm font-medium cursor-pointer ${
-                      currentIsPatientHospitalized ? 'text-red-800' : 'text-orange-800'
+                      currentIsPatientAbsent ? 'text-red-800' : 'text-orange-800'
                     }`}>
                       院友未能進行監測
-                      {currentIsPatientHospitalized && <span className="ml-1 text-red-600 font-bold">(入院中)</span>}
+                      {currentIsPatientAbsent && <span className="ml-1 text-red-600 font-bold">(入院中)</span>}
                     </label>
                   </div>
 
                   {formData.isAbsent && (
                     <div className="mt-3 space-y-2">
                       <div className="flex items-center space-x-2">
-                        <label className={`text-sm ${currentIsPatientHospitalized ? 'text-red-700' : 'text-orange-700'}`}>原因:</label>
+                        <label className={`text-sm ${currentIsPatientAbsent ? 'text-red-700' : 'text-orange-700'}`}>原因:</label>
                         <select
                           value={formData.absenceReason}
                           onChange={(e) => handleAbsenceReasonChange(e.target.value)}
                           className="form-input text-sm flex-1"
                           required={formData.isAbsent}
-                          disabled={currentIsPatientHospitalized && formData.absenceReason === '入院'}
+                          disabled={currentIsPatientAbsent && formData.absenceReason === '入院'}
                         >
                           <option value="">請選擇</option>
                           <option value="入院">入院</option>
