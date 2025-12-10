@@ -72,7 +72,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       return false;
     }
 
-    console.log('[checkPatientAbsent] 找到院友:', patient.姓名);
+    console.log('[checkPatientAbsent] 找到院友:', patient.中文姓名);
 
     // 檢查是否在入院期間（使用 careRecordHelper 的 isInHospital 函數）
     const inHospital = isInHospital(patient, recordDate, recordTime, admissionRecords);

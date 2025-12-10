@@ -190,7 +190,7 @@ export const isInHospital = (
 ): boolean => {
   console.log('[isInHospital] 開始檢查:', {
     patientId: patient.院友id,
-    patientName: patient.姓名,
+    patientName: patient.中文姓名,
     targetDate,
     targetTime,
     admissionRecordsCount: admissionRecords.length

@@ -618,19 +618,13 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       setDiaperChangeRecords(diaperChangeRecordsData || []);
       setRestraintObservationRecords(restraintObservationRecordsData || []);
       setPositionChangeRecords(positionChangeRecordsData || []);
+      setPatientAdmissionRecords(patientAdmissionRecordsData || []);
 
       try {
         const overdueTasks = await db.getOverdueDailySystemTasks();
         setDailySystemTasks(overdueTasks);
       } catch (error) {
         setDailySystemTasks([]);
-      }
-      
-      try {
-        const patientAdmissionRecordsData = await db.getPatientAdmissionRecords();
-        setPatientAdmissionRecords(patientAdmissionRecordsData);
-      } catch (admissionError) {
-        setPatientAdmissionRecords([]);
       }
 
       const schedulesWithDetails: ScheduleWithDetails[] = await Promise.all(
