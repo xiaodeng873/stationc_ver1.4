@@ -219,8 +219,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // [效能優化] 使用 recordLookup 進行極速查找
-  // [修正] 支持多時間點任務的檢查
+  // [核心修復] 使用 recordLookup 進行極速查找
   const findMostRecentMissedDate = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
 
@@ -236,22 +235,10 @@ const Dashboard: React.FC = () => {
       // 遇到 Cutoff Date 停止
       if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
 
-      // 如果這天該做...
+      // 如果這天該做但沒有記錄，就是錯過了
       if (isTaskScheduledForDate(task, d)) {
-        // [關鍵修正] 如果任務有多個時間點，需要檢查每個時間點
-        if (task.specific_times && task.specific_times.length > 0) {
-          for (const timeStr of task.specific_times) {
-            if (!hasRecordForDateTime(task, dateStr, timeStr)) {
-              // 找到第一個未完成的時間點，返回該日期
-              return d;
-            }
-          }
-          // 所有時間點都完成了，繼續檢查下一天
-        } else {
-          // 單時間點任務，檢查整天
-          if (!hasRecordForDateTime(task, dateStr)) {
-            return d;
-          }
+        if (!hasRecordForDateTime(task, dateStr)) {
+          return d;
         }
       }
     }
@@ -328,30 +315,19 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = useMemo(() => patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)), [patientHealthTasks]);
   const documentTasks = useMemo(() => patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)), [patientHealthTasks]);
 
-  // [修改] 任務顯示邏輯：今天所有時間點都完成才消失
+  // [核心修復] 任務顯示邏輯：今天完成就立即消失
   const urgentMonitoringTasks = useMemo(() => {
     const urgent: typeof monitoringTasks = [];
+    const todayStr = new Date().toISOString().split('T')[0];
 
     monitoringTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
       if (patient && patient.在住狀態 === '在住') {
-        // [核心邏輯] 檢查今天是否已完成
-        const todayStr = new Date().toISOString().split('T')[0];
+        // [修復] 只檢查今天是否有記錄（不管時間點）
+        const completedToday = hasRecordForDateTime(task, todayStr);
 
-        // [關鍵修正] 如果任務有多個時間點，需要檢查所有時間點是否都完成
-        let allTimesCompleted = false;
-        if (task.specific_times && task.specific_times.length > 0) {
-          // 多時間點任務：檢查每個時間點
-          allTimesCompleted = task.specific_times.every(timeStr =>
-            hasRecordForDateTime(task, todayStr, timeStr)
-          );
-        } else {
-          // 單時間點任務：檢查整天
-          allTimesCompleted = hasRecordForDateTime(task, todayStr);
-        }
-
-        // 如果今天所有時間點都完成，直接跳過（不顯示）
-        if (allTimesCompleted) {
+        // 如果今天已完成，直接跳過（不顯示）
+        if (completedToday) {
           return;
         }
 
@@ -490,35 +466,17 @@ const Dashboard: React.FC = () => {
     // 1. 立即關閉模態框
     setShowHealthRecordModal(false);
 
-    // 2. 樂觀更新：立即更新本地狀態（使用智能推進）
-    setPatientHealthTasks(prev => {
-      return prev.map(task => {
-        if (task.id === taskId) {
-          // 暫時使用簡單計算，後台會用智能推進更新
-          const nextDueDate = calculateNextDueDate(task, recordDateTime);
-          return {
-            ...task,
-            last_completed_at: recordDateTime.toISOString(),
-            next_due_at: nextDueDate.toISOString()
-          };
-        }
-        return task;
-      });
-    });
-
-    // 3. 在後台非同步執行數據同步（使用智能推進）
-    setTimeout(async () => {
-      try {
-        console.log('🔄 後台同步任務狀態（智能推進）...');
-        await syncTaskStatus(taskId);
-        await refreshData();
-        console.log('✅ 後台同步完成');
-      } catch (error) {
-        console.error('❌ 後台同步失敗:', error);
-        // 失敗後從服務器獲取正確狀態
-        await refreshData();
-      }
-    }, 0);
+    // 2. 立即執行完整的數據同步和刷新
+    try {
+      console.log('🔄 立即同步任務狀態...');
+      await syncTaskStatus(taskId);
+      await refreshData();
+      console.log('✅ 同步完成，卡片已更新');
+    } catch (error) {
+      console.error('❌ 同步失敗:', error);
+      // 失敗後也強制刷新
+      await refreshData();
+    }
   };
 
   const handleDocumentTaskCompleted = async (taskId: string, completionDate: string, nextDueDate: string, tubeType?: string, tubeSize?: string) => {
