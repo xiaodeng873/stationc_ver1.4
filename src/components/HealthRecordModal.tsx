@@ -27,6 +27,19 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const { addHealthRecord, updateHealthRecord, patients, hospitalEpisodes, admissionRecords } = usePatients();
   const { displayName } = useAuth();
 
+  // 日期確認模態框 state (需在 useEffect 之前宣告)
+  const [showDateWarningModal, setShowDateWarningModal] = useState(false);
+  const [isDateWarningConfirmed, setIsDateWarningConfirmed] = useState(false);
+
+  // 使用 ref 來存儲確認和取消的處理函數
+  const dateWarningHandlersRef = React.useRef<{
+    confirm: () => void;
+    cancel: () => void;
+  }>({
+    confirm: () => {},
+    cancel: () => {}
+  });
+
   // ESC 鍵關閉主模態框
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -45,16 +58,16 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        handleDateWarningConfirm();
+        dateWarningHandlersRef.current.confirm();
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        handleDateWarningCancel();
+        dateWarningHandlersRef.current.cancel();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showDateWarningModal, handleDateWarningConfirm, handleDateWarningCancel]);
+  }, [showDateWarningModal]);
 
   const getHongKongDateTime = (dateString?: string) => {
     const date = dateString ? new Date(dateString) : new Date();
@@ -167,9 +180,6 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     absenceReason: record ? '' : (initialIsPatientAbsent ? '入院' : ''),
     customAbsenceReason: ''
   });
-
-  const [showDateWarningModal, setShowDateWarningModal] = useState(false);
-  const [isDateWarningConfirmed, setIsDateWarningConfirmed] = useState(false);
 
   // 組件掛載時記錄初始狀態
   React.useEffect(() => {
@@ -397,16 +407,20 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     }
   };
 
-  const handleDateWarningConfirm = React.useCallback(async () => {
+  const handleDateWarningConfirm = async () => {
     setShowDateWarningModal(false);
     setIsDateWarningConfirmed(true);
     await saveRecord();
-  }, [saveRecord]);
+  };
 
-  const handleDateWarningCancel = React.useCallback(() => {
+  const handleDateWarningCancel = () => {
     setShowDateWarningModal(false);
     setIsDateWarningConfirmed(false);
-  }, []);
+  };
+
+  // 更新 ref 中的處理函數
+  dateWarningHandlersRef.current.confirm = handleDateWarningConfirm;
+  dateWarningHandlersRef.current.cancel = handleDateWarningCancel;
 
   return (
     <>
