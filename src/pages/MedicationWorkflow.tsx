@@ -3523,10 +3523,7 @@ const MedicationWorkflow: React.FC = () => {
                             </div>
 
                             
-                            {prescription.is_prn && (
-                              <div className="bg-red-50 border border-red-200 rounded p-2">
-                                <span className="text-red-600 font-bold">PRN (按需使用)</span>
-                              </div>
+                      
                             )}
 
                             {prescription.preparation_method === 'immediate' && (
