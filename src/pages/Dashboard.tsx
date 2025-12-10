@@ -323,7 +323,12 @@ const Dashboard: React.FC = () => {
     monitoringTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
       if (patient && patient.在住狀態 === '在住') {
-        // [簡化邏輯] 使用統一的狀態判斷函數，它們內部會檢查 recordLookup
+        // [核心修復] 優先檢查今天是否已完成
+        if (recordLookup.has(`${task.id}_${todayStr}`)) {
+          return; // 今天已完成，不顯示卡片
+        }
+
+        // 今天未完成，繼續檢查其他條件
         const isPending = isTaskPendingToday(task, recordLookup, todayStr) ||
                           isTaskOverdue(task, recordLookup, todayStr);
         const hasMissed = !!findMostRecentMissedDate(task);
