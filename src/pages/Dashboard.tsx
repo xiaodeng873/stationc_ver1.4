@@ -447,20 +447,52 @@ const Dashboard: React.FC = () => {
         }
       }
 
-      // [修復可能性1] 即使今天不是排程日，也要檢查是否有逾期或錯過
-      // [修復可能性2] 使用 recordLookup 檢查，避免依賴 next_due_at
-      const isPending = isTaskPendingToday(task, recordLookup, todayStr);
-      const isOverdue = isTaskOverdue(task, recordLookup, todayStr);
-      console.log(`  isTaskPendingToday: ${isPending}`);
-      console.log(`  isTaskOverdue: ${isOverdue}`);
+      // [用戶需求] 只有「過去逾期/錯過」或「現在該做但沒做」才顯示卡片
+      // 不應該因為「未來還有排程」就顯示「排程中」狀態
 
-      // [修復可能性5] 只有在今天未完成時才檢查過去的錯過
-      const hasMissed = !isTodayCompleted ? !!findMostRecentMissedDate(task) : false;
+      // 1. 檢查過去是否有錯過（紅點）
+      const hasMissed = !!findMostRecentMissedDate(task);
       console.log(`  hasMissed (過去錯過): ${hasMissed}`);
 
-      // [修復可能性1] 決策邏輯：只要有任何未完成的，就顯示卡片
-      const shouldShow = isPending || isOverdue || hasMissed || (isTodayScheduled && !isTodayCompleted);
-      console.log(`  最終決策: ${shouldShow ? '🔴 顯示卡片' : '⚪ 不顯示'}`);
+      // 2. 檢查現在是否有逾期（紅點）
+      const isOverdue = isTaskOverdue(task, recordLookup, todayStr);
+      console.log(`  isTaskOverdue (現在逾期): ${isOverdue}`);
+
+      // 3. 檢查今天是否該做但沒做（當前時刻已過但未完成）
+      let hasCurrentPending = false;
+      if (isTodayScheduled && !isTodayCompleted) {
+        // 檢查是否有任何時間點已經過了但沒完成
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+
+        if (normalizedTaskTimes.length > 0) {
+          hasCurrentPending = normalizedTaskTimes.some(time => {
+            const [hour, minute] = time.split(':').map(Number);
+            const keyWithTaskId = `${task.id}_${todayStr}_${time}`;
+            const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}_${time}`;
+            const hasRecord = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+
+            // 如果這個時間點已經過了且沒完成，就算待辦
+            const timePassed = (hour < currentHour) || (hour === currentHour && minute <= currentMinute);
+            const isPending = timePassed && !hasRecord;
+
+            if (isPending) {
+              console.log(`    時間點 ${time} 已過但未完成: ${isPending}`);
+            }
+            return isPending;
+          });
+        } else {
+          // 沒有特定時間點，檢查今天是否應該做但沒做
+          hasCurrentPending = true;
+        }
+      }
+      console.log(`  hasCurrentPending (當前待辦): ${hasCurrentPending}`);
+
+      // [關鍵決策] 只在有紅點或當前待辦時顯示卡片
+      // 不應該因為「未來還有時間點」就顯示「排程中」
+      const shouldShow = hasMissed || isOverdue || hasCurrentPending;
+      console.log(`  最終決策: ${shouldShow ? '🔴 顯示卡片 (有紅點或當前待辦)' : '⚪ 不顯示 (小日曆全綠)'}`);
 
       if (shouldShow) {
         urgent.push(task);
