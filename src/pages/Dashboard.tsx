@@ -323,16 +323,9 @@ const Dashboard: React.FC = () => {
     monitoringTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
       if (patient && patient.在住狀態 === '在住') {
-        // [修復] 只檢查今天是否有記錄（不管時間點）
-        const completedToday = hasRecordForDateTime(task, todayStr);
-
-        // 如果今天已完成，直接跳過（不顯示）
-        if (completedToday) {
-          return;
-        }
-
-        // 今天未完成，檢查是否需要顯示
-        const isPending = isTaskPendingToday(task) || isTaskOverdue(task);
+        // [簡化邏輯] 使用統一的狀態判斷函數，它們內部會檢查 recordLookup
+        const isPending = isTaskPendingToday(task, recordLookup, todayStr) ||
+                          isTaskOverdue(task, recordLookup, todayStr);
         const hasMissed = !!findMostRecentMissedDate(task);
 
         if (isPending || hasMissed) {
@@ -372,22 +365,32 @@ const Dashboard: React.FC = () => {
     const overdue: typeof documentTasks = [];
     const pending: typeof documentTasks = [];
     const dueSoon: typeof documentTasks = [];
+    const todayStr = new Date().toISOString().split('T')[0];
     documentTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
       if (patient && patient.在住狀態 === '在住') {
-        if (isTaskOverdue(task)) overdue.push(task);
-        else if (isTaskPendingToday(task)) pending.push(task);
-        else if (isTaskDueSoon(task)) dueSoon.push(task);
+        if (isTaskOverdue(task, recordLookup, todayStr)) overdue.push(task);
+        else if (isTaskPendingToday(task, recordLookup, todayStr)) pending.push(task);
+        else if (isTaskDueSoon(task, recordLookup, todayStr)) dueSoon.push(task);
       }
     });
     return { overdueDocumentTasks: overdue, pendingDocumentTasks: pending, dueSoonDocumentTasks: dueSoon };
-  }, [documentTasks, patientsMap]);
+  }, [documentTasks, patientsMap, recordLookup]);
   const urgentDocumentTasks = [...overdueDocumentTasks, ...pendingDocumentTasks, ...dueSoonDocumentTasks].slice(0, 10);
 
   const nursingTasks = useMemo(() => patientHealthTasks.filter(task => { const patient = patientsMap.get(task.patient_id); return patient && patient.在住狀態 === '在住' && isNursingTask(task.health_record_type); }), [patientHealthTasks, patientsMap]);
-  const overdueNursingTasks = useMemo(() => nursingTasks.filter(task => isTaskOverdue(task)), [nursingTasks]);
-  const pendingNursingTasks = useMemo(() => nursingTasks.filter(task => isTaskPendingToday(task)), [nursingTasks]);
-  const dueSoonNursingTasks = useMemo(() => nursingTasks.filter(task => { const now = new Date(); const dueDate = new Date(task.next_due_at); const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()); const tomorrowDate = new Date(todayDate); tomorrowDate.setDate(tomorrowDate.getDate() + 1); if (dueDateOnly.getTime() === tomorrowDate.getTime()) { if (!task.last_completed_at) return true; const lastCompleted = new Date(task.last_completed_at); const lastCompletedDate = new Date(lastCompleted.getFullYear(), lastCompleted.getMonth(), lastCompleted.getDate()); return lastCompletedDate < dueDateOnly; } return false; }), [nursingTasks]);
+  const overdueNursingTasks = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return nursingTasks.filter(task => isTaskOverdue(task, recordLookup, todayStr));
+  }, [nursingTasks, recordLookup]);
+  const pendingNursingTasks = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return nursingTasks.filter(task => isTaskPendingToday(task, recordLookup, todayStr));
+  }, [nursingTasks, recordLookup]);
+  const dueSoonNursingTasks = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return nursingTasks.filter(task => isTaskDueSoon(task, recordLookup, todayStr));
+  }, [nursingTasks, recordLookup]);
   const urgentNursingTasks = [...overdueNursingTasks, ...pendingNursingTasks, ...dueSoonNursingTasks].slice(0, 10);
 
   const { overdueRestraintAssessments, dueSoonRestraintAssessments } = useMemo(() => {
@@ -601,8 +604,9 @@ const Dashboard: React.FC = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-2">
                     {slot.tasks.map((task) => {
                       const patient = patients.find(p => p.院友id === task.patient_id);
-                      const status = getTaskStatus(task);
-                      
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      const status = getTaskStatus(task, recordLookup, todayStr);
+
                       const missedDate = findMostRecentMissedDate(task);
                       const hasMissed = !!missedDate;
 

@@ -45,7 +45,7 @@ interface TaskFilters {
 }
 
 const TaskManagement: React.FC = () => {
-  const { patientHealthTasks, patients, deletePatientHealthTask, loading } = usePatients();
+  const { patientHealthTasks, patients, deletePatientHealthTask, loading, healthRecords } = usePatients();
   const [showModal, setShowModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<PatientHealthTask | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -70,6 +70,18 @@ const TaskManagement: React.FC = () => {
   });
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
+  // [核心數據源] 構建 recordLookup：基於實際健康記錄的快速查找表
+  const recordLookup = useMemo(() => {
+    const lookup = new Set<string>();
+    healthRecords.forEach(record => {
+      if (record.task_id && record.記錄日期) {
+        const key = `${record.task_id}_${record.記錄日期}`;
+        lookup.add(key);
+      }
+    });
+    return lookup;
+  }, [healthRecords]);
+
   // Reset to first page when filters change
   React.useEffect(() => {
     setCurrentPage(1);
@@ -88,13 +100,14 @@ const TaskManagement: React.FC = () => {
 
   // Memoize filtered tasks to improve performance
   const filteredTasks = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
     return patientHealthTasks.filter(task => {
       // 過濾掉年度體檢任務
       if (task.health_record_type === '年度體檢') {
         return false;
       }
       const patient = patients.find(p => p.院友id === task.patient_id);
-      const taskStatus = getTaskStatus(task);
+      const taskStatus = getTaskStatus(task, recordLookup, todayStr);
       
       // 先應用進階篩選
       if (filters.在住狀態 && filters.在住狀態 !== '全部' && patient?.在住狀態 !== filters.在住狀態) {
@@ -150,7 +163,7 @@ const TaskManagement: React.FC = () => {
       
       return matchesSearch && matchesType && matchesStatus;
     });
-  }, [patientHealthTasks, patients, filters]);
+  }, [patientHealthTasks, patients, filters, recordLookup]);
 
   // 檢查是否有進階篩選條件
   const hasAdvancedFilters = () => {
@@ -410,7 +423,8 @@ const TaskManagement: React.FC = () => {
   };
 
   const getStatusBadge = (task: PatientHealthTask) => {
-    const status = getTaskStatus(task);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const status = getTaskStatus(task, recordLookup, todayStr);
     
     switch (status) {
       case 'overdue':
@@ -444,7 +458,10 @@ const TaskManagement: React.FC = () => {
     }
   };
 
-  const scheduledTasks = patientHealthTasks.filter(task => getTaskStatus(task) === 'scheduled');
+  const scheduledTasks = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return patientHealthTasks.filter(task => getTaskStatus(task, recordLookup, todayStr) === 'scheduled');
+  }, [patientHealthTasks, recordLookup]);
 
   const SortableHeader: React.FC<{ field: SortField; children: React.ReactNode }> = ({ field, children }) => (
     <th 
@@ -462,16 +479,19 @@ const TaskManagement: React.FC = () => {
     </th>
   );
 
-  const stats = {
-    total: patientHealthTasks.length,
-    overdue: patientHealthTasks.filter(task => isTaskOverdue(task)).length,
-    pending: patientHealthTasks.filter(task => isTaskPendingToday(task)).length,
-    dueSoon: patientHealthTasks.filter(task => getTaskStatus(task) === 'due_soon').length,
-    vitalSigns: patientHealthTasks.filter(task => task.health_record_type === '生命表徵').length,
-    bloodSugar: patientHealthTasks.filter(task => task.health_record_type === '血糖控制').length,
-    weight: patientHealthTasks.filter(task => task.health_record_type === '體重控制').length,
-    scheduled: scheduledTasks.length
-  };
+  const stats = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return {
+      total: patientHealthTasks.length,
+      overdue: patientHealthTasks.filter(task => isTaskOverdue(task, recordLookup, todayStr)).length,
+      pending: patientHealthTasks.filter(task => isTaskPendingToday(task, recordLookup, todayStr)).length,
+      dueSoon: patientHealthTasks.filter(task => getTaskStatus(task, recordLookup, todayStr) === 'due_soon').length,
+      vitalSigns: patientHealthTasks.filter(task => task.health_record_type === '生命表徵').length,
+      bloodSugar: patientHealthTasks.filter(task => task.health_record_type === '血糖控制').length,
+      weight: patientHealthTasks.filter(task => task.health_record_type === '體重控制').length,
+      scheduled: scheduledTasks.length
+    };
+  }, [patientHealthTasks, recordLookup, scheduledTasks]);
 
   return (
     <div className="space-y-6">

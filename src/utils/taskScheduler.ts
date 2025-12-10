@@ -219,8 +219,17 @@ export async function findFirstMissingDate(
 }
 
 // 補回其他函式以避免錯誤
-export function isTaskOverdue(task: PatientHealthTask): boolean {
+export function isTaskOverdue(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): boolean {
   if (!task.next_due_at) return false;
+
+  // [優先檢查] 如果提供了 recordLookup，先檢查今天是否已完成
+  if (recordLookup && todayStr) {
+    const todayKey = `${task.id}_${todayStr}`;
+    if (recordLookup.has(todayKey)) {
+      return false; // 今天已完成，不算逾期
+    }
+  }
+
   const now = new Date();
   const dueDate = new Date(task.next_due_at);
   if (isDocumentTask(task.health_record_type)) {
@@ -242,8 +251,17 @@ export function isTaskOverdue(task: PatientHealthTask): boolean {
   return dueDate < todayStart;
 }
 
-export function isTaskPendingToday(task: PatientHealthTask): boolean {
+export function isTaskPendingToday(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): boolean {
   if (!task.next_due_at) return false;
+
+  // [優先檢查] 如果提供了 recordLookup，先檢查今天是否已完成
+  if (recordLookup && todayStr) {
+    const todayKey = `${task.id}_${todayStr}`;
+    if (recordLookup.has(todayKey)) {
+      return false; // 今天已完成，不算待辦
+    }
+  }
+
   const now = new Date();
   const dueDate = new Date(task.next_due_at);
   if (isDocumentTask(task.health_record_type)) {
@@ -266,8 +284,17 @@ export function isTaskPendingToday(task: PatientHealthTask): boolean {
   return dueDate >= todayStart && dueDate <= todayEnd;
 }
 
-export function isTaskDueSoon(task: PatientHealthTask): boolean {
+export function isTaskDueSoon(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): boolean {
   if (!task.next_due_at) return false;
+
+  // [優先檢查] 如果提供了 recordLookup，先檢查今天是否已完成
+  if (recordLookup && todayStr) {
+    const todayKey = `${task.id}_${todayStr}`;
+    if (recordLookup.has(todayKey)) {
+      return false; // 今天已完成，不算即將到期
+    }
+  }
+
   const now = new Date();
   const dueDate = new Date(task.next_due_at);
   if (isDocumentTask(task.health_record_type)) {
@@ -315,10 +342,10 @@ export function isTaskScheduled(task: PatientHealthTask): boolean {
   return false;
 }
 
-export function getTaskStatus(task: PatientHealthTask): 'overdue' | 'pending' | 'due_soon' | 'scheduled' {
-  if (isTaskOverdue(task)) return 'overdue';
-  if (isTaskPendingToday(task)) return 'pending';
-  if (isTaskDueSoon(task)) return 'due_soon';
+export function getTaskStatus(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): 'overdue' | 'pending' | 'due_soon' | 'scheduled' {
+  if (isTaskOverdue(task, recordLookup, todayStr)) return 'overdue';
+  if (isTaskPendingToday(task, recordLookup, todayStr)) return 'pending';
+  if (isTaskDueSoon(task, recordLookup, todayStr)) return 'due_soon';
   return 'scheduled';
 }
 
