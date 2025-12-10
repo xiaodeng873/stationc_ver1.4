@@ -106,7 +106,7 @@ const Dashboard: React.FC = () => {
   
   // 歷史日曆 Modal 狀態
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [selectedHistoryTask, setSelectedHistoryTask] = useState<{ task: HealthTask; patient: Patient; initialDate?: Date | null } | null>(null);
+  const [selectedHistoryTask, setSelectedHistoryTask] = useState<{ task: HealthTask & { specificTime?: string }; patient: Patient; initialDate?: Date | null } | null>(null);
 
   const uniquePatientHealthTasks = useMemo(() => {
     const seen = new Map<string, boolean>();
@@ -120,13 +120,14 @@ const Dashboard: React.FC = () => {
     return uniqueTasks;
   }, [patientHealthTasks]);
 
-  const handleTaskClick = (task: HealthTask, date?: string) => {
+  const handleTaskClick = (task: HealthTask & { specificTime?: string }, date?: string) => {
     const patient = patients.find(p => p.院友id === task.patient_id);
 
-    // [新增] 智能選擇時間點：如果是補錄且有多個時間點，自動選擇第一個未完成的時間
-    let selectedTime: string | undefined = undefined;
-    if (date && task.specific_times && task.specific_times.length > 0) {
-      // 查找該日期的所有記錄
+    // [修改] 如果任務已經帶有 specificTime，直接使用它
+    let selectedTime: string | undefined = task.specificTime;
+
+    // 如果沒有 specificTime 但是有補錄日期，智能選擇第一個未完成的時間
+    if (!selectedTime && date && task.specific_times && task.specific_times.length > 0) {
       const dateRecords = healthRecords.filter(r => {
         if (r.task_id && r.task_id === task.id) {
           return r.記錄日期 === date;
@@ -136,10 +137,7 @@ const Dashboard: React.FC = () => {
                r.記錄日期 === date;
       });
 
-      // 找出已完成的時間點
       const completedTimes = new Set(dateRecords.map(r => r.記錄時間));
-
-      // 找出第一個未完成的時間點
       selectedTime = task.specific_times.find(time => !completedTimes.has(time));
     }
 
@@ -261,6 +259,33 @@ const Dashboard: React.FC = () => {
     return null;
   };
 
+  // [新增] 檢查特定時間點的漏記
+  const findMostRecentMissedDateForTime = (task: HealthTask, specificTime: string) => {
+    if (!isMonitoringTask(task.health_record_type)) return null;
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    // 檢查過去 60 天
+    for (let i = 1; i <= 60; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+
+      // 遇到 Cutoff Date 停止
+      if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
+
+      // 如果這天該做...
+      if (isTaskScheduledForDate(task, d)) {
+        // 檢查這個特定時間點是否有記錄
+        if (!hasRecordForDateTime(task, dateStr, specificTime)) {
+          return d;
+        }
+      }
+    }
+    return null;
+  };
+
   const isAnnualCheckupOverdue = (checkup: any): boolean => {
     if (!checkup.next_due_date) return false;
     const today = new Date();
@@ -331,21 +356,49 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = useMemo(() => patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)), [patientHealthTasks]);
   const documentTasks = useMemo(() => patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)), [patientHealthTasks]);
 
-  // [修改] 這裡使用了 recordLookup 作為依賴，確保當記錄更新時會重新計算
+  // [重大修改] 將多時間點任務展開為獨立的任務項
+  // 每個時間點都會產生一個獨立的任務卡片，完成一個就消失一個
   const urgentMonitoringTasks = useMemo(() => {
-    const urgent: typeof monitoringTasks = [];
+    const urgent: Array<typeof monitoringTasks[0] & { specificTime?: string }> = [];
+
     monitoringTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
       if (patient && patient.在住狀態 === '在住') {
-        const isPending = isTaskPendingToday(task) || isTaskOverdue(task);
-        // 使用極速查找表
-        const hasMissed = !!findMostRecentMissedDate(task);
-        
-        if (isPending || hasMissed) {
-          urgent.push(task);
+
+        // 如果任務有多個時間點，為每個時間點創建一個任務項
+        if (task.specific_times && task.specific_times.length > 0) {
+          task.specific_times.forEach(timeStr => {
+            // 檢查這個特定時間點是否需要顯示
+            const todayStr = new Date().toISOString().split('T')[0];
+            const hasCompletedToday = hasRecordForDateTime(task, todayStr, timeStr);
+            const hasMissedThisTime = findMostRecentMissedDateForTime(task, timeStr);
+
+            // 今天這個時間點未完成，或有歷史補錄
+            if (!hasCompletedToday || hasMissedThisTime) {
+              // 創建一個帶有特定時間的任務副本
+              const [hours, minutes] = timeStr.split(':');
+              const taskDate = new Date(task.next_due_at);
+              taskDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+              urgent.push({
+                ...task,
+                next_due_at: taskDate.toISOString(),
+                specificTime: timeStr  // 標記這是哪個時間點
+              });
+            }
+          });
+        } else {
+          // 單時間點任務，保持原有邏輯
+          const isPending = isTaskPendingToday(task) || isTaskOverdue(task);
+          const hasMissed = !!findMostRecentMissedDate(task);
+
+          if (isPending || hasMissed) {
+            urgent.push(task);
+          }
         }
       }
     });
+
     return urgent.sort((a, b) => {
       const timeA = new Date(a.next_due_at).getTime();
       const timeB = new Date(b.next_due_at).getTime();
@@ -898,11 +951,12 @@ const Dashboard: React.FC = () => {
           healthRecords={healthRecords}
           initialDate={selectedHistoryTask.initialDate}
           cutoffDateStr={SYNC_CUTOFF_DATE_STR}
+          specificTime={selectedHistoryTask.task.specificTime}
           onClose={() => setShowHistoryModal(false)}
           onDateSelect={(date) => {
             handleTaskClick(selectedHistoryTask.task, date);
             // 選擇日期後關閉日曆
-            setShowHistoryModal(false); 
+            setShowHistoryModal(false);
           }}
         />
       )}

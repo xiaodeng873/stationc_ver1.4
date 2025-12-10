@@ -8,18 +8,20 @@ interface TaskHistoryModalProps {
   healthRecords: any[];
   initialDate?: Date | null;
   cutoffDateStr?: string;
+  specificTime?: string;  // [新增] 如果指定，只檢查這個時間點
   onClose: () => void;
   onDateSelect: (date: string) => void;
 }
 
-const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ 
-  task, 
-  patient, 
-  healthRecords, 
+const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
+  task,
+  patient,
+  healthRecords,
   initialDate,
   cutoffDateStr,
-  onClose, 
-  onDateSelect 
+  specificTime,
+  onClose,
+  onDateSelect
 }) => {
   if (!task || !patient) {
     return null;
@@ -59,6 +61,32 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     const checkDate = new Date(year, month, day);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+    // [修改] 如果指定了 specificTime，只檢查那個時間點
+    if (specificTime) {
+      const hasRecord = healthRecords.some(r => {
+        if (r.task_id && r.task_id === task.id) {
+          return r.記錄日期 === dateStr && r.記錄時間 === specificTime;
+        }
+        return r.院友id.toString() == task.patient_id.toString() &&
+               r.記錄類型 === task.health_record_type &&
+               r.記錄日期 === dateStr &&
+               r.記錄時間 === specificTime;
+      });
+
+      if (hasRecord) return 'completed';
+
+      if (cutoffDateStr && dateStr <= cutoffDateStr) return 'none';
+      if (checkDate > today) return 'future';
+
+      const isScheduled = isTaskScheduledForDate(task, checkDate);
+      if (isScheduled) {
+        if (checkDate.getTime() === today.getTime()) return 'pending';
+        return 'missed';
+      }
+
+      return 'none';
+    }
 
     // [關鍵修正] 對於多時間點任務，需要檢查每個時間點
     if (task.specific_times && task.specific_times.length > 0) {
