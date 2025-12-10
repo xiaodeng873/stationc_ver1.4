@@ -25,6 +25,7 @@ import TaskModal from '../components/TaskModal';
 import { formatFrequencyDescription, getTaskStatus, isTaskOverdue, isTaskDueSoon, isTaskPendingToday, isDocumentTask, isNursingTask } from '../utils/taskScheduler';
 import PatientTooltip from '../components/PatientTooltip';
 import { getFormattedEnglishName } from '../utils/nameFormatter';
+import { SYNC_CUTOFF_DATE_STR } from '../lib/database';
 
 type SortField = 'patient_name' | 'health_record_type' | 'frequency' | 'next_due_at' | 'last_completed_at' | 'notes';
 type SortDirection = 'asc' | 'desc';
@@ -832,7 +833,7 @@ const TaskManagement: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {task.last_completed_at ? (
+                        {task.last_completed_at && new Date(task.last_completed_at).toISOString().split('T')[0] > SYNC_CUTOFF_DATE_STR ? (
                           <div className="flex items-center space-x-1">
                             <CheckCircle className="h-4 w-4 text-green-500" />
                             <span>
