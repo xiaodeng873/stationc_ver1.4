@@ -909,6 +909,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
 
   const updatePrescription = async (prescription: any) => {
     try {
+      // 驗證停用處方必須有結束日期
+      if (prescription.status === 'inactive' && !prescription.end_date) {
+        throw new Error('停用處方必須設定結束日期');
+      }
+
       await db.updatePrescription(prescription);
       await refreshData();
     } catch (error) {

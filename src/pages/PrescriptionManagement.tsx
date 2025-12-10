@@ -388,6 +388,12 @@ const PrescriptionManagement: React.FC = () => {
       // 根據目標狀態設定結束日期
       if (targetStatus === 'inactive') {
         updateData.end_date = endDate || prescription.end_date;
+
+        // 驗證停用處方必須有結束日期
+        if (!updateData.end_date) {
+          alert('錯誤：停用處方必須設定結束日期');
+          return;
+        }
       } else {
         updateData.end_date = null;
       }

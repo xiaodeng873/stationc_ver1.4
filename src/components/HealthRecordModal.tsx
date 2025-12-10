@@ -3,6 +3,7 @@ import { X, Heart, Activity, Droplets, Scale, User, Calendar, Clock, AlertTriang
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
 import PatientAutocomplete from './PatientAutocomplete';
+import { isInHospital } from '../utils/careRecordHelper';
 
 interface HealthRecordModalProps {
   record?: any;
@@ -23,13 +24,13 @@ interface HealthRecordModalProps {
 }
 
 const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialData, onClose, onTaskCompleted }) => {
-  const { addHealthRecord, updateHealthRecord, patients, hospitalEpisodes } = usePatients();
+  const { addHealthRecord, updateHealthRecord, patients, hospitalEpisodes, admissionRecords } = usePatients();
   const { displayName } = useAuth();
 
   const getHongKongDateTime = (dateString?: string) => {
     const date = dateString ? new Date(dateString) : new Date();
     const hongKongTime = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Hong_Kong"}));
-    
+
     const year = hongKongTime.getFullYear();
     const month = (hongKongTime.getMonth() + 1).toString().padStart(2, '0');
     const day = hongKongTime.getDate().toString().padStart(2, '0');
@@ -44,8 +45,8 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const generateRandomDefaults = (recordType: string) => {
     if (recordType === '生命表徵') {
       return {
-        體溫: (Math.random() * 0.9 + 36.0).toFixed(1), 
-        血含氧量: Math.floor(Math.random() * 5 + 95).toString(), 
+        體溫: (Math.random() * 0.9 + 36.0).toFixed(1),
+        血含氧量: Math.floor(Math.random() * 5 + 95).toString(),
         呼吸頻率: Math.floor(Math.random() * 9 + 14).toString()
       };
     }
@@ -55,17 +56,18 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const initialPatientId = record?.院友id?.toString() || initialData?.patient?.院友id?.toString() || '';
   const initialRecordTypeForDefaults = initialData?.預設記錄類型 || initialData?.task?.health_record_type || '生命表徵';
   const initialRandomDefaults = record ? {} : (initialData?.task ? generateRandomDefaults(initialRecordTypeForDefaults) : {});
-  
-  const checkPatientHospitalized = (patientId: string): boolean => {
-    if (!patientId) return false;
+
+  // 檢查院友在指定日期時間是否入院中（包括住院和外出就醫）
+  const checkPatientAbsent = (patientId: string, recordDate: string, recordTime: string): boolean => {
+    if (!patientId || !recordDate || !recordTime) return false;
     const patient = patients.find(p => p.院友id.toString() === patientId.toString());
-    const hasActiveEpisode = hospitalEpisodes.some(episode => 
-      episode.patient_id === patient?.院友id && episode.status === 'active'
-    );
-    return hasActiveEpisode || patient?.is_hospitalized || false;
+    if (!patient) return false;
+
+    // 檢查是否在入院期間（使用 careRecordHelper 的 isInHospital 函數）
+    const inHospital = isInHospital(patient, recordDate, recordTime, admissionRecords);
+
+    return inHospital;
   };
-  
-  const initialIsPatientHospitalized = checkPatientHospitalized(initialPatientId);
 
   const getDefaultDateTime = () => {
     if (record) {
@@ -85,6 +87,12 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
   const { date: defaultRecordDate, time: defaultRecordTime } = getDefaultDateTime();
 
+  const initialIsPatientAbsent = checkPatientAbsent(
+    initialPatientId,
+    initialData?.預設日期 || initialData?.task?.next_due_at?.split('T')[0] || defaultRecordDate,
+    initialData?.預設時間 || initialData?.task?.specific_times?.[0] || defaultRecordTime
+  );
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -92,32 +100,31 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     記錄類型: record?.記錄類型 || initialRecordTypeForDefaults,
     記錄日期: defaultRecordDate,
     記錄時間: defaultRecordTime,
-    血壓收縮壓: record?.血壓收縮壓?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    血壓舒張壓: record?.血壓舒張壓?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    脈搏: record?.脈搏?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    體溫: record?.體溫?.toString() || (initialIsPatientHospitalized ? '' : initialRandomDefaults.體溫 || ''),
-    血含氧量: record?.血含氧量?.toString() || (initialIsPatientHospitalized ? '' : initialRandomDefaults.血含氧量 || ''),
-    呼吸頻率: record?.呼吸頻率?.toString() || (initialIsPatientHospitalized ? '' : initialRandomDefaults.呼吸頻率 || ''),
-    血糖值: record?.血糖值?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    體重: record?.體重?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    備註: record?.備註 || (initialIsPatientHospitalized && !record ? '無法量度原因: 入院' : ''),
+    血壓收縮壓: record?.血壓收縮壓?.toString() || (initialIsPatientAbsent ? '' : ''),
+    血壓舒張壓: record?.血壓舒張壓?.toString() || (initialIsPatientAbsent ? '' : ''),
+    脈搏: record?.脈搏?.toString() || (initialIsPatientAbsent ? '' : ''),
+    體溫: record?.體溫?.toString() || (initialIsPatientAbsent ? '' : initialRandomDefaults.體溫 || ''),
+    血含氧量: record?.血含氧量?.toString() || (initialIsPatientAbsent ? '' : initialRandomDefaults.血含氧量 || ''),
+    呼吸頻率: record?.呼吸頻率?.toString() || (initialIsPatientAbsent ? '' : initialRandomDefaults.呼吸頻率 || ''),
+    血糖值: record?.血糖值?.toString() || (initialIsPatientAbsent ? '' : ''),
+    體重: record?.體重?.toString() || (initialIsPatientAbsent ? '' : ''),
+    備註: record?.備註 || (initialIsPatientAbsent && !record ? '無法量度原因: 入院' : ''),
     記錄人員: record?.記錄人員 || displayName || '',
-    isAbsent: record ? (record.備註?.includes('無法量度') || false) : initialIsPatientHospitalized,
-    absenceReason: record ? '' : (initialIsPatientHospitalized ? '入院' : ''),
+    isAbsent: record ? (record.備註?.includes('無法量度') || false) : initialIsPatientAbsent,
+    absenceReason: record ? '' : (initialIsPatientAbsent ? '入院' : ''),
     customAbsenceReason: ''
   });
-
-  const currentIsPatientHospitalized = React.useMemo(() => {
-    return checkPatientHospitalized(formData.院友id);
-  }, [formData.院友id, patients]);
 
   const [showDateWarningModal, setShowDateWarningModal] = useState(false);
   const [isDateWarningConfirmed, setIsDateWarningConfirmed] = useState(false);
 
+  // 當院友ID、日期或時間改變時，檢查是否在入院期間並自動設定
   React.useEffect(() => {
-    if (formData.院友id && !record) {
-      const isHospitalized = currentIsPatientHospitalized;
-      if (isHospitalized && !formData.isAbsent) {
+    if (formData.院友id && formData.記錄日期 && formData.記錄時間 && !record) {
+      const isAbsent = checkPatientAbsent(formData.院友id, formData.記錄日期, formData.記錄時間);
+
+      if (isAbsent && !formData.isAbsent) {
+        // 在入院期間，自動設定為無法量度
         setFormData(prev => ({
           ...prev,
           isAbsent: true,
@@ -125,7 +132,8 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
           備註: '無法量度原因: 入院',
           血壓收縮壓: '', 血壓舒張壓: '', 脈搏: '', 體溫: '', 血含氧量: '', 呼吸頻率: '', 血糖值: '', 體重: ''
         }));
-      } else if (!isHospitalized && formData.isAbsent && formData.absenceReason === '入院') {
+      } else if (!isAbsent && formData.isAbsent && formData.absenceReason === '入院') {
+        // 不在入院期間，清除自動設定的入院狀態
         setFormData(prev => ({
           ...prev,
           isAbsent: false,
@@ -134,7 +142,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
         }));
       }
     }
-  }, [formData.院友id, record, currentIsPatientHospitalized]);
+  }, [formData.院友id, formData.記錄日期, formData.記錄時間, record]);
 
   React.useEffect(() => {
     if (record?.備註?.includes('無法量度原因:')) {
