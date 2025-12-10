@@ -3146,12 +3146,12 @@ const MedicationWorkflow: React.FC = () => {
                           {isMenuOpen && (
                             <Portal>
                               <div
-                                className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300 mb-1"
+                                className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300"
                                 ref={dateMenuRef}
                                 style={{
-                                  bottom: `${window.innerHeight - ((document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().top || 0)}px`,
+                                  top: `${((document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().bottom || 0) + 4}px`,
                                   left: `${(document.querySelector(`[data-date="${date}"]`) as HTMLElement)?.getBoundingClientRect().left || 0}px`,
-                                  zIndex: 9999
+                                  zIndex: 99999
                                 }}
                               >
                                 <div className="py-1">

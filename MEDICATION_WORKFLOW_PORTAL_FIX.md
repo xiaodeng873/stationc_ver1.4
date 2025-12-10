@@ -245,6 +245,35 @@ const handleTouchEnd = () => {
 - [ ] 點擊外部：清單正確關閉
 - [ ] 滾動頁面：清單行為正確
 
+### 🔧 定位修復（2025-12-10）
+
+**問題：** 一鍵清單在所有瀏覽器中都不顯示
+
+**原因：** 定位計算錯誤，使用 `bottom` 定位導致菜單渲染到屏幕之外
+
+**修復前：**
+```tsx
+style={{
+  bottom: `${window.innerHeight - getBoundingClientRect().top}px`,  // ❌ 錯誤
+  left: `${getBoundingClientRect().left}px`,
+  zIndex: 9999
+}}
+```
+
+**修復後：**
+```tsx
+style={{
+  top: `${getBoundingClientRect().bottom + 4}px`,  // ✅ 正確：顯示在日期下方
+  left: `${getBoundingClientRect().left}px`,
+  zIndex: 99999  // 提高 z-index
+}}
+```
+
+**改進：**
+1. 使用 `top` 定位，菜單顯示在日期欄位下方
+2. 提高 z-index 從 9999 到 99999
+3. 移除不必要的 `mb-1` margin 類別
+
 ### ⏳ 觸控拖曳測試（待用戶確認）
 - [ ] 左滑：切換到下週
 - [ ] 右滑：切換到上週
