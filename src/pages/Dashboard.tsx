@@ -328,7 +328,7 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = useMemo(() => patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)), [patientHealthTasks]);
   const documentTasks = useMemo(() => patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)), [patientHealthTasks]);
 
-  // [修改] 任務顯示邏輯：今天完成就消失，不管是否有歷史補錄
+  // [修改] 任務顯示邏輯：今天所有時間點都完成才消失
   const urgentMonitoringTasks = useMemo(() => {
     const urgent: typeof monitoringTasks = [];
 
@@ -337,10 +337,21 @@ const Dashboard: React.FC = () => {
       if (patient && patient.在住狀態 === '在住') {
         // [核心邏輯] 檢查今天是否已完成
         const todayStr = new Date().toISOString().split('T')[0];
-        const completedToday = hasRecordForDateTime(task, todayStr);
 
-        // 如果今天已經完成，直接跳過（不顯示）
-        if (completedToday) {
+        // [關鍵修正] 如果任務有多個時間點，需要檢查所有時間點是否都完成
+        let allTimesCompleted = false;
+        if (task.specific_times && task.specific_times.length > 0) {
+          // 多時間點任務：檢查每個時間點
+          allTimesCompleted = task.specific_times.every(timeStr =>
+            hasRecordForDateTime(task, todayStr, timeStr)
+          );
+        } else {
+          // 單時間點任務：檢查整天
+          allTimesCompleted = hasRecordForDateTime(task, todayStr);
+        }
+
+        // 如果今天所有時間點都完成，直接跳過（不顯示）
+        if (allTimesCompleted) {
           return;
         }
 
