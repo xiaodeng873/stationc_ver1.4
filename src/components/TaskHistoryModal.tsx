@@ -62,13 +62,39 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // [調試] 記錄基本信息
+    console.log(`[日曆調試] ===== 檢查日期: ${dateStr} =====`);
+    console.log(`[日曆調試] 任務類型: ${task.health_record_type}`);
+    console.log(`[日曆調試] 院友ID: ${task.patient_id}`);
+    console.log(`[日曆調試] 分界日期: ${cutoffDateStr}`);
+    console.log(`[日曆調試] 指定時間: ${specificTime}`);
+    console.log(`[日曆調試] 任務時間點: ${JSON.stringify(task.specific_times)}`);
+    console.log(`[日曆調試] 今天: ${today.toISOString().split('T')[0]}`);
+
     // [修正] 如果日期早於分界線，不應顯示任何狀態（任務還未開始）
     if (cutoffDateStr && dateStr < cutoffDateStr) {
+      console.log(`[日曆調試] ${dateStr} < ${cutoffDateStr} -> 任務未開始，返回 none`);
       return 'none';
     }
 
     // [修改] 如果指定了 specificTime，只檢查那個時間點
     if (specificTime) {
+      console.log(`[日曆調試] 進入 specificTime 分支 - 檢查時間: ${specificTime}`);
+
+      const matchingRecords = healthRecords.filter(r => {
+        const match = r.記錄日期 === dateStr;
+        if (match) {
+          console.log(`[日曆調試] 找到該日期的記錄:`, {
+            記錄類型: r.記錄類型,
+            記錄時間: r.記錄時間,
+            院友id: r.院友id,
+            task_id: r.task_id
+          });
+        }
+        return match;
+      });
+      console.log(`[日曆調試] ${dateStr} 該日期共有 ${matchingRecords.length} 筆記錄`);
+
       const hasRecord = healthRecords.some(r => {
         if (r.task_id && r.task_id === task.id) {
           return r.記錄日期 === dateStr && r.記錄時間 === specificTime;
@@ -82,23 +108,40 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
         return patientMatch && typeMatch && dateMatch && timeMatch;
       });
 
-      if (hasRecord) return 'completed';
+      console.log(`[日曆調試] hasRecord = ${hasRecord}`);
+
+      if (hasRecord) {
+        console.log(`[日曆調試] ${dateStr} -> completed (有記錄)`);
+        return 'completed';
+      }
 
       // 未來日期不顯示為逾期
-      if (checkDate > today) return 'future';
+      if (checkDate > today) {
+        console.log(`[日曆調試] ${dateStr} -> future (未來日期)`);
+        return 'future';
+      }
 
       // 檢查是否應該排程在這一天
       const isScheduled = isTaskScheduledForDate(task, checkDate);
+      console.log(`[日曆調試] isScheduled = ${isScheduled}`);
+
       if (isScheduled) {
-        if (checkDate.getTime() === today.getTime()) return 'pending';
+        if (checkDate.getTime() === today.getTime()) {
+          console.log(`[日曆調試] ${dateStr} -> pending (今天待辦)`);
+          return 'pending';
+        }
+        console.log(`[日曆調試] ${dateStr} -> missed (逾期)`);
         return 'missed';
       }
 
+      console.log(`[日曆調試] ${dateStr} -> none (不應排程)`);
       return 'none';
     }
 
     // [關鍵修正] 對於多時間點任務，需要檢查每個時間點
     if (task.specific_times && task.specific_times.length > 0) {
+      console.log(`[日曆調試] 進入多時間點任務分支 - 需要時間點: ${task.specific_times.join(', ')}`);
+
       const timeRecords = healthRecords.filter(r => {
         if (r.task_id && r.task_id === task.id) {
           return r.記錄日期 === dateStr;
@@ -111,30 +154,67 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
         return patientMatch && typeMatch && dateMatch;
       });
 
+      console.log(`[日曆調試] ${dateStr} 找到 ${timeRecords.length} 筆該日期的記錄`);
+      if (timeRecords.length > 0) {
+        console.log(`[日曆調試] 記錄時間點: ${timeRecords.map(r => r.記錄時間).join(', ')}`);
+      }
+
       // 檢查所有時間點是否都有記錄
       const completedTimes = new Set(timeRecords.map(r => r.記錄時間));
       const allTimesCompleted = task.specific_times.every(time => completedTimes.has(time));
 
+      console.log(`[日曆調試] 已完成時間點: ${Array.from(completedTimes).join(', ')}`);
+      console.log(`[日曆調試] allTimesCompleted = ${allTimesCompleted}`);
+
       if (allTimesCompleted) {
+        console.log(`[日曆調試] ${dateStr} -> completed (所有時間點已完成)`);
         return 'completed';
       }
 
       // 未來日期不顯示為逾期
-      if (checkDate > today) return 'future';
+      if (checkDate > today) {
+        console.log(`[日曆調試] ${dateStr} -> future (未來日期)`);
+        return 'future';
+      }
 
       // 檢查是否應該排程在這一天
       const isScheduled = isTaskScheduledForDate(task, checkDate);
+      console.log(`[日曆調試] isScheduled = ${isScheduled}`);
+
       if (isScheduled) {
-        if (checkDate.getTime() === today.getTime()) return 'pending';
+        if (checkDate.getTime() === today.getTime()) {
+          console.log(`[日曆調試] ${dateStr} -> pending (今天待辦)`);
+          return 'pending';
+        }
+        console.log(`[日曆調試] ${dateStr} -> missed (逾期)`);
         return 'missed';
       }
 
+      console.log(`[日曆調試] ${dateStr} -> none (不應排程)`);
       return 'none';
     } else {
       // 單時間點任務
+      console.log(`[日曆調試] 進入單時間點任務分支`);
+
+      const matchingDateRecords = healthRecords.filter(r => r.記錄日期 === dateStr);
+      console.log(`[日曆調試] ${dateStr} 該日期共有 ${matchingDateRecords.length} 筆記錄`);
+
+      if (matchingDateRecords.length > 0) {
+        console.log(`[日曆調試] ${dateStr} 該日期的記錄詳情:`, matchingDateRecords.map(r => ({
+          記錄類型: r.記錄類型,
+          記錄時間: r.記錄時間,
+          院友id: r.院友id,
+          task_id: r.task_id
+        })));
+      }
+
       const hasRecord = healthRecords.some(r => {
         if (r.task_id && r.task_id === task.id) {
-          return r.記錄日期 === dateStr;
+          const match = r.記錄日期 === dateStr;
+          if (match) {
+            console.log(`[日曆調試] ${dateStr} 通過 task_id 匹配成功`);
+          }
+          return match;
         }
         // [增強] 更容錯的匹配邏輯，並添加調試信息
         const patientMatch = r.院友id?.toString() === task.patient_id?.toString();
@@ -149,26 +229,45 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
           console.log(`[日曆調試] ${dateStr} 記錄類型不匹配: 記錄="${r.記錄類型}", 任務="${task.health_record_type}"`);
         }
 
-        return patientMatch && typeMatch && dateMatch;
+        const fullMatch = patientMatch && typeMatch && dateMatch;
+        if (fullMatch) {
+          console.log(`[日曆調試] ${dateStr} 通過容錯邏輯匹配成功`);
+        }
+
+        return fullMatch;
       });
 
-      if (hasRecord) return 'completed';
+      console.log(`[日曆調試] hasRecord = ${hasRecord}`);
+
+      if (hasRecord) {
+        console.log(`[日曆調試] ${dateStr} -> completed (有記錄)`);
+        return 'completed';
+      }
 
       // 未來日期不顯示為逾期
-      if (checkDate > today) return 'future';
+      if (checkDate > today) {
+        console.log(`[日曆調試] ${dateStr} -> future (未來日期)`);
+        return 'future';
+      }
 
       // 檢查是否應該排程在這一天
       const isScheduled = isTaskScheduledForDate(task, checkDate);
+      console.log(`[日曆調試] isScheduled = ${isScheduled}`);
 
       if (isScheduled) {
         // [調試] 記錄為什麼判定為逾期
         if (checkDate.getTime() !== today.getTime()) {
           console.log(`[日曆調試] ${dateStr} 判定為逾期 - 任務類型: ${task.health_record_type}, 院友: ${task.patient_id}`);
         }
-        if (checkDate.getTime() === today.getTime()) return 'pending';
+        if (checkDate.getTime() === today.getTime()) {
+          console.log(`[日曆調試] ${dateStr} -> pending (今天待辦)`);
+          return 'pending';
+        }
+        console.log(`[日曆調試] ${dateStr} -> missed (逾期)`);
         return 'missed';
       }
 
+      console.log(`[日曆調試] ${dateStr} -> none (不應排程)`);
       return 'none';
     }
   };
