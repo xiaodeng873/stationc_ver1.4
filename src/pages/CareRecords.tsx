@@ -691,91 +691,123 @@ const CareRecords: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center space-x-2">
-          <ClipboardCheck className="h-8 w-8 text-blue-600" />
-          <span>護理記錄</span>
-        </h1>
+    <div className="space-y-6">
+      {/* Sticky Heading 區域 */}
+      <div className="sticky top-0 bg-white z-30 py-4 border-b border-gray-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
+            <ClipboardCheck className="h-7 w-7 text-blue-600" />
+            <span>護理記錄</span>
+          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={goToPreviousPatient}
+              disabled={sortedActivePatients.length <= 1}
+              className="btn-secondary flex items-center space-x-1"
+              title="上一位院友"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>上一位</span>
+            </button>
+            <button
+              onClick={goToNextPatient}
+              disabled={sortedActivePatients.length <= 1}
+              className="btn-secondary flex items-center space-x-1"
+              title="下一位院友"
+            >
+              <span>下一位</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handlePreviousWeek}
+              className="btn-secondary flex items-center space-x-1"
+              title="上一週"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>上週</span>
+            </button>
+            <button
+              onClick={handleNextWeek}
+              className="btn-secondary flex items-center space-x-1"
+              title="下一週"
+            >
+              <span>下週</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => loadCareRecordsForWeek(weekDateStrings[0], weekDateStrings[weekDateStrings.length - 1])}
+              className="btn-secondary flex items-center space-x-1"
+              title="重新載入"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>重新整理</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="card p-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 space-y-2">
-            <label className="text-sm font-medium text-gray-700">選擇院友</label>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={goToPreviousPatient}
-                disabled={sortedActivePatients.length <= 1}
-                className="btn-secondary flex items-center space-x-1 px-3 py-2 flex-shrink-0"
-                title="上一位院友"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span>上一位</span>
-              </button>
-              <div className="flex-1 min-w-0">
-                <PatientAutocomplete
-                  value={selectedPatientId}
-                  onChange={setSelectedPatientId}
-                  placeholder="搜尋院友..."
-                  showResidencyFilter={true}
-                  defaultResidencyStatus="在住"
-                />
-              </div>
-              <button
-                onClick={goToNextPatient}
-                disabled={sortedActivePatients.length <= 1}
-                className="btn-secondary flex items-center space-x-1 px-3 py-2 flex-shrink-0"
-                title="下一位院友"
-              >
-                <span>下一位</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-            {sortedActivePatients.length > 0 && (
-              <div className="text-sm text-gray-600 text-center lg:text-left">
-                第 {sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId) + 1} / {sortedActivePatients.length} 位院友
-                {selectedPatient && (
-                  <span className="ml-2 text-blue-600">
-                    (床號: {selectedPatient.床號})
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {selectedPatient && (
-            <div className="lg:w-80 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-4">
-              <label className="text-sm font-medium text-gray-700 block mb-2">院友資訊</label>
-              <div className="flex items-start space-x-3">
-                {selectedPatient.院友相片 ? (
-                  <img
-                    src={selectedPatient.院友相片}
-                    alt={selectedPatient.中文姓名}
-                    className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+      {/* Sticky 搜索和選擇區域 */}
+      <div className="sticky top-16 bg-white z-20 shadow-sm">
+        <div className="card p-4">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1 space-y-2">
+              <label className="text-sm font-medium text-gray-700">選擇院友</label>
+              <div className="flex items-center space-x-2">
+                <div className="flex-1 min-w-0">
+                  <PatientAutocomplete
+                    value={selectedPatientId}
+                    onChange={setSelectedPatientId}
+                    placeholder="搜尋院友..."
+                    showResidencyFilter={true}
+                    defaultResidencyStatus="在住"
                   />
-                ) : (
-                  <div className="w-20 h-20 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
-                    <User className="h-10 w-10 text-gray-400" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="font-semibold text-gray-900">
-                    {selectedPatient.中文姓名} ({selectedPatient.性別})
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {selectedPatient.出生日期 && (
-                      <div>{calculateAge(selectedPatient.出生日期)}歲</div>
-                    )}
-                    {selectedPatient.出生日期 && (
-                      <div>{new Date(selectedPatient.出生日期).toLocaleDateString('zh-TW')}</div>
-                    )}
-                    <div>{selectedPatient.身份證號碼}</div>
+                </div>
+              </div>
+              {sortedActivePatients.length > 0 && (
+                <div className="text-sm text-gray-600 text-center lg:text-left">
+                  第 {sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId) + 1} / {sortedActivePatients.length} 位院友
+                  {selectedPatient && (
+                    <span className="ml-2 text-blue-600">
+                      (床號: {selectedPatient.床號})
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {selectedPatient && (
+              <div className="lg:w-80 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-4">
+                <label className="text-sm font-medium text-gray-700 block mb-2">院友資訊</label>
+                <div className="flex items-start space-x-3">
+                  {selectedPatient.院友相片 ? (
+                    <img
+                      src={selectedPatient.院友相片}
+                      alt={selectedPatient.中文姓名}
+                      className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <User className="h-10 w-10 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="font-semibold text-gray-900">
+                      {selectedPatient.中文姓名} ({selectedPatient.性別})
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {selectedPatient.出生日期 && (
+                        <div>{calculateAge(selectedPatient.出生日期)}歲</div>
+                      )}
+                      {selectedPatient.出生日期 && (
+                        <div>{new Date(selectedPatient.出生日期).toLocaleDateString('zh-TW')}</div>
+                      )}
+                      <div>{selectedPatient.身份證號碼}</div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

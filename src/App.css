@@ -38,14 +38,23 @@
 
 .btn-primary {
   @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md;
+  word-break: keep-all;
+  white-space: normal;
+  text-align: center;
 }
 
 .btn-secondary {
   @apply bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-all duration-200 border border-gray-300;
+  word-break: keep-all;
+  white-space: normal;
+  text-align: center;
 }
 
 .btn-danger {
   @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md;
+  word-break: keep-all;
+  white-space: normal;
+  text-align: center;
 }
 
 .card {

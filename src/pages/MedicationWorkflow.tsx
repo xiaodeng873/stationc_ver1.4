@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Pill,
   Calendar,
@@ -19,7 +19,10 @@ import {
   CheckSquare,
   Users,
   Syringe,
-  Trash2
+  Trash2,
+  Shield,
+  Heart,
+  MoreVertical
 } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +36,7 @@ import InspectionCheckModal from '../components/InspectionCheckModal';
 import InjectionSiteModal from '../components/InjectionSiteModal';
 import RevertConfirmModal from '../components/RevertConfirmModal';
 import WorkflowDeduplicateModal from '../components/WorkflowDeduplicateModal';
+import { Portal } from '../components/Portal';
 import { generateDailyWorkflowRecords, generateBatchWorkflowRecords } from '../utils/workflowGenerator';
 import { diagnoseWorkflowDisplayIssue } from '../utils/diagnoseTool';
 import { supabase } from '../lib/supabase';
@@ -393,6 +397,7 @@ const MedicationWorkflow: React.FC = () => {
     dispenseMedication,
     checkPrescriptionInspectionRules,
     hospitalEpisodes,
+    refreshData,
     loading
   } = usePatients();
   const { displayName } = useAuth();
@@ -438,10 +443,30 @@ const MedicationWorkflow: React.FC = () => {
   const [preparationFilter, setPreparationFilter] = useState<'all' | 'advanced' | 'immediate'>('all');
   const [autoGenerationChecked, setAutoGenerationChecked] = useState(false);
   const [showDeduplicateModal, setShowDeduplicateModal] = useState(false);
+  const [selectedDateForMenu, setSelectedDateForMenu] = useState<string | null>(null);
+  const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top?: number; bottom?: number; left: number }>({ left: 0 });
+  const [hoveredPrescriptionId, setHoveredPrescriptionId] = useState<number | null>(null);
+  const [medicationInfoPosition, setMedicationInfoPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [optimisticCrushState, setOptimisticCrushState] = useState<Map<number, boolean>>(new Map());
+  const [optimisticWorkflowUpdates, setOptimisticWorkflowUpdates] = useState<Map<string, {
+    preparation_status?: string;
+    verification_status?: string;
+    dispensing_status?: string;
+  }>>(new Map());
 
   // 防抖控制：使用 ref 追蹤生成狀態，防止併發
   const isGeneratingRef = React.useRef(false);
+  const dateMenuRef = useRef<HTMLDivElement>(null);
   const generationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // 拖曳滑動相關狀態
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startTime, setStartTime] = useState(0);
+  const [dragVelocity, setDragVelocity] = useState(0);
+  const [dragDistance, setDragDistance] = useState(0);
 
   // 計算一週日期（周日開始）
   const computeWeekDates = (dateStr: string): string[] => {
@@ -681,6 +706,17 @@ const MedicationWorkflow: React.FC = () => {
       .sort((a, b) => a.床號.localeCompare(b.床號, 'zh-Hant', { numeric: true }));
   }, [patients]);
 
+  // 應用樂觀更新到工作流程記錄
+  const applyOptimisticUpdates = useCallback((records: any[]) => {
+    return records.map(record => {
+      const optimisticUpdate = optimisticWorkflowUpdates.get(record.id);
+      if (optimisticUpdate) {
+        return { ...record, ...optimisticUpdate };
+      }
+      return record;
+    });
+  }, [optimisticWorkflowUpdates]);
+
   // 預設選擇第一個在住院友
   useEffect(() => {
     if (!selectedPatientId && sortedActivePatients.length > 0) {
@@ -806,7 +842,7 @@ const MedicationWorkflow: React.FC = () => {
     }
   }, [selectedPatientId, JSON.stringify(weekDates)]);
 
-  // 監聽 context 的 prescriptionWorkflowRecords 改變，合併/替換到本地 allWorkflowRecords
+  // 監聽 context 的 prescriptionWorkflowRecords 改變，只更新已存在的記錄，不引入週外記錄
   useEffect(() => {
     if (selectedPatientId) {
       setAllWorkflowRecords(prev => {
@@ -822,22 +858,67 @@ const MedicationWorkflow: React.FC = () => {
           return prev;
         }
 
-        // 獲取這次更新涉及的所有日期
-        const updatedDates = [...new Set(newRecords.map(r => r.scheduled_date))];
-        console.log(`📅 更新涉及的日期 (${updatedDates.length} 個):`, updatedDates);
+        // 只更新已存在的記錄（通過 ID 匹配），不引入新記錄
+        const prevIds = new Set(prev.map(r => r.id));
+        const recordsToUpdate = newRecords.filter(r => prevIds.has(r.id));
 
-        // 移除這些日期的舊記錄
-        const filteredPrev = prev.filter(r => !updatedDates.includes(r.scheduled_date));
-        console.log(`  移除舊記錄後: ${prev.length} -> ${filteredPrev.length}`);
+        console.log(`📝 需要更新的記錄數: ${recordsToUpdate.length}`);
 
-        const merged = [...filteredPrev, ...newRecords];
-        console.log(`📝 合併後記錄數: ${merged.length}`);
-        console.log(`  合併記錄的日期分布:`, [...new Set(merged.map(r => r.scheduled_date))]);
+        if (recordsToUpdate.length === 0) {
+          console.log('⚠️ 沒有需要更新的記錄，保持現有記錄');
+          return prev;
+        }
 
-        return merged;
+        // 創建更新映射
+        const updateMap = new Map(recordsToUpdate.map(r => [r.id, r]));
+
+        // 更新現有記錄
+        const updated = prev.map(r => updateMap.has(r.id) ? updateMap.get(r.id)! : r);
+
+        console.log(`✅ 更新後記錄數: ${updated.length} (保持不變)`);
+        console.log(`  記錄的日期範圍:`, [...new Set(updated.map(r => r.scheduled_date))]);
+
+        return updated;
       });
     }
   }, [prescriptionWorkflowRecords, selectedPatientId]);
+
+  // 處理點擊外部關閉日期選單
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dateMenuRef.current && !dateMenuRef.current.contains(event.target as Node)) {
+        setIsDateMenuOpen(false);
+        setSelectedDateForMenu(null);
+      }
+    };
+
+    if (isDateMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDateMenuOpen]);
+
+  // 計算日期選單位置（向上展開）
+  useEffect(() => {
+    if (isDateMenuOpen && selectedDateForMenu) {
+      requestAnimationFrame(() => {
+        const element = document.querySelector(`[data-date="${selectedDateForMenu}"]`) as HTMLElement;
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          console.log('計算菜單位置:', { date: selectedDateForMenu, rect });
+
+          // 向上展開：使用 bottom 定位，菜單顯示在日期上方
+          setMenuPosition({
+            bottom: window.innerHeight - rect.top + 4,
+            left: rect.left
+          });
+        }
+      });
+    }
+  }, [isDateMenuOpen, selectedDateForMenu]);
 
   // 獲取當前日期的工作流程記錄（用於一鍵操作等）
   // 重要：包含在服處方(status='active')和有效期內的停用處方(status='inactive')的記錄
@@ -894,11 +975,31 @@ const MedicationWorkflow: React.FC = () => {
     });
     console.log(`📋 其中提前備藥記錄: ${advancedRecords.length} 筆`);
 
-    return filtered;
-  }, [allWorkflowRecords, selectedDate, selectedPatientId, prescriptions]);
+    // 應用樂觀更新
+    return filtered.map(record => {
+      const optimisticUpdate = optimisticWorkflowUpdates.get(record.id);
+      if (optimisticUpdate) {
+        return { ...record, ...optimisticUpdate };
+      }
+      return record;
+    });
+  }, [allWorkflowRecords, selectedDate, selectedPatientId, prescriptions, optimisticWorkflowUpdates]);
 
   // 獲取選中院友的在服處方（基於選取日期）
-  const selectedPatient = sortedActivePatients.find(p => p.院友id.toString() === selectedPatientId);
+  const selectedPatient = useMemo(() => {
+    const patient = sortedActivePatients.find(p => p.院友id.toString() === selectedPatientId);
+    if (!patient) return undefined;
+
+    // 應用樂觀更新
+    if (optimisticCrushState.has(patient.院友id)) {
+      return {
+        ...patient,
+        needs_medication_crushing: optimisticCrushState.get(patient.院友id)
+      };
+    }
+
+    return patient;
+  }, [sortedActivePatients, selectedPatientId, optimisticCrushState]);
 
   // 院友導航函數
   const goToPreviousPatient = () => {
@@ -1318,11 +1419,38 @@ const MedicationWorkflow: React.FC = () => {
 
     const scheduledDate = record.scheduled_date;
 
+    // 樂觀更新：立即更新 UI
+    if (step === 'preparation') {
+      setOptimisticWorkflowUpdates(prev => {
+        const next = new Map(prev);
+        next.set(recordId, { ...prev.get(recordId), preparation_status: 'completed' });
+        return next;
+      });
+    } else if (step === 'verification') {
+      setOptimisticWorkflowUpdates(prev => {
+        const next = new Map(prev);
+        next.set(recordId, { ...prev.get(recordId), verification_status: 'completed' });
+        return next;
+      });
+    }
+
     try {
       if (step === 'preparation') {
         await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
+        // 清除樂觀更新狀態
+        setOptimisticWorkflowUpdates(prev => {
+          const next = new Map(prev);
+          next.delete(recordId);
+          return next;
+        });
       } else if (step === 'verification') {
         await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, scheduledDate);
+        // 清除樂觀更新狀態
+        setOptimisticWorkflowUpdates(prev => {
+          const next = new Map(prev);
+          next.delete(recordId);
+          return next;
+        });
       } else if (step === 'dispensing') {
         const prescription = prescriptions.find(p => p.id === record.prescription_id);
         const patient = patients.find(p => p.院友id === record.patient_id);
@@ -1343,6 +1471,13 @@ const MedicationWorkflow: React.FC = () => {
 
         // 如果在入院期間，直接寫入"入院"失敗，不彈出任何對話框
         if (inHospitalizationPeriod) {
+          // 樂觀更新
+          setOptimisticWorkflowUpdates(prev => {
+            const next = new Map(prev);
+            next.set(recordId, { ...prev.get(recordId), dispensing_status: 'failed' });
+            return next;
+          });
+
           const inspectionResult = {
             canDispense: false,
             isHospitalized: true,
@@ -1350,21 +1485,44 @@ const MedicationWorkflow: React.FC = () => {
             usedVitalSignData: {}
           };
 
-          await dispenseMedication(
-            record.id,
-            displayName || '未知',
-            '入院',
-            undefined,
-            patientIdNum,
-            scheduledDate,
-            undefined,
-            inspectionResult
-          );
+          try {
+            await dispenseMedication(
+              record.id,
+              displayName || '未知',
+              '入院',
+              undefined,
+              patientIdNum,
+              scheduledDate,
+              undefined,
+              inspectionResult
+            );
+            // 清除樂觀更新狀態
+            setOptimisticWorkflowUpdates(prev => {
+              const next = new Map(prev);
+              next.delete(recordId);
+              return next;
+            });
+          } catch (error) {
+            // 回滾樂觀更新
+            setOptimisticWorkflowUpdates(prev => {
+              const next = new Map(prev);
+              next.delete(recordId);
+              return next;
+            });
+            throw error;
+          }
           return;
         }
 
         // 如果在渡假期間，直接寫入"回家"失敗，不彈出任何對話框
         if (inVacationPeriod) {
+          // 樂觀更新
+          setOptimisticWorkflowUpdates(prev => {
+            const next = new Map(prev);
+            next.set(recordId, { ...prev.get(recordId), dispensing_status: 'failed' });
+            return next;
+          });
+
           const inspectionResult = {
             canDispense: false,
             isOnVacation: true,
@@ -1372,16 +1530,32 @@ const MedicationWorkflow: React.FC = () => {
             usedVitalSignData: {}
           };
 
-          await dispenseMedication(
-            record.id,
-            displayName || '未知',
-            '回家',
-            undefined,
-            patientIdNum,
-            scheduledDate,
-            undefined,
-            inspectionResult
-          );
+          try {
+            await dispenseMedication(
+              record.id,
+              displayName || '未知',
+              '回家',
+              undefined,
+              patientIdNum,
+              scheduledDate,
+              undefined,
+              inspectionResult
+            );
+            // 清除樂觀更新狀態
+            setOptimisticWorkflowUpdates(prev => {
+              const next = new Map(prev);
+              next.delete(recordId);
+              return next;
+            });
+          } catch (error) {
+            // 回滾樂觀更新
+            setOptimisticWorkflowUpdates(prev => {
+              const next = new Map(prev);
+              next.delete(recordId);
+              return next;
+            });
+            throw error;
+          }
           return;
         }
 
@@ -1404,6 +1578,14 @@ const MedicationWorkflow: React.FC = () => {
       }
     } catch (error) {
       console.error(`執行${step}失敗:`, error);
+      // 回滾樂觀更新
+      if (step === 'preparation' || step === 'verification') {
+        setOptimisticWorkflowUpdates(prev => {
+          const next = new Map(prev);
+          next.delete(recordId);
+          return next;
+        });
+      }
     }
   };
 
@@ -1677,8 +1859,13 @@ const MedicationWorkflow: React.FC = () => {
   };
 
   // 一鍵派藥（僅當日）- 打開確認對話框
-  const handleOneClickDispense = () => {
-    if (!selectedPatientId || !selectedDate) {
+  const handleOneClickDispense = (targetDate?: string) => {
+    if (!selectedPatientId) {
+      return;
+    }
+
+    const dateToUse = targetDate || selectedDate;
+    if (!dateToUse) {
       return;
     }
 
@@ -1687,11 +1874,22 @@ const MedicationWorkflow: React.FC = () => {
       return;
     }
 
+    // 如果傳入了目標日期，先更新 selectedDate
+    if (targetDate && targetDate !== selectedDate) {
+      setSelectedDate(targetDate);
+    }
+
     console.log('=== 一鍵派藥過濾邏輯 ===');
-    console.log('當天工作流程記錄總數:', currentDayWorkflowRecords.length);
+
+    // 獲取指定日期的工作流程記錄
+    const dayRecords = targetDate
+      ? allWorkflowRecords.filter(r => r.scheduled_date === targetDate)
+      : currentDayWorkflowRecords;
+
+    console.log('當天工作流程記錄總數:', dayRecords.length);
 
     // 找到所有可派藥的記錄（包含有檢測項要求的處方）
-    const eligibleRecords = currentDayWorkflowRecords.filter(r => {
+    const eligibleRecords = dayRecords.filter(r => {
       const prescription = prescriptions.find(p => p.id === r.prescription_id);
 
       if (!prescription) {
@@ -1765,6 +1963,312 @@ const MedicationWorkflow: React.FC = () => {
 
     // 打開確認對話框
     setShowBatchDispenseModal(true);
+  };
+
+  // 為指定日期執行一鍵執藥
+  const handleDateOneClickPrepare = async (targetDate: string) => {
+    if (!selectedPatientId) {
+      return;
+    }
+
+    const patientIdNum = parseInt(selectedPatientId);
+    if (isNaN(patientIdNum)) {
+      return;
+    }
+
+    setOneClickProcessing(prev => ({ ...prev, preparation: true }));
+
+    try {
+      console.log(`=== 一鍵執藥開始 (日期: ${targetDate}) ===`);
+      // 找到指定日期所有待執藥的記錄（排除即時備藥）
+      const dayWorkflowRecords = allWorkflowRecords.filter(r => r.scheduled_date === targetDate);
+      const pendingPreparationRecords = dayWorkflowRecords.filter(r => {
+        const prescription = prescriptions.find(p => p.id === r.prescription_id);
+        return r.preparation_status === 'pending' && prescription?.preparation_method !== 'immediate';
+      });
+
+      if (pendingPreparationRecords.length === 0) {
+        console.log('沒有需要執藥的記錄');
+        return;
+      }
+
+      console.log(`找到 ${pendingPreparationRecords.length} 筆待執藥記錄`);
+
+      // 並行處理所有執藥操作
+      const results = await Promise.allSettled(
+        pendingPreparationRecords.map(record =>
+          prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, targetDate)
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`一鍵執藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`執藥失敗 (記錄ID: ${pendingPreparationRecords[index].id}):`, result.reason);
+        }
+      });
+    } catch (error) {
+      console.error('一鍵執藥失敗:', error);
+      alert('一鍵執藥失敗，請查看控制台');
+    } finally {
+      setOneClickProcessing(prev => ({ ...prev, preparation: false }));
+    }
+  };
+
+  // 為指定日期執行一鍵核藥
+  const handleDateOneClickVerify = async (targetDate: string) => {
+    if (!selectedPatientId) {
+      return;
+    }
+
+    const patientIdNum = parseInt(selectedPatientId);
+    if (isNaN(patientIdNum)) {
+      return;
+    }
+
+    setOneClickProcessing(prev => ({ ...prev, verification: true }));
+
+    try {
+      console.log(`=== 一鍵核藥開始 (日期: ${targetDate}) ===`);
+      // 找到指定日期所有待核藥的記錄（排除即時備藥）
+      const dayWorkflowRecords = allWorkflowRecords.filter(r => r.scheduled_date === targetDate);
+      const pendingVerificationRecords = dayWorkflowRecords.filter(r => {
+        const prescription = prescriptions.find(p => p.id === r.prescription_id);
+        return r.verification_status === 'pending' &&
+               r.preparation_status === 'completed' &&
+               prescription?.preparation_method !== 'immediate';
+      });
+
+      if (pendingVerificationRecords.length === 0) {
+        console.log('沒有需要核藥的記錄');
+        return;
+      }
+
+      console.log(`找到 ${pendingVerificationRecords.length} 筆待核藥記錄`);
+
+      // 並行處理所有核藥操作
+      const results = await Promise.allSettled(
+        pendingVerificationRecords.map(record =>
+          verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, targetDate)
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`一鍵核藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`核藥失敗 (記錄ID: ${pendingVerificationRecords[index].id}):`, result.reason);
+        }
+      });
+    } catch (error) {
+      console.error('一鍵核藥失敗:', error);
+      alert('一鍵核藥失敗，請查看控制台');
+    } finally {
+      setOneClickProcessing(prev => ({ ...prev, verification: false }));
+    }
+  };
+
+  // 為指定日期執行一鍵派藥
+  const handleDateOneClickDispense = async (targetDate: string) => {
+    if (!selectedPatientId) {
+      return;
+    }
+
+    const patientIdNum = parseInt(selectedPatientId);
+    if (isNaN(patientIdNum)) {
+      return;
+    }
+
+    setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
+
+    try {
+      console.log(`=== 一鍵派藥開始 (日期: ${targetDate}) ===`);
+      // 找到指定日期所有可派藥的記錄
+      const dayWorkflowRecords = allWorkflowRecords.filter(r => r.scheduled_date === targetDate);
+      const eligibleRecords = dayWorkflowRecords.filter(r => {
+        const prescription = prescriptions.find(p => p.id === r.prescription_id);
+        return r.dispensing_status === 'pending' &&
+               r.verification_status === 'completed' &&
+               prescription?.administration_route !== '注射' &&
+               !(prescription?.inspection_rules && prescription.inspection_rules.length > 0);
+      });
+
+      if (eligibleRecords.length === 0) {
+        console.log('沒有可派藥的記錄');
+        return;
+      }
+
+      console.log(`找到 ${eligibleRecords.length} 筆可派藥記錄`);
+
+      // 並行處理所有派藥操作
+      const results = await Promise.allSettled(
+        eligibleRecords.map(async (record) => {
+          // 檢查是否在入院期間
+          const inHospitalizationPeriod = isInHospitalizationPeriod(
+            patientIdNum,
+            record.scheduled_date,
+            record.scheduled_time
+          );
+
+          // 檢查是否在渡假期間
+          const inVacationPeriod = isInVacationPeriod(
+            patientIdNum,
+            record.scheduled_date,
+            record.scheduled_time
+          );
+
+          if (inHospitalizationPeriod) {
+            return dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, targetDate);
+          } else if (inVacationPeriod) {
+            return dispenseMedication(record.id, displayName || '未知', '回家', undefined, patientIdNum, targetDate);
+          } else {
+            return dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, targetDate);
+          }
+        })
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`一鍵派藥完成: 成功 ${successCount} 筆, 失敗 ${failCount} 筆`);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`派藥失敗 (記錄ID: ${eligibleRecords[index].id}):`, result.reason);
+        }
+      });
+    } catch (error) {
+      console.error('一鍵派藥失敗:', error);
+      alert('一鍵派藥失敗，請查看控制台');
+    } finally {
+      setOneClickProcessing(prev => ({ ...prev, dispensing: false }));
+    }
+  };
+
+  // 為指定日期執行一鍵全程
+  const handleDateOneClickFullProcess = async (targetDate: string) => {
+    if (!selectedPatientId) {
+      return;
+    }
+
+    const patientIdNum = parseInt(selectedPatientId);
+    if (isNaN(patientIdNum)) {
+      return;
+    }
+
+    setOneClickProcessing(prev => ({ ...prev, dispensing: true }));
+
+    try {
+      console.log(`=== 一鍵全程開始 (日期: ${targetDate}) ===`);
+      // 找到指定日期所有符合一鍵全程條件的記錄
+      const dayWorkflowRecords = allWorkflowRecords.filter(r => r.scheduled_date === targetDate);
+      const eligibleRecords = dayWorkflowRecords.filter(r => {
+        const prescription = prescriptions.find(p => p.id === r.prescription_id);
+        return canOneClickDispense(prescription);
+      });
+
+      if (eligibleRecords.length === 0) {
+        console.log('沒有符合一鍵全程條件的記錄');
+        return;
+      }
+
+      console.log(`找到 ${eligibleRecords.length} 筆符合條件的記錄`);
+
+      let successCount = 0;
+      let hospitalizedCount = 0;
+      let vacationCount = 0;
+      let failCount = 0;
+
+      // 並行處理所有記錄
+      const results = await Promise.allSettled(
+        eligibleRecords.map(async (record) => {
+          // 檢查是否在入院期間
+          const inHospitalizationPeriod = isInHospitalizationPeriod(
+            patientIdNum,
+            record.scheduled_date,
+            record.scheduled_time
+          );
+
+          // 檢查是否在渡假期間
+          const inVacationPeriod = isInVacationPeriod(
+            patientIdNum,
+            record.scheduled_date,
+            record.scheduled_time
+          );
+
+          // 執行完整流程：執藥 -> 核藥 -> 派藥
+          try {
+            // 1. 執藥（如果還未執藥）
+            if (record.preparation_status === 'pending') {
+              await prepareMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, targetDate);
+            }
+
+            // 2. 核藥（如果還未核藥）
+            if (record.verification_status === 'pending') {
+              await verifyMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, targetDate);
+            }
+
+            // 3. 派藥（如果還未派藥）
+            if (record.dispensing_status === 'pending') {
+              if (inHospitalizationPeriod) {
+                await dispenseMedication(record.id, displayName || '未知', '入院', undefined, patientIdNum, targetDate);
+                return { type: 'hospitalized' };
+              } else if (inVacationPeriod) {
+                await dispenseMedication(record.id, displayName || '未知', '回家', undefined, patientIdNum, targetDate);
+                return { type: 'vacation' };
+              } else {
+                await dispenseMedication(record.id, displayName || '未知', undefined, undefined, patientIdNum, targetDate);
+                return { type: 'success' };
+              }
+            }
+
+            return { type: 'already_completed' };
+          } catch (error) {
+            console.error(`處理記錄 ${record.id} 失敗:`, error);
+            throw error;
+          }
+        })
+      );
+
+      // 統計結果
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          switch (result.value.type) {
+            case 'success':
+              successCount++;
+              break;
+            case 'hospitalized':
+              hospitalizedCount++;
+              break;
+            case 'vacation':
+              vacationCount++;
+              break;
+          }
+        } else {
+          failCount++;
+        }
+      });
+
+      console.log(`一鍵全程完成: 成功 ${successCount} 筆, 入院 ${hospitalizedCount} 筆, 渡假 ${vacationCount} 筆, 失敗 ${failCount} 筆`);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`一鍵全程失敗 (記錄ID: ${eligibleRecords[index].id}):`, result.reason);
+        }
+      });
+    } catch (error) {
+      console.error('一鍵全程失敗:', error);
+      alert('一鍵全程失敗，請查看控制台');
+    } finally {
+      setOneClickProcessing(prev => ({ ...prev, dispensing: false }));
+    }
   };
 
   // 處理批量派藥確認
@@ -2285,6 +2789,57 @@ const MedicationWorkflow: React.FC = () => {
     setSelectedDate(getTodayLocalDate());
   };
 
+  // 週次導航
+  const goToPreviousWeek = () => {
+    const date = new Date(selectedDate);
+    date.setDate(date.getDate() - 7);
+    setSelectedDate(date.toISOString().split('T')[0]);
+  };
+
+  const goToNextWeek = () => {
+    const date = new Date(selectedDate);
+    date.setDate(date.getDate() + 7);
+    setSelectedDate(date.toISOString().split('T')[0]);
+  };
+
+  // 觸控拖曳事件處理（保留觸控功能）
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsDragging(true);
+    setStartX(e.touches[0].clientX);
+    setStartTime(Date.now());
+    setDragDistance(0);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    const deltaX = e.touches[0].clientX - startX;
+    setDragDistance(Math.abs(deltaX));
+    const deltaTime = Date.now() - startTime;
+    if (deltaTime > 0) {
+      setDragVelocity(deltaX / deltaTime);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+
+    // 只有在拖動距離大於 50px 才觸發週次切換
+    const dragThreshold = 50;
+    const velocityThreshold = 0.5;
+
+    if (dragDistance > dragThreshold && Math.abs(dragVelocity) > velocityThreshold) {
+      if (dragVelocity > 0) {
+        goToPreviousWeek();
+      } else {
+        goToNextWeek();
+      }
+    }
+
+    setDragVelocity(0);
+    setDragDistance(0);
+  };
+
   // 診斷工作流程顯示問題
   const handleDiagnose = async () => {
     const patientIdNum = parseInt(selectedPatientId);
@@ -2356,288 +2911,178 @@ const MedicationWorkflow: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* 頁面標題 */}
-      <div className="sticky top-0 bg-white z-30 py-4 border-b border-gray-200 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
+      {/* 頁面標題與控制區 */}
+      <div className="sticky top-0 bg-white z-[25] py-4 border-b border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          {/* 左側：標題 */}
+          <div className="flex-shrink-0">
             <h1 className="text-2xl font-bold text-gray-900">藥物工作流程</h1>
             <p className="text-sm text-gray-600 mt-1">管理院友的執藥、核藥、派藥流程</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleDiagnose}
-              disabled={!selectedPatientId}
-              className="btn-secondary flex items-center space-x-2"
-              title="診斷工作流程記錄顯示問題"
-            >
-              <Settings className="h-4 w-4" />
-              <span>診斷</span>
-            </button>
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing || !selectedPatientId}
-              className="btn-secondary flex items-center space-x-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              <span>刷新</span>
-            </button>
-            <button
-              onClick={handleGenerateWorkflow}
-              disabled={generating || !selectedPatientId}
-              className="btn-primary flex items-center space-x-2"
-              title="為選定院友生成本週（7天）的藥物工作流程"
-            >
-              {generating ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>生成中...</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="h-4 w-4" />
-                  <span>生成本週工作流程</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => setShowDeduplicateModal(true)}
-              className="btn-secondary flex items-center space-x-2"
-              title="檢測並清理重複的工作流程記錄"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>清理重複記錄</span>
-            </button>
-          </div>
-        </div>
-      </div> 
 
-      {/* 緊湊兩行佈局 - 院友選擇、日期控制、院友資訊卡、一鍵操作按鈕 */}
-      <div className="sticky top-16 bg-white z-20 shadow-sm">
-        <div className="card p-4">
-          <div className="space-y-3">
-            {/* 第一行：院友選擇（左60%）+ 日期控制（右40%） */}
-            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
-              {/* 左側：院友選擇 */}
-              <div>
-                <label className="form-label text-xs mb-1">
-                  <User className="h-3 w-3 inline mr-1" />
-                  選擇院友
-                </label>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={goToPreviousPatient}
-                    disabled={sortedActivePatients.length <= 1}
-                    className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
-                    title="上一位院友"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <PatientAutocomplete
-                      value={selectedPatientId}
-                      onChange={setSelectedPatientId}
-                      placeholder="搜索院友..."
-                      showResidencyFilter={true}
-                      defaultResidencyStatus="在住"
-                    />
-                  </div>
-                  <button
-                    onClick={goToNextPatient}
-                    disabled={sortedActivePatients.length <= 1}
-                    className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
-                    title="下一位院友"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-                {/* 院友導航指示器 */}
-                {sortedActivePatients.length > 0 && selectedPatient && (
-                  <div className="mt-1 text-xs text-gray-600">
-                    第 {sortedActivePatients.findIndex(p => p.院友id.toString() === selectedPatientId) + 1} / {sortedActivePatients.length} 位 | 床號: {selectedPatient.床號}
-                  </div>
-                )}
-              </div>
-
-              {/* 右側：日期控制 */}
-              <div>
-                <label className="form-label text-xs mb-1">
-                  <Calendar className="h-3 w-3 inline mr-1" />
-                  選擇日期
-                </label>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={goToPreviousDay}
-                    className="btn-secondary p-1.5"
-                    title="前一日"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="form-input flex-1 text-sm"
+          {/* 右側：院友選擇、日期選擇、遷移按鈕 */}
+          <div className="flex items-end gap-3 flex-1 max-w-4xl">
+            {/* 院友選擇 */}
+            <div className="flex-1 min-w-[200px] max-w-md">
+              <label className="form-label text-xs mb-1 block">
+                <User className="h-3 w-3 inline mr-1" />
+                選擇院友
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={goToPreviousPatient}
+                  disabled={sortedActivePatients.length <= 1}
+                  className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
+                  title="上一位院友"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <PatientAutocomplete
+                    value={selectedPatientId}
+                    onChange={setSelectedPatientId}
+                    placeholder="搜索院友..."
+                    showResidencyFilter={true}
+                    defaultResidencyStatus="在住"
                   />
-                  <button
-                    onClick={goToNextDay}
-                    className="btn-secondary p-1.5"
-                    title="後一日"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={goToToday}
-                    className="btn-secondary text-xs px-2"
-                  >
-                    今天
-                  </button>
                 </div>
+                <button
+                  onClick={goToNextPatient}
+                  disabled={sortedActivePatients.length <= 1}
+                  className="btn-secondary flex items-center px-2 py-1.5 flex-shrink-0"
+                  title="下一位院友"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             </div>
 
-            {/* 第二行：院友資訊卡（左60%）+ 一鍵操作按鈕（右40%） */}
-            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
-              {/* 左側：院友資訊卡 */}
-              <div>
-                <PatientInfoCard
-                  patient={selectedPatient}
-                  onToggleCrushMedication={(patientId, needsCrushing) => {
-                    // 更新本地狀態
-                    if (selectedPatient) {
-                      selectedPatient.needs_medication_crushing = needsCrushing;
-                    }
-                  }}
+            {/* 日期選擇 */}
+            <div className="flex-1 min-w-[250px] max-w-sm">
+              <label className="form-label text-xs mb-1 block">
+                <Calendar className="h-3 w-3 inline mr-1" />
+                選擇日期
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={goToPreviousDay}
+                  className="btn-secondary p-1.5"
+                  title="前一日"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="form-input flex-1 text-sm"
                 />
-              </div>
-
-              {/* 右側：一鍵操作按鈕 */}
-              <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={handleOneClickPrepare}
-                  disabled={oneClickProcessing.preparation || !currentDayWorkflowRecords.some(r => {
-                    const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                    return r.preparation_status === 'pending' && prescription?.preparation_method !== 'immediate';
-                  })}
-                  className="btn-primary flex flex-col items-center justify-center space-y-1 px-2 py-3"
+                  onClick={goToNextDay}
+                  className="btn-secondary p-1.5"
+                  title="後一日"
                 >
-                  {oneClickProcessing.preparation ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  ) : (
-                    <FastForward className="h-6 w-6" />
-                  )}
-                  <span className="text-xs">一鍵執藥</span>
+                  <ChevronRight className="h-4 w-4" />
                 </button>
-
                 <button
-                  onClick={handleOneClickVerify}
-                  disabled={oneClickProcessing.verification || !currentDayWorkflowRecords.some(r => {
-                    const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                    return r.verification_status === 'pending' &&
-                           r.preparation_status === 'completed' &&
-                           prescription?.preparation_method !== 'immediate';
-                  })}
-                  className="btn-primary flex flex-col items-center justify-center space-y-1 px-2 py-3"
+                  onClick={goToToday}
+                  className="btn-secondary text-xs px-2 py-1.5 whitespace-nowrap"
                 >
-                  {oneClickProcessing.verification ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  ) : (
-                    <CheckSquare className="h-6 w-6" />
-                  )}
-                  <span className="text-xs">一鍵核藥</span>
-                </button>
-
-                <button
-                  onClick={handleOneClickDispense}
-                  disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
-                    const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                    return r.dispensing_status === 'pending' &&
-                           r.verification_status === 'completed' &&
-                           prescription?.administration_route !== '注射' &&
-                           !(prescription?.inspection_rules && prescription.inspection_rules.length > 0);
-                  })}
-                  className="btn-primary flex flex-col items-center justify-center space-y-1 px-2 py-3"
-                >
-                  {oneClickProcessing.dispensing ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  ) : (
-                    <Users className="h-6 w-6" />
-                  )}
-                  <span className="text-xs">一鍵派藥</span>
-                </button>
-
-                <button
-                  onClick={handleOneClickDispenseSpecial}
-                  disabled={oneClickProcessing.dispensing || !currentDayWorkflowRecords.some(r => {
-                    const prescription = prescriptions.find(p => p.id === r.prescription_id);
-                    return canOneClickDispense(prescription);
-                  })}
-                  className="btn-primary flex flex-col items-center justify-center space-y-1 px-2 py-3 bg-purple-600 hover:bg-purple-700"
-                >
-                  {oneClickProcessing.dispensing ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  ) : (
-                    <Zap className="h-6 w-6" />
-                  )}
-                  <span className="text-xs">一鍵全程</span>
+                  今天
                 </button>
               </div>
             </div>
+
+         
           </div>
         </div>
       </div>
+
+      {/* 院友資訊卡 */}
+      {selectedPatient && (
+        <div className="sticky top-24 bg-white z-[5] shadow-sm">
+          <div className="card p-4">
+            <PatientInfoCard
+              patient={selectedPatient}
+              onOptimisticUpdate={(patientId, needsCrushing) => {
+                // 立即更新 UI（樂觀更新）
+                setOptimisticCrushState(prev => {
+                  const next = new Map(prev);
+                  next.set(patientId, needsCrushing);
+                  return next;
+                });
+              }}
+              onToggleCrushMedication={async (patientId, needsCrushing) => {
+                // 資料庫更新成功後刷新數據
+                await refreshData();
+                // 清除樂觀更新狀態
+                setOptimisticCrushState(prev => {
+                  const next = new Map(prev);
+                  next.delete(patientId);
+                  return next;
+                });
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 工作流程表格 */}
       {selectedPatientId ? (
         <div className="card overflow-hidden">
           {activePrescriptions.length > 0 ? (
             <>
-              {/* 備藥方式分類標籤 */}
-              <div className="border-b border-gray-200">
-                <div className="flex space-x-1 p-2">
-                  <button
-                    onClick={() => setPreparationFilter('all')}
-                    className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      preparationFilter === 'all'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    全部 ({activePrescriptions.length})
-                    {preparationMethodOverdueCounts.all > 0 && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setPreparationFilter('advanced')}
-                    className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      preparationFilter === 'advanced'
-                        ? 'bg-green-100 text-green-700'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    提前備藥 ({activePrescriptions.filter(p => p.preparation_method === 'advanced').length})
-                    {preparationMethodOverdueCounts.advanced > 0 && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setPreparationFilter('immediate')}
-                    className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      preparationFilter === 'immediate'
-                        ? 'bg-orange-100 text-orange-700'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    即時備藥 ({activePrescriptions.filter(p => p.preparation_method === 'immediate').length})
-                    {preparationMethodOverdueCounts.immediate > 0 && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                    )}
-                  </button>
-                </div>
-              </div>
-
               {filteredPrescriptions.length > 0 ? (
-                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)]">
+                <div className="relative">
+                  {/* 備藥方式分類標籤 - 在表格上方 */}
+                  <div className="border-b border-gray-200 bg-gray-50">
+                    <div className="flex space-x-1 p-2">
+                      <button
+                        onClick={() => setPreparationFilter('all')}
+                        className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          preparationFilter === 'all'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        全部 ({activePrescriptions.length})
+                        {preparationMethodOverdueCounts.all > 0 && (
+                          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setPreparationFilter('advanced')}
+                        className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          preparationFilter === 'advanced'
+                            ? 'bg-green-100 text-green-700'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        提前備藥 ({activePrescriptions.filter(p => p.preparation_method === 'advanced').length})
+                        {preparationMethodOverdueCounts.advanced > 0 && (
+                          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setPreparationFilter('immediate')}
+                        className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          preparationFilter === 'immediate'
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        即時備藥 ({activePrescriptions.filter(p => p.preparation_method === 'immediate').length})
+                        {preparationMethodOverdueCounts.immediate > 0 && (
+                          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    ref={tableContainerRef}
+                    className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)]"
+                  >
                 <table className="min-w-full">
                   <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                     <tr>
@@ -2662,16 +3107,156 @@ const MedicationWorkflow: React.FC = () => {
                       const weekday = weekdays[weekdayIndex];
                       const isSelectedDate = date === selectedDate;
                       const hasOverdue = (dateOverdueStatus.get(date) || 0) > 0;
+                      const isMenuOpen = isDateMenuOpen && selectedDateForMenu === date;
+
+                      // 獲取當日工作流程記錄
+                      const dayWorkflowRecords = allWorkflowRecords.filter(r => r.scheduled_date === date);
+
+                      // 計算當日可操作的記錄數量
+                      const canPrepare = dayWorkflowRecords.some(r => {
+                        const prescription = prescriptions.find(p => p.id === r.prescription_id);
+                        return r.preparation_status === 'pending' && prescription?.preparation_method !== 'immediate';
+                      });
+                      const canVerify = dayWorkflowRecords.some(r => {
+                        const prescription = prescriptions.find(p => p.id === r.prescription_id);
+                        return r.verification_status === 'pending' &&
+                               r.preparation_status === 'completed' &&
+                               prescription?.preparation_method !== 'immediate';
+                      });
+                      const canDispense = dayWorkflowRecords.some(r => {
+                        const prescription = prescriptions.find(p => p.id === r.prescription_id);
+                        return r.dispensing_status === 'pending' &&
+                               r.verification_status === 'completed' &&
+                               prescription?.administration_route !== '注射' &&
+                               !(prescription?.inspection_rules && prescription.inspection_rules.length > 0);
+                      });
+                      const canFullProcess = dayWorkflowRecords.some(r => {
+                        const prescription = prescriptions.find(p => p.id === r.prescription_id);
+                        return canOneClickDispense(prescription);
+                      });
+
                       return (
                         <th
                           key={date}
-                          className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer transition-colors relative ${
+                          data-date={date}
+                          className={`px-1 py-3 text-center text-xs font-medium uppercase tracking-wider transition-colors relative ${
                             isSelectedDate ? 'bg-blue-100 text-blue-800' : 'text-gray-500 hover:bg-blue-50'
                           }`}
-                          onClick={() => setSelectedDate(date)}
-                          title={`點擊跳轉到 ${month}/${dayOfMonth}${hasOverdue ? ' (有逾期未完成流程)' : ''}`}
                         >
-                          {month}/{dayOfMonth}<br/>({weekday})
+                          <div
+                            className="cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log('日期欄位被點擊:', date);
+                              console.log('當前選單狀態:', isMenuOpen);
+                              if (isMenuOpen) {
+                                console.log('關閉選單');
+                                setIsDateMenuOpen(false);
+                                setSelectedDateForMenu(null);
+                              } else {
+                                console.log('開啟選單');
+                                setIsDateMenuOpen(true);
+                                setSelectedDateForMenu(date);
+                              }
+                            }}
+                            title={`點擊展開選單 ${month}/${dayOfMonth}${hasOverdue ? ' (有逾期未完成流程)' : ''}`}
+                          >
+                            {month}/{dayOfMonth}<br/>({weekday})
+                          </div>
+
+                          {/* 下拉選單（使用 Portal 渲染到 body，確保在所有元素之上，向上展開） */}
+                          {isMenuOpen && (
+                            <Portal>
+                              <div
+                                className="fixed w-40 bg-white rounded-lg shadow-xl border-2 border-blue-300"
+                                ref={dateMenuRef}
+                                style={{
+                                  bottom: menuPosition.bottom !== undefined ? `${menuPosition.bottom}px` : 'auto',
+                                  left: `${menuPosition.left}px`,
+                                  zIndex: 99999
+                                }}
+                              >
+                                <div className="py-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDateOneClickPrepare(date);
+                                      setIsDateMenuOpen(false);
+                                      setSelectedDateForMenu(null);
+                                    }}
+                                    disabled={!canPrepare || oneClickProcessing.preparation}
+                                    className={`w-full text-left px-4 py-2 text-sm flex items-center space-x-2 ${
+                                      canPrepare && !oneClickProcessing.preparation
+                                        ? 'hover:bg-gray-100 text-gray-700'
+                                        : 'text-gray-400 cursor-not-allowed'
+                                    }`}
+                                    title={canPrepare ? '完成當日所有待執藥記錄' : '當日無可執藥記錄'}
+                                  >
+                                    <FastForward className="h-4 w-4" />
+                                    <span>一鍵執藥</span>
+                                  </button>
+
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDateOneClickVerify(date);
+                                      setIsDateMenuOpen(false);
+                                      setSelectedDateForMenu(null);
+                                    }}
+                                    disabled={!canVerify || oneClickProcessing.verification}
+                                    className={`w-full text-left px-4 py-2 text-sm flex items-center space-x-2 ${
+                                      canVerify && !oneClickProcessing.verification
+                                        ? 'hover:bg-gray-100 text-gray-700'
+                                        : 'text-gray-400 cursor-not-allowed'
+                                    }`}
+                                    title={canVerify ? '完成當日所有待核藥記錄' : '當日無可核藥記錄'}
+                                  >
+                                    <CheckSquare className="h-4 w-4" />
+                                    <span>一鍵核藥</span>
+                                  </button>
+
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOneClickDispense(date);
+                                      setIsDateMenuOpen(false);
+                                      setSelectedDateForMenu(null);
+                                    }}
+                                    disabled={!canDispense || oneClickProcessing.dispensing}
+                                    className={`w-full text-left px-4 py-2 text-sm flex items-center space-x-2 ${
+                                      canDispense && !oneClickProcessing.dispensing
+                                        ? 'hover:bg-gray-100 text-gray-700'
+                                        : 'text-gray-400 cursor-not-allowed'
+                                    }`}
+                                    title={canDispense ? '完成當日所有待派藥記錄' : '當日無可派藥記錄'}
+                                  >
+                                    <Users className="h-4 w-4" />
+                                    <span>一鍵派藥</span>
+                                  </button>
+
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDateOneClickFullProcess(date);
+                                      setIsDateMenuOpen(false);
+                                      setSelectedDateForMenu(null);
+                                    }}
+                                    disabled={!canFullProcess || oneClickProcessing.dispensing}
+                                    className={`w-full text-left px-4 py-2 text-sm flex items-center space-x-2 ${
+                                      canFullProcess && !oneClickProcessing.dispensing
+                                        ? 'hover:bg-gray-100 text-gray-700 bg-purple-50'
+                                        : 'text-gray-400 cursor-not-allowed'
+                                    }`}
+                                    title={canFullProcess ? '完成當日所有即時備藥+口服+無檢測的全流程' : '當日無可全程記錄'}
+                                  >
+                                    <Zap className="h-4 w-4 text-purple-600" />
+                                    <span className="text-purple-700 font-medium">一鍵全程</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </Portal>
+                          )}
+
                           {hasOverdue && (
                             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                           )}
@@ -2720,40 +3305,36 @@ const MedicationWorkflow: React.FC = () => {
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                           {index + 1}
                         </td>
-                        <td className="px-4 py-4">
-                          <div className="space-y-1">
-                            <div className="font-medium text-gray-900">{prescription.medication_name}</div>
-                            <div className="text-xs text-gray-600">
-                              開始: {new Date(prescription.start_date).toLocaleDateString('zh-TW')}
-                            </div>
-                            {prescription.end_date && (
-                              <div className="text-xs text-gray-600">
-                                結束: {new Date(prescription.end_date).toLocaleDateString('zh-TW')}
-                              </div>
-                            )}
-                            <div className="text-xs text-gray-600">
-                              處方: {new Date(prescription.prescription_date).toLocaleDateString('zh-TW')}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              來源: {prescription.medication_source || '未指定'}
-                            </div>
-                            {prescription.notes && (
-                              <div className="text-xs text-red-600">
-                                注意: {prescription.notes}
-                              </div>
-                            )}
-                            {prescription.inspection_rules && prescription.inspection_rules.length > 0 && (
-                              <div className="text-xs text-orange-600">
-                                <AlertTriangle className="h-3 w-3 inline mr-1" />
-                                有檢測項要求
-                              </div>
-                            )}
-                            {prescription.preparation_method === 'immediate' && (
-                              <div className="text-xs text-blue-600">
-                                <Zap className="h-3 w-3 inline mr-1" />
-                                即時備藥
-                              </div>
-                            )}
+                        <td
+                          className="px-4 py-4 relative"
+                          data-prescription-id={prescription.id}
+                          onMouseEnter={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setMedicationInfoPosition({
+                              top: rect.top,
+                              left: rect.right + 10
+                            });
+                            setHoveredPrescriptionId(prescription.id);
+                          }}
+                          onMouseLeave={() => {
+                            setHoveredPrescriptionId(null);
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setMedicationInfoPosition({
+                              top: rect.top,
+                              left: rect.right + 10
+                            });
+                            setHoveredPrescriptionId(hoveredPrescriptionId === prescription.id ? null : prescription.id);
+                          }}
+                        >
+                          <div className="font-medium text-gray-900 cursor-pointer hover:text-blue-600 transition-colors">
+                            {prescription.medication_name}
+                            <span className="ml-2 text-xs text-gray-400">
+                              {(prescription.inspection_rules && prescription.inspection_rules.length > 0) && '⚠️'}
+                              {prescription.preparation_method === 'immediate' && '⚡'}
+                            </span>
                           </div>
                         </td>
                         <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-900 w-auto landscape:w-10">
@@ -2890,7 +3471,89 @@ const MedicationWorkflow: React.FC = () => {
                   })}
                 </tbody>
               </table>
+
+              {/* 藥物資訊懸浮清單 */}
+              {hoveredPrescriptionId && (
+                <Portal>
+                  <div
+                    className="fixed bg-white rounded-lg shadow-2xl border-2 border-blue-300 p-4 z-[99999] w-80"
+                    style={{
+                      top: `${medicationInfoPosition.top}px`,
+                      left: `${medicationInfoPosition.left}px`,
+                    }}
+                    onMouseEnter={() => setHoveredPrescriptionId(hoveredPrescriptionId)}
+                    onMouseLeave={() => setHoveredPrescriptionId(null)}
+                  >
+                    {(() => {
+                      const prescription = prescriptions.find(p => p.id === hoveredPrescriptionId);
+                      if (!prescription) return null;
+
+                      return (
+                        <div className="space-y-3">
+                          <div className="font-bold text-lg text-gray-900 border-b pb-2">
+                            {prescription.medication_name}
+                          </div>
+
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">開始日期:</span>
+                              <span className="font-medium">{new Date(prescription.start_date).toLocaleDateString('zh-TW')}</span>
+                            </div>
+
+                            {prescription.end_date && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">結束日期:</span>
+                                <span className="font-medium">{new Date(prescription.end_date).toLocaleDateString('zh-TW')}</span>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">處方日期:</span>
+                              <span className="font-medium">{new Date(prescription.prescription_date).toLocaleDateString('zh-TW')}</span>
+                            </div>
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">藥物來源:</span>
+                              <span className="font-medium">{prescription.medication_source || '未指定'}</span>
+                            </div>
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">給藥途徑:</span>
+                              <span className="font-medium">{prescription.administration_route}</span>
+                            </div>
+
+                            
+                  
+
+                            {prescription.preparation_method === 'immediate' && (
+                              <div className="bg-blue-50 border border-blue-200 rounded p-2 flex items-center">
+                                <Zap className="h-4 w-4 text-blue-600 mr-2" />
+                                <span className="text-blue-600 font-medium">即時備藥</span>
+                              </div>
+                            )}
+
+                            {prescription.inspection_rules && prescription.inspection_rules.length > 0 && (
+                              <div className="bg-orange-50 border border-orange-200 rounded p-2 flex items-center">
+                                <AlertTriangle className="h-4 w-4 text-orange-600 mr-2" />
+                                <span className="text-orange-600 font-medium">有檢測項要求</span>
+                              </div>
+                            )}
+
+                            {prescription.notes && (
+                              <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
+                                <div className="text-yellow-800 font-medium mb-1">注意事項:</div>
+                                <div className="text-yellow-700">{prescription.notes}</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </Portal>
+              )}
               </div>
+                </div>
               ) : (
                 <div className="text-center py-12">
                   <Filter className="h-16 w-16 mx-auto mb-4 text-gray-300" />

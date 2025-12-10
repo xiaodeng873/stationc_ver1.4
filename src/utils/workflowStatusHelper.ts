@@ -43,16 +43,8 @@ export const isWorkflowOverdue = (record: WorkflowRecord): boolean => {
   const isOverdue = scheduledDateTime < hkTime;
 
   // 調試日誌（僅在逾期時輸出）
-  if (isOverdue) {
-    console.log('⏰ 發現逾期流程:', {
-      日期: record.scheduled_date,
-      時間: record.scheduled_time,
-      排程時間: scheduledDateTime.toLocaleString('zh-TW'),
-      當前香港時間: hkTime.toLocaleString('zh-TW'),
-      派藥狀態: record.dispensing_status
-    });
-  }
-
+  if (isOverdue) 
+ 
   return isOverdue;
 };
 
@@ -266,16 +258,14 @@ export const getPatientsWithOverdueWorkflow = (
     earliestOverdueDate: string;
   }> = [];
 
-  patientOverdueMap.forEach((overdueRecords, patientId) => {
+  patientOverdueMap.forEach((overdueRecords, patientId) => { 
     console.log(`🔍 查找院友 ID: ${patientId} (類型: ${typeof patientId})`);
 
     // 嘗試多種匹配方式
     const patient = patients.find(p => {
       const pId = p.院友id;
       const match = parseInt(String(pId)) === parseInt(String(patientId));
-      if (match) {
-        console.log(`✅ 找到匹配院友: ${p.床號} - ${p.中文姓氏}${p.中文名字} (ID: ${pId}, 類型: ${typeof pId})`);
-      }
+      if (match) 
       return match;
     });
 

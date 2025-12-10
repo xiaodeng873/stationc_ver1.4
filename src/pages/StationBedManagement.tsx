@@ -60,13 +60,10 @@ const StationBedManagement: React.FC = () => {
       const newQrCodes = new Map<string, string>();
 
       for (const bed of beds) {
-        const station = stations.find(s => s.id === bed.station_id);
         const qrData = {
           type: 'bed',
-          bed_id: bed.id,
-          bed_number: bed.bed_number,
-          station_id: bed.station_id,
-          station_name: station?.name || ''
+          qr_code_id: bed.qr_code_id,
+          bed_number: bed.bed_number
         };
 
         try {
@@ -83,20 +80,17 @@ const StationBedManagement: React.FC = () => {
       setQrCodeDataUrls(newQrCodes);
     };
 
-    if (beds.length > 0 && stations.length > 0) {
+    if (beds.length > 0) {
       generateQRCodes();
     }
-  }, [beds, stations]);
+  }, [beds]);
 
   // 下載床位 QR Code
   const downloadBedQRCode = async (bed: any) => {
-    const station = stations.find(s => s.id === bed.station_id);
     const qrData = {
       type: 'bed',
-      bed_id: bed.id,
-      bed_number: bed.bed_number,
-      station_id: bed.station_id,
-      station_name: station?.name || ''
+      qr_code_id: bed.qr_code_id,
+      bed_number: bed.bed_number
     };
 
     try {

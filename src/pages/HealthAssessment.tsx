@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Heart,
   Plus,
@@ -21,18 +21,19 @@ import {
   Upload,
   X,
   Recycle,
-  Copy
+  Copy,
+  MoreVertical,
+  Thermometer
 } from 'lucide-react';
 import { usePatients, DuplicateRecordGroup } from '../context/PatientContext';
 import HealthRecordModal from '../components/HealthRecordModal';
 import BatchHealthRecordModal from '../components/BatchHealthRecordModal';
 import DeduplicateRecordsModal from '../components/DeduplicateRecordsModal';
 import RecycleBinModal from '../components/RecycleBinModal';
-import { exportHealthRecordsToExcel, type HealthRecordExportData } from '../utils/healthRecordExcelGenerator';
 import { exportVitalSignsToExcel, type VitalSignExportData } from '../utils/vitalsignExcelGenerator';
 import { exportBloodSugarToExcel, type BloodSugarExportData } from '../utils/bloodSugarExcelGenerator';
 import PatientTooltip from '../components/PatientTooltip';
-import { getFormattedEnglishName } from '../utils/nameFormatter';
+import { syncTaskStatus } from '../lib/database';
 
 type RecordType = '生命表徵' | '血糖控制' | '體重控制' | 'all';
 type SortField = '記錄日期' | '記錄時間' | '院友姓名' | '記錄類型' | '體重' | '血糖值' | '血壓';
@@ -59,8 +60,16 @@ const HealthAssessment: React.FC = () => {
     recordDailyTemperatureGenerationCompletion,
     checkEligiblePatientsForTemperature,
     findDuplicateHealthRecords,
-    batchDeleteDuplicateRecords
+    batchDeleteDuplicateRecords,
+    refreshData,
+    loadFullHealthRecords // [新增]
   } = usePatients();
+  
+  // [新增] 進入頁面時，觸發載入完整歷史記錄
+  useEffect(() => {
+    loadFullHealthRecords();
+  }, [loadFullHealthRecords]);
+  
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,12 +84,13 @@ const HealthAssessment: React.FC = () => {
   const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [isAnalyzingDuplicates, setIsAnalyzingDuplicates] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
     床號: '',
     中文姓名: '',
-    記錄類型: '', // 修復：預設為空字串
+    記錄類型: '',
     記錄人員: '',
     備註: '',
     startDate: '',
@@ -88,21 +98,10 @@ const HealthAssessment: React.FC = () => {
     在住狀態: '在住'
   });
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
-  // 添加調試函數來檢查數據載入
-  const debugDataLoading = async () => {
-    try {
-      console.log('開始調試數據載入...');
- CC
-    } catch (error) {
-      console.error('調試數據載入失敗:', error);
-    }
-  };
-
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingTemperature, setIsGeneratingTemperature] = useState(false);
-  const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
-  // Helper functions - moved before usage
+  // Helper functions
   const hasAdvancedFilters = () => {
     return Object.values(advancedFilters).some(value => value !== '');
   };
@@ -119,7 +118,7 @@ const HealthAssessment: React.FC = () => {
     setAdvancedFilters({
       床號: '',
       中文姓名: '',
-      記錄類型: '', // 修復：清除時也設為空字串
+      記錄類型: '',
       記錄人員: '',
       備註: '',
       startDate: '',
@@ -132,7 +131,6 @@ const HealthAssessment: React.FC = () => {
     const values = new Set<string>();
     healthRecords.forEach(record => {
       let value = '';
-      
       switch (field) {
         case '記錄人員':
           value = record.記錄人員 || '';
@@ -140,7 +138,6 @@ const HealthAssessment: React.FC = () => {
         default:
           return;
       }
-      
       if (value) values.add(value);
     });
     return Array.from(values).sort();
@@ -152,10 +149,13 @@ const HealthAssessment: React.FC = () => {
   }, [searchTerm, advancedFilters, sortField, sortDirection]);
 
   // 強制重新載入數據的函數
-  const forceRefreshData = () => {
-    setDataRefreshKey(prev => prev + 1);
-    // 觸發 PatientContext 重新載入數據
-    window.location.reload();
+  const debugDataLoading = async () => {
+    try {
+      console.log('開始調試數據載入...');
+      // 這裡可以加入更多調試邏輯
+    } catch (error) {
+      console.error('調試數據載入失敗:', error);
+    }
   };
 
   if (loading) {
@@ -172,32 +172,10 @@ const HealthAssessment: React.FC = () => {
   const filteredRecords = healthRecords.filter(record => {
     const patient = patients.find(p => p.院友id === record.院友id);
     
-    // 調試：檢查所有有體重數值的記錄
-    if (record.體重 != null && record.體重 !== undefined) {
-      console.log('發現有體重數值的記錄:', {
-        記錄id: record.記錄id,
-        院友id: record.院友id,
-        記錄類型: `"${record.記錄類型}" (長度:${record.記錄類型.length})`,
-        記錄類型字節: Array.from(record.記錄類型).map(c => c.charCodeAt(0)),
-        體重: record.體重,
-        記錄日期: record.記錄日期,
-        patient: patient ? `${patient.中文姓氏}${patient.中文名字}` : 'Not found'
-      });
-    }
-
     // 確保院友存在
-    if (!patient) {
-      console.warn('找不到院友資料，記錄ID:', record.記錄id, '院友ID:', record.院友id, '記錄日期:', record.記錄日期);
-      return false;
-    }
+    if (!patient) return false;
     
     if (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '全部' && patient?.在住狀態 !== advancedFilters.在住狀態) {
-      if (record.體重 != null) {
-        console.log(`有體重數值的記錄 ${record.記錄id} 被在住狀態篩選過濾:`, {
-          patientStatus: patient?.在住狀態,
-          filterStatus: advancedFilters.在住狀態
-        });
-      }
       return false;
     }
     if (advancedFilters.床號 && !patient?.床號.toLowerCase().includes(advancedFilters.床號.toLowerCase())) {
@@ -207,17 +185,6 @@ const HealthAssessment: React.FC = () => {
       return false;
     }
     if (advancedFilters.記錄類型 && advancedFilters.記錄類型 !== '' && record.記錄類型.trim() !== advancedFilters.記錄類型.trim()) {
-      if (record.體重 != null) {
-        console.log(`有體重數值的記錄 ${record.記錄id} 被記錄類型篩選過濾:`, {
-          recordType: record.記錄類型,
-          recordTypeTrimmed: record.記錄類型.trim(),
-          filterType: advancedFilters.記錄類型,
-          filterTypeTrimmed: advancedFilters.記錄類型.trim(),
-          exactMatch: record.記錄類型.trim() === advancedFilters.記錄類型.trim(),
-          recordTypeBytes: Array.from(record.記錄類型).map(c => c.charCodeAt(0)),
-          filterTypeBytes: Array.from(advancedFilters.記錄類型).map(c => c.charCodeAt(0))
-        });
-      }
       return false;
     }
     if (advancedFilters.記錄人員 && !record.記錄人員?.toLowerCase().includes(advancedFilters.記錄人員.toLowerCase())) {
@@ -248,59 +215,6 @@ const HealthAssessment: React.FC = () => {
     }
     
     return matchesSearch;
-  });
-
-  // 調試：統計各類型記錄數量
-  const recordTypeCounts = {
-    總記錄數: healthRecords.length,
-    生命表徵: healthRecords.filter(r => r.記錄類型.trim() === '生命表徵').length,
-    血糖控制: healthRecords.filter(r => r.記錄類型.trim() === '血糖控制').length,
-    體重控制: healthRecords.filter(r => r.記錄類型.trim() === '體重控制').length,
-    所有記錄類型: [...new Set(healthRecords.map(r => r.記錄類型))],
-    所有記錄類型詳細: [...new Set(healthRecords.map(r => `"${r.記錄類型}" (長度:${r.記錄類型.length}) [${Array.from(r.記錄類型).map(c => c.charCodeAt(0)).join(',')}]`))],
-    所有記錄類型修剪後: [...new Set(healthRecords.map(r => r.記錄類型.trim()))],
-    所有記錄的體重欄位檢查: healthRecords.map(r => ({
-      記錄id: r.記錄id, 
-      記錄類型: r.記錄類型, 
-      記錄類型修剪後: r.記錄類型.trim(),
-      體重: r.體重, 
-      體重類型: typeof r.體重,
-      體重是否為null: r.體重 === null,
-      體重是否為undefined: r.體重 === undefined,
-      院友id: r.院友id
-    })).slice(0, 10),
-    有體重數值的記錄: healthRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '').length,
-    有體重數值且記錄類型為體重控制: healthRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '' && r.記錄類型.trim() === '體重控制').length,
-    體重數值範例: healthRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '').slice(0, 5).map(r => ({ 
-      記錄id: r.記錄id, 
-      記錄類型: r.記錄類型, 
-      記錄類型修剪後: r.記錄類型.trim(),
-      體重: r.體重,
-      體重類型: typeof r.體重,
-      院友id: r.院友id 
-    })),
-    篩選後總數: filteredRecords.length,
-    篩選後有體重數值: filteredRecords.filter(r => r.體重 != null && r.體重 !== undefined && r.體重 !== '').length,
-    當前篩選條件: {
-      在住狀態: advancedFilters.在住狀態,
-      記錄類型: advancedFilters.記錄類型,
-      hasAdvancedFilters: hasAdvancedFilters()
-    }
-  };
-  console.log('記錄類型統計:', recordTypeCounts);
-
-  // 調試：檢查 advancedFilters 的詳細內容
-  console.log('詳細篩選條件分析:', {
-    advancedFilters: JSON.stringify(advancedFilters, null, 2),
-    hasAdvancedFilters: hasAdvancedFilters(),
-    在住狀態篩選: `"${advancedFilters.在住狀態}" (長度:${advancedFilters.在住狀態.length})`,
-    記錄類型篩選: `"${advancedFilters.記錄類型}" (長度:${advancedFilters.記錄類型.length})`,
-    所有非空篩選條件: Object.entries(advancedFilters).filter(([key, value]) => value !== ''),
-    第一筆記錄的院友在住狀態: healthRecords.length > 0 ? (() => {
-      const firstRecord = healthRecords[0];
-      const patient = patients.find(p => p.院友id === firstRecord.院友id);
-      return patient ? `"${patient.在住狀態}" (長度:${patient.在住狀態?.length || 0})` : '院友未找到';
-    })() : '無記錄'
   });
 
   const sortedRecords = [...filteredRecords].sort((a, b) => {
@@ -353,7 +267,6 @@ const HealthAssessment: React.FC = () => {
     }
   });
 
-  // Pagination logic
   const totalItems = sortedRecords.length;
   const totalPages = Math.ceil(totalItems / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
@@ -412,6 +325,14 @@ const HealthAssessment: React.FC = () => {
       try {
         setDeletingIds(prev => new Set(prev).add(id));
         await deleteHealthRecord(id);
+
+        // [新增] 同步任務狀態
+        if (record?.task_id) {
+          console.log('刪除記錄觸發任務同步:', record.task_id);
+          await syncTaskStatus(record.task_id);
+          if (refreshData) await refreshData();
+        }
+
         setSelectedRows(prev => {
           const newSet = new Set(prev);
           newSet.delete(id);
@@ -435,7 +356,6 @@ const HealthAssessment: React.FC = () => {
       return;
     }
 
-    const selectedRecords = sortedRecords.filter(r => selectedRows.has(r.記錄id));
     const confirmMessage = `確定要刪除 ${selectedRows.size} 筆監測記錄嗎？\n\n此操作無法復原。`;
 
     if (!confirm(confirmMessage)) {
@@ -450,37 +370,34 @@ const HealthAssessment: React.FC = () => {
     const failedIds: number[] = [];
 
     try {
-      console.log(`[批量刪除] 開始刪除 ${deletingArray.length} 筆記錄`);
-
       for (const recordId of deletingArray) {
         try {
+          // 注意：批量刪除目前未實作逐一同步 task_id，若有需要可在此加入，
+          // 但考慮效能，建議若量大時謹慎處理。
           await deleteHealthRecord(recordId);
           successCount++;
-          console.log(`[批量刪除] 成功刪除記錄 ${recordId}, 進度: ${successCount}/${deletingArray.length}`);
         } catch (deleteError) {
           failCount++;
           failedIds.push(recordId);
-          console.error(`[批量刪除] 刪除記錄 ${recordId} 失敗:`, deleteError);
-          // 繼續刪除其他記錄，不中斷整個流程
         }
       }
 
-      // 清除已成功刪除的記錄
       const newSelectedRows = new Set<number>();
       failedIds.forEach(id => newSelectedRows.add(id));
       setSelectedRows(newSelectedRows);
 
-      // 顯示結果
       if (failCount === 0) {
         alert(`成功刪除 ${successCount} 筆監測記錄`);
       } else {
         alert(`刪除完成：\n成功 ${successCount} 筆\n失敗 ${failCount} 筆\n\n失敗的記錄已保持選中狀態，您可以稍後重試。`);
       }
+      
+      // 批量刪除後刷新一次數據
+      if (refreshData) await refreshData();
 
-      console.log(`[批量刪除] 完成，成功: ${successCount}, 失敗: ${failCount}`);
     } catch (error) {
       console.error('[批量刪除] 發生未預期的錯誤:', error);
-      alert(`批量刪除過程中發生錯誤\n成功: ${successCount} 筆\n失敗: ${failCount} 筆`);
+      alert(`批量刪除過程中發生錯誤`);
     } finally {
       setDeletingIds(new Set());
     }
@@ -525,38 +442,19 @@ const HealthAssessment: React.FC = () => {
       return;
     }
 
-    // Show confirmation for large exports
     const uniquePatients = [...new Set(selectedRecords.map(r => r.院友id))].length;
     const isLargeExport = selectedRecords.length > 1000 || uniquePatients > 50;
     
     if (isLargeExport) {
-      const confirmMessage = `您即將匯出大量資料：\n\n` +
-        `• ${recordType}記錄：${selectedRecords.length} 筆\n` +
-        `• 涉及院友：${uniquePatients} 位\n` +
-        `• 預估檔案大小：${(selectedRecords.length * 0.5 / 1024).toFixed(2)} MB\n\n` +
-        `大量匯出可能需要較長時間，請確保：\n` +
-        `1. 網路連線穩定\n` +
-        `2. 不要關閉瀏覽器分頁\n` +
-        `3. 等待匯出完成\n\n` +
-        `是否繼續匯出？`;
-      
-      if (!confirm(confirmMessage)) {
+      if (!confirm(`您即將匯出大量資料 (${selectedRecords.length} 筆)，是否繼續？`)) {
         return;
       }
     }
 
-    console.log(`🚀 準備匯出 ${recordType}:`, {
-      totalRecords: selectedRecords.length,
-      uniquePatients,
-      isLargeExport,
-      estimatedSize: `${(selectedRecords.length * 0.5 / 1024).toFixed(2)} MB`
-    });
-    
     try {
       setIsExporting(true);
       
       if (recordType === '生命表徵') {
-        console.log('📋 匯出生命表徵記錄...');
         const vitalSignData: VitalSignExportData[] = selectedRecords.map(record => {
           const patient = patients.find(p => p.院友id === record.院友id);
           return {
@@ -579,10 +477,8 @@ const HealthAssessment: React.FC = () => {
             記錄人員: record.記錄人員
           };
         });
-
         await exportVitalSignsToExcel(vitalSignData, patients);
       } else if (recordType === '血糖控制') {
-        console.log('🩸 匯出血糖控制記錄...');
         const bloodSugarData: BloodSugarExportData[] = selectedRecords.map(record => {
           const patient = patients.find(p => p.院友id === record.院友id);
           return {
@@ -600,10 +496,8 @@ const HealthAssessment: React.FC = () => {
             記錄人員: record.記錄人員
           };
         });
-
         await exportBloodSugarToExcel(bloodSugarData, patients);
       } else if (recordType === '體重控制') {
-        console.log('⚖️ 匯出體重控制記錄...');
         const { exportBodyweightToExcel } = await import('../utils/bodyweightExcelGenerator');
         const bodyweightData = selectedRecords.map(record => {
           const patient = patients.find(p => p.院友id === record.院友id);
@@ -622,27 +516,10 @@ const HealthAssessment: React.FC = () => {
             記錄人員: record.記錄人員
           };
         });
-
         await exportBodyweightToExcel(bodyweightData, patients);
-      } else {
-        // 未知的記錄類型
-        console.error('未知的記錄類型:', recordType);
-        alert(`不支援的記錄類型: ${recordType}`);
-        return;
       }
-      
-      console.log(`✅ ${recordType}匯出完成`);
-      
     } catch (error) {
-      console.error('❌ 匯出失敗:', error);
-      
-      let errorMessage = `匯出${recordType}失敗：${error instanceof Error ? error.message : '未知錯誤'}`;
-      
-      if (error instanceof Error && error.message.includes('超時')) {
-        errorMessage += '\n\n建議：\n1. 減少匯出的資料量\n2. 分批匯出\n3. 檢查網路連線';
-      }
-      
-      alert(errorMessage);
+      alert(`匯出${recordType}失敗`);
     } finally {
       setIsExporting(false);
     }
@@ -664,7 +541,6 @@ const HealthAssessment: React.FC = () => {
       setDuplicateGroups(groups);
       setShowDeduplicateModal(true);
     } catch (error) {
-      console.error('Error analyzing duplicates:', error);
       alert('分析重复记录失败，请重试');
     } finally {
       setIsAnalyzingDuplicates(false);
@@ -675,6 +551,7 @@ const HealthAssessment: React.FC = () => {
     try {
       await batchDeleteDuplicateRecords(recordIds);
       alert(`成功删除 ${recordIds.length} 条重复记录！`);
+      if (refreshData) await refreshData();
     } catch (error) {
       console.error('Error deleting duplicates:', error);
       throw error;
@@ -684,107 +561,53 @@ const HealthAssessment: React.FC = () => {
   const handleGenerateRandomTemperatures = async () => {
     try {
       setIsGeneratingTemperature(true);
-      
-      // 檢查符合條件的院友
       const { eligiblePatients, excludedPatients } = checkEligiblePatientsForTemperature();
       
-      // 構建確認訊息
       let confirmMessage = `一鍵生成體溫記錄\n\n`;
       confirmMessage += `將為 ${eligiblePatients.length} 位符合條件的院友生成體溫記錄\n`;
-      
-      if (excludedPatients.length > 0) {
-        confirmMessage += `\n被排除的院友 (${excludedPatients.length} 位)：\n`;
-        excludedPatients.forEach(({ patient, reason }) => {
-          confirmMessage += `• ${patient.床號} ${patient.中文姓氏}${patient.中文名字} - ${reason}\n`;
-        });
-      }
       
       if (eligiblePatients.length === 0) {
         alert(confirmMessage + '\n\n沒有符合條件的院友需要生成體溫記錄。');
         return;
       }
       
-      confirmMessage += `\n\n確定要生成體溫記錄嗎？`;
-      
-      if (!confirm(confirmMessage)) {
-        return;
-      }
+      if (!confirm(confirmMessage + '\n\n確定要生成體溫記錄嗎？')) return;
       
       const count = await generateRandomTemperaturesForActivePatients();
-      
-      // 記錄任務完成
       await recordDailyTemperatureGenerationCompletion();
-      
       alert(`成功為 ${count} 位院友生成體溫記錄！`);
+      if (refreshData) await refreshData();
+
     } catch (error) {
-      console.error('生成隨機體溫失敗:', error);
-      alert(`生成體溫記錄失敗：${error instanceof Error ? error.message : '未知錯誤'}`);
+      alert('生成體溫記錄失敗');
     } finally {
       setIsGeneratingTemperature(false);
     }
   };
 
-const calculateWeightChange = (currentWeight: number, patientId: number, currentDate: string): string => {
-    // 篩選出該院友的所有體重記錄，根據記錄時間排序（最早到最晚）
+  const calculateWeightChange = (currentWeight: number, patientId: number, currentDate: string): string => {
     const allWeightRecords = healthRecords
       .filter(r => r.院友id === patientId && typeof r.體重 === 'number')
       .map(r => ({ 體重: r.體重, 記錄日期: r.記錄日期, 記錄時間: r.記錄時間 }))
       .sort((a, b) => new Date(`${a.記錄日期} ${a.記錄時間}`).getTime() - new Date(`${b.記錄日期} ${b.記錄時間}`).getTime());
 
-    // 如果沒有其他記錄，這是最遠記錄
-    if (allWeightRecords.length === 0) {
-      return '最遠記錄';
-    }
+    if (allWeightRecords.length === 0) return '最遠記錄';
 
-    // 找到最遠記錄（最早的記錄）
-    const earliestRecord = allWeightRecords[0];
-    
-    // 檢查當前記錄是否比最遠記錄更早
     const currentDateTime = new Date(`${currentDate} 00:00`).getTime();
-    const earliestDateTime = new Date(`${earliestRecord.記錄日期} ${earliestRecord.記錄時間}`).getTime();
-    
-    if (currentDateTime <= earliestDateTime) {
-      return '最遠記錄';
-    }
-
-    // 找到當前記錄時間之前最近的記錄
     const previousRecords = allWeightRecords.filter(r => 
       new Date(`${r.記錄日期} ${r.記錄時間}`).getTime() < currentDateTime
     );
     
-    if (previousRecords.length === 0) {
-      return '最遠記錄';
-    }
+    if (previousRecords.length === 0) return '最遠記錄';
     
-    // 取最近的前一筆記錄
     const previousRecord = previousRecords[previousRecords.length - 1];
     const difference = currentWeight - previousRecord.體重!;
 
-    if (difference === 0) {
-      return '無變化';
-    }
+    if (difference === 0) return '無變化';
 
     const percentage = (difference / previousRecord.體重!) * 100;
     const sign = difference > 0 ? '+' : '';
     return `${sign}${difference.toFixed(1)}kg (${sign}${percentage.toFixed(1)}%)`;
-  };
-
-  const getRecordTypeIcon = (type: string) => {
-    switch (type) {
-      case '生命表徵': return <Activity className="h-4 w-4" />;
-      case '血糖控制': return <Droplets className="h-4 w-4" />;
-      case '體重控制': return <Scale className="h-4 w-4" />;
-      default: return <Heart className="h-4 w-4" />;
-    } 
-  };
-
-  const getRecordTypeColor = (type: string) => {
-    switch (type) {
-      case '生命表徵': return 'bg-blue-100 text-blue-800';
-      case '血糖控制': return 'bg-red-100 text-red-800';
-      case '體重控制': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
   };
 
   const SortableHeader: React.FC<{ field: SortField; children: React.ReactNode }> = ({ field, children }) => (
@@ -795,157 +618,187 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
       <div className="flex items-center space-x-1">
         <span>{children}</span>
         {sortField === field && (
-          sortDirection === 'asc' ? 
-            <ChevronUp className="h-4 w-4" /> : 
-            <ChevronDown className="h-4 w-4" />
+          sortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
         )}
       </div>
     </th>
   );
 
-  const stats = {
-    total: healthRecords.length,
-    vitalSigns: healthRecords.filter(r => r.記錄類型 === '生命表徵').length,
-    bloodSugar: healthRecords.filter(r => r.記錄類型 === '血糖控制').length,
-    weight: healthRecords.filter(r => r.記錄類型 === '體重控制').length,
-    today: healthRecords.filter(r => r.記錄日期 === new Date().toISOString().split('T')[0]).length
-  };
-
   return (
     <div className="space-y-6">
       <div className="sticky top-0 bg-white z-30 py-4 border-b border-gray-200 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <h1 className="text-2xl font-bold text-gray-900">監測記錄</h1>
-            <button
-              onClick={handleDeduplicateRecords}
-              disabled={isAnalyzingDuplicates}
-              className="btn-secondary flex items-center space-x-2"
-              title="分析最近1000笔记录中的重复数据"
-            >
-              {isAnalyzingDuplicates ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                  <span>分析中...</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4" />
-                  <span>記錄去重</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => setShowRecycleBin(true)}
-              className="btn-secondary flex items-center space-x-2"
-              title="查看已删除的记录"
-            >
-              <Recycle className="h-4 w-4" />
-              <span>回收筒</span>
-            </button>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="relative group">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">監測記錄</h1>
+
+          <div className="flex flex-wrap items-center gap-2 justify-end">
+            {/* 匯出Excel按鈕 - 只在有選定時顯示 */}
+            {selectedRows.size > 0 && (
+              <div className="relative group">
+                <button
+                  className="btn-primary flex items-center space-x-2 whitespace-nowrap"
+                  disabled={isExporting}
+                >
+                  {isExporting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>匯出中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4" />
+                      <span>匯出 Excel</span>
+                    </>
+                  )}
+                </button>
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                  <button
+                    onClick={() => handleExportSelected('生命表徵')}
+                    className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                  >
+                    <Activity className="h-4 w-4 text-blue-600" />
+                    <span>生命表徵記錄表</span>
+                  </button>
+                  <button
+                    onClick={() => handleExportSelected('血糖控制')}
+                    className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                  >
+                    <Droplets className="h-4 w-4 text-red-600" />
+                    <span>血糖測試記錄表</span>
+                  </button>
+                  <button
+                    onClick={() => handleExportSelected('體重控制')}
+                    className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                  >
+                    <Scale className="h-4 w-4 text-green-600" />
+                    <span>體重記錄表</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 其他功能下拉選單 */}
+            <div className="relative">
               <button
-                className="btn-secondary flex items-center space-x-2"
-                disabled={isExporting}
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className="btn-secondary flex items-center space-x-2 whitespace-nowrap"
+                title="其他功能"
               >
-                {isExporting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                    <span>匯出中...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    <span>匯出 Excel</span>
-                  </>
-                )}
+                <MoreVertical className="h-4 w-4" />
+                <span>其他功能</span>
               </button>
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                <button
-                  onClick={() => handleExportSelected('生命表徵')}
-                  className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Activity className="h-4 w-4 text-blue-600" />
-                  <span>生命表徵記錄表</span>
-                </button>
-                <button 
-                  onClick={() => handleExportSelected('血糖控制')}
-                  className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                > 
-                  <Droplets className="h-4 w-4 text-red-600" />
-                  <span>血糖測試記錄表</span>
-                </button>
-                <button
-                  onClick={() => handleExportSelected('體重控制')}
-                  className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Scale className="h-4 w-4 text-green-600" />
-                  <span>體重記錄表</span>
-                </button>
-              </div>
-            </div>
-          
-            <button
-              onClick={handleGenerateRandomTemperatures}
-              disabled={isGeneratingTemperature}
-              className="btn-secondary flex items-center space-x-2"
-            >
-              {isGeneratingTemperature ? (
+
+              {showMoreMenu && (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
-                  <span>生成中...</span>
-                </>
-              ) : (
-                <>
-                  <Activity className="h-4 w-4" />
-                  <span>一鍵生成體溫</span>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowMoreMenu(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-[200px] max-h-[70vh] overflow-y-auto">
+                    {/* 批量上傳子選單 */}
+                    <div className="border-b border-gray-200">
+                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        批量上傳
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleBatchUpload('生命表徵');
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <Activity className="h-4 w-4 text-blue-600" />
+                        <span>批量新增生命表徵</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleBatchUpload('血糖控制');
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <Droplets className="h-4 w-4 text-red-600" />
+                        <span>批量新增血糖記錄</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleBatchUpload('體重控制');
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <Scale className="h-4 w-4 text-green-600" />
+                        <span>批量新增體重記錄</span>
+                      </button>
+                    </div>
+
+                    {/* 其他功能 */}
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          handleDeduplicateRecords();
+                          setShowMoreMenu(false);
+                        }}
+                        disabled={isAnalyzingDuplicates}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2 disabled:opacity-50"
+                      >
+                        {isAnalyzingDuplicates ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                            <span>分析中...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4" />
+                            <span>記錄去重</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowRecycleBin(true);
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <Recycle className="h-4 w-4" />
+                        <span>回收筒</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleGenerateRandomTemperatures();
+                          setShowMoreMenu(false);
+                        }}
+                        disabled={isGeneratingTemperature}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 last:rounded-b-lg flex items-center space-x-2 disabled:opacity-50"
+                      >
+                        {isGeneratingTemperature ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
+                            <span>生成中...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Thermometer className="h-4 w-4" />
+                            <span>一鍵生成體溫</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
-            </button>
-          
-            <div className="relative group">
-              <button className="btn-secondary flex items-center space-x-2">
-                <Upload className="h-4 w-4" />
-                <span>批量上傳</span>
-              </button>
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                <button
-                  onClick={() => handleBatchUpload('生命表徵')}
-                  className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Activity className="h-4 w-4 text-blue-600" />
-                  <span>批量新增生命表徵</span>
-                </button>
-                <button
-                  onClick={() => handleBatchUpload('血糖控制')}
-                  className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Droplets className="h-4 w-4 text-red-600" />
-                  <span>批量新增血糖記錄</span>
-                </button>
-                <button
-                  onClick={() => handleBatchUpload('體重控制')}
-                  className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Scale className="h-4 w-4 text-green-600" />
-                  <span>批量新增體重記錄</span>
-                </button>
-              </div>
             </div>
-          
+
             <button
               onClick={() => {
                 setSelectedRecord(null);
                 setShowModal(true);
               }}
-              className="btn-primary flex items-center space-x-2"
+              className="btn-primary flex items-center space-x-2 whitespace-nowrap"
             >
               <Plus className="h-4 w-4" />
               <span>新增記錄</span>
             </button>
-   
           </div>
         </div>
       </div>
@@ -980,7 +833,7 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
                   </span>
                 )}
               </button>
-              <span>顯示 {startIndex + 1}-{Math.min(endIndex, totalItems)} / {totalItems} 筆監測記錄</span>
+             
               {(searchTerm || hasAdvancedFilters()) && (
                 <button
                   onClick={clearFilters}
@@ -996,7 +849,6 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
           {showAdvancedFilters && (
             <div className="border-t border-gray-200 pt-4">
               <h3 className="text-sm font-medium text-gray-900 mb-3">進階篩選</h3>
-              
               <div className="mb-4">
                 <label className="form-label">記錄日期區間</label>
                 <div className="flex items-center space-x-2">
@@ -1017,7 +869,6 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
                   />
                 </div>
               </div>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="form-label">床號</label>
@@ -1029,7 +880,6 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
                     placeholder="搜索床號..."
                   />
                 </div>
-                
                 <div>
                   <label className="form-label">中文姓名</label>
                   <input
@@ -1040,7 +890,6 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
                     placeholder="搜索姓名..."
                   />
                 </div>
-                
                 <div>
                   <label className="form-label">記錄類型</label>
                   <select
@@ -1054,7 +903,6 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
                     <option value="體重控制">體重控制</option>
                   </select>
                 </div>
-                
                 <div>
                   <label className="form-label">記錄人員</label>
                   <input
@@ -1070,7 +918,6 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
                     ))}
                   </datalist>
                 </div>
-                
                 <div>
                   <label className="form-label">備註</label>
                   <input
@@ -1081,7 +928,6 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
                     placeholder="搜索備註內容..."
                   />
                 </div>
-                
                 <div>
                   <label className="form-label">在住狀態</label>
                   <select
@@ -1090,7 +936,7 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
                     className="form-input"
                   >
                     <option value="在住">在住</option>
-                   <option value="待入住">待入住</option>
+                    <option value="待入住">待入住</option>
                     <option value="已退住">已退住</option>
                     <option value="全部">全部</option>
                   </select>
@@ -1098,7 +944,6 @@ const calculateWeightChange = (currentWeight: number, patientId: number, current
               </div>
             </div>
           )}
-          
         </div>
           <div className="flex items-center justify-between text-sm text-gray-600">
             <span>顯示 {startIndex + 1}-{Math.min(endIndex, totalItems)} / {totalItems} 筆監測記錄 (共 {healthRecords.length} 筆)</span>
