@@ -205,18 +205,33 @@ export const isInHospital = (
   const target = new Date(`${targetDate}T${targetTime}:00`);
 
   for (const episode of patientEpisodes) {
-    if (episode.episode_start_date && episode.episode_end_date) {
+    if (episode.episode_start_date) {
       const startDate = new Date(`${episode.episode_start_date}T00:00:00`);
-      const endDate = new Date(`${episode.episode_end_date}T23:59:59`);
 
-      if (target >= startDate && target <= endDate) {
-        console.log('[isInHospital] ✅ 在住院事件期間內:', {
-          episodeId: episode.id,
-          startDate: episode.episode_start_date,
-          endDate: episode.episode_end_date,
-          hospital: episode.primary_hospital
-        });
-        return true;
+      // 如果有結束日期，檢查是否在期間內
+      if (episode.episode_end_date) {
+        const endDate = new Date(`${episode.episode_end_date}T23:59:59`);
+        if (target >= startDate && target <= endDate) {
+          console.log('[isInHospital] ✅ 在住院事件期間內（已出院）:', {
+            episodeId: episode.id,
+            startDate: episode.episode_start_date,
+            endDate: episode.episode_end_date,
+            hospital: episode.primary_hospital
+          });
+          return true;
+        }
+      } else {
+        // 沒有結束日期（仍在住院中），只檢查是否在開始日期之後
+        if (target >= startDate) {
+          console.log('[isInHospital] ✅ 在住院期間（尚未出院）:', {
+            episodeId: episode.id,
+            startDate: episode.episode_start_date,
+            endDate: '尚未出院',
+            hospital: episode.primary_hospital,
+            status: episode.status
+          });
+          return true;
+        }
       }
     }
   }

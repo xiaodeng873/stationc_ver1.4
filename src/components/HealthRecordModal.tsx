@@ -162,12 +162,13 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       記錄日期: formData.記錄日期,
       記錄時間: formData.記錄時間,
       admissionRecordsCount: admissionRecords.length,
+      hospitalEpisodesCount: hospitalEpisodes.length,
       admissionRecords: admissionRecords.filter(r => r.patient_id === formData.院友id)
     });
     const result = checkPatientAbsent(formData.院友id, formData.記錄日期, formData.記錄時間);
     console.log('[HealthRecordModal] currentIsPatientAbsent 結果:', result);
     return result;
-  }, [formData.院友id, formData.記錄日期, formData.記錄時間, admissionRecords]);
+  }, [formData.院友id, formData.記錄日期, formData.記錄時間, admissionRecords, hospitalEpisodes]);
 
   // 當院友ID、日期或時間改變時，檢查是否在入院期間並自動設定
   React.useEffect(() => {
