@@ -123,7 +123,7 @@ const Dashboard: React.FC = () => {
   const handleTaskClick = (task: HealthTask, date?: string) => {
     const patient = patients.find(p => p.院友id === task.patient_id);
 
-    // [修改] 智能選擇時間點：如果有補錄日期且有多個時間點，選擇第一個未完成的
+    // [修復可能性4] 智能選擇時間點：使用標準化時間比較
     let selectedTime: string | undefined;
 
     if (date && task.specific_times && task.specific_times.length > 0) {
@@ -136,8 +136,13 @@ const Dashboard: React.FC = () => {
                r.記錄日期 === date;
       });
 
-      const completedTimes = new Set(dateRecords.map(r => r.記錄時間));
-      selectedTime = task.specific_times.find(time => !completedTimes.has(time));
+      // [修復可能性4] 使用標準化時間比較
+      const completedTimes = new Set(dateRecords.map(r => normalizeTime(r.記錄時間)));
+      selectedTime = task.specific_times.find(time => !completedTimes.has(normalizeTime(time)));
+
+      console.log(`📝 [handleTaskClick] 日期: ${date}`);
+      console.log(`  已完成時間: ${Array.from(completedTimes).join(', ')}`);
+      console.log(`  選擇時間: ${selectedTime || '全部完成'}`);
     }
 
     const initialDataForModal = {
@@ -194,25 +199,43 @@ const Dashboard: React.FC = () => {
     return time.split(':').slice(0, 2).join(':');
   };
 
-  // [效能優化] 建立健康記錄的快速查找表 (Set)
+  // [效能優化+修復可能性3] 建立健康記錄的快速查找表 (Set)
   // 解決 "速度沒有變快" 的核心：將 O(N) 查找轉為 O(1)
   // [修正] 支持時間點區分：記錄格式改為包含時間
   const recordLookup = useMemo(() => {
+    console.log('🔄 [recordLookup] 重新構建查找表，healthRecords 數量:', healthRecords.length);
     const lookup = new Set<string>();
-    healthRecords.forEach(r => {
+    healthRecords.forEach((r, idx) => {
+      // [修復可能性6] 無論是否有 task_id，都添加完整的鍵值
       if (r.task_id) {
         // [關鍵修復] 標準化時間格式：07:30:00 → 07:30
         const normalizedTime = normalizeTime(r.記錄時間);
         // 帶時間的記錄鍵值（用於多時間點任務）
-        lookup.add(`${r.task_id}_${r.記錄日期}_${normalizedTime}`);
-        // 不帶時間的記錄鍵值（向後兼容，用於單時間點任務）
-        lookup.add(`${r.task_id}_${r.記錄日期}`);
+        const keyWithTime = `${r.task_id}_${r.記錄日期}_${normalizedTime}`;
+        const keyWithoutTime = `${r.task_id}_${r.記錄日期}`;
+        lookup.add(keyWithTime);
+        lookup.add(keyWithoutTime);
+
+        if (idx < 3) {
+          console.log(`  [recordLookup] 記錄 ${idx}: task_id=${r.task_id}, 日期=${r.記錄日期}, 時間=${normalizedTime}`);
+          console.log(`    ✓ 添加: ${keyWithTime}`);
+          console.log(`    ✓ 添加: ${keyWithoutTime}`);
+        }
       }
-      // 兼容舊資料格式
+      // [修復可能性6] 兼容舊資料格式（沒有 task_id 的記錄）
       const normalizedTime = normalizeTime(r.記錄時間);
-      lookup.add(`${r.院友id}_${r.記錄類型}_${r.記錄日期}_${normalizedTime}`);
-      lookup.add(`${r.院友id}_${r.記錄類型}_${r.記錄日期}`);
+      const oldKeyWithTime = `${r.院友id}_${r.記錄類型}_${r.記錄日期}_${normalizedTime}`;
+      const oldKeyWithoutTime = `${r.院友id}_${r.記錄類型}_${r.記錄日期}`;
+      lookup.add(oldKeyWithTime);
+      lookup.add(oldKeyWithoutTime);
+
+      if (idx < 3 && !r.task_id) {
+        console.log(`  [recordLookup] 記錄 ${idx} (無task_id): 院友=${r.院友id}, 類型=${r.記錄類型}, 日期=${r.記錄日期}, 時間=${normalizedTime}`);
+        console.log(`    ✓ 添加: ${oldKeyWithTime}`);
+        console.log(`    ✓ 添加: ${oldKeyWithoutTime}`);
+      }
     });
+    console.log('✅ [recordLookup] 構建完成，總鍵值數:', lookup.size);
     return lookup;
   }, [healthRecords]);
 
@@ -247,10 +270,11 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // [核心修復+優化] 使用 recordLookup 進行極速查找
+  // [修復可能性5] 改進錯過日期檢查邏輯
   const findMostRecentMissedDate = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
 
+    console.log(`  🔍 [findMostRecentMissedDate] 檢查任務 ${task.id} 過去是否有錯過`);
     const today = new Date();
     today.setHours(0,0,0,0);
 
@@ -261,15 +285,22 @@ const Dashboard: React.FC = () => {
       const dateStr = d.toISOString().split('T')[0];
 
       // 遇到 Cutoff Date 停止
-      if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
+      if (dateStr <= SYNC_CUTOFF_DATE_STR) {
+        console.log(`    ⏹️ 到達分界日期 ${SYNC_CUTOFF_DATE_STR}，停止檢查`);
+        return null;
+      }
 
       // 如果這天該做但沒有記錄，就是錯過了
       if (isTaskScheduledForDate(task, d)) {
-        if (!hasRecordForDateTime(task, dateStr)) {
+        const hasRecord = hasRecordForDateTime(task, dateStr);
+        console.log(`    ${dateStr}: 該做=${true}, 有記錄=${hasRecord}`);
+        if (!hasRecord) {
+          console.log(`    ❌ 找到錯過日期: ${dateStr}`);
           return d;
         }
       }
     }
+    console.log(`    ✅ 過去14天沒有錯過`);
     return null;
   };
 
@@ -343,8 +374,9 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = useMemo(() => patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)), [patientHealthTasks]);
   const documentTasks = useMemo(() => patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)), [patientHealthTasks]);
 
-  // [核心修復] 任務顯示邏輯：今天完成就立即消失
+  // [完全重構] 任務顯示邏輯：修復所有可能性
   const urgentMonitoringTasks = useMemo(() => {
+    console.log('🔍 [urgentMonitoringTasks] 開始計算...');
     const urgent: typeof monitoringTasks = [];
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date();
@@ -352,45 +384,76 @@ const Dashboard: React.FC = () => {
 
     monitoringTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
-      if (patient && patient.在住狀態 === '在住') {
-        // [修復問題2] 檢查今天是否該做這個任務
-        const isTodayScheduled = isTaskScheduledForDate(task, today);
+      if (!patient || patient.在住狀態 !== '在住') return;
 
-        if (isTodayScheduled) {
-          // [修復問題2] 對於多時間點任務，檢查所有時間點是否都完成
-          if (task.specific_times && task.specific_times.length > 0) {
-            const allTimesCompleted = task.specific_times.every(time =>
-              recordLookup.has(`${task.id}_${todayStr}_${time}`)
-            );
-            if (allTimesCompleted) {
-              return; // 今天所有時間點都完成，不顯示卡片
-            }
-          } else {
-            // 無特定時間點的任務，只要今天有記錄就算完成
-            if (recordLookup.has(`${task.id}_${todayStr}`)) {
-              return; // 今天已完成，不顯示卡片
-            }
-          }
+      console.log(`\n📋 [卡片檢查] 任務: ${task.health_record_type}, 院友: ${patient.中文姓氏}${patient.中文名字}, ID: ${task.id}`);
+      console.log(`  next_due_at: ${task.next_due_at}`);
+      console.log(`  specific_times: ${JSON.stringify(task.specific_times)}`);
+
+      // [修復可能性1] 先檢查今天是否該做
+      const isTodayScheduled = isTaskScheduledForDate(task, today);
+      console.log(`  今天是否該做: ${isTodayScheduled}`);
+
+      // [修復可能性4] 標準化所有時間點
+      const normalizedTaskTimes = task.specific_times?.map(normalizeTime) || [];
+      console.log(`  標準化時間點: ${JSON.stringify(normalizedTaskTimes)}`);
+
+      // [修復可能性1+4] 檢查今天是否完成（使用標準化時間）
+      let isTodayCompleted = false;
+      if (isTodayScheduled) {
+        if (normalizedTaskTimes.length > 0) {
+          // [修復可能性4] 使用標準化時間檢查
+          isTodayCompleted = normalizedTaskTimes.every(time => {
+            const keyWithTaskId = `${task.id}_${todayStr}_${time}`;
+            const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}_${time}`;
+            const hasRecord = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+            console.log(`    時間點 ${time}: ${hasRecord ? '✅已完成' : '❌未完成'} (檢查鍵: ${keyWithTaskId})`);
+            return hasRecord;
+          });
+          console.log(`  今天所有時間點完成: ${isTodayCompleted}`);
+        } else {
+          // 無特定時間點
+          const keyWithTaskId = `${task.id}_${todayStr}`;
+          const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}`;
+          isTodayCompleted = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+          console.log(`  今天完成(無時間點): ${isTodayCompleted} (檢查鍵: ${keyWithTaskId})`);
         }
 
-        // 今天未完成或今天不是排程日，繼續檢查其他條件
-        const isPending = isTaskPendingToday(task, recordLookup, todayStr) ||
-                          isTaskOverdue(task, recordLookup, todayStr);
-        const hasMissed = !!findMostRecentMissedDate(task);
-
-        if (isPending || hasMissed) {
-          urgent.push(task);
+        // [修復可能性1] 如果今天完成了，直接跳過，不顯示卡片
+        if (isTodayCompleted) {
+          console.log(`  ✅ 今天已完成，不顯示卡片`);
+          return;
         }
+      }
+
+      // [修復可能性1] 即使今天不是排程日，也要檢查是否有逾期或錯過
+      // [修復可能性2] 使用 recordLookup 檢查，避免依賴 next_due_at
+      const isPending = isTaskPendingToday(task, recordLookup, todayStr);
+      const isOverdue = isTaskOverdue(task, recordLookup, todayStr);
+      console.log(`  isTaskPendingToday: ${isPending}`);
+      console.log(`  isTaskOverdue: ${isOverdue}`);
+
+      // [修復可能性5] 只有在今天未完成時才檢查過去的錯過
+      const hasMissed = !isTodayCompleted ? !!findMostRecentMissedDate(task) : false;
+      console.log(`  hasMissed (過去錯過): ${hasMissed}`);
+
+      // [修復可能性1] 決策邏輯：只要有任何未完成的，就顯示卡片
+      const shouldShow = isPending || isOverdue || hasMissed || (isTodayScheduled && !isTodayCompleted);
+      console.log(`  最終決策: ${shouldShow ? '🔴 顯示卡片' : '⚪ 不顯示'}`);
+
+      if (shouldShow) {
+        urgent.push(task);
       }
     });
 
+    console.log(`\n✅ [urgentMonitoringTasks] 完成，共 ${urgent.length} 個任務需要顯示`);
     return urgent.sort((a, b) => {
       const timeA = new Date(a.next_due_at).getTime();
       const timeB = new Date(b.next_due_at).getTime();
       if (timeA === timeB) return 0;
       return timeA - timeB;
     }).slice(0, 100);
-  }, [monitoringTasks, patientsMap, recordLookup]); // 關鍵依賴：recordLookup
+  }, [monitoringTasks, patientsMap, recordLookup]); // [修復可能性7] 依賴 recordLookup
 
   const taskGroups = useMemo(() => {
     const breakfast: typeof urgentMonitoringTasks = [];
@@ -516,18 +579,30 @@ const Dashboard: React.FC = () => {
   };
 
   const handleTaskCompleted = async (taskId: string, recordDateTime: Date) => {
+    console.log('\n🎯 [handleTaskCompleted] 開始處理任務完成');
+    console.log(`  任務ID: ${taskId}`);
+    console.log(`  記錄時間: ${recordDateTime.toISOString()}`);
+
     // 1. 立即關閉模態框
     setShowHealthRecordModal(false);
+    console.log('  ✓ 模態框已關閉');
 
     // 2. 立即執行完整的數據同步和刷新
     try {
-      console.log('🔄 立即同步任務狀態...');
+      console.log('  🔄 開始同步任務狀態...');
       await syncTaskStatus(taskId);
+      console.log('  ✓ syncTaskStatus 完成');
+
+      console.log('  🔄 開始刷新數據...');
       await refreshData();
-      console.log('✅ 同步完成，卡片已更新');
+      console.log('  ✓ refreshData 完成');
+
+      console.log('✅ [handleTaskCompleted] 同步完成，卡片應該已更新');
+      console.log('  提示：檢查上方的 recordLookup 和 urgentMonitoringTasks 日誌');
     } catch (error) {
-      console.error('❌ 同步失敗:', error);
+      console.error('❌ [handleTaskCompleted] 同步失敗:', error);
       // 失敗後也強制刷新
+      console.log('  🔄 嘗試強制刷新...');
       await refreshData();
     }
   };
@@ -659,23 +734,28 @@ const Dashboard: React.FC = () => {
                       today.setHours(0, 0, 0, 0);
                       const status = getTaskStatus(task, recordLookup, todayStr);
 
-                      // [修復問題3+問題1] 檢查今天是否已完成（考慮多時間點）
+                      // [修復可能性4] 檢查今天是否已完成（使用標準化時間）
                       let isTodayCompleted = false;
                       const isTodayScheduled = isTaskScheduledForDate(task, today);
 
                       if (isTodayScheduled) {
                         if (task.specific_times && task.specific_times.length > 0) {
-                          // 多時間點任務：檢查所有時間點是否都完成
-                          isTodayCompleted = task.specific_times.every(time =>
-                            recordLookup.has(`${task.id}_${todayStr}_${time}`)
-                          );
+                          // [修復可能性4] 多時間點任務：使用標準化時間檢查
+                          isTodayCompleted = task.specific_times.every(time => {
+                            const normalizedTime = normalizeTime(time);
+                            const keyWithTaskId = `${task.id}_${todayStr}_${normalizedTime}`;
+                            const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}_${normalizedTime}`;
+                            return recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+                          });
                         } else {
                           // 無特定時間點的任務：檢查今天是否有記錄
-                          isTodayCompleted = recordLookup.has(`${task.id}_${todayStr}`);
+                          const keyWithTaskId = `${task.id}_${todayStr}`;
+                          const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}`;
+                          isTodayCompleted = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
                         }
                       }
 
-                      // [修復問題3] 只有在今天未完成時才檢查過去的錯過
+                      // [修復可能性5] 只有在今天未完成時才檢查過去的錯過
                       const missedDate = !isTodayCompleted ? findMostRecentMissedDate(task) : null;
                       const hasMissed = !!missedDate;
 
