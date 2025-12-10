@@ -817,6 +817,28 @@ const Dashboard: React.FC = () => {
                       const missedDate = !isOverdueForCard && !isTodayCompleted ? findMostRecentMissedDate(task) : null;
                       const hasMissed = !!missedDate;
 
+                      // [核心修復] 計算當前待辦狀態（與 urgentMonitoringTasks 邏輯一致）
+                      let hasCurrentPending = false;
+                      if (isTodayScheduled && !isTodayCompleted) {
+                        const now = new Date();
+                        const currentHour = now.getHours();
+                        const currentMinute = now.getMinutes();
+
+                        if (task.specific_times && task.specific_times.length > 0) {
+                          const normalizedTaskTimes = task.specific_times.map(normalizeTime);
+                          hasCurrentPending = normalizedTaskTimes.some(time => {
+                            const [hour, minute] = time.split(':').map(Number);
+                            const keyWithTaskId = `${task.id}_${todayStr}_${time}`;
+                            const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}_${time}`;
+                            const hasRecord = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+                            const timePassed = (hour < currentHour) || (hour === currentHour && minute <= currentMinute);
+                            return timePassed && !hasRecord;
+                          });
+                        } else {
+                          hasCurrentPending = true;
+                        }
+                      }
+
                       return (
                         <div
                           key={task.id}
@@ -867,13 +889,11 @@ const Dashboard: React.FC = () => {
                               </div>
                             </div>
                             <span className={`status-badge flex-shrink-0 ${
-                              status === 'overdue' ? 'bg-red-100 text-red-800' :
-                              status === 'pending' ? 'bg-green-100 text-green-800' :
-                              hasMissed ? 'bg-red-100 text-red-800' :
-                              status === 'due_soon' ? 'bg-orange-100 text-orange-800' :
-                              'bg-purple-100 text-purple-800'
+                              (isOverdueForCard || hasMissed) ? 'bg-red-100 text-red-800' :
+                              hasCurrentPending ? 'bg-green-100 text-green-800' :
+                              'bg-orange-100 text-orange-800'
                             }`}>
-                              {status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : hasMissed ? '逾期' : status === 'due_soon' ? '即將到期' : '排程中'}
+                              {(isOverdueForCard || hasMissed) ? '逾期' : hasCurrentPending ? '未完成' : '待辦'}
                             </span>
                           </div>
                           {/* [修改] 徹底移除日曆圖示按鈕 */}
