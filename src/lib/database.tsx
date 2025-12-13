@@ -567,6 +567,33 @@ export const getFollowUps = async (): Promise<FollowUpAppointment[]> => {
   return data || [];
 };
 
+export const createFollowUp = async (appointment: Omit<FollowUpAppointment, '覆診id' | '創建時間' | '更新時間'>): Promise<FollowUpAppointment> => {
+  const { data, error } = await supabase.from('覆診安排主表').insert([appointment]).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const updateFollowUp = async (appointment: FollowUpAppointment): Promise<FollowUpAppointment> => {
+  const { 覆診id, ...updateData } = appointment;
+
+  // Clean up empty string values by converting them to null
+  const cleanedData = { ...updateData };
+  Object.keys(cleanedData).forEach(key => {
+    if (cleanedData[key] === '') {
+      cleanedData[key] = null;
+    }
+  });
+
+  const { data, error } = await supabase.from('覆診安排主表').update(cleanedData).eq('覆診id', 覆診id).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteFollowUp = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('覆診安排主表').delete().eq('覆診id', id);
+  if (error) throw error;
+};
+
 export const getPrescriptions = async (patientId?: number): Promise<MedicationPrescription[]> => {
   let query = supabase.from('new_medication_prescriptions').select('*').order('created_at', { ascending: false });
   if (patientId) query = query.eq('patient_id', patientId);
@@ -576,6 +603,33 @@ export const getPrescriptions = async (patientId?: number): Promise<MedicationPr
 };
 
 export const getMedicationPrescriptions = getPrescriptions; // Alias
+
+export const createPrescription = async (prescription: Omit<MedicationPrescription, 'id' | 'created_at' | 'updated_at'>): Promise<MedicationPrescription> => {
+  const { data, error } = await supabase.from('new_medication_prescriptions').insert([prescription]).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const updatePrescription = async (prescription: Partial<MedicationPrescription> & { id: string }): Promise<MedicationPrescription> => {
+  const { id, ...updateData } = prescription;
+
+  // Clean up empty string values by converting them to null
+  const cleanedData = { ...updateData };
+  Object.keys(cleanedData).forEach(key => {
+    if (cleanedData[key] === '') {
+      cleanedData[key] = null;
+    }
+  });
+
+  const { data, error } = await supabase.from('new_medication_prescriptions').update(cleanedData).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const deletePrescription = async (id: string | number): Promise<void> => {
+  const { error } = await supabase.from('new_medication_prescriptions').delete().eq('id', id);
+  if (error) throw error;
+};
 
 // 其他基礎函式
 export const getPatients = async (): Promise<Patient[]> => {
