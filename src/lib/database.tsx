@@ -921,9 +921,17 @@ export const createRestraintAssessment = async (assessment: Omit<PatientRestrain
 };
 
 export const updateRestraintAssessment = async (assessment: PatientRestraintAssessment): Promise<PatientRestraintAssessment> => {
-  const { error } = await supabase.from('patient_restraint_assessments').update(assessment).eq('id', assessment.id);
+  // Clean up empty string values by converting them to null
+  const cleanedAssessment = { ...assessment };
+  Object.keys(cleanedAssessment).forEach(key => {
+    if (cleanedAssessment[key] === '') {
+      cleanedAssessment[key] = null;
+    }
+  });
+
+  const { error } = await supabase.from('patient_restraint_assessments').update(cleanedAssessment).eq('id', cleanedAssessment.id);
   if (error) throw error;
-  return assessment;
+  return cleanedAssessment;
 };
 
 export const deleteRestraintAssessment = async (assessmentId: string): Promise<void> => {
@@ -1266,7 +1274,16 @@ export const createAnnualHealthCheckup = async (checkup: any): Promise<any> => {
 
 export const updateAnnualHealthCheckup = async (checkup: any): Promise<any> => {
   const { id, ...updateData } = checkup;
-  const { data, error } = await supabase.from('annual_health_checkups').update({ ...updateData, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+
+  // Clean up empty string values by converting them to null
+  const cleanedData = { ...updateData };
+  Object.keys(cleanedData).forEach(key => {
+    if (cleanedData[key] === '') {
+      cleanedData[key] = null;
+    }
+  });
+
+  const { data, error } = await supabase.from('annual_health_checkups').update({ ...cleanedData, updated_at: new Date().toISOString() }).eq('id', id).select().single();
   if (error) throw error;
   return data;
 };
