@@ -585,7 +585,13 @@ export const getPatients = async (): Promise<Patient[]> => {
 };
 
 export const createPatient = async (patient: Omit<Patient, '院友id'>): Promise<Patient> => {
-  const { data, error } = await supabase.from('院友主表').insert(patient).select('*').single();
+  // 清理空字符串，將其轉換為 null
+  const cleanedPatient = { ...patient };
+  Object.keys(cleanedPatient).forEach(key => {
+    if (cleanedPatient[key] === '') cleanedPatient[key] = null;
+  });
+
+  const { data, error } = await supabase.from('院友主表').insert(cleanedPatient).select('*').single();
   if (error) throw error;
   return data;
 };
