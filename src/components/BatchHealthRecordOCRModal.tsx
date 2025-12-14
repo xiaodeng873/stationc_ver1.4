@@ -177,8 +177,14 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     setImages(prev => prev.filter(img => img.id !== id));
   };
 
-  const parseTimeMarker = (timeStr: string): string => {
+  const parseTimeMarker = (timeStr: string | null | undefined): string => {
+    // 空值保護：如果沒有時間，返回空字串
+    if (!timeStr) return '';
+
     const time = timeStr.trim().toLowerCase();
+
+    // 如果trim後是空字串，直接返回
+    if (!time) return '';
 
     if (time.match(/^7[ap]?$/i)) return '07:00';
     if (time.match(/^12[np]?$/i)) return '12:00';
@@ -194,15 +200,21 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     return time;
   };
 
-  const matchPatient = (床號: string, 院友姓名: string): any => {
+  const matchPatient = (床號: string | null | undefined, 院友姓名: string | null | undefined): any => {
+    // 空值保護：如果兩者都沒有，無法匹配
+    if (!床號 && !院友姓名) return null;
+
     return patients.find(p =>
-      p.床號 === 床號 ||
-      p.中文姓名 === 院友姓名 ||
+      (床號 && p.床號 === 床號) ||
+      (院友姓名 && p.中文姓名 === 院友姓名) ||
       (p.中文姓名 && 院友姓名 && p.中文姓名.includes(院友姓名))
     );
   };
 
-  const matchTask = (patientId: number, recordType: string, recordDate: string, recordTime: string): any => {
+  const matchTask = (patientId: number, recordType: string | null | undefined, recordDate: string, recordTime: string): any => {
+    // 空值保護：如果沒有記錄類型或時間，無法匹配
+    if (!recordType || !recordTime) return null;
+
     const patientTasks = patientHealthTasks.filter(t =>
       t.patient_id === patientId.toString() &&
       t.health_record_type === recordType
@@ -262,6 +274,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
           const { 記錄日期, records } = result.extractedData;
 
           if (!記錄日期 || !records || !Array.isArray(records)) {
+            console.error('[BatchOCR] 數據格式錯誤:', { 記錄日期, records });
             setImages(prev => prev.map(img =>
               img.id === image.id
                 ? { ...img, status: 'error', error: 'AI返回的數據格式不正確，請檢查Prompt' }
@@ -270,9 +283,35 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
             continue;
           }
 
-          const parsedRecords: ParsedHealthRecord[] = records.map((record: any) => {
+          if (records.length === 0) {
+            console.warn('[BatchOCR] AI未識別到任何記錄');
+            setImages(prev => prev.map(img =>
+              img.id === image.id
+                ? { ...img, status: 'error', error: 'AI未識別到任何記錄，請檢查圖片是否清晰' }
+                : img
+            ));
+            continue;
+          }
+
+          console.log(`[BatchOCR] 正在解析 ${records.length} 條記錄`);
+
+          const parsedRecords: ParsedHealthRecord[] = records.map((record: any, index: number) => {
+            console.log(`[BatchOCR] 處理第 ${index + 1} 條記錄:`, {
+              床號: record.床號,
+              姓名: record.院友姓名,
+              時間: record.記錄時間,
+              類型: record.記錄類型
+            });
+
             const recordTime = parseTimeMarker(record.記錄時間);
             const matchedPatient = matchPatient(record.床號, record.院友姓名);
+
+            if (!recordTime) {
+              console.warn(`[BatchOCR] 第 ${index + 1} 條記錄缺少時間`);
+            }
+            if (!matchedPatient) {
+              console.warn(`[BatchOCR] 第 ${index + 1} 條記錄無法匹配院友: 床號=${record.床號}, 姓名=${record.院友姓名}`);
+            }
 
             let matchedTask = null;
             if (matchedPatient) {
