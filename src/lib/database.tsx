@@ -249,6 +249,8 @@ export interface HealthAssessment {
   treatment_items?: string[];
   toilet_training?: boolean;
   behavior_expression?: string;
+  status: 'active' | 'archived';
+  archived_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -260,6 +262,8 @@ export interface WoundAssessment {
   next_assessment_date?: string;
   assessor?: string;
   wound_details?: any[];
+  status: 'active' | 'archived';
+  archived_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -993,14 +997,23 @@ export const deleteRestraintAssessment = async (assessmentId: string): Promise<v
   if (error) throw error;
 };
 
-export const getHealthAssessments = async (): Promise<HealthAssessment[]> => {
-  const { data, error } = await supabase.from('health_assessments').select('*').order('assessment_date', { ascending: false });
+export const getHealthAssessments = async (statusFilter?: 'active' | 'archived' | 'all'): Promise<HealthAssessment[]> => {
+  let query = supabase.from('health_assessments').select('*');
+
+  if (statusFilter && statusFilter !== 'all') {
+    query = query.eq('status', statusFilter);
+  }
+
+  const { data, error } = await query.order('assessment_date', { ascending: false });
   if (error) throw error;
   return data || [];
 };
 
-export const createHealthAssessment = async (assessment: Omit<HealthAssessment, 'id' | 'created_at' | 'updated_at'>): Promise<HealthAssessment> => {
-  const { data, error } = await supabase.from('health_assessments').insert([assessment]).select().single();
+export const createHealthAssessment = async (assessment: Omit<HealthAssessment, 'id' | 'created_at' | 'updated_at' | 'status' | 'archived_at'>): Promise<HealthAssessment> => {
+  const { data, error } = await supabase.from('health_assessments').insert([{
+    ...assessment,
+    status: 'active'
+  }]).select().single();
   if (error) throw error;
   return data;
 };
@@ -1016,20 +1029,27 @@ export const deleteHealthAssessment = async (assessmentId: string): Promise<void
   if (error) throw error;
 };
 
-export const getWoundAssessments = async (): Promise<WoundAssessment[]> => {
-  const { data, error } = await supabase.from('wound_assessments').select('*').order('assessment_date', { ascending: false });
+export const getWoundAssessments = async (statusFilter?: 'active' | 'archived' | 'all'): Promise<WoundAssessment[]> => {
+  let query = supabase.from('wound_assessments').select('*');
+
+  if (statusFilter && statusFilter !== 'all') {
+    query = query.eq('status', statusFilter);
+  }
+
+  const { data, error } = await query.order('assessment_date', { ascending: false });
   if (error) throw error;
   return data || [];
 };
 
-export const createWoundAssessment = async (assessment: Omit<WoundAssessment, 'id' | 'created_at' | 'updated_at'>): Promise<WoundAssessment> => {
+export const createWoundAssessment = async (assessment: Omit<WoundAssessment, 'id' | 'created_at' | 'updated_at' | 'status' | 'archived_at'>): Promise<WoundAssessment> => {
   const { wound_details, ...assessmentData } = assessment as any;
   const { data: assessmentRecord, error: assessmentError } = await supabase.from('wound_assessments').insert([{
     patient_id: assessmentData.patient_id,
     assessment_date: assessmentData.assessment_date,
     next_assessment_date: assessmentData.next_assessment_date,
     assessor: assessmentData.assessor,
-    wound_details: wound_details || []
+    wound_details: wound_details || [],
+    status: 'active'
   }]).select().single();
   if (assessmentError) throw assessmentError;
   return assessmentRecord;

@@ -19,6 +19,7 @@ interface AdvancedFilters {
   startDate: string;
   endDate: string;
   在住狀態: string;
+  記錄狀態: string;
 }
 
 const WoundManagement: React.FC = () => {
@@ -42,7 +43,8 @@ const WoundManagement: React.FC = () => {
     體溫: '',
     startDate: '',
     endDate: '',
-    在住狀態: '在住'
+    在住狀態: '在住',
+    記錄狀態: '生效中'
   });
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
@@ -79,11 +81,23 @@ const WoundManagement: React.FC = () => {
 
   const filteredAssessments = woundAssessments.filter(assessment => {
     const patient = patients.find(p => p.院友id === assessment.patient_id);
-    
+
     // 先應用進階篩選
     if (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '全部' && patient?.在住狀態 !== advancedFilters.在住狀態) {
       return false;
     }
+
+    // 記錄狀態篩選
+    if (advancedFilters.記錄狀態) {
+      if (advancedFilters.記錄狀態 === '生效中' && assessment.status !== 'active') {
+        return false;
+      }
+      if (advancedFilters.記錄狀態 === '歷史記錄' && assessment.status !== 'archived') {
+        return false;
+      }
+      // '全部' 不做篩選
+    }
+
     if (advancedFilters.床號 && !patient?.床號.toLowerCase().includes(advancedFilters.床號.toLowerCase())) {
       return false;
     }
@@ -155,7 +169,8 @@ const WoundManagement: React.FC = () => {
       體溫: '',
       startDate: '',
       endDate: '',
-      在住狀態: '在住'
+      在住狀態: '在住',
+      記錄狀態: '生效中'
     });
   };
 
@@ -702,6 +717,19 @@ const WoundManagement: React.FC = () => {
                       <option value="全部">全部</option>
                     </select>
                   </div>
+
+                  <div>
+                    <label className="form-label">記錄狀態</label>
+                    <select
+                      value={advancedFilters.記錄狀態}
+                      onChange={(e) => updateAdvancedFilter('記錄狀態', e.target.value)}
+                      className="form-input"
+                    >
+                      <option value="生效中">生效中</option>
+                      <option value="歷史記錄">歷史記錄</option>
+                      <option value="">全部</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             )}
@@ -778,6 +806,9 @@ const WoundManagement: React.FC = () => {
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     傷口狀態
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    記錄狀態
                   </th>
                   <SortableHeader field="stage">傷口階段</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -884,6 +915,15 @@ const WoundManagement: React.FC = () => {
                             <span className="text-gray-500">-</span>
                           )}
                         </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          assessment.status === 'active'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {assessment.status === 'active' ? '生效中' : '已歸檔'}
+                        </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="flex flex-wrap gap-1">
