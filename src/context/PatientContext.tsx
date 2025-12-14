@@ -510,7 +510,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const memoizedFetchPrescriptionWorkflowRecords = useCallback(fetchPrescriptionWorkflowRecords, []);
 
   // 3. 數據刷新邏輯
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     try {
       let startDateStr: string | undefined = undefined;
       if (!isAllHealthRecordsLoaded) {
@@ -643,9 +643,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('刷新數據失敗:', error);
       setLoading(false);
     }
-  };
+  }, [isAllHealthRecordsLoaded, memoizedFetchPrescriptionWorkflowRecords]);
 
-  const initializeAndLoadData = async () => {
+  const initializeAndLoadData = useCallback(async () => {
     try {
       await generateDailyWorkflowRecords(new Date().toISOString().split('T')[0]);
       await refreshData();
@@ -661,7 +661,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     } finally {
       setLoading(false);
     }
-  };
+  }, [refreshData]);
 
   const loadFullHealthRecords = useCallback(async () => {
     if (isAllHealthRecordsLoaded) return;
@@ -710,7 +710,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
     };
     loadData();
-  }, [authReady, user, dataLoaded]);
+  }, [authReady, user, dataLoaded, initializeAndLoadData]);
 
   // 輕量級刷新
   const refreshHealthData = async () => {
