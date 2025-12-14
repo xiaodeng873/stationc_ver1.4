@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { usePatients } from '../context/PatientContext';
 import TaskModal from '../components/TaskModal';
-import { Hop as Home, Users, Calendar, Heart, SquareCheck as CheckSquare, TriangleAlert as AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight, Repeat } from 'lucide-react';
+import { Hop as Home, Users, Calendar, Heart, SquareCheck as CheckSquare, TriangleAlert as AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight, Repeat, Camera } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { isTaskOverdue, isTaskPendingToday, isTaskDueSoon, getTaskStatus, isDocumentTask, isMonitoringTask, isNursingTask, isRestraintAssessmentOverdue, isRestraintAssessmentDueSoon, isHealthAssessmentOverdue, isHealthAssessmentDueSoon, calculateNextDueDate, isTaskScheduledForDate, formatFrequencyDescription, findFirstMissingDate } from '../utils/taskScheduler';
 import { getPatientsWithOverdueWorkflow } from '../utils/workflowStatusHelper';
@@ -19,6 +19,7 @@ import PendingPrescriptionCard from '../components/PendingPrescriptionCard';
 import PatientModal from '../components/PatientModal';
 import VaccinationRecordModal from '../components/VaccinationRecordModal';
 import TaskHistoryModal from '../components/TaskHistoryModal';
+import BatchHealthRecordOCRModal from '../components/BatchHealthRecordOCRModal';
 import { syncTaskStatus, SYNC_CUTOFF_DATE_STR, supabase } from '../lib/database';
 
 interface Patient {
@@ -104,7 +105,8 @@ const Dashboard: React.FC = () => {
   const [selectedPatientForEdit, setSelectedPatientForEdit] = useState<any>(null);
   const [showVaccinationModal, setShowVaccinationModal] = useState(false);
   const [selectedPatientForVaccination, setSelectedPatientForVaccination] = useState<any>(null);
-  
+  const [showBatchOCRModal, setShowBatchOCRModal] = useState(false);
+
   // 歷史日曆 Modal 狀態
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedHistoryTask, setSelectedHistoryTask] = useState<{ task: HealthTask; patient: Patient; initialDate?: Date | null } | null>(null);
@@ -746,6 +748,13 @@ const Dashboard: React.FC = () => {
         <div className="text-sm text-gray-500">
           最後更新: {new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Hong_Kong' })}
         </div>
+        <button
+          onClick={() => setShowBatchOCRModal(true)}
+          className="btn-primary flex items-center space-x-2 text-sm"
+        >
+          <Camera className="h-4 w-4" />
+          <span>批量OCR上傳</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
@@ -1123,6 +1132,14 @@ const Dashboard: React.FC = () => {
       {showAnnualCheckupModal && <AnnualHealthCheckupModal checkup={selectedAnnualCheckup} onClose={() => { setShowAnnualCheckupModal(false); setSelectedAnnualCheckup(null); setPrefilledAnnualCheckupPatientId(null); }} onSave={refreshData} prefilledPatientId={prefilledAnnualCheckupPatientId} />}
       {showPatientModal && <PatientModal patient={selectedPatientForEdit} onClose={() => { setShowPatientModal(false); setSelectedPatientForEdit(null); refreshData(); }} />}
       {showVaccinationModal && <VaccinationRecordModal patientId={selectedPatientForVaccination?.院友id} onClose={() => { setShowVaccinationModal(false); setSelectedPatientForVaccination(null); }} />}
+      {showBatchOCRModal && (
+        <BatchHealthRecordOCRModal
+          onClose={() => {
+            setShowBatchOCRModal(false);
+            refreshData();
+          }}
+        />
+      )}
     </div>
   );
 };
