@@ -178,13 +178,13 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
   };
 
   const parseTimeMarker = (timeStr: string | null | undefined): string => {
-    // 空值保護：如果沒有時間，返回空字串
-    if (!timeStr) return '';
+    // 空值保護：如果沒有時間，返回預設值 08:00
+    if (!timeStr) return '08:00';
 
     const time = timeStr.trim().toLowerCase();
 
-    // 如果trim後是空字串，直接返回
-    if (!time) return '';
+    // 如果trim後是空字串，返回預設值
+    if (!time) return '08:00';
 
     if (time.match(/^7[ap]?$/i)) return '07:00';
     if (time.match(/^12[np]?$/i)) return '12:00';
@@ -379,14 +379,10 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     setIsProcessing(false);
   };
 
-  const updateRecord = (tempId: string, field: string, value: any) => {
-    setAllParsedRecords(prev => prev.map(record =>
-      record.tempId === tempId ? { ...record, [field]: value } : record
-    ));
-  };
-
   const deleteRecord = (tempId: string) => {
-    setAllParsedRecords(prev => prev.filter(record => record.tempId !== tempId));
+    if (confirm('確定要刪除這條記錄嗎？')) {
+      setAllParsedRecords(prev => prev.filter(record => record.tempId !== tempId));
+    }
   };
 
   const handleBatchSave = async () => {
@@ -454,6 +450,44 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     }
   };
 
+  // 更新單筆記錄
+  const updateRecord = (tempId: string, field: keyof ParsedHealthRecord, value: any) => {
+    setAllParsedRecords(prev => prev.map(record => {
+      if (record.tempId !== tempId) return record;
+
+      const updated = { ...record, [field]: value };
+
+      // 如果更改床號，自動填充院友資料
+      if (field === '床號' && value) {
+        const matchedPatient = patients.find(p => p.床號 === value);
+        if (matchedPatient) {
+          updated.院友id = matchedPatient.院友id;
+          updated.院友姓名 = matchedPatient.中文姓名;
+          updated.matchedPatient = matchedPatient;
+          updated.區域 = value.match(/^[A-Z]+/)?.[0] || '未知';
+          console.log(`[BatchOCR] 床號 ${value} 自動匹配院友: ${matchedPatient.中文姓名}`);
+        }
+      }
+
+      // 如果更改院友姓名，自動填充床號
+      if (field === '院友姓名' && value) {
+        const matchedPatient = patients.find(p =>
+          p.中文姓名 === value ||
+          (p.中文姓名 && p.中文姓名.includes(value))
+        );
+        if (matchedPatient) {
+          updated.院友id = matchedPatient.院友id;
+          updated.床號 = matchedPatient.床號;
+          updated.matchedPatient = matchedPatient;
+          updated.區域 = matchedPatient.床號?.match(/^[A-Z]+/)?.[0] || '未知';
+          console.log(`[BatchOCR] 院友 ${value} 自動匹配床號: ${matchedPatient.床號}`);
+        }
+      }
+
+      return updated;
+    }));
+  };
+
   const groupedRecords = allParsedRecords.reduce((acc, record) => {
     const area = record.區域 || '未知';
     if (!acc[area]) acc[area] = [];
@@ -480,9 +514,11 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• 上傳手寫健康記錄表照片（支援多張）</li>
               <li>• 系統自動識別所有院友的數據並匹配相關任務</li>
-              <li>• 時間標記：7A→07:00, 12N→12:00, 4P→16:00</li>
+              <li>• 時間標記：7A→07:00, 12N→12:00, 4P→16:00，未識別時預設08:00</li>
               <li>• 可編輯Prompt以提高識別準確度</li>
-              <li>• 結果按區域分組顯示，可逐條檢查和修改</li>
+              <li>• 識別結果所有欄位都可編輯，支持手動修正</li>
+              <li>• 智能填充：輸入床號自動填充院友，輸入姓名自動填充床號</li>
+              <li>• 結果按區域分組顯示，確認無誤後批量儲存</li>
             </ul>
           </div>
 
@@ -635,54 +671,186 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b">
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">床號</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">姓名</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">日期</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">時間</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">類型</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">數值</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">狀態</th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">操作</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">床號</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">姓名</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">日期</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">時間</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">類型</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">收縮壓</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">舒張壓</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">脈搏</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">體溫</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">血氧</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">呼吸</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">血糖</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">體重</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">備註</th>
+                          <th className="px-2 py-2 text-center text-xs font-medium text-gray-500">狀態</th>
+                          <th className="px-2 py-2 text-center text-xs font-medium text-gray-500">操作</th>
                         </tr>
                       </thead>
                       <tbody>
                         {records.map(record => (
                           <tr key={record.tempId} className="border-t hover:bg-gray-50">
-                            <td className="px-3 py-2">{record.床號}</td>
-                            <td className="px-3 py-2">{record.院友姓名}</td>
-                            <td className="px-3 py-2">{record.記錄日期}</td>
-                            <td className="px-3 py-2">{record.記錄時間}</td>
-                            <td className="px-3 py-2">
-                              <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700">
-                                {record.記錄類型}
-                              </span>
+                            {/* 床號 - 可編輯，自動填充院友 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="text"
+                                value={record.床號 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '床號', e.target.value)}
+                                className="w-20 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="床號"
+                              />
                             </td>
-                            <td className="px-3 py-2 text-xs">
-                              {record.記錄類型 === '生命表徵' && (
-                                <div className="space-y-0.5">
-                                  {record.血壓收縮壓 && <div>BP: {record.血壓收縮壓}/{record.血壓舒張壓}</div>}
-                                  {record.脈搏 && <div>P: {record.脈搏}</div>}
-                                  {record.體溫 && <div>T: {record.體溫}°C</div>}
-                                  {record.血含氧量 && <div>SpO2: {record.血含氧量}%</div>}
-                                </div>
-                              )}
-                              {record.記錄類型 === '血糖控制' && record.血糖值 && `${record.血糖值} mmol/L`}
-                              {record.記錄類型 === '體重控制' && record.體重 && `${record.體重} kg`}
+                            {/* 姓名 - 可編輯，自動填充床號 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="text"
+                                value={record.院友姓名 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '院友姓名', e.target.value)}
+                                className="w-20 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="姓名"
+                              />
                             </td>
-                            <td className="px-3 py-2">
+                            {/* 日期 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="date"
+                                value={record.記錄日期 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '記錄日期', e.target.value)}
+                                className="w-28 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                              />
+                            </td>
+                            {/* 時間 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="time"
+                                value={record.記錄時間 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '記錄時間', e.target.value)}
+                                className="w-20 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                              />
+                            </td>
+                            {/* 類型 */}
+                            <td className="px-2 py-2">
+                              <select
+                                value={record.記錄類型}
+                                onChange={(e) => updateRecord(record.tempId, '記錄類型', e.target.value)}
+                                className="w-24 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                              >
+                                <option value="生命表徵">生命表徵</option>
+                                <option value="血糖控制">血糖控制</option>
+                                <option value="體重控制">體重控制</option>
+                              </select>
+                            </td>
+                            {/* 收縮壓 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={record.血壓收縮壓 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '血壓收縮壓', e.target.value ? Number(e.target.value) : null)}
+                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="mmHg"
+                              />
+                            </td>
+                            {/* 舒張壓 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={record.血壓舒張壓 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '血壓舒張壓', e.target.value ? Number(e.target.value) : null)}
+                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="mmHg"
+                              />
+                            </td>
+                            {/* 脈搏 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={record.脈搏 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '脈搏', e.target.value ? Number(e.target.value) : null)}
+                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="bpm"
+                              />
+                            </td>
+                            {/* 體溫 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={record.體溫 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '體溫', e.target.value ? Number(e.target.value) : null)}
+                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="°C"
+                              />
+                            </td>
+                            {/* 血氧 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={record.血含氧量 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '血含氧量', e.target.value ? Number(e.target.value) : null)}
+                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="%"
+                              />
+                            </td>
+                            {/* 呼吸 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={record.呼吸頻率 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '呼吸頻率', e.target.value ? Number(e.target.value) : null)}
+                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="/min"
+                              />
+                            </td>
+                            {/* 血糖 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={record.血糖值 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '血糖值', e.target.value ? Number(e.target.value) : null)}
+                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="mmol/L"
+                              />
+                            </td>
+                            {/* 體重 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={record.體重 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '體重', e.target.value ? Number(e.target.value) : null)}
+                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="kg"
+                              />
+                            </td>
+                            {/* 備註 */}
+                            <td className="px-2 py-2">
+                              <input
+                                type="text"
+                                value={record.備註 || ''}
+                                onChange={(e) => updateRecord(record.tempId, '備註', e.target.value)}
+                                className="w-24 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="備註"
+                              />
+                            </td>
+                            {/* 狀態 */}
+                            <td className="px-2 py-2">
                               {record.院友id ? (
-                                <span className="text-green-600 text-xs flex items-center">
+                                <span className="text-green-600 text-xs flex items-center justify-center">
                                   <CheckCircle className="h-3 w-3 mr-1" />
-                                  已匹配
+                                  匹配
                                 </span>
                               ) : (
-                                <span className="text-red-600 text-xs flex items-center">
+                                <span className="text-red-600 text-xs flex items-center justify-center">
                                   <AlertTriangle className="h-3 w-3 mr-1" />
                                   未匹配
                                 </span>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-center">
+                            {/* 操作 */}
+                            <td className="px-2 py-2 text-center">
                               <button
                                 onClick={() => deleteRecord(record.tempId)}
                                 className="text-red-600 hover:text-red-700"
