@@ -217,7 +217,7 @@ const WoundAssessmentModal: React.FC<WoundAssessmentModalProps> = ({ assessment,
         }))
       };
 
-      if (assessment) {
+      if (assessment?.id) {
         await updateWoundAssessment({
           id: assessment.id,
           ...assessmentData

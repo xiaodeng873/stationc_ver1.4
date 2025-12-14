@@ -275,7 +275,7 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
           : (formData.behavior_expression || '')
       };
 
-      if (assessment) {
+      if (assessment?.id) {
         await updateHealthAssessment({
           ...assessment,
           ...assessmentData
