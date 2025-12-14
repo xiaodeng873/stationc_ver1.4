@@ -260,6 +260,15 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
         if (result.success && result.extractedData) {
           const { 記錄日期, records } = result.extractedData;
 
+          if (!記錄日期 || !records || !Array.isArray(records)) {
+            setImages(prev => prev.map(img =>
+              img.id === image.id
+                ? { ...img, status: 'error', error: 'AI返回的數據格式不正確，請檢查Prompt' }
+                : img
+            ));
+            continue;
+          }
+
           const parsedRecords: ParsedHealthRecord[] = records.map((record: any) => {
             const recordTime = parseTimeMarker(record.記錄時間);
             const matchedPatient = matchPatient(record.床號, record.院友姓名);
@@ -307,16 +316,20 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
               : img
           ));
         } else {
+          const errorMsg = result.error || '識別失敗';
+          console.error(`[BatchOCR] 圖片 ${image.imageFile.name} 識別失敗:`, errorMsg);
           setImages(prev => prev.map(img =>
             img.id === image.id
-              ? { ...img, status: 'error', error: result.error || '識別失敗' }
+              ? { ...img, status: 'error', error: errorMsg }
               : img
           ));
         }
       } catch (error: any) {
+        const errorMsg = error.message || '處理過程發生錯誤';
+        console.error(`[BatchOCR] 圖片 ${image.imageFile.name} 處理異常:`, error);
         setImages(prev => prev.map(img =>
           img.id === image.id
-            ? { ...img, status: 'error', error: error.message }
+            ? { ...img, status: 'error', error: errorMsg }
             : img
         ));
       }
@@ -475,6 +488,11 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                         <AlertTriangle className="h-5 w-5 text-red-600" />
                       )}
                     </div>
+                    {img.status === 'error' && img.error && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-red-500 bg-opacity-90 text-white text-xs p-2">
+                        {img.error}
+                      </div>
+                    )}
                     <button
                       onClick={() => removeImage(img.id)}
                       className="absolute bottom-2 right-2 p-1 bg-red-500 text-white rounded hover:bg-red-600"
