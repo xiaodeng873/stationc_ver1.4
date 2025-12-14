@@ -272,7 +272,9 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
         ...formData,
         behavior_expression: Array.isArray(formData.behavior_expression)
           ? (formData.behavior_expression.length > 0 ? formData.behavior_expression.join('、') : '')
-          : (formData.behavior_expression || '')
+          : (formData.behavior_expression || ''),
+        // 將空字串的日期欄位轉換為 null
+        next_due_date: formData.next_due_date || null
       };
 
       if (assessment?.id) {

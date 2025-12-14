@@ -289,7 +289,8 @@ const HealthAssessments: React.FC = () => {
       ...assessment,
       id: undefined, // 清除ID以創建新記錄
       assessment_date: new Date().toISOString().split('T')[0], // 設為今天
-      next_due_date: '', // 清除下次評估日期，讓系統重新計算
+      next_due_date: null, // 清除下次評估日期，讓系統重新計算
+      archived_at: null, // 清除封存時間
       created_at: undefined,
       updated_at: undefined
     };

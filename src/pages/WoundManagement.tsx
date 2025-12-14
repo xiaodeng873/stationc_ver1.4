@@ -294,6 +294,8 @@ const WoundManagement: React.FC = () => {
       ...assessment,
       id: undefined, // 清除ID以創建新記錄
       assessment_date: new Date().toISOString().split('T')[0], // 設為今天
+      next_assessment_date: null, // 清除下次評估日期
+      archived_at: null, // 清除封存時間
       created_at: undefined,
       updated_at: undefined
     };
