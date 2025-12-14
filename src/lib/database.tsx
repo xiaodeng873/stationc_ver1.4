@@ -1019,7 +1019,8 @@ export const createHealthAssessment = async (assessment: Omit<HealthAssessment, 
 };
 
 export const updateHealthAssessment = async (assessment: HealthAssessment): Promise<HealthAssessment> => {
-  const { error } = await supabase.from('health_assessments').update(assessment).eq('id', assessment.id);
+  const { id, created_at, updated_at, ...updateData } = assessment;
+  const { error } = await supabase.from('health_assessments').update(updateData).eq('id', id);
   if (error) throw error;
   return assessment;
 };
@@ -1056,14 +1057,16 @@ export const createWoundAssessment = async (assessment: Omit<WoundAssessment, 'i
 };
 
 export const updateWoundAssessment = async (assessment: WoundAssessment): Promise<WoundAssessment> => {
-  const { wound_details, ...assessmentData } = assessment as any;
+  const { id, created_at, updated_at, wound_details, ...assessmentData } = assessment as any;
   const { data, error } = await supabase.from('wound_assessments').update({
     patient_id: assessmentData.patient_id,
     assessment_date: assessmentData.assessment_date,
     next_assessment_date: assessmentData.next_assessment_date,
     assessor: assessmentData.assessor,
-    wound_details: wound_details || []
-  }).eq('id', assessment.id).select().single();
+    wound_details: wound_details || [],
+    status: assessmentData.status,
+    archived_at: assessmentData.archived_at
+  }).eq('id', id).select().single();
   if (error) throw error;
   return data;
 };
