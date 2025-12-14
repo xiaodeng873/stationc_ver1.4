@@ -29,6 +29,7 @@ interface Patient {
   在住狀態: string;
   中文姓氏?: string;
   中文名字?: string;
+  入住日期?: string;
 }
 
 interface HealthTask {
@@ -1105,7 +1106,7 @@ const Dashboard: React.FC = () => {
           patient={selectedHistoryTask.patient}
           healthRecords={healthRecords}
           initialDate={selectedHistoryTask.initialDate}
-          cutoffDateStr={SYNC_CUTOFF_DATE_STR}
+          cutoffDateStr={selectedHistoryTask.patient.入住日期 || SYNC_CUTOFF_DATE_STR}
           onClose={() => setShowHistoryModal(false)}
           onDateSelect={(date) => {
             handleTaskClick(selectedHistoryTask.task, date);
