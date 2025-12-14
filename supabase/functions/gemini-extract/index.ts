@@ -70,7 +70,7 @@ Deno.serve(async (req: Request) => {
         temperature: 0.1,
         topK: 1,
         topP: 1,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 8192,
       },
     };
 
@@ -103,10 +103,30 @@ Deno.serve(async (req: Request) => {
     const geminiData = await geminiResponse.json();
 
     if (geminiData.candidates && geminiData.candidates[0]?.content?.parts) {
-      let responseText = geminiData.candidates[0].content.parts[0].text;
-      
+      const candidate = geminiData.candidates[0];
+      let responseText = candidate.content.parts[0].text;
+
+      // 檢查是否因為長度限制而被截斷
+      const finishReason = candidate.finishReason;
+      if (finishReason === 'MAX_TOKENS' || finishReason === 'SAFETY') {
+        console.error("Response truncated, finish reason:", finishReason);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "資料量過大導致AI回應被截斷，請嘗試：1) 分批上傳圖片（建議每次2-3張）2) 優化圖片（裁剪不必要的部分）3) 調整Prompt以減少輸出內容"
+          }),
+          {
+            status: 413,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+      }
+
       responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      
+
       try {
         const extractedData = JSON.parse(responseText);
         
@@ -139,7 +159,7 @@ Deno.serve(async (req: Request) => {
                 temperature: 0.1,
                 topK: 1,
                 topP: 1,
-                maxOutputTokens: 512,
+                maxOutputTokens: 1024,
               },
             };
 
