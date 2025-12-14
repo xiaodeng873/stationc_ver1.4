@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { ReactNode } from 'react';
 import * as db from '../lib/database';
 import { supabase } from '../lib/supabase';
@@ -268,11 +268,12 @@ const PatientContext = createContext<PatientContextType | undefined>(undefined);
 
 export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) => {
   const { user, authReady } = useAuth();
-  
+
   // 1. 狀態 State 定義 (Loading 放在這裡)
   const [loading, setLoading] = useState(true);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [isAllHealthRecordsLoaded, setIsAllHealthRecordsLoaded] = useState(false);
+  const isAllHealthRecordsLoadedRef = useRef(false);
 
   // 資料狀態
   const [patients, setPatients] = useState<db.Patient[]>([]);
@@ -513,7 +514,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const refreshData = useCallback(async () => {
     try {
       let startDateStr: string | undefined = undefined;
-      if (!isAllHealthRecordsLoaded) {
+      if (!isAllHealthRecordsLoadedRef.current) {
         const today = new Date();
         today.setDate(today.getDate() - 60);
         startDateStr = today.toISOString().split('T')[0];
@@ -643,38 +644,22 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('刷新數據失敗:', error);
       setLoading(false);
     }
-  }, [isAllHealthRecordsLoaded, memoizedFetchPrescriptionWorkflowRecords]);
+  }, [memoizedFetchPrescriptionWorkflowRecords]);
 
-  const initializeAndLoadData = useCallback(async () => {
-    try {
-      await generateDailyWorkflowRecords(new Date().toISOString().split('T')[0]);
-      await refreshData();
-      setDataLoaded(true);
-    } catch (error) {
-      console.error('Error initializing data:', error);
-      try {
-        await refreshData();
-        setDataLoaded(true);
-      } catch (refreshError) {
-        console.error('Refresh data also failed:', refreshError);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [refreshData]);
 
   const loadFullHealthRecords = useCallback(async () => {
-    if (isAllHealthRecordsLoaded) return;
+    if (isAllHealthRecordsLoadedRef.current) return;
     try {
       console.log('📥 觸發：載入完整健康記錄 (歷史模式)...');
       const allRecords = await db.getHealthRecords();
       setHealthRecords(allRecords);
       setIsAllHealthRecordsLoaded(true);
+      isAllHealthRecordsLoadedRef.current = true;
       console.log('✅ 完整健康記錄載入完成，共', allRecords.length, '筆');
     } catch (error) {
       console.error('載入完整記錄失敗:', error);
     }
-  }, [isAllHealthRecordsLoaded]);
+  }, []);
 
   useEffect(() => {
     if (!authReady) return;
@@ -701,22 +686,33 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       return;
     }
     if (dataLoaded) return;
-    
-    const loadData = async () => {
+
+    const initializeAndLoadData = async () => {
       try {
-        await initializeAndLoadData();
+        await generateDailyWorkflowRecords(new Date().toISOString().split('T')[0]);
+        await refreshData();
+        setDataLoaded(true);
       } catch (error) {
-        console.error('資料載入失敗:', error);
+        console.error('Error initializing data:', error);
+        try {
+          await refreshData();
+          setDataLoaded(true);
+        } catch (refreshError) {
+          console.error('Refresh data also failed:', refreshError);
+        }
+      } finally {
+        setLoading(false);
       }
     };
-    loadData();
-  }, [authReady, user, dataLoaded, initializeAndLoadData]);
+
+    initializeAndLoadData();
+  }, [authReady, user, dataLoaded, refreshData]);
 
   // 輕量級刷新
   const refreshHealthData = async () => {
     try {
       let startDateStr: string | undefined = undefined;
-      if (!isAllHealthRecordsLoaded) {
+      if (!isAllHealthRecordsLoadedRef.current) {
         const today = new Date();
         today.setDate(today.getDate() - 60);
         startDateStr = today.toISOString().split('T')[0];
