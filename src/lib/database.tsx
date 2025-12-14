@@ -899,6 +899,29 @@ export const getHealthRecordByDateTime = async (
   return data as HealthRecord | null;
 };
 
+export const getRecentHealthRecordsByPatient = async (
+  patientId: number,
+  recordType: '生命表徵' | '血糖控制' | '體重控制',
+  limit: number = 5
+): Promise<HealthRecord[]> => {
+  const { data, error } = await supabase
+    .from('健康記錄主表')
+    .select('*')
+    .eq('院友id', patientId)
+    .eq('記錄類型', recordType)
+    .not('備註', 'like', '%無法量度%')
+    .order('記錄日期', { ascending: false })
+    .order('記錄時間', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching recent health records:', error);
+    throw error;
+  }
+
+  return (data as HealthRecord[]) || [];
+};
+
 export const getHealthTasks = async (): Promise<PatientHealthTask[]> => {
   const { data, error } = await supabase.from('patient_health_tasks').select('*').order('next_due_at', { ascending: true });
   if (error) throw error;

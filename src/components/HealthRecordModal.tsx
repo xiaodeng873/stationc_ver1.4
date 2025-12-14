@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { X, Heart, Activity, Droplets, Scale, User, Calendar, Clock, AlertTriangle } from 'lucide-react';
+import { X, Heart, Activity, Droplets, Scale, User, Calendar, Clock, AlertTriangle, ChevronDown, ChevronUp, Sparkles, RefreshCw, Loader2 } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
 import PatientAutocomplete from './PatientAutocomplete';
 import { isInHospital } from '../utils/careRecordHelper';
+import { getRecentHealthRecordsByPatient } from '../lib/database';
+import { generateHealthRecordSuggestions, GeneratedHealthData } from '../utils/healthRecordGenerator';
 
 interface HealthRecordModalProps {
   record?: any;
@@ -160,6 +162,13 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   console.log('[HealthRecordModal] initialIsPatientAbsent 結果:', initialIsPatientAbsent);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 生成器狀態管理
+  type GeneratorStatus = 'idle' | 'loading' | 'generated' | 'error' | 'no-data';
+  const [generatorStatus, setGeneratorStatus] = useState<GeneratorStatus>('idle');
+  const [isGeneratorCollapsed, setIsGeneratorCollapsed] = useState(true);
+  const [generatedData, setGeneratedData] = useState<GeneratedHealthData | null>(null);
+  const [generatedRecordCount, setGeneratedRecordCount] = useState<number>(0);
 
   const [formData, setFormData] = useState({
     院友id: initialPatientId,
@@ -329,7 +338,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     if (!formData.院友id) errors.push('請選擇院友');
     if (!formData.記錄日期) errors.push('請填寫記錄日期');
     if (formData.記錄類型 !== '體重控制' && !formData.記錄時間) errors.push('請填寫記錄時間');
-    
+
     if (!formData.isAbsent) {
       if (formData.記錄類型 === '生命表徵') {
         const hasVitalSign = formData.血壓收縮壓 || formData.血壓舒張壓 || formData.脈搏 || formData.體溫 || formData.血含氧量 || formData.呼吸頻率;
@@ -344,6 +353,62 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     }
     return errors;
   };
+
+  // 生成器處理函數
+  const handleGenerateData = async () => {
+    if (!formData.院友id) {
+      alert('請先選擇院友');
+      return;
+    }
+
+    setGeneratorStatus('loading');
+    setIsGeneratorCollapsed(false);
+
+    try {
+      const recentRecords = await getRecentHealthRecordsByPatient(
+        parseInt(formData.院友id),
+        formData.記錄類型,
+        5
+      );
+
+      const result = generateHealthRecordSuggestions(recentRecords, formData.記錄類型);
+
+      if (result.success && result.data) {
+        setGeneratedData(result.data);
+        setGeneratedRecordCount(result.recordCount || 0);
+        setGeneratorStatus('generated');
+      } else if (result.error === 'no-data') {
+        setGeneratorStatus('no-data');
+      } else {
+        setGeneratorStatus('error');
+      }
+    } catch (error) {
+      console.error('生成數據時發生錯誤:', error);
+      setGeneratorStatus('error');
+    }
+  };
+
+  const handleRegenerateData = async () => {
+    await handleGenerateData();
+  };
+
+  const handleFillForm = () => {
+    if (!generatedData) return;
+
+    setFormData(prev => ({
+      ...prev,
+      ...generatedData
+    }));
+
+    alert('已將生成的數據填入表單');
+  };
+
+  // 當院友、記錄類型改變時，重置生成器
+  React.useEffect(() => {
+    setGeneratorStatus('idle');
+    setGeneratedData(null);
+    setGeneratedRecordCount(0);
+  }, [formData.院友id, formData.記錄類型]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -637,6 +702,212 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                 取消
               </button>
             </div>
+
+            {/* 智能數據生成器 - 只在新增模式下顯示 */}
+            {!record && (
+              <div className="mt-6 border-t pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsGeneratorCollapsed(!isGeneratorCollapsed)}
+                  className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="h-5 w-5 text-blue-600" />
+                    <span className="font-medium text-blue-900">智能數據生成器</span>
+                    {generatorStatus === 'generated' && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                        已生成
+                      </span>
+                    )}
+                  </div>
+                  {isGeneratorCollapsed ? (
+                    <ChevronDown className="h-5 w-5 text-blue-600" />
+                  ) : (
+                    <ChevronUp className="h-5 w-5 text-blue-600" />
+                  )}
+                </button>
+
+                {!isGeneratorCollapsed && (
+                  <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                    {/* 顯示當前選中院友 */}
+                    <div className="mb-4">
+                      {formData.院友id ? (
+                        <div className="flex items-center space-x-2 text-sm text-gray-700">
+                          <User className="h-4 w-4 text-blue-600" />
+                          <span>
+                            院友：
+                            {(() => {
+                              const patient = patients.find(p => p.院友id.toString() === formData.院友id);
+                              return patient ? `${patient.中文姓名} (${patient.床號})` : '未選擇';
+                            })()}
+                          </span>
+                          <span className="text-blue-600">|</span>
+                          <span>記錄類型：{formData.記錄類型}</span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-orange-600 flex items-center space-x-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span>請先選擇院友</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 生成器內容 */}
+                    {generatorStatus === 'idle' && (
+                      <div className="text-center py-4">
+                        <button
+                          type="button"
+                          onClick={handleGenerateData}
+                          disabled={!formData.院友id || formData.isAbsent}
+                          className="btn-primary inline-flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          <span>啟動生成器</span>
+                        </button>
+                        {formData.isAbsent && (
+                          <p className="text-xs text-gray-500 mt-2">生成器在「無法量度」模式下不可用</p>
+                        )}
+                      </div>
+                    )}
+
+                    {generatorStatus === 'loading' && (
+                      <div className="text-center py-6">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">正在分析歷史記錄...</p>
+                      </div>
+                    )}
+
+                    {generatorStatus === 'no-data' && (
+                      <div className="text-center py-4">
+                        <div className="inline-flex items-center space-x-2 text-orange-600 mb-3">
+                          <AlertTriangle className="h-5 w-5" />
+                          <span className="font-medium">該院友暫無歷史記錄</span>
+                        </div>
+                        <p className="text-sm text-gray-600">無法根據歷史數據生成建議值</p>
+                      </div>
+                    )}
+
+                    {generatorStatus === 'error' && (
+                      <div className="text-center py-4">
+                        <div className="inline-flex items-center space-x-2 text-red-600 mb-3">
+                          <AlertTriangle className="h-5 w-5" />
+                          <span className="font-medium">生成失敗</span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">請稍後再試</p>
+                        <button
+                          type="button"
+                          onClick={handleGenerateData}
+                          className="btn-secondary text-sm"
+                        >
+                          重試
+                        </button>
+                      </div>
+                    )}
+
+                    {generatorStatus === 'generated' && generatedData && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm text-blue-700 font-medium">
+                            基於最近 {generatedRecordCount} 次記錄生成
+                          </span>
+                        </div>
+
+                        {/* 顯示生成的數值 */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {formData.記錄類型 === '生命表徵' && (
+                            <>
+                              {generatedData.血壓收縮壓 && generatedData.血壓舒張壓 && (
+                                <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                  <div className="text-xs text-gray-600 mb-1">血壓</div>
+                                  <div className="text-lg font-semibold text-gray-900">
+                                    {generatedData.血壓收縮壓}/{generatedData.血壓舒張壓}
+                                  </div>
+                                  <div className="text-xs text-gray-500">mmHg</div>
+                                </div>
+                              )}
+                              {generatedData.脈搏 && (
+                                <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                  <div className="text-xs text-gray-600 mb-1">脈搏</div>
+                                  <div className="text-lg font-semibold text-gray-900">
+                                    {generatedData.脈搏}
+                                  </div>
+                                  <div className="text-xs text-gray-500">次/分鐘</div>
+                                </div>
+                              )}
+                              {generatedData.體溫 && (
+                                <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                  <div className="text-xs text-gray-600 mb-1">體溫</div>
+                                  <div className="text-lg font-semibold text-gray-900">
+                                    {generatedData.體溫}
+                                  </div>
+                                  <div className="text-xs text-gray-500">°C</div>
+                                </div>
+                              )}
+                              {generatedData.血含氧量 && (
+                                <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                  <div className="text-xs text-gray-600 mb-1">血含氧量</div>
+                                  <div className="text-lg font-semibold text-gray-900">
+                                    {generatedData.血含氧量}
+                                  </div>
+                                  <div className="text-xs text-gray-500">%</div>
+                                </div>
+                              )}
+                              {generatedData.呼吸頻率 && (
+                                <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                  <div className="text-xs text-gray-600 mb-1">呼吸頻率</div>
+                                  <div className="text-lg font-semibold text-gray-900">
+                                    {generatedData.呼吸頻率}
+                                  </div>
+                                  <div className="text-xs text-gray-500">次/分鐘</div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                          {formData.記錄類型 === '血糖控制' && generatedData.血糖值 && (
+                            <div className="bg-white p-3 rounded-lg border border-blue-200">
+                              <div className="text-xs text-gray-600 mb-1">血糖值</div>
+                              <div className="text-lg font-semibold text-gray-900">
+                                {generatedData.血糖值}
+                              </div>
+                              <div className="text-xs text-gray-500">mmol/L</div>
+                            </div>
+                          )}
+                          {formData.記錄類型 === '體重控制' && generatedData.體重 && (
+                            <div className="bg-white p-3 rounded-lg border border-blue-200">
+                              <div className="text-xs text-gray-600 mb-1">體重</div>
+                              <div className="text-lg font-semibold text-gray-900">
+                                {generatedData.體重}
+                              </div>
+                              <div className="text-xs text-gray-500">kg</div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 操作按鈕 */}
+                        <div className="flex space-x-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={handleFillForm}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium transition-colors inline-flex items-center justify-center space-x-2"
+                          >
+                            <Activity className="h-4 w-4" />
+                            <span>填入表單</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRegenerateData}
+                            className="btn-secondary inline-flex items-center space-x-2"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            <span>重新生成</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </form>
         </div>
       </div>
