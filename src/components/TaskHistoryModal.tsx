@@ -128,20 +128,26 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
 
       console.log(`[日曆調試] hasRecord = ${hasRecord}`);
 
-      if (hasRecord) {
-        console.log(`[日曆調試] ${dateStr} -> completed (有記錄)`);
-        return 'completed';
-      }
-
       // 未來日期不顯示為逾期
       if (checkDate > today) {
         console.log(`[日曆調試] ${dateStr} -> future (未來日期)`);
         return 'future';
       }
 
-      // 檢查是否應該排程在這一天
+      // [修復] 先檢查是否應該排程在這一天
       const isScheduled = isTaskScheduledForDate(task, checkDate);
       console.log(`[日曆調試] isScheduled = ${isScheduled}`);
+
+      if (hasRecord) {
+        // 只有在應該排程的日期才顯示綠點
+        if (isScheduled) {
+          console.log(`[日曆調試] ${dateStr} -> completed (有記錄且應排程)`);
+          return 'completed';
+        } else {
+          console.log(`[日曆調試] ${dateStr} -> none (有記錄但不應排程)`);
+          return 'none';
+        }
+      }
 
       if (isScheduled) {
         if (checkDate.getTime() === today.getTime()) {
@@ -192,20 +198,26 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
       console.log(`[日曆調試] 標準化後的任務時間點: ${normalizedTaskTimes.join(', ')}`);
       console.log(`[日曆調試] allTimesCompleted = ${allTimesCompleted}`);
 
-      if (allTimesCompleted) {
-        console.log(`[日曆調試] ${dateStr} -> completed (所有時間點已完成)`);
-        return 'completed';
-      }
-
       // 未來日期不顯示為逾期
       if (checkDate > today) {
         console.log(`[日曆調試] ${dateStr} -> future (未來日期)`);
         return 'future';
       }
 
-      // 檢查是否應該排程在這一天
+      // [修復] 先檢查是否應該排程在這一天
       const isScheduled = isTaskScheduledForDate(task, checkDate);
       console.log(`[日曆調試] isScheduled = ${isScheduled}`);
+
+      if (allTimesCompleted) {
+        // 只有在應該排程的日期才顯示綠點
+        if (isScheduled) {
+          console.log(`[日曆調試] ${dateStr} -> completed (所有時間點已完成且應排程)`);
+          return 'completed';
+        } else {
+          console.log(`[日曆調試] ${dateStr} -> none (有記錄但不應排程)`);
+          return 'none';
+        }
+      }
 
       if (isScheduled) {
         if (checkDate.getTime() === today.getTime()) {
@@ -265,20 +277,26 @@ const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
 
       console.log(`[日曆調試] hasRecord = ${hasRecord}`);
 
-      if (hasRecord) {
-        console.log(`[日曆調試] ${dateStr} -> completed (有記錄)`);
-        return 'completed';
-      }
-
       // 未來日期不顯示為逾期
       if (checkDate > today) {
         console.log(`[日曆調試] ${dateStr} -> future (未來日期)`);
         return 'future';
       }
 
-      // 檢查是否應該排程在這一天
+      // [修復] 先檢查是否應該排程在這一天
       const isScheduled = isTaskScheduledForDate(task, checkDate);
       console.log(`[日曆調試] isScheduled = ${isScheduled}`);
+
+      if (hasRecord) {
+        // 只有在應該排程的日期才顯示綠點
+        if (isScheduled) {
+          console.log(`[日曆調試] ${dateStr} -> completed (有記錄且應排程)`);
+          return 'completed';
+        } else {
+          console.log(`[日曆調試] ${dateStr} -> none (有記錄但不應排程)`);
+          return 'none';
+        }
+      }
 
       if (isScheduled) {
         // [調試] 記錄為什麼判定為逾期
