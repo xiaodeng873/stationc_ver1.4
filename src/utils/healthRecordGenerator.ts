@@ -30,7 +30,11 @@ export const generateHealthRecordSuggestions = (
   recentRecords: HealthRecord[],
   recordType: '生命表徵' | '血糖控制' | '體重控制'
 ): GeneratorResult => {
+  console.log('[healthRecordGenerator] 輸入記錄數量:', recentRecords?.length);
+  console.log('[healthRecordGenerator] 記錄類型:', recordType);
+
   if (!recentRecords || recentRecords.length === 0) {
+    console.log('[healthRecordGenerator] 無記錄，返回 no-data');
     return {
       success: false,
       error: 'no-data'
@@ -47,6 +51,15 @@ export const generateHealthRecordSuggestions = (
       const validTemp = recentRecords.filter(r => r.體溫 != null).map(r => r.體溫!);
       const validOxygen = recentRecords.filter(r => r.血含氧量 != null).map(r => r.血含氧量!);
       const validResp = recentRecords.filter(r => r.呼吸頻率 != null).map(r => r.呼吸頻率!);
+
+      console.log('[healthRecordGenerator] 有效數據數量:', {
+        收縮壓: validSystolic.length,
+        舒張壓: validDiastolic.length,
+        脈搏: validPulse.length,
+        體溫: validTemp.length,
+        血氧: validOxygen.length,
+        呼吸: validResp.length
+      });
 
       if (validSystolic.length > 0) {
         const avg = validSystolic.reduce((a, b) => a + b, 0) / validSystolic.length;
@@ -111,11 +124,14 @@ export const generateHealthRecordSuggestions = (
     }
 
     if (Object.keys(result).length === 0) {
+      console.log('[healthRecordGenerator] 沒有生成任何有效數據');
       return {
         success: false,
         error: 'no-valid-data'
       };
     }
+
+    console.log('[healthRecordGenerator] 成功生成數據:', result);
 
     return {
       success: true,
@@ -123,7 +139,7 @@ export const generateHealthRecordSuggestions = (
       recordCount: recentRecords.length
     };
   } catch (error) {
-    console.error('Error generating health record suggestions:', error);
+    console.error('[healthRecordGenerator] 生成錯誤:', error);
     return {
       success: false,
       error: 'generation-error'

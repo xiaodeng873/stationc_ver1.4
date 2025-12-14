@@ -361,6 +361,11 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       return;
     }
 
+    console.log('[生成器] 開始生成數據:', {
+      院友id: formData.院友id,
+      記錄類型: formData.記錄類型
+    });
+
     setGeneratorStatus('loading');
     setIsGeneratorCollapsed(false);
 
@@ -371,19 +376,26 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
         5
       );
 
+      console.log('[生成器] 獲取到的記錄:', recentRecords);
+
       const result = generateHealthRecordSuggestions(recentRecords, formData.記錄類型);
+
+      console.log('[生成器] 生成結果:', result);
 
       if (result.success && result.data) {
         setGeneratedData(result.data);
         setGeneratedRecordCount(result.recordCount || 0);
         setGeneratorStatus('generated');
+        console.log('[生成器] 生成成功，數據已設置');
       } else if (result.error === 'no-data') {
+        console.log('[生成器] 無歷史數據');
         setGeneratorStatus('no-data');
       } else {
+        console.log('[生成器] 生成失敗:', result.error);
         setGeneratorStatus('error');
       }
     } catch (error) {
-      console.error('生成數據時發生錯誤:', error);
+      console.error('[生成器] 發生錯誤:', error);
       setGeneratorStatus('error');
     }
   };

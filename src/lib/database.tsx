@@ -904,22 +904,33 @@ export const getRecentHealthRecordsByPatient = async (
   recordType: '生命表徵' | '血糖控制' | '體重控制',
   limit: number = 5
 ): Promise<HealthRecord[]> => {
+  console.log('[getRecentHealthRecordsByPatient] 查詢參數:', { patientId, recordType, limit });
+
   const { data, error } = await supabase
     .from('健康記錄主表')
     .select('*')
     .eq('院友id', patientId)
     .eq('記錄類型', recordType)
-    .not('備註', 'like', '%無法量度%')
     .order('記錄日期', { ascending: false })
     .order('記錄時間', { ascending: false })
     .limit(limit);
 
   if (error) {
-    console.error('Error fetching recent health records:', error);
+    console.error('[getRecentHealthRecordsByPatient] 查詢錯誤:', error);
     throw error;
   }
 
-  return (data as HealthRecord[]) || [];
+  console.log('[getRecentHealthRecordsByPatient] 查詢結果 (未過濾):', data?.length, '筆');
+
+  // 在客戶端過濾掉「無法量度」的記錄
+  const filtered = (data as HealthRecord[])?.filter(record => {
+    const hasUnmeasurable = record.備註?.includes('無法量度');
+    return !hasUnmeasurable;
+  }) || [];
+
+  console.log('[getRecentHealthRecordsByPatient] 過濾後結果:', filtered.length, '筆');
+
+  return filtered;
 };
 
 export const getHealthTasks = async (): Promise<PatientHealthTask[]> => {
