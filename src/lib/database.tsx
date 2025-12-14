@@ -927,7 +927,15 @@ export const getMealGuidances = async (): Promise<MealGuidance[]> => {
 };
 
 export const createMealGuidance = async (guidance: Omit<MealGuidance, 'id' | 'created_at' | 'updated_at'>): Promise<MealGuidance> => {
-  const { data, error } = await supabase.from('meal_guidance').insert([guidance]).select().single();
+  // 使用 upsert 避免唯一性約束衝突（每個院友只能有一筆記錄）
+  const { data, error } = await supabase
+    .from('meal_guidance')
+    .upsert([guidance], {
+      onConflict: 'patient_id',
+      ignoreDuplicates: false
+    })
+    .select()
+    .single();
   if (error) throw error;
   return data;
 };
@@ -1010,6 +1018,19 @@ export const getHealthAssessments = async (statusFilter?: 'active' | 'archived' 
 };
 
 export const createHealthAssessment = async (assessment: Omit<HealthAssessment, 'id' | 'created_at' | 'updated_at' | 'status' | 'archived_at'>): Promise<HealthAssessment> => {
+  // 先歸檔該院友的所有 active 記錄，避免唯一性約束衝突
+  const { error: archiveError } = await supabase
+    .from('health_assessments')
+    .update({
+      status: 'archived',
+      archived_at: new Date().toISOString()
+    })
+    .eq('patient_id', assessment.patient_id)
+    .eq('status', 'active');
+
+  if (archiveError) throw archiveError;
+
+  // 插入新記錄
   const { data, error } = await supabase.from('health_assessments').insert([{
     ...assessment,
     status: 'active'
@@ -1044,6 +1065,20 @@ export const getWoundAssessments = async (statusFilter?: 'active' | 'archived' |
 
 export const createWoundAssessment = async (assessment: Omit<WoundAssessment, 'id' | 'created_at' | 'updated_at' | 'status' | 'archived_at'>): Promise<WoundAssessment> => {
   const { wound_details, ...assessmentData } = assessment as any;
+
+  // 先歸檔該院友的所有 active 記錄，避免唯一性約束衝突
+  const { error: archiveError } = await supabase
+    .from('wound_assessments')
+    .update({
+      status: 'archived',
+      archived_at: new Date().toISOString()
+    })
+    .eq('patient_id', assessmentData.patient_id)
+    .eq('status', 'active');
+
+  if (archiveError) throw archiveError;
+
+  // 插入新記錄
   const { data: assessmentRecord, error: assessmentError } = await supabase.from('wound_assessments').insert([{
     patient_id: assessmentData.patient_id,
     assessment_date: assessmentData.assessment_date,
@@ -1344,7 +1379,15 @@ export const getAnnualHealthCheckupByPatientId = async (patientId: number): Prom
 };
 
 export const createAnnualHealthCheckup = async (checkup: any): Promise<any> => {
-  const { data, error } = await supabase.from('annual_health_checkups').insert([checkup]).select().single();
+  // 使用 upsert 避免唯一性約束衝突（每個院友只能有一筆記錄）
+  const { data, error } = await supabase
+    .from('annual_health_checkups')
+    .upsert([checkup], {
+      onConflict: 'patient_id',
+      ignoreDuplicates: false
+    })
+    .select()
+    .single();
   if (error) throw error;
   return data;
 };
