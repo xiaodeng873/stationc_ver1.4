@@ -88,17 +88,6 @@ const TaskManagement: React.FC = () => {
     setCurrentPage(1);
   }, [filters, sortField, sortDirection]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">載入中...</p>
-        </div>
-      </div>
-    );
-  }
-
   // Memoize filtered tasks to improve performance
   const filteredTasks = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
@@ -274,6 +263,17 @@ const TaskManagement: React.FC = () => {
   const paginatedTasks = useMemo(() => {
     return sortedTasks.slice(startIndex, endIndex);
   }, [sortedTasks, startIndex, endIndex]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">載入中...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
