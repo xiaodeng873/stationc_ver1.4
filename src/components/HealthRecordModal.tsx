@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Heart, Activity, Droplets, Scale, User, Calendar, Clock, AlertTriangle, ChevronDown, ChevronUp, Sparkles, RefreshCw, Loader2 } from 'lucide-react';
+import { X, Heart, Activity, Droplets, Scale, User, Calendar, Clock, AlertTriangle, ChevronDown, ChevronUp, Sparkles, RefreshCw, Loader2, CheckCircle } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
 import PatientAutocomplete from './PatientAutocomplete';
@@ -387,6 +387,12 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
         setGeneratedRecordCount(result.recordCount || 0);
         setGeneratorStatus('generated');
         console.log('[生成器] 生成成功，數據已設置');
+
+        // 自動填入表單
+        setFormData(prev => ({
+          ...prev,
+          ...result.data
+        }));
       } else if (result.error === 'no-data') {
         console.log('[生成器] 無歷史數據');
         setGeneratorStatus('no-data');
@@ -402,17 +408,6 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
   const handleRegenerateData = async () => {
     await handleGenerateData();
-  };
-
-  const handleFillForm = () => {
-    if (!generatedData) return;
-
-    setFormData(prev => ({
-      ...prev,
-      ...generatedData
-    }));
-
-    alert('已將生成的數據填入表單');
   };
 
   // 當院友、記錄類型改變時，重置生成器
@@ -817,103 +812,21 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                     )}
 
                     {generatorStatus === 'generated' && generatedData && (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm text-blue-700 font-medium">
-                            基於最近 {generatedRecordCount} 次記錄生成
+                      <div className="text-center py-4">
+                        <div className="flex items-center justify-center space-x-2 text-green-600 mb-4">
+                          <CheckCircle className="h-5 w-5" />
+                          <span className="text-sm font-medium">
+                            已根據最近 {generatedRecordCount} 次記錄生成並填入表單
                           </span>
                         </div>
-
-                        {/* 顯示生成的數值 */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {formData.記錄類型 === '生命表徵' && (
-                            <>
-                              {generatedData.血壓收縮壓 && generatedData.血壓舒張壓 && (
-                                <div className="bg-white p-3 rounded-lg border border-blue-200">
-                                  <div className="text-xs text-gray-600 mb-1">血壓</div>
-                                  <div className="text-lg font-semibold text-gray-900">
-                                    {generatedData.血壓收縮壓}/{generatedData.血壓舒張壓}
-                                  </div>
-                                  <div className="text-xs text-gray-500">mmHg</div>
-                                </div>
-                              )}
-                              {generatedData.脈搏 && (
-                                <div className="bg-white p-3 rounded-lg border border-blue-200">
-                                  <div className="text-xs text-gray-600 mb-1">脈搏</div>
-                                  <div className="text-lg font-semibold text-gray-900">
-                                    {generatedData.脈搏}
-                                  </div>
-                                  <div className="text-xs text-gray-500">次/分鐘</div>
-                                </div>
-                              )}
-                              {generatedData.體溫 && (
-                                <div className="bg-white p-3 rounded-lg border border-blue-200">
-                                  <div className="text-xs text-gray-600 mb-1">體溫</div>
-                                  <div className="text-lg font-semibold text-gray-900">
-                                    {generatedData.體溫}
-                                  </div>
-                                  <div className="text-xs text-gray-500">°C</div>
-                                </div>
-                              )}
-                              {generatedData.血含氧量 && (
-                                <div className="bg-white p-3 rounded-lg border border-blue-200">
-                                  <div className="text-xs text-gray-600 mb-1">血含氧量</div>
-                                  <div className="text-lg font-semibold text-gray-900">
-                                    {generatedData.血含氧量}
-                                  </div>
-                                  <div className="text-xs text-gray-500">%</div>
-                                </div>
-                              )}
-                              {generatedData.呼吸頻率 && (
-                                <div className="bg-white p-3 rounded-lg border border-blue-200">
-                                  <div className="text-xs text-gray-600 mb-1">呼吸頻率</div>
-                                  <div className="text-lg font-semibold text-gray-900">
-                                    {generatedData.呼吸頻率}
-                                  </div>
-                                  <div className="text-xs text-gray-500">次/分鐘</div>
-                                </div>
-                              )}
-                            </>
-                          )}
-                          {formData.記錄類型 === '血糖控制' && generatedData.血糖值 && (
-                            <div className="bg-white p-3 rounded-lg border border-blue-200">
-                              <div className="text-xs text-gray-600 mb-1">血糖值</div>
-                              <div className="text-lg font-semibold text-gray-900">
-                                {generatedData.血糖值}
-                              </div>
-                              <div className="text-xs text-gray-500">mmol/L</div>
-                            </div>
-                          )}
-                          {formData.記錄類型 === '體重控制' && generatedData.體重 && (
-                            <div className="bg-white p-3 rounded-lg border border-blue-200">
-                              <div className="text-xs text-gray-600 mb-1">體重</div>
-                              <div className="text-lg font-semibold text-gray-900">
-                                {generatedData.體重}
-                              </div>
-                              <div className="text-xs text-gray-500">kg</div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 操作按鈕 */}
-                        <div className="flex space-x-3 pt-2">
-                          <button
-                            type="button"
-                            onClick={handleFillForm}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium transition-colors inline-flex items-center justify-center space-x-2"
-                          >
-                            <Activity className="h-4 w-4" />
-                            <span>填入表單</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleRegenerateData}
-                            className="btn-secondary inline-flex items-center space-x-2"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                            <span>重新生成</span>
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRegenerateData}
+                          className="btn-secondary inline-flex items-center space-x-2"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          <span>重新生成</span>
+                        </button>
                       </div>
                     )}
                   </div>
