@@ -81,10 +81,7 @@ BEGIN
           updated_at = now()
       WHERE id = assessment_record.wound_assessment_id;
 
-      RAISE NOTICE '已遷移評估 % 的傷口資料', assessment_record.wound_assessment_id;
     END LOOP;
-
-    RAISE NOTICE '資料遷移完成';
   END IF;
 END $$;
 
@@ -131,12 +128,4 @@ ON wound_assessments(wound_status);
 CREATE INDEX IF NOT EXISTS idx_wound_assessments_wound_type 
 ON wound_assessments(wound_type);
 
--- 顯示整合完成訊息
-DO $$
-BEGIN
-  RAISE NOTICE '============================================';
-  RAISE NOTICE '傷口表格整合完成！';
-  RAISE NOTICE '已刪除獨立的 wound_details 表';
-  RAISE NOTICE '所有傷口資料現在儲存在 wound_assessments.wound_details JSONB 欄位';
-  RAISE NOTICE '============================================';
-END $$;
+-- 整合完成
