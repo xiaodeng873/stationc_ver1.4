@@ -748,13 +748,7 @@ const Dashboard: React.FC = () => {
         <div className="text-sm text-gray-500">
           最後更新: {new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Hong_Kong' })}
         </div>
-        <button
-          onClick={() => setShowBatchOCRModal(true)}
-          className="btn-primary flex items-center space-x-2 text-sm"
-        >
-          <Camera className="h-4 w-4" />
-          <span>批量OCR上傳</span>
-        </button>
+  
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
