@@ -63,21 +63,21 @@ export const generateHealthRecordSuggestions = (
 
       if (validSystolic.length > 0) {
         const avg = validSystolic.reduce((a, b) => a + b, 0) / validSystolic.length;
-        const offset = generateRandomOffset(-5, 5);
+        const offset = generateRandomOffset(-10, 10);
         const value = Math.max(80, Math.round(avg + offset));
         result.血壓收縮壓 = value.toString();
       }
 
       if (validDiastolic.length > 0) {
         const avg = validDiastolic.reduce((a, b) => a + b, 0) / validDiastolic.length;
-        const offset = generateRandomOffset(-5, 5);
+        const offset = generateRandomOffset(-10, 10);
         const value = Math.max(50, Math.round(avg + offset));
         result.血壓舒張壓 = value.toString();
       }
 
       if (validPulse.length > 0) {
         const avg = validPulse.reduce((a, b) => a + b, 0) / validPulse.length;
-        const offset = generateRandomOffset(-3, 3);
+        const offset = generateRandomOffset(-10, 10);
         const value = Math.max(40, Math.round(avg + offset));
         result.脈搏 = value.toString();
       }
@@ -93,14 +93,14 @@ export const generateHealthRecordSuggestions = (
       if (validOxygen.length > 0) {
         const avg = validOxygen.reduce((a, b) => a + b, 0) / validOxygen.length;
         const offset = generateRandomOffset(-2, 2);
-        const value = Math.max(85, Math.min(100, Math.round(avg + offset)));
+        const value = Math.max(90, Math.min(100, Math.round(avg + offset)));
         result.血含氧量 = value.toString();
       }
 
       if (validResp.length > 0) {
         const avg = validResp.reduce((a, b) => a + b, 0) / validResp.length;
-        const offset = generateRandomOffset(-2, 2);
-        const value = Math.max(10, Math.round(avg + offset));
+        const offset = generateRandomOffset(-5, 5);
+        const value = Math.max(12, Math.round(avg + offset));
         result.呼吸頻率 = value.toString();
       }
     } else if (recordType === '血糖控制') {
@@ -108,8 +108,8 @@ export const generateHealthRecordSuggestions = (
 
       if (validGlucose.length > 0) {
         const avg = validGlucose.reduce((a, b) => a + b, 0) / validGlucose.length;
-        const offset = generateRandomOffset(-0.5, 0.5);
-        const value = Math.max(3.0, avg + offset);
+        const offset = generateRandomOffset(-7, 7);
+        const value = Math.max(4.0, avg + offset);
         result.血糖值 = roundToDecimal(value, 1);
       }
     } else if (recordType === '體重控制') {
@@ -117,8 +117,8 @@ export const generateHealthRecordSuggestions = (
 
       if (validWeight.length > 0) {
         const avg = validWeight.reduce((a, b) => a + b, 0) / validWeight.length;
-        const offset = generateRandomOffset(-0.3, 0.3);
-        const value = Math.max(30.0, avg + offset);
+        const offset = generateRandomOffset(-1, 1);
+        const value = Math.max(22.0, avg + offset);
         result.體重 = roundToDecimal(value, 1);
       }
     }
