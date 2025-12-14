@@ -263,6 +263,8 @@ export interface WoundAssessment {
   assessor?: string;
   wound_details?: any[];
   status: 'active' | 'archived';
+  assessment_status: 'active' | 'improved' | 'healed';
+  is_archived: boolean;
   archived_at?: string;
   created_at: string;
   updated_at: string;
