@@ -307,6 +307,12 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
             }
             if (!matchedPatient) {
               console.warn(`[BatchOCR] 第 ${index + 1} 條記錄無法匹配院友: 床號=${record.床號}, 姓名=${record.院友姓名}`);
+            } else {
+              console.log(`[BatchOCR] ✅ 第 ${index + 1} 條記錄成功匹配院友:`, {
+                院友id: matchedPatient.院友id,
+                床號: matchedPatient.床號,
+                姓名: matchedPatient.中文姓名
+              });
             }
 
             let matchedTask = null;
@@ -320,7 +326,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
               matchedTask = taskMatch?.task || null;
             }
 
-            return {
+            const parsedRecord = {
               tempId: Math.random().toString(36).substr(2, 9),
               院友id: matchedPatient?.院友id || null,
               記錄類型: record.記錄類型,
@@ -337,6 +343,14 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
               matchedTask,
               區域: matchedPatient?.床號?.match(/^[A-Z]+/)?.[0] || '未知'
             };
+
+            console.log(`[BatchOCR] 創建記錄對象:`, {
+              tempId: parsedRecord.tempId,
+              院友id: parsedRecord.院友id,
+              區域: parsedRecord.區域
+            });
+
+            return parsedRecord;
           });
 
           allRecords.push(...parsedRecords);
@@ -575,6 +589,8 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
 
   // 更新單筆記錄
   const updateRecord = (tempId: string, field: keyof ParsedHealthRecord, value: any) => {
+    console.log(`[BatchOCR] 更新記錄 ${tempId}, 欄位: ${field}, 值:`, value);
+
     setAllParsedRecords(prev => prev.map(record => {
       if (record.tempId !== tempId) return record;
 
@@ -586,7 +602,9 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
         if (matchedPatient) {
           updated.matchedPatient = matchedPatient;
           updated.區域 = matchedPatient.床號?.match(/^[A-Z]+/)?.[0] || '未知';
-          console.log(`[BatchOCR] 選擇院友: ${matchedPatient.中文姓名} (${matchedPatient.床號})`);
+          console.log(`[BatchOCR] ✅ 更新院友成功: ${matchedPatient.中文姓名} (${matchedPatient.床號}), 院友id=${matchedPatient.院友id}`);
+        } else {
+          console.warn(`[BatchOCR] ⚠️ 找不到院友id=${value}`);
         }
       }
 
@@ -815,7 +833,6 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">血糖</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">體重</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">備註</th>
-                          <th className="px-2 py-2 text-center text-xs font-medium text-gray-500">狀態</th>
                           <th className="px-2 py-2 text-center text-xs font-medium text-gray-500">操作</th>
                         </tr>
                       </thead>
@@ -825,11 +842,11 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                             {/* 院友選擇 */}
                             <td className="px-3 py-2">
                               <PatientAutocomplete
-                                selectedPatientId={record.院友id?.toString() || ''}
-                                onPatientSelect={(patientId) => {
+                                value={record.院友id ? record.院友id.toString() : ''}
+                                onChange={(patientId) => {
+                                  console.log('[BatchOCR] 手動選擇院友:', patientId);
                                   updateRecord(record.tempId, '院友id', Number(patientId));
                                 }}
-                                disabled={isSaving}
                                 className="text-xs"
                                 placeholder="選擇院友..."
                               />
@@ -934,20 +951,6 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 placeholder="備註"
                                 disabled={isSaving}
                               />
-                            </td>
-                            {/* 狀態 */}
-                            <td className="px-2 py-2">
-                              {record.院友id ? (
-                                <span className="text-green-600 text-xs flex items-center justify-center">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  匹配
-                                </span>
-                              ) : (
-                                <span className="text-red-600 text-xs flex items-center justify-center">
-                                  <AlertTriangle className="h-3 w-3 mr-1" />
-                                  未匹配
-                                </span>
-                              )}
                             </td>
                             {/* 操作 */}
                             <td className="px-2 py-2">
