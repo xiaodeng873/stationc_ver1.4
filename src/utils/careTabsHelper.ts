@@ -65,7 +65,7 @@ export async function initializePatientCareTabs(
 
   const hasTube = healthTasks.some(
     t => t.patient_id === patient.院友id &&
-    (t.health_record_type === '鼻胃喉更換' || t.health_record_type === '導尿管更換')
+    (t.health_record_type === '鼻胃飼管更換' || t.health_record_type === '尿導管更換')
   ) || latestHealthAssessment?.treatment_items?.some(
     (item: string) => item === '導尿管' || item === '鼻胃喉'
   );

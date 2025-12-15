@@ -113,7 +113,7 @@ export const filterPatientsWithTubes = (
   const patientIdsWithTubes = new Set<number>();
 
   healthTasks.forEach(task => {
-    if (task.health_record_type === '鼻胃喉更換' || task.health_record_type === '導尿管更換') {
+    if (task.health_record_type === '鼻胃飼管更換' || task.health_record_type === '尿導管更換') {
       patientIdsWithTubes.add(task.patient_id);
     }
   });

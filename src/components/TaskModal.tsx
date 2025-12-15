@@ -281,7 +281,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
                   <option value="體重控制">體重控制</option>
                 </optgroup>
                 <optgroup label="護理任務">
-                  <option value="導尿管更換">導尿管更換</option>
+                  <option value="尿導管更換">尿導管更換</option>
                   <option value="鼻胃飼管更換">鼻胃飼管更換</option>
                   <option value="傷口換症">傷口換症</option>
                   <option value="氧氣喉管清洗/更換">氧氣喉管清洗/更換</option>
