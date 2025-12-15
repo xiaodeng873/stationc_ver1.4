@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Camera, Loader, CheckCircle, AlertTriangle, Save, RotateCcw, Trash2, Edit2, Plus } from 'lucide-react';
+import { X, Upload, Camera, Loader, CheckCircle, AlertTriangle, Save, RotateCcw, Trash2, Edit2, Plus, RefreshCw } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
 import { processImageAndExtract, validateImageFile } from '../utils/ocrProcessor';
@@ -171,6 +171,29 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
 
   const removeImage = (id: string) => {
     setImages(prev => prev.filter(img => img.id !== id));
+  };
+
+  const handleClearCache = () => {
+    if (images.length === 0 && allParsedRecords.length === 0) {
+      alert('沒有需要清除的內容');
+      return;
+    }
+
+    if (confirm('確定要清除所有識別結果並重新開始嗎？\n\n這將清除：\n• 所有已識別的記錄\n• 所有圖片的識別狀態\n\n圖片本身會保留，可重新識別。')) {
+      // 清除所有已解析的記錄
+      setAllParsedRecords([]);
+
+      // 將所有圖片狀態重置為 pending
+      setImages(prev => prev.map(img => ({
+        ...img,
+        status: 'pending',
+        error: undefined,
+        rawData: undefined,
+        parsedRecords: undefined
+      })));
+
+      alert('快取已清除，可以重新開始識別');
+    }
   };
 
   const parseTimeMarker = (timeStr: string | null | undefined): string => {
@@ -699,6 +722,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
             <h3 className="font-medium text-blue-900 mb-2">使用說明</h3>
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• <strong>上傳識別</strong>：上傳手寫健康記錄表照片（支援多張），系統自動識別並匹配院友</li>
+              <li>• <strong>重新識別</strong>：點擊「清除快取並重新識別」可清除所有識別結果並重新開始（圖片會保留）</li>
               <li>• <strong>院友匹配</strong>：根據床號或姓名自動匹配，可隨時手動調整選擇的院友</li>
               <li>• <strong>編輯調整</strong>：所有欄位都可編輯，支持手動修正日期、時間、類型、數值等</li>
               <li>• <strong>新增記錄</strong>：點擊「新增空白列」按鈕可手動新增記錄</li>
@@ -809,40 +833,50 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
             )}
           </div>
 
-          <div className="flex space-x-3">
+          <div className="space-y-3">
+            <div className="flex space-x-3">
+              <button
+                onClick={handleStartOCR}
+                disabled={images.length === 0 || isProcessing}
+                className="btn-primary flex-1 flex items-center justify-center space-x-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader className="h-5 w-5 animate-spin" />
+                    <span>識別中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="h-5 w-5" />
+                    <span>開始批量識別</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleBatchSave}
+                disabled={allParsedRecords.length === 0 || isSaving}
+                className="btn-primary flex-1 flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader className="h-5 w-5 animate-spin" />
+                    <span>儲存中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-5 w-5" />
+                    <span>批量儲存 ({allParsedRecords.length})</span>
+                  </>
+                )}
+              </button>
+            </div>
             <button
-              onClick={handleStartOCR}
-              disabled={images.length === 0 || isProcessing}
-              className="btn-primary flex-1 flex items-center justify-center space-x-2"
+              onClick={handleClearCache}
+              disabled={isProcessing || isSaving || (images.length === 0 && allParsedRecords.length === 0)}
+              className="w-full btn-secondary flex items-center justify-center space-x-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-300"
             >
-              {isProcessing ? (
-                <>
-                  <Loader className="h-5 w-5 animate-spin" />
-                  <span>識別中...</span>
-                </>
-              ) : (
-                <>
-                  <Camera className="h-5 w-5" />
-                  <span>開始批量識別</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={handleBatchSave}
-              disabled={allParsedRecords.length === 0 || isSaving}
-              className="btn-primary flex-1 flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700"
-            >
-              {isSaving ? (
-                <>
-                  <Loader className="h-5 w-5 animate-spin" />
-                  <span>儲存中...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="h-5 w-5" />
-                  <span>批量儲存 ({allParsedRecords.length})</span>
-                </>
-              )}
+              <RefreshCw className="h-5 w-5" />
+              <span>清除快取並重新識別</span>
             </button>
           </div>
 
