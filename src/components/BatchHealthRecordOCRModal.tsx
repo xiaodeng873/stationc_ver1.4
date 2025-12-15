@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Camera, Loader, CheckCircle, AlertTriangle, Save, RotateCcw, Trash2, Edit2 } from 'lucide-react';
+import { X, Upload, Camera, Loader, CheckCircle, AlertTriangle, Save, RotateCcw, Trash2, Edit2, Plus } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
 import { processImageAndExtract, validateImageFile } from '../utils/ocrProcessor';
 import { supabase } from '../lib/supabase';
+import PatientAutocomplete from './PatientAutocomplete';
 
 interface BatchHealthRecordOCRModalProps {
   onClose: () => void;
@@ -22,17 +23,12 @@ interface ExtractedRecord {
 interface ParsedHealthRecord {
   tempId: string;
   院友id: number | null;
-  院友姓名: string;
-  床號: string;
   記錄類型: '生命表徵' | '血糖控制' | '體重控制';
   記錄日期: string;
   記錄時間: string;
   血壓收縮壓?: number;
   血壓舒張壓?: number;
   脈搏?: number;
-  體溫?: number;
-  血含氧量?: number;
-  呼吸頻率?: number;
   血糖值?: number;
   體重?: number;
   備註?: string;
@@ -327,17 +323,12 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
             return {
               tempId: Math.random().toString(36).substr(2, 9),
               院友id: matchedPatient?.院友id || null,
-              院友姓名: record.院友姓名,
-              床號: record.床號,
               記錄類型: record.記錄類型,
               記錄日期,
               記錄時間: recordTime,
               血壓收縮壓: record.血壓收縮壓,
               血壓舒張壓: record.血壓舒張壓,
               脈搏: record.脈搏,
-              體溫: record.體溫,
-              血含氧量: record.血含氧量,
-              呼吸頻率: record.呼吸頻率,
               血糖值: record.血糖值,
               體重: record.體重,
               備註: record.備註,
@@ -379,13 +370,16 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     setIsProcessing(false);
   };
 
-  // 生成隨機值
-  const generateRandomVitals = () => {
-    return {
-      體溫: Number((36.0 + Math.random() * 1.5).toFixed(1)), // 36.0-37.5°C
-      血含氧量: Math.floor(95 + Math.random() * 5), // 95-99%
-      呼吸頻率: Math.floor(16 + Math.random() * 8) // 16-23次/分
-    };
+  // 生成隨機生命體徵值 (與 HealthRecordModal 相同的邏輯)
+  const generateRandomDefaults = (recordType: string) => {
+    if (recordType === '生命表徵') {
+      return {
+        體溫: Number((Math.random() * 0.9 + 36.0).toFixed(1)), // 36.0-36.9°C
+        血含氧量: Math.floor(Math.random() * 5 + 95), // 95-99%
+        呼吸頻率: Math.floor(Math.random() * 9 + 14) // 14-22次/分
+      };
+    }
+    return {};
   };
 
   // 校驗單筆記錄
@@ -421,15 +415,17 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     return { valid: errors.length === 0, errors };
   };
 
-  // 自動填充隨機值
-  const fillRandomVitals = (record: ParsedHealthRecord): ParsedHealthRecord => {
-    const randomVitals = generateRandomVitals();
-    return {
-      ...record,
-      體溫: record.體溫 || randomVitals.體溫,
-      血含氧量: record.血含氧量 || randomVitals.血含氧量,
-      呼吸頻率: record.呼吸頻率 || randomVitals.呼吸頻率
-    };
+  // 自動填充隨機生命體徵值（只對生命表徵類型）
+  const fillRandomVitals = (record: ParsedHealthRecord) => {
+    if (record.記錄類型 === '生命表徵') {
+      const defaults = generateRandomDefaults('生命表徵');
+      return {
+        體溫: defaults.體溫,
+        血含氧量: defaults.血含氧量,
+        呼吸頻率: defaults.呼吸頻率
+      };
+    }
+    return {};
   };
 
   // 刪除記錄
@@ -454,24 +450,24 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     setIsSaving(true);
 
     try {
-      // 自動填充隨機值
-      const recordWithVitals = fillRandomVitals(record);
+      // 自動填充生命體徵隨機值
+      const vitals = fillRandomVitals(record);
 
       const recordData = {
-        院友id: recordWithVitals.院友id!,
-        task_id: recordWithVitals.task_id || null,
-        記錄日期: recordWithVitals.記錄日期,
-        記錄時間: recordWithVitals.記錄時間,
-        記錄類型: recordWithVitals.記錄類型,
-        血壓收縮壓: recordWithVitals.血壓收縮壓 || null,
-        血壓舒張壓: recordWithVitals.血壓舒張壓 || null,
-        脈搏: recordWithVitals.脈搏 || null,
-        體溫: recordWithVitals.體溫,
-        血含氧量: recordWithVitals.血含氧量,
-        呼吸頻率: recordWithVitals.呼吸頻率,
-        血糖值: recordWithVitals.血糖值 || null,
-        體重: recordWithVitals.體重 || null,
-        備註: recordWithVitals.備註 || null,
+        院友id: record.院友id!,
+        task_id: record.task_id || null,
+        記錄日期: record.記錄日期,
+        記錄時間: record.記錄時間,
+        記錄類型: record.記錄類型,
+        血壓收縮壓: record.血壓收縮壓 || null,
+        血壓舒張壓: record.血壓舒張壓 || null,
+        脈搏: record.脈搏 || null,
+        體溫: vitals.體溫 || null,
+        血含氧量: vitals.血含氧量 || null,
+        呼吸頻率: vitals.呼吸頻率 || null,
+        血糖值: record.血糖值 || null,
+        體重: record.體重 || null,
+        備註: record.備註 || null,
         記錄人員: displayName || null,
       };
 
@@ -530,24 +526,24 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
 
       for (const { record } of validRecords) {
         try {
-          // 自動填充隨機值
-          const recordWithVitals = fillRandomVitals(record);
+          // 自動填充生命體徵隨機值
+          const vitals = fillRandomVitals(record);
 
           const recordData = {
-            院友id: recordWithVitals.院友id!,
-            task_id: recordWithVitals.task_id || null,
-            記錄日期: recordWithVitals.記錄日期,
-            記錄時間: recordWithVitals.記錄時間,
-            記錄類型: recordWithVitals.記錄類型,
-            血壓收縮壓: recordWithVitals.血壓收縮壓 || null,
-            血壓舒張壓: recordWithVitals.血壓舒張壓 || null,
-            脈搏: recordWithVitals.脈搏 || null,
-            體溫: recordWithVitals.體溫,
-            血含氧量: recordWithVitals.血含氧量,
-            呼吸頻率: recordWithVitals.呼吸頻率,
-            血糖值: recordWithVitals.血糖值 || null,
-            體重: recordWithVitals.體重 || null,
-            備註: recordWithVitals.備註 || null,
+            院友id: record.院友id!,
+            task_id: record.task_id || null,
+            記錄日期: record.記錄日期,
+            記錄時間: record.記錄時間,
+            記錄類型: record.記錄類型,
+            血壓收縮壓: record.血壓收縮壓 || null,
+            血壓舒張壓: record.血壓舒張壓 || null,
+            脈搏: record.脈搏 || null,
+            體溫: vitals.體溫 || null,
+            血含氧量: vitals.血含氧量 || null,
+            呼吸頻率: vitals.呼吸頻率 || null,
+            血糖值: record.血糖值 || null,
+            體重: record.體重 || null,
+            備註: record.備註 || null,
             記錄人員: displayName || null,
           };
 
@@ -584,35 +580,34 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
 
       const updated = { ...record, [field]: value };
 
-      // 如果更改床號，自動填充院友資料
-      if (field === '床號' && value) {
-        const matchedPatient = patients.find(p => p.床號 === value);
+      // 如果更改院友ID，更新相關資料
+      if (field === '院友id' && value) {
+        const matchedPatient = patients.find(p => p.院友id === Number(value));
         if (matchedPatient) {
-          updated.院友id = matchedPatient.院友id;
-          updated.院友姓名 = matchedPatient.中文姓名;
-          updated.matchedPatient = matchedPatient;
-          updated.區域 = value.match(/^[A-Z]+/)?.[0] || '未知';
-          console.log(`[BatchOCR] 床號 ${value} 自動匹配院友: ${matchedPatient.中文姓名}`);
-        }
-      }
-
-      // 如果更改院友姓名，自動填充床號
-      if (field === '院友姓名' && value) {
-        const matchedPatient = patients.find(p =>
-          p.中文姓名 === value ||
-          (p.中文姓名 && p.中文姓名.includes(value))
-        );
-        if (matchedPatient) {
-          updated.院友id = matchedPatient.院友id;
-          updated.床號 = matchedPatient.床號;
           updated.matchedPatient = matchedPatient;
           updated.區域 = matchedPatient.床號?.match(/^[A-Z]+/)?.[0] || '未知';
-          console.log(`[BatchOCR] 院友 ${value} 自動匹配床號: ${matchedPatient.床號}`);
+          console.log(`[BatchOCR] 選擇院友: ${matchedPatient.中文姓名} (${matchedPatient.床號})`);
         }
       }
 
       return updated;
     }));
+  };
+
+  // 新增空白記錄
+  const addBlankRecord = () => {
+    const newRecord: ParsedHealthRecord = {
+      tempId: Math.random().toString(36).substr(2, 9),
+      院友id: null,
+      記錄類型: '生命表徵',
+      記錄日期: new Date().toISOString().split('T')[0],
+      記錄時間: new Date().toTimeString().split(' ')[0].substring(0, 5),
+      task_id: null,
+      matchedPatient: null,
+      matchedTask: null,
+      區域: '未知'
+    };
+    setAllParsedRecords(prev => [...prev, newRecord]);
   };
 
   const groupedRecords = allParsedRecords.reduce((acc, record) => {
@@ -639,15 +634,14 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="font-medium text-blue-900 mb-2">使用說明</h3>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• 上傳手寫健康記錄表照片（支援多張）</li>
-              <li>• 系統自動識別所有院友的數據並匹配相關任務</li>
-              <li>• 時間標記：7A→07:00, 12N→12:00, 4P→16:00，未識別時預設08:00</li>
-              <li>• 可編輯Prompt以提高識別準確度</li>
-              <li>• 識別結果所有欄位都可編輯，支持手動修正</li>
-              <li>• 智能填充：輸入床號自動填充院友，輸入姓名自動填充床號</li>
-              <li>• <strong>儲存前校驗</strong>：必須選擇院友、日期、時間、記錄類型，且至少有一個監測數值（血壓/血糖/體重）</li>
-              <li>• <strong>自動補充</strong>：體溫、血氧、呼吸如無數值會自動生成合理範圍的隨機值</li>
-              <li>• 支持<strong>單行儲存</strong>（綠色按鈕）或<strong>批量儲存</strong>，儲存後記錄會從表格移除</li>
+              <li>• <strong>上傳識別</strong>：上傳手寫健康記錄表照片（支援多張），系統自動識別並匹配院友</li>
+              <li>• <strong>院友匹配</strong>：根據床號或姓名自動匹配，可隨時手動調整選擇的院友</li>
+              <li>• <strong>編輯調整</strong>：所有欄位都可編輯，支持手動修正日期、時間、類型、數值等</li>
+              <li>• <strong>新增記錄</strong>：點擊「新增空白列」按鈕可手動新增記錄</li>
+              <li>• <strong>儲存方式</strong>：單行儲存（綠色按鈕）或批量儲存，儲存後記錄會從表格移除</li>
+              <li>• <strong>儲存校驗</strong>：必須選擇院友、日期、時間、記錄類型，且至少有一個監測數值（血壓/血糖/體重）</li>
+              <li>• <strong>自動補充</strong>：生命表徵類型會自動生成體溫(36.0-36.9°C)、血氧(95-99%)、呼吸(14-22次/分)</li>
+              <li>• <strong>時間標記</strong>：7A→07:00, 12N→12:00, 4P→16:00，未識別時預設08:00</li>
             </ul>
           </div>
 
@@ -790,7 +784,18 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
 
           {Object.keys(groupedRecords).length > 0 && (
             <div className="space-y-4">
-              <h3 className="font-medium text-gray-900">識別結果（按區域分組）</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium text-gray-900">識別結果（按區域分組）</h3>
+                <button
+                  onClick={addBlankRecord}
+                  disabled={isSaving}
+                  className="btn-secondary flex items-center space-x-1 text-sm"
+                  title="新增空白列"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>新增空白列</span>
+                </button>
+              </div>
               {Object.entries(groupedRecords).map(([area, records]) => (
                 <div key={area} className="border rounded-lg overflow-hidden">
                   <div className="bg-gray-100 px-4 py-2 font-medium text-gray-700 flex items-center justify-between">
@@ -800,17 +805,13 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b">
                         <tr>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">床號</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">姓名</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500" style={{minWidth: '200px'}}>院友</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">日期</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">時間</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">類型</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">收縮壓</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">舒張壓</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">脈搏</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">體溫</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">血氧</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">呼吸</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">血糖</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">體重</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">備註</th>
@@ -821,24 +822,16 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                       <tbody>
                         {records.map(record => (
                           <tr key={record.tempId} className="border-t hover:bg-gray-50">
-                            {/* 床號 - 可編輯，自動填充院友 */}
-                            <td className="px-2 py-2">
-                              <input
-                                type="text"
-                                value={record.床號 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '床號', e.target.value)}
-                                className="w-20 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="床號"
-                              />
-                            </td>
-                            {/* 姓名 - 可編輯，自動填充床號 */}
-                            <td className="px-2 py-2">
-                              <input
-                                type="text"
-                                value={record.院友姓名 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '院友姓名', e.target.value)}
-                                className="w-20 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="姓名"
+                            {/* 院友選擇 */}
+                            <td className="px-3 py-2">
+                              <PatientAutocomplete
+                                selectedPatientId={record.院友id?.toString() || ''}
+                                onPatientSelect={(patientId) => {
+                                  updateRecord(record.tempId, '院友id', Number(patientId));
+                                }}
+                                disabled={isSaving}
+                                className="text-xs"
+                                placeholder="選擇院友..."
                               />
                             </td>
                             {/* 日期 */}
@@ -848,6 +841,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 value={record.記錄日期 || ''}
                                 onChange={(e) => updateRecord(record.tempId, '記錄日期', e.target.value)}
                                 className="w-28 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                disabled={isSaving}
                               />
                             </td>
                             {/* 時間 */}
@@ -857,6 +851,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 value={record.記錄時間 || ''}
                                 onChange={(e) => updateRecord(record.tempId, '記錄時間', e.target.value)}
                                 className="w-20 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                disabled={isSaving}
                               />
                             </td>
                             {/* 類型 */}
@@ -865,6 +860,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 value={record.記錄類型}
                                 onChange={(e) => updateRecord(record.tempId, '記錄類型', e.target.value)}
                                 className="w-24 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                disabled={isSaving}
                               >
                                 <option value="生命表徵">生命表徵</option>
                                 <option value="血糖控制">血糖控制</option>
@@ -879,6 +875,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 onChange={(e) => updateRecord(record.tempId, '血壓收縮壓', e.target.value ? Number(e.target.value) : null)}
                                 className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
                                 placeholder="mmHg"
+                                disabled={isSaving}
                               />
                             </td>
                             {/* 舒張壓 */}
@@ -889,6 +886,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 onChange={(e) => updateRecord(record.tempId, '血壓舒張壓', e.target.value ? Number(e.target.value) : null)}
                                 className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
                                 placeholder="mmHg"
+                                disabled={isSaving}
                               />
                             </td>
                             {/* 脈搏 */}
@@ -899,37 +897,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 onChange={(e) => updateRecord(record.tempId, '脈搏', e.target.value ? Number(e.target.value) : null)}
                                 className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
                                 placeholder="bpm"
-                              />
-                            </td>
-                            {/* 體溫 */}
-                            <td className="px-2 py-2">
-                              <input
-                                type="number"
-                                step="0.1"
-                                value={record.體溫 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '體溫', e.target.value ? Number(e.target.value) : null)}
-                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="°C"
-                              />
-                            </td>
-                            {/* 血氧 */}
-                            <td className="px-2 py-2">
-                              <input
-                                type="number"
-                                value={record.血含氧量 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '血含氧量', e.target.value ? Number(e.target.value) : null)}
-                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="%"
-                              />
-                            </td>
-                            {/* 呼吸 */}
-                            <td className="px-2 py-2">
-                              <input
-                                type="number"
-                                value={record.呼吸頻率 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '呼吸頻率', e.target.value ? Number(e.target.value) : null)}
-                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="/min"
+                                disabled={isSaving}
                               />
                             </td>
                             {/* 血糖 */}
@@ -941,6 +909,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 onChange={(e) => updateRecord(record.tempId, '血糖值', e.target.value ? Number(e.target.value) : null)}
                                 className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
                                 placeholder="mmol/L"
+                                disabled={isSaving}
                               />
                             </td>
                             {/* 體重 */}
@@ -952,6 +921,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 onChange={(e) => updateRecord(record.tempId, '體重', e.target.value ? Number(e.target.value) : null)}
                                 className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
                                 placeholder="kg"
+                                disabled={isSaving}
                               />
                             </td>
                             {/* 備註 */}
@@ -962,6 +932,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                                 onChange={(e) => updateRecord(record.tempId, '備註', e.target.value)}
                                 className="w-24 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
                                 placeholder="備註"
+                                disabled={isSaving}
                               />
                             </td>
                             {/* 狀態 */}
