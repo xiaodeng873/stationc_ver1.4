@@ -478,7 +478,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   }, [fetchHospitalOutreachRecords]);
 
   // 新增的處方工作流程相關函數
-  const fetchPrescriptionWorkflowRecords = async (patientId?: number, scheduledDate?: string): Promise<PrescriptionWorkflowRecord[]> => {
+  const fetchPrescriptionWorkflowRecords = async (patientId?: number, scheduledDate?: string, skipStateUpdate = false): Promise<PrescriptionWorkflowRecord[]> => {
     try {
       const validPatientId = (patientId !== undefined && patientId !== null && !isNaN(patientId) && patientId > 0) ? patientId : null;
       const validScheduledDate = (scheduledDate && typeof scheduledDate === 'string' && scheduledDate.trim() !== '' && scheduledDate !== 'undefined') ? scheduledDate.trim() : null;
@@ -499,11 +499,16 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         throw new Error(`查詢工作流程記錄失敗: ${queryError.message}`);
       }
 
-      setPrescriptionWorkflowRecords(queryData || []);
+      // 只有在不跳過 state 更新時才更新
+      if (!skipStateUpdate) {
+        setPrescriptionWorkflowRecords(queryData || []);
+      }
       return queryData || [];
     } catch (error) {
       console.error('獲取處方工作流程記錄失敗:', error);
-      setPrescriptionWorkflowRecords([]);
+      if (!skipStateUpdate) {
+        setPrescriptionWorkflowRecords([]);
+      }
       return [];
     }
   };
@@ -570,7 +575,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         db.getHospitalEpisodes(),
         db.getPrescriptions(),
         db.getDrugDatabase(),
-        fetchPrescriptionWorkflowRecords(),
+        fetchPrescriptionWorkflowRecords(undefined, undefined, true), // skipStateUpdate = true，避免重複更新
         db.getPrescriptionTimeSlotDefinitions(),
         db.getAnnualHealthCheckups(),
         db.getIncidentReports(),
