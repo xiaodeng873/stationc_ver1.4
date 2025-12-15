@@ -306,7 +306,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
             </div>
           )}
 
-          {(formData.health_record_type === '導尿管更換' || formData.health_record_type === '鼻胃飼管更換' ||
+          {(formData.health_record_type === '尿導管更換' || formData.health_record_type === '鼻胃飼管更換' ||
             formData.health_record_type === '傷口換症' || formData.health_record_type === '氧氣喉管清洗/更換') && (
             <div>
               <label className="form-label">
@@ -402,7 +402,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
             )}
           </div>
 
-          {(formData.health_record_type === '導尿管更換' || formData.health_record_type === '鼻胃飼管更換') && (
+          {(formData.health_record_type === '尿導管更換' || formData.health_record_type === '鼻胃飼管更換') && (
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900">喉管設定</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
