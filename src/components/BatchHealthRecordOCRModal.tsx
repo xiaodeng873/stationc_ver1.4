@@ -196,6 +196,31 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     return time;
   };
 
+  // 將24小時制轉換為12小時制 + AM/PM
+  const convertTo12Hour = (time24: string): string => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    return `${hours12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
+
+  // 將12小時制 + AM/PM 轉換為24小時制
+  const convertTo24Hour = (time12: string): string => {
+    if (!time12) return '';
+    const match = time12.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) return time12;
+
+    let hours = parseInt(match[1]);
+    const minutes = match[2];
+    const period = match[3].toUpperCase();
+
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  };
+
   const matchPatient = (床號: string | null | undefined, 院友姓名: string | null | undefined): any => {
     // 空值保護：如果兩者都沒有，無法匹配
     if (!床號 && !院友姓名) return null;
@@ -341,7 +366,9 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
               task_id: matchedTask?.id || null,
               matchedPatient,
               matchedTask,
-              區域: matchedPatient?.床號?.match(/^[A-Z]+/)?.[0] || '未知'
+              區域: matchedPatient
+                ? (matchedPatient.床號?.match(/^[A-Z]+/)?.[0] || matchedPatient.床號 || '已匹配')
+                : '未知'
             };
 
             console.log(`[BatchOCR] 創建記錄對象:`, {
@@ -601,7 +628,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
         const matchedPatient = patients.find(p => p.院友id === Number(value));
         if (matchedPatient) {
           updated.matchedPatient = matchedPatient;
-          updated.區域 = matchedPatient.床號?.match(/^[A-Z]+/)?.[0] || '未知';
+          updated.區域 = matchedPatient.床號?.match(/^[A-Z]+/)?.[0] || matchedPatient.床號 || '已匹配';
           console.log(`[BatchOCR] ✅ 更新院友成功: ${matchedPatient.中文姓名} (${matchedPatient.床號}), 院友id=${matchedPatient.院友id}`);
         } else {
           console.warn(`[BatchOCR] ⚠️ 找不到院友id=${value}`);
@@ -804,15 +831,6 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-gray-900">識別結果（按區域分組）</h3>
-                <button
-                  onClick={addBlankRecord}
-                  disabled={isSaving}
-                  className="btn-secondary flex items-center space-x-1 text-sm"
-                  title="新增空白列"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>新增空白列</span>
-                </button>
               </div>
               {Object.entries(groupedRecords).map(([area, records]) => (
                 <div key={area} className="border rounded-lg overflow-hidden">
@@ -832,7 +850,6 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">脈搏</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">血糖</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">體重</th>
-                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">備註</th>
                           <th className="px-2 py-2 text-center text-xs font-medium text-gray-500">操作</th>
                         </tr>
                       </thead>
@@ -864,10 +881,24 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                             {/* 時間 */}
                             <td className="px-2 py-2">
                               <input
-                                type="time"
-                                value={record.記錄時間 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '記錄時間', e.target.value)}
-                                className="w-20 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                type="text"
+                                value={record.記錄時間 ? convertTo12Hour(record.記錄時間) : ''}
+                                onChange={(e) => {
+                                  const time24 = convertTo24Hour(e.target.value);
+                                  updateRecord(record.tempId, '記錄時間', time24);
+                                }}
+                                onBlur={(e) => {
+                                  // 自動格式化輸入
+                                  if (e.target.value && !e.target.value.match(/AM|PM/i)) {
+                                    // 如果用戶只輸入了時間沒有AM/PM，嘗試轉換
+                                    const time24 = e.target.value.includes(':') ? e.target.value : '';
+                                    if (time24) {
+                                      updateRecord(record.tempId, '記錄時間', time24);
+                                    }
+                                  }
+                                }}
+                                className="w-24 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="HH:MM AM/PM"
                                 disabled={isSaving}
                               />
                             </td>
@@ -886,71 +917,80 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                             </td>
                             {/* 收縮壓 */}
                             <td className="px-2 py-2">
-                              <input
-                                type="number"
-                                value={record.血壓收縮壓 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '血壓收縮壓', e.target.value ? Number(e.target.value) : null)}
-                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="mmHg"
-                                disabled={isSaving}
-                              />
+                              {record.記錄類型 === '生命表徵' ? (
+                                <input
+                                  type="number"
+                                  value={record.血壓收縮壓 || ''}
+                                  onChange={(e) => updateRecord(record.tempId, '血壓收縮壓', e.target.value ? Number(e.target.value) : null)}
+                                  className={`w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500 ${!record.血壓收縮壓 ? 'bg-red-50' : ''}`}
+                                  placeholder="mmHg"
+                                  disabled={isSaving}
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
                             </td>
                             {/* 舒張壓 */}
                             <td className="px-2 py-2">
-                              <input
-                                type="number"
-                                value={record.血壓舒張壓 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '血壓舒張壓', e.target.value ? Number(e.target.value) : null)}
-                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="mmHg"
-                                disabled={isSaving}
-                              />
+                              {record.記錄類型 === '生命表徵' ? (
+                                <input
+                                  type="number"
+                                  value={record.血壓舒張壓 || ''}
+                                  onChange={(e) => updateRecord(record.tempId, '血壓舒張壓', e.target.value ? Number(e.target.value) : null)}
+                                  className={`w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500 ${!record.血壓舒張壓 ? 'bg-red-50' : ''}`}
+                                  placeholder="mmHg"
+                                  disabled={isSaving}
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
                             </td>
                             {/* 脈搏 */}
                             <td className="px-2 py-2">
-                              <input
-                                type="number"
-                                value={record.脈搏 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '脈搏', e.target.value ? Number(e.target.value) : null)}
-                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="bpm"
-                                disabled={isSaving}
-                              />
+                              {record.記錄類型 === '生命表徵' ? (
+                                <input
+                                  type="number"
+                                  value={record.脈搏 || ''}
+                                  onChange={(e) => updateRecord(record.tempId, '脈搏', e.target.value ? Number(e.target.value) : null)}
+                                  className={`w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500 ${!record.脈搏 ? 'bg-red-50' : ''}`}
+                                  placeholder="bpm"
+                                  disabled={isSaving}
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
                             </td>
                             {/* 血糖 */}
                             <td className="px-2 py-2">
-                              <input
-                                type="number"
-                                step="0.1"
-                                value={record.血糖值 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '血糖值', e.target.value ? Number(e.target.value) : null)}
-                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="mmol/L"
-                                disabled={isSaving}
-                              />
+                              {record.記錄類型 === '血糖控制' ? (
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  value={record.血糖值 || ''}
+                                  onChange={(e) => updateRecord(record.tempId, '血糖值', e.target.value ? Number(e.target.value) : null)}
+                                  className={`w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500 ${!record.血糖值 ? 'bg-red-50' : ''}`}
+                                  placeholder="mmol/L"
+                                  disabled={isSaving}
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
                             </td>
                             {/* 體重 */}
                             <td className="px-2 py-2">
-                              <input
-                                type="number"
-                                step="0.1"
-                                value={record.體重 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '體重', e.target.value ? Number(e.target.value) : null)}
-                                className="w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="kg"
-                                disabled={isSaving}
-                              />
-                            </td>
-                            {/* 備註 */}
-                            <td className="px-2 py-2">
-                              <input
-                                type="text"
-                                value={record.備註 || ''}
-                                onChange={(e) => updateRecord(record.tempId, '備註', e.target.value)}
-                                className="w-24 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500"
-                                placeholder="備註"
-                                disabled={isSaving}
-                              />
+                              {record.記錄類型 === '體重控制' ? (
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  value={record.體重 || ''}
+                                  onChange={(e) => updateRecord(record.tempId, '體重', e.target.value ? Number(e.target.value) : null)}
+                                  className={`w-16 px-1 py-0.5 text-xs border rounded focus:ring-1 focus:ring-blue-500 ${!record.體重 ? 'bg-red-50' : ''}`}
+                                  placeholder="kg"
+                                  disabled={isSaving}
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
                             </td>
                             {/* 操作 */}
                             <td className="px-2 py-2">
@@ -980,6 +1020,19 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                   </div>
                 </div>
               ))}
+
+              {/* 新增空白列按鈕 - 放在所有表格底部 */}
+              <div className="flex justify-center pt-2">
+                <button
+                  onClick={addBlankRecord}
+                  disabled={isSaving}
+                  className="btn-secondary flex items-center space-x-2 text-sm"
+                  title="新增空白列"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>新增空白列</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
