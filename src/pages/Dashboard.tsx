@@ -20,6 +20,7 @@ import PatientModal from '../components/PatientModal';
 import VaccinationRecordModal from '../components/VaccinationRecordModal';
 import TaskHistoryModal from '../components/TaskHistoryModal';
 import BatchHealthRecordOCRModal from '../components/BatchHealthRecordOCRModal';
+import MonitoringTaskWorksheetModal from '../components/MonitoringTaskWorksheetModal';
 import { syncTaskStatus, SYNC_CUTOFF_DATE_STR, supabase } from '../lib/database';
 
 interface Patient {
@@ -106,6 +107,7 @@ const Dashboard: React.FC = () => {
   const [showVaccinationModal, setShowVaccinationModal] = useState(false);
   const [selectedPatientForVaccination, setSelectedPatientForVaccination] = useState<any>(null);
   const [showBatchOCRModal, setShowBatchOCRModal] = useState(false);
+  const [showWorksheetModal, setShowWorksheetModal] = useState(false);
 
   // 歷史日曆 Modal 狀態
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -703,15 +705,24 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
         <div className="card p-6 lg:p-4 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 section-title">監測任務      <button
-          onClick={() => setShowBatchOCRModal(true)}
-          className="btn-primary flex items-center space-x-2 text-sm"
-        >
-          <Camera className="h-4 w-4" />
-          <span>批量OCR上傳</span>
-        </button></h2>
-            
-            <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700 font-medium">查看全部</Link>
+            <h2 className="text-lg font-semibold text-gray-900 section-title">監測任務</h2>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowBatchOCRModal(true)}
+                className="btn-primary flex items-center space-x-2 text-sm"
+              >
+                <Camera className="h-4 w-4" />
+                <span>批量OCR上傳</span>
+              </button>
+              <button
+                onClick={() => setShowWorksheetModal(true)}
+                className="btn-primary flex items-center space-x-2 text-sm"
+              >
+                <FileText className="h-4 w-4" />
+                <span>匯出工作紙</span>
+              </button>
+              <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700 font-medium">查看全部</Link>
+            </div>
           </div>
           <div className="space-y-6 lg:space-y-3">
             {[
@@ -1069,6 +1080,11 @@ const Dashboard: React.FC = () => {
             setShowBatchOCRModal(false);
             refreshData();
           }}
+        />
+      )}
+      {showWorksheetModal && (
+        <MonitoringTaskWorksheetModal
+          onClose={() => setShowWorksheetModal(false)}
         />
       )}
     </div>
