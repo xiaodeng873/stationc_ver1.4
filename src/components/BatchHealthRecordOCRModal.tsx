@@ -351,6 +351,19 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
               matchedTask = taskMatch?.task || null;
             }
 
+            // 確定區域顯示：優先提取床號字母前綴，其次完整床號，最後顯示「已匹配」
+            let 區域 = '未知';
+            if (matchedPatient) {
+              if (matchedPatient.床號) {
+                // 嘗試提取字母前綴（如 A01 -> A）
+                const areaPrefix = matchedPatient.床號.match(/^[A-Z]+/)?.[0];
+                區域 = areaPrefix || matchedPatient.床號;
+              } else {
+                // 沒有床號但匹配到院友，顯示「已匹配」
+                區域 = '已匹配';
+              }
+            }
+
             const parsedRecord = {
               tempId: Math.random().toString(36).substr(2, 9),
               院友id: matchedPatient?.院友id || null,
@@ -366,9 +379,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
               task_id: matchedTask?.id || null,
               matchedPatient,
               matchedTask,
-              區域: matchedPatient
-                ? (matchedPatient.床號?.match(/^[A-Z]+/)?.[0] || matchedPatient.床號 || '已匹配')
-                : '未知'
+              區域
             };
 
             console.log(`[BatchOCR] 創建記錄對象:`, {
@@ -628,7 +639,15 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
         const matchedPatient = patients.find(p => p.院友id === Number(value));
         if (matchedPatient) {
           updated.matchedPatient = matchedPatient;
-          updated.區域 = matchedPatient.床號?.match(/^[A-Z]+/)?.[0] || matchedPatient.床號 || '已匹配';
+
+          // 確定區域顯示：優先提取床號字母前綴，其次完整床號，最後顯示「已匹配」
+          if (matchedPatient.床號) {
+            const areaPrefix = matchedPatient.床號.match(/^[A-Z]+/)?.[0];
+            updated.區域 = areaPrefix || matchedPatient.床號;
+          } else {
+            updated.區域 = '已匹配';
+          }
+
           console.log(`[BatchOCR] ✅ 更新院友成功: ${matchedPatient.中文姓名} (${matchedPatient.床號}), 院友id=${matchedPatient.院友id}`);
         } else {
           console.warn(`[BatchOCR] ⚠️ 找不到院友id=${value}`);
