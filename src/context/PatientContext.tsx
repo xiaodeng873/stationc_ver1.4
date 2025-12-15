@@ -275,6 +275,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
   const [isAllHealthRecordsLoaded, setIsAllHealthRecordsLoaded] = useState(false);
   const isAllHealthRecordsLoadedRef = useRef(false);
 
+  // 防抖計時器
+  const refreshDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastRefreshTimeRef = useRef<number>(0);
+  const DEBOUNCE_DELAY = 500; // 500ms 防抖延遲
+
   // 資料狀態
   const [patients, setPatients] = useState<db.Patient[]>([]);
   const [stations, setStations] = useState<db.Station[]>([]);
@@ -363,8 +368,8 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     };
   };
 
-  // Fetch functions using useCallback
-  const fetchHospitalOutreachRecords = useCallback(async () => {
+  // Fetch functions - 不使用 useCallback 避免循環依賴
+  const fetchHospitalOutreachRecords = async () => {
     try {
       const { data, error } = await supabase.from('hospital_outreach_records').select('*').order('medication_bag_date', { ascending: false });
       if (error) throw error;
@@ -373,9 +378,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('載入醫院外展記錄失敗:', error);
       throw error;
     }
-  }, []);
+  };
 
-  const fetchDoctorVisitSchedule = useCallback(async () => {
+  const fetchDoctorVisitSchedule = async () => {
     try {
       const { data, error } = await supabase.from('doctor_visit_schedule').select('*').order('visit_date', { ascending: true });
       if (error) throw error;
@@ -384,9 +389,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('載入醫生到診排程失敗:', error);
       throw error;
     }
-  }, []);
+  };
 
-  const addDoctorVisitSchedule = useCallback(async (scheduleData: any) => {
+  const addDoctorVisitSchedule = async (scheduleData: any) => {
     try {
       const { data, error } = await supabase.from('doctor_visit_schedule').insert([scheduleData]).select().single();
       if (error) throw error;
@@ -396,9 +401,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('新增醫生到診排程失敗:', error);
       throw error;
     }
-  }, [fetchDoctorVisitSchedule]);
+  };
 
-  const updateDoctorVisitSchedule = useCallback(async (scheduleData: any) => {
+  const updateDoctorVisitSchedule = async (scheduleData: any) => {
     try {
       const { data, error } = await supabase.from('doctor_visit_schedule').update(scheduleData).eq('id', scheduleData.id).select().single();
       if (error) throw error;
@@ -408,9 +413,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('更新醫生到診排程失敗:', error);
       throw error;
     }
-  }, [fetchDoctorVisitSchedule]);
+  };
 
-  const deleteDoctorVisitSchedule = useCallback(async (scheduleId: string) => {
+  const deleteDoctorVisitSchedule = async (scheduleId: string) => {
     try {
       const { error } = await supabase.from('doctor_visit_schedule').delete().eq('id', scheduleId);
       if (error) throw error;
@@ -419,7 +424,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('刪除醫生到診排程失敗:', error);
       throw error;
     }
-  }, [fetchDoctorVisitSchedule]);
+  };
 
   const fetchHospitalOutreachRecordHistory = async (patientId: number) => {
     try {
@@ -434,7 +439,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     }
   };
 
-  const addHospitalOutreachRecord = useCallback(async (recordData: any) => {
+  const addHospitalOutreachRecord = async (recordData: any) => {
     try {
       const { data: existingRecord, error: checkError } = await supabase.from('hospital_outreach_records').select('id').eq('patient_id', recordData.patient_id).single();
       if (checkError && checkError.code !== 'PGRST116') throw checkError;
@@ -452,9 +457,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('新增醫院外展記錄失敗:', error);
       throw error;
     }
-  }, [patients, fetchHospitalOutreachRecords]);
+  };
 
-  const updateHospitalOutreachRecord = useCallback(async (recordData: any) => {
+  const updateHospitalOutreachRecord = async (recordData: any) => {
     try {
       const { data, error } = await supabase.from('hospital_outreach_records').update(recordData).eq('id', recordData.id).select().single();
       if (error) throw error;
@@ -464,9 +469,9 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('更新醫院外展記錄失敗:', error);
       throw error;
     }
-  }, [fetchHospitalOutreachRecords]);
+  };
 
-  const deleteHospitalOutreachRecord = useCallback(async (recordId: string) => {
+  const deleteHospitalOutreachRecord = async (recordId: string) => {
     try {
       const { error } = await supabase.from('hospital_outreach_records').delete().eq('id', recordId);
       if (error) throw error;
@@ -475,10 +480,10 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('刪除醫院外展記錄失敗:', error);
       throw error;
     }
-  }, [fetchHospitalOutreachRecords]);
+  };
 
   // 新增的處方工作流程相關函數
-  const fetchPrescriptionWorkflowRecords = async (patientId?: number, scheduledDate?: string, skipStateUpdate = false): Promise<PrescriptionWorkflowRecord[]> => {
+  const fetchPrescriptionWorkflowRecords = useCallback(async (patientId?: number, scheduledDate?: string, skipStateUpdate = false): Promise<PrescriptionWorkflowRecord[]> => {
     try {
       const validPatientId = (patientId !== undefined && patientId !== null && !isNaN(patientId) && patientId > 0) ? patientId : null;
       const validScheduledDate = (scheduledDate && typeof scheduledDate === 'string' && scheduledDate.trim() !== '' && scheduledDate !== 'undefined') ? scheduledDate.trim() : null;
@@ -511,9 +516,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       }
       return [];
     }
-  };
-
-  const memoizedFetchPrescriptionWorkflowRecords = useCallback(fetchPrescriptionWorkflowRecords, []);
+  }, []);
 
   // 3. 數據刷新邏輯
   const refreshData = useCallback(async () => {
@@ -523,9 +526,6 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
         const today = new Date();
         today.setDate(today.getDate() - 60);
         startDateStr = today.toISOString().split('T')[0];
-        console.log(`🚀 優化模式：只載入 ${startDateStr} 之後的記錄`);
-      } else {
-        console.log('📦 完整模式：載入所有歷史記錄');
       }
 
       const [
@@ -649,22 +649,46 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       console.error('刷新數據失敗:', error);
       setLoading(false);
     }
-  }, [memoizedFetchPrescriptionWorkflowRecords]);
+  }, [fetchPrescriptionWorkflowRecords]);
 
 
   const loadFullHealthRecords = useCallback(async () => {
     if (isAllHealthRecordsLoadedRef.current) return;
     try {
-      console.log('📥 觸發：載入完整健康記錄 (歷史模式)...');
       const allRecords = await db.getHealthRecords();
       setHealthRecords(allRecords);
       setIsAllHealthRecordsLoaded(true);
       isAllHealthRecordsLoadedRef.current = true;
-      console.log('✅ 完整健康記錄載入完成，共', allRecords.length, '筆');
     } catch (error) {
       console.error('載入完整記錄失敗:', error);
     }
   }, []);
+
+  // 創建防抖版本的 refreshData
+  const debouncedRefreshData = useCallback(() => {
+    // 清除之前的計時器
+    if (refreshDebounceTimerRef.current) {
+      clearTimeout(refreshDebounceTimerRef.current);
+    }
+
+    // 檢查是否可以立即執行（距離上次執行超過防抖延遲）
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+
+    if (timeSinceLastRefresh >= DEBOUNCE_DELAY) {
+      // 立即執行
+      lastRefreshTimeRef.current = now;
+      return refreshData();
+    } else {
+      // 設置新的計時器
+      return new Promise<void>((resolve) => {
+        refreshDebounceTimerRef.current = setTimeout(() => {
+          lastRefreshTimeRef.current = Date.now();
+          refreshData().then(resolve);
+        }, DEBOUNCE_DELAY - timeSinceLastRefresh);
+      });
+    }
+  }, [refreshData, DEBOUNCE_DELAY]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -695,12 +719,12 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     const initializeAndLoadData = async () => {
       try {
         await generateDailyWorkflowRecords(new Date().toISOString().split('T')[0]);
-        await refreshData();
+        await refreshDataRef.current();
         setDataLoaded(true);
       } catch (error) {
         console.error('Error initializing data:', error);
         try {
-          await refreshData();
+          await refreshDataRef.current();
           setDataLoaded(true);
         } catch (refreshError) {
           console.error('Refresh data also failed:', refreshError);
@@ -711,7 +735,11 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
     };
 
     initializeAndLoadData();
-  }, [authReady, user, dataLoaded, refreshData]);
+  }, [authReady, user, dataLoaded]);
+
+  // 使用 useRef 來保存 refreshData 的最新版本，避免循環依賴
+  const refreshDataRef = useRef(refreshData);
+  refreshDataRef.current = refreshData;
 
   // 輕量級刷新
   const refreshHealthData = async () => {
@@ -2142,7 +2170,7 @@ export const PatientProvider: React.FC<PatientProviderProps> = ({ children }) =>
       getOverdueDailySystemTasks,
       refreshData,
       refreshHealthData,
-      fetchPrescriptionWorkflowRecords: memoizedFetchPrescriptionWorkflowRecords,
+      fetchPrescriptionWorkflowRecords,
       createPrescriptionWorkflowRecord,
       updatePrescriptionWorkflowRecord,
       prepareMedication,
