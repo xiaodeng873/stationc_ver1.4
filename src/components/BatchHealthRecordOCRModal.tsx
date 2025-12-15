@@ -18,6 +18,8 @@ interface ExtractedRecord {
   error?: string;
   rawData?: any;
   parsedRecords?: ParsedHealthRecord[];
+  text?: string;
+  showRawText?: boolean;
 }
 
 interface ParsedHealthRecord {
@@ -171,6 +173,12 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
 
   const removeImage = (id: string) => {
     setImages(prev => prev.filter(img => img.id !== id));
+  };
+
+  const toggleRawText = (id: string) => {
+    setImages(prev => prev.map(img =>
+      img.id === id ? { ...img, showRawText: !img.showRawText } : img
+    ));
   };
 
   const parseTimeMarker = (timeStr: string | null | undefined): string => {
@@ -395,7 +403,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
 
           setImages(prev => prev.map(img =>
             img.id === image.id
-              ? { ...img, status: 'success', rawData: result.extractedData, parsedRecords }
+              ? { ...img, status: 'success', rawData: result.extractedData, parsedRecords, text: result.text, showRawText: false }
               : img
           ));
         } else {
@@ -733,36 +741,66 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
           {images.length > 0 && (
             <div className="space-y-3">
               <h3 className="font-medium text-gray-900">已上傳圖片 ({images.length})</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {images.map(img => (
-                  <div key={img.id} className="relative border rounded-lg overflow-hidden bg-white">
-                    <img src={img.imagePreview} alt="" className="w-full h-32 object-cover" />
-                    <div className="absolute top-2 right-2">
-                      {img.status === 'pending' && (
-                        <div className="bg-gray-500 text-white text-xs px-2 py-1 rounded">待處理</div>
+                  <div key={img.id} className="border rounded-lg overflow-hidden bg-white">
+                    <div className="relative">
+                      <img src={img.imagePreview} alt="" className="w-full h-48 object-cover" />
+                      <div className="absolute top-2 right-2">
+                        {img.status === 'pending' && (
+                          <div className="bg-gray-500 text-white text-xs px-2 py-1 rounded">待處理</div>
+                        )}
+                        {img.status === 'processing' && (
+                          <Loader className="h-5 w-5 text-blue-600 animate-spin" />
+                        )}
+                        {img.status === 'success' && (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        )}
+                        {img.status === 'error' && (
+                          <AlertTriangle className="h-5 w-5 text-red-600" />
+                        )}
+                      </div>
+                      {img.status === 'error' && img.error && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-red-500 bg-opacity-90 text-white text-xs p-2">
+                          {img.error}
+                        </div>
                       )}
-                      {img.status === 'processing' && (
-                        <Loader className="h-5 w-5 text-blue-600 animate-spin" />
-                      )}
-                      {img.status === 'success' && (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      )}
-                      {img.status === 'error' && (
-                        <AlertTriangle className="h-5 w-5 text-red-600" />
-                      )}
+                      <button
+                        onClick={() => removeImage(img.id)}
+                        className="absolute bottom-2 right-2 p-1 bg-red-500 text-white rounded hover:bg-red-600"
+                        disabled={isProcessing}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                    {img.status === 'error' && img.error && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-red-500 bg-opacity-90 text-white text-xs p-2">
-                        {img.error}
+
+                    {/* 原始文字區域 */}
+                    {img.status === 'success' && img.text && (
+                      <div className="p-3 border-t bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-gray-700">識別結果</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleRawText(img.id)}
+                            className="text-xs text-blue-600 hover:text-blue-700"
+                          >
+                            {img.showRawText ? '隱藏原始文字' : '顯示原始文字'}
+                          </button>
+                        </div>
+                        {img.showRawText && (
+                          <div className="p-2 bg-white rounded border border-gray-200 max-h-32 overflow-y-auto">
+                            <p className="text-xs font-mono text-gray-600 whitespace-pre-wrap break-words">
+                              {img.text}
+                            </p>
+                          </div>
+                        )}
+                        {img.parsedRecords && img.parsedRecords.length > 0 && (
+                          <div className="mt-2 text-xs text-gray-600">
+                            已識別 {img.parsedRecords.length} 筆記錄
+                          </div>
+                        )}
                       </div>
                     )}
-                    <button
-                      onClick={() => removeImage(img.id)}
-                      className="absolute bottom-2 right-2 p-1 bg-red-500 text-white rounded hover:bg-red-600"
-                      disabled={isProcessing}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
                   </div>
                 ))}
               </div>
