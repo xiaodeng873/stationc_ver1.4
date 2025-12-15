@@ -274,7 +274,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     return null;
   };
 
-  const handleStartOCR = async () => {
+  const handleStartOCR = async (skipCache: boolean = false) => {
     if (images.length === 0) {
       alert('請先上傳圖片');
       return;
@@ -289,7 +289,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
       ));
 
       try {
-        const result = await processImageAndExtract(image.imageFile, prompt);
+        const result = await processImageAndExtract(image.imageFile, prompt, undefined, skipCache);
 
         if (result.success && result.extractedData) {
           const { 記錄日期, records } = result.extractedData;
@@ -809,41 +809,55 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
             )}
           </div>
 
-          <div className="flex space-x-3">
-            <button
-              onClick={handleStartOCR}
-              disabled={images.length === 0 || isProcessing}
-              className="btn-primary flex-1 flex items-center justify-center space-x-2"
-            >
-              {isProcessing ? (
-                <>
-                  <Loader className="h-5 w-5 animate-spin" />
-                  <span>識別中...</span>
-                </>
-              ) : (
-                <>
-                  <Camera className="h-5 w-5" />
-                  <span>開始批量識別</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={handleBatchSave}
-              disabled={allParsedRecords.length === 0 || isSaving}
-              className="btn-primary flex-1 flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700"
-            >
-              {isSaving ? (
-                <>
-                  <Loader className="h-5 w-5 animate-spin" />
-                  <span>儲存中...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="h-5 w-5" />
-                  <span>批量儲存 ({allParsedRecords.length})</span>
-                </>
-              )}
-            </button>
+          <div className="space-y-3">
+            <div className="flex space-x-3">
+              <button
+                onClick={() => handleStartOCR(false)}
+                disabled={images.length === 0 || isProcessing}
+                className="btn-primary flex-1 flex items-center justify-center space-x-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader className="h-5 w-5 animate-spin" />
+                    <span>識別中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="h-5 w-5" />
+                    <span>開始批量識別</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleBatchSave}
+                disabled={allParsedRecords.length === 0 || isSaving}
+                className="btn-primary flex-1 flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader className="h-5 w-5 animate-spin" />
+                    <span>儲存中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-5 w-5" />
+                    <span>批量儲存 ({allParsedRecords.length})</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* 強制重新識別按鈕 - 只在有識別結果時顯示 */}
+            {Object.keys(groupedRecords).length > 0 && (
+              <button
+                onClick={() => handleStartOCR(true)}
+                disabled={images.length === 0 || isProcessing}
+                className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+              >
+                <RotateCcw className="h-5 w-5" />
+                <span>強制重新識別（清除快取）</span>
+              </button>
+            )}
           </div>
 
           {Object.keys(groupedRecords).length > 0 && (
