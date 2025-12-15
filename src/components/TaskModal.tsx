@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, CheckSquare, User, Calendar, Clock, Activity, Droplets, Scale, FileText, Stethoscope } from 'lucide-react';
 import PatientAutocomplete from './PatientAutocomplete';
-import { usePatients, type PatientHealthTask, type HealthTaskType, type FrequencyUnit } from '../context/PatientContext';
+import { usePatients, type PatientHealthTask, type HealthTaskType, type FrequencyUnit, type MonitoringTaskNotes } from '../context/PatientContext';
 import { calculateNextDueDate } from '../utils/taskScheduler';
 
 interface TaskModalProps {
@@ -173,7 +173,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
         next_due_at: nextDueAt.toISOString(),
         tube_type: formData.tube_type || null,
         tube_size: formData.tube_size || null,
-        notes: formData.notes || null,
+        notes: (formData.notes && formData.notes.trim() !== '') ? formData.notes as MonitoringTaskNotes : null,
         is_recurring: formData.is_recurring,
         end_date: formData.is_recurring ? null : formData.end_date,
         end_time: formData.is_recurring ? null : formData.end_time,
