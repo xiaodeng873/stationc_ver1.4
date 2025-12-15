@@ -48,7 +48,7 @@ const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
     .from('patient_health_tasks')
     .select(`
       *,
-      patients!inner(床號, 中文姓氏, 中文名字)
+      院友主表!inner(床號, 中文姓氏, 中文名字)
     `)
     .gte('next_due_at', startOfDay)
     .lte('next_due_at', endOfDay)
@@ -77,8 +77,8 @@ const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
                        task.health_record_type === '血糖控制' ? '血糖控制' : '體重控制';
 
       timeSlotTasks[timeSlot].push({
-        床號: task.patients.床號,
-        姓名: `${task.patients.中文姓氏}${task.patients.中文名字}`,
+        床號: task.院友主表.床號,
+        姓名: `${task.院友主表.中文姓氏}${task.院友主表.中文名字}`,
         任務類型: taskType,
         備註: task.notes || '',
         時間: time
