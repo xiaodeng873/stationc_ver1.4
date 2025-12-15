@@ -379,21 +379,144 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     setIsProcessing(false);
   };
 
+  // 生成隨機值
+  const generateRandomVitals = () => {
+    return {
+      體溫: Number((36.0 + Math.random() * 1.5).toFixed(1)), // 36.0-37.5°C
+      血含氧量: Math.floor(95 + Math.random() * 5), // 95-99%
+      呼吸頻率: Math.floor(16 + Math.random() * 8) // 16-23次/分
+    };
+  };
+
+  // 校驗單筆記錄
+  const validateRecord = (record: ParsedHealthRecord): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    if (!record.院友id) {
+      errors.push('必須選擇院友');
+    }
+
+    if (!record.記錄日期) {
+      errors.push('必須選擇日期');
+    }
+
+    if (!record.記錄時間) {
+      errors.push('必須選擇時間');
+    }
+
+    if (!record.記錄類型) {
+      errors.push('必須選擇記錄類型');
+    }
+
+    // 至少需要一個監測數值
+    const hasBloodPressure = record.血壓收縮壓 && record.血壓舒張壓;
+    const hasBloodSugar = record.血糖值;
+    const hasWeight = record.體重;
+    const hasRequiredValue = hasBloodPressure || hasBloodSugar || hasWeight;
+
+    if (!hasRequiredValue) {
+      errors.push('至少需要一個監測數值（血壓、血糖或體重）');
+    }
+
+    return { valid: errors.length === 0, errors };
+  };
+
+  // 自動填充隨機值
+  const fillRandomVitals = (record: ParsedHealthRecord): ParsedHealthRecord => {
+    const randomVitals = generateRandomVitals();
+    return {
+      ...record,
+      體溫: record.體溫 || randomVitals.體溫,
+      血含氧量: record.血含氧量 || randomVitals.血含氧量,
+      呼吸頻率: record.呼吸頻率 || randomVitals.呼吸頻率
+    };
+  };
+
+  // 刪除記錄
   const deleteRecord = (tempId: string) => {
     if (confirm('確定要刪除這條記錄嗎？')) {
       setAllParsedRecords(prev => prev.filter(record => record.tempId !== tempId));
     }
   };
 
+  // 單行儲存
+  const handleSingleSave = async (tempId: string) => {
+    const record = allParsedRecords.find(r => r.tempId === tempId);
+    if (!record) return;
+
+    // 校驗記錄
+    const validation = validateRecord(record);
+    if (!validation.valid) {
+      alert('儲存失敗：\n' + validation.errors.join('\n'));
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // 自動填充隨機值
+      const recordWithVitals = fillRandomVitals(record);
+
+      const recordData = {
+        院友id: recordWithVitals.院友id!,
+        task_id: recordWithVitals.task_id || null,
+        記錄日期: recordWithVitals.記錄日期,
+        記錄時間: recordWithVitals.記錄時間,
+        記錄類型: recordWithVitals.記錄類型,
+        血壓收縮壓: recordWithVitals.血壓收縮壓 || null,
+        血壓舒張壓: recordWithVitals.血壓舒張壓 || null,
+        脈搏: recordWithVitals.脈搏 || null,
+        體溫: recordWithVitals.體溫,
+        血含氧量: recordWithVitals.血含氧量,
+        呼吸頻率: recordWithVitals.呼吸頻率,
+        血糖值: recordWithVitals.血糖值 || null,
+        體重: recordWithVitals.體重 || null,
+        備註: recordWithVitals.備註 || null,
+        記錄人員: displayName || null,
+      };
+
+      await addHealthRecord(recordData);
+
+      // 從表格中移除已儲存的記錄
+      setAllParsedRecords(prev => prev.filter(r => r.tempId !== tempId));
+
+      alert('儲存成功');
+    } catch (error) {
+      console.error('儲存記錄失敗:', error);
+      alert('儲存失敗');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 批量儲存
   const handleBatchSave = async () => {
     if (allParsedRecords.length === 0) {
       alert('沒有可儲存的記錄');
       return;
     }
 
-    const invalidRecords = allParsedRecords.filter(r => !r.院友id);
+    // 校驗所有記錄
+    const validationResults = allParsedRecords.map(record => ({
+      record,
+      validation: validateRecord(record)
+    }));
+
+    const invalidRecords = validationResults.filter(r => !r.validation.valid);
+    const validRecords = validationResults.filter(r => r.validation.valid);
+
     if (invalidRecords.length > 0) {
-      if (!confirm(`有 ${invalidRecords.length} 筆記錄無法匹配院友，是否跳過這些記錄並儲存其他記錄？`)) {
+      const errorMessages = invalidRecords.slice(0, 5).map(r => {
+        const bed = r.record.床號 || '未知床號';
+        const name = r.record.院友姓名 || '未知姓名';
+        return `${bed} ${name}: ${r.validation.errors.join(', ')}`;
+      }).join('\n');
+
+      const moreCount = invalidRecords.length > 5 ? `\n...還有 ${invalidRecords.length - 5} 筆記錄有錯誤` : '';
+
+      const message = `發現 ${invalidRecords.length} 筆記錄有錯誤：\n\n${errorMessages}${moreCount}\n\n${validRecords.length > 0 ? `是否只儲存 ${validRecords.length} 筆有效記錄？` : '請修正錯誤後再儲存。'}`;
+
+      if (validRecords.length === 0 || !confirm(message)) {
         return;
       }
     }
@@ -403,43 +526,47 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     try {
       let successCount = 0;
       let errorCount = 0;
+      const savedIds: string[] = [];
 
-      for (const record of allParsedRecords) {
-        if (!record.院友id) {
-          errorCount++;
-          continue;
-        }
-
-        const recordData = {
-          院友id: record.院友id,
-          task_id: record.task_id || null,
-          記錄日期: record.記錄日期,
-          記錄時間: record.記錄時間,
-          記錄類型: record.記錄類型,
-          血壓收縮壓: record.血壓收縮壓 || null,
-          血壓舒張壓: record.血壓舒張壓 || null,
-          脈搏: record.脈搏 || null,
-          體溫: record.體溫 || null,
-          血含氧量: record.血含氧量 || null,
-          呼吸頻率: record.呼吸頻率 || null,
-          血糖值: record.血糖值 || null,
-          體重: record.體重 || null,
-          備註: record.備註 || null,
-          記錄人員: displayName || null,
-        };
-
+      for (const { record } of validRecords) {
         try {
+          // 自動填充隨機值
+          const recordWithVitals = fillRandomVitals(record);
+
+          const recordData = {
+            院友id: recordWithVitals.院友id!,
+            task_id: recordWithVitals.task_id || null,
+            記錄日期: recordWithVitals.記錄日期,
+            記錄時間: recordWithVitals.記錄時間,
+            記錄類型: recordWithVitals.記錄類型,
+            血壓收縮壓: recordWithVitals.血壓收縮壓 || null,
+            血壓舒張壓: recordWithVitals.血壓舒張壓 || null,
+            脈搏: recordWithVitals.脈搏 || null,
+            體溫: recordWithVitals.體溫,
+            血含氧量: recordWithVitals.血含氧量,
+            呼吸頻率: recordWithVitals.呼吸頻率,
+            血糖值: recordWithVitals.血糖值 || null,
+            體重: recordWithVitals.體重 || null,
+            備註: recordWithVitals.備註 || null,
+            記錄人員: displayName || null,
+          };
+
           await addHealthRecord(recordData);
           successCount++;
+          savedIds.push(record.tempId);
         } catch (error) {
           console.error('儲存記錄失敗:', error);
           errorCount++;
         }
       }
 
-      alert(`批量儲存完成\n成功：${successCount} 筆\n失敗：${errorCount} 筆`);
+      // 從表格中移除已儲存的記錄
+      setAllParsedRecords(prev => prev.filter(r => !savedIds.includes(r.tempId)));
 
-      if (successCount > 0) {
+      const message = `批量儲存完成\n成功：${successCount} 筆\n失敗：${errorCount} 筆${invalidRecords.length > 0 ? `\n跳過：${invalidRecords.length} 筆` : ''}`;
+      alert(message);
+
+      if (successCount > 0 && allParsedRecords.length === savedIds.length) {
         onClose();
       }
     } catch (error) {
@@ -518,7 +645,9 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
               <li>• 可編輯Prompt以提高識別準確度</li>
               <li>• 識別結果所有欄位都可編輯，支持手動修正</li>
               <li>• 智能填充：輸入床號自動填充院友，輸入姓名自動填充床號</li>
-              <li>• 結果按區域分組顯示，確認無誤後批量儲存</li>
+              <li>• <strong>儲存前校驗</strong>：必須選擇院友、日期、時間、記錄類型，且至少有一個監測數值（血壓/血糖/體重）</li>
+              <li>• <strong>自動補充</strong>：體溫、血氧、呼吸如無數值會自動生成合理範圍的隨機值</li>
+              <li>• 支持<strong>單行儲存</strong>（綠色按鈕）或<strong>批量儲存</strong>，儲存後記錄會從表格移除</li>
             </ul>
           </div>
 
@@ -850,14 +979,25 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                               )}
                             </td>
                             {/* 操作 */}
-                            <td className="px-2 py-2 text-center">
-                              <button
-                                onClick={() => deleteRecord(record.tempId)}
-                                className="text-red-600 hover:text-red-700"
-                                title="刪除此記錄"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                            <td className="px-2 py-2">
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  onClick={() => handleSingleSave(record.tempId)}
+                                  disabled={isSaving}
+                                  className="text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="儲存此記錄"
+                                >
+                                  <Save className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => deleteRecord(record.tempId)}
+                                  disabled={isSaving}
+                                  className="text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="刪除此記錄"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
