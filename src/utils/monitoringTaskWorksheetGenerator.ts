@@ -160,6 +160,41 @@ export const generateMonitoringTaskWorksheet = async (startDate: Date) => {
 };
 
 const generateHTML = (daysData: DayData[]): string => {
+  // 計算每天的總行數以確定是否需要縮放
+  const calculateTotalRows = (dayData: DayData): number => {
+    let totalRows = 0;
+    totalRows += dayData.tasks.早餐.length || 1; // 至少1行（無任務提示）
+    totalRows += dayData.tasks.午餐.length || 1;
+    totalRows += dayData.tasks.晚餐.length || 1;
+    if (dayData.tasks.宵夜.length > 0) {
+      totalRows += dayData.tasks.宵夜.length;
+    }
+    return totalRows;
+  };
+
+  // 計算縮放比例
+  const calculateScale = (daysData: DayData[]): number => {
+    const maxRows = Math.max(
+      calculateTotalRows(daysData[0]),
+      calculateTotalRows(daysData[1]),
+      calculateTotalRows(daysData[2]),
+      calculateTotalRows(daysData[3])
+    );
+
+    // 假設每行約需20px，加上標題和邊距，一頁最多約35行
+    const maxRowsPerPage = 35;
+
+    if (maxRows > maxRowsPerPage) {
+      // 計算需要縮小的比例
+      const scale = maxRowsPerPage / maxRows;
+      return Math.max(scale, 0.65); // 最小縮放到65%
+    }
+
+    return 1; // 不需要縮放
+  };
+
+  const scale = calculateScale(daysData);
+
   const generateTimeSlotTable = (tasks: MonitoringTask[], showSlot: boolean) => {
     if (!showSlot) return '';
 
@@ -168,14 +203,11 @@ const generateHTML = (daysData: DayData[]): string => {
         <table class="task-table">
           <thead>
             <tr>
-              <th style="width: 8%" rowspan="2">床號</th>
-              <th style="width: 10%" rowspan="2">姓名</th>
-              <th style="width: 12%" rowspan="2">任務</th>
-              <th style="width: 10%" rowspan="2">備註</th>
-              <th style="width: 8%" rowspan="2">時間</th>
-              <th style="width: 52%" colspan="4">數值</th>
-            </tr>
-            <tr>
+              <th style="width: 8%">床號</th>
+              <th style="width: 10%">姓名</th>
+              <th style="width: 12%">任務</th>
+              <th style="width: 10%">備註</th>
+              <th style="width: 8%">時間</th>
               <th style="width: 13%">上壓</th>
               <th style="width: 13%">下壓</th>
               <th style="width: 13%">脈搏</th>
@@ -195,14 +227,11 @@ const generateHTML = (daysData: DayData[]): string => {
       <table class="task-table">
         <thead>
           <tr>
-            <th style="width: 8%" rowspan="2">床號</th>
-            <th style="width: 10%" rowspan="2">姓名</th>
-            <th style="width: 12%" rowspan="2">任務</th>
-            <th style="width: 10%" rowspan="2">備註</th>
-            <th style="width: 8%" rowspan="2">時間</th>
-            <th style="width: 52%" colspan="4">數值</th>
-          </tr>
-          <tr>
+            <th style="width: 8%">床號</th>
+            <th style="width: 10%">姓名</th>
+            <th style="width: 12%">任務</th>
+            <th style="width: 10%">備註</th>
+            <th style="width: 8%">時間</th>
             <th style="width: 13%">上壓</th>
             <th style="width: 13%">下壓</th>
             <th style="width: 13%">脈搏</th>
@@ -288,7 +317,7 @@ const generateHTML = (daysData: DayData[]): string => {
 
         body {
           font-family: 'Microsoft JhengHei', 'Arial', sans-serif;
-          font-size: 7pt;
+          font-size: ${7 * scale}pt;
           line-height: 1.2;
         }
 
@@ -307,54 +336,55 @@ const generateHTML = (daysData: DayData[]): string => {
         .page-content {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 10px;
+          gap: ${10 * scale}px;
           flex: 1;
+          transform-origin: top left;
         }
 
         .day-column {
           border: 1px solid #333;
-          padding: 5px;
+          padding: ${5 * scale}px;
           display: flex;
           flex-direction: column;
         }
 
         .day-header {
           text-align: center;
-          padding: 4px;
+          padding: ${2 * scale}px;
           background-color: #f0f0f0;
           border-bottom: 2px solid #333;
-          margin-bottom: 5px;
+          margin-bottom: ${3 * scale}px;
         }
 
         .day-header h2 {
-          font-size: 9pt;
+          font-size: ${7 * scale}pt;
           font-weight: bold;
         }
 
         .time-slot {
-          margin-bottom: 5px;
+          margin-bottom: ${5 * scale}px;
         }
 
         .time-slot h3 {
-          font-size: 8pt;
+          font-size: ${8 * scale}pt;
           font-weight: bold;
-          margin-bottom: 2px;
-          padding: 2px 4px;
+          margin-bottom: ${2 * scale}px;
+          padding: ${2 * scale}px ${4 * scale}px;
           background-color: #e8e8e8;
         }
 
         .task-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 3px;
+          margin-bottom: ${3 * scale}px;
         }
 
         .task-table th,
         .task-table td {
           border: 1px solid #666;
-          padding: 2px 3px;
+          padding: ${2 * scale}px ${3 * scale}px;
           text-align: center;
-          font-size: 7pt;
+          font-size: ${7 * scale}pt;
         }
 
         .task-table th {
@@ -363,7 +393,7 @@ const generateHTML = (daysData: DayData[]): string => {
         }
 
         .task-table td {
-          min-height: 20px;
+          min-height: ${20 * scale}px;
         }
 
         .value-cell {
