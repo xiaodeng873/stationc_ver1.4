@@ -833,12 +833,6 @@ const Dashboard: React.FC = () => {
                                   <Repeat className="h-3 w-3" />
                                   <span>{formatFrequencyDescription(task)}</span>
                                 </div>
-                                {task.specific_times && task.specific_times.length > 0 && (
-                                  <div className="flex items-center space-x-1 text-gray-500">
-                                    <Clock className="h-3 w-3" />
-                                    <span>{task.specific_times[0]}</span>
-                                  </div>
-                                )}
                               </div>
                             </div>
                             <span className={`status-badge flex-shrink-0 ${

@@ -309,6 +309,18 @@ const generateHTML = (daysData: DayData[]): string => {
           page-break-after: auto;
         }
 
+        .page-header {
+          text-align: right;
+          padding: ${8 * scale}px ${10 * scale}px;
+          margin-bottom: ${5 * scale}px;
+        }
+
+        .page-header h1 {
+          font-size: 11pt;
+          font-weight: bold;
+          color: #333;
+        }
+
         .page-content {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -333,7 +345,7 @@ const generateHTML = (daysData: DayData[]): string => {
         }
 
         .day-header h2 {
-          font-size: 9pt;
+          font-size: 6.75pt;
           font-weight: bold;
         }
 
@@ -390,6 +402,9 @@ const generateHTML = (daysData: DayData[]): string => {
     </head>
     <body>
       <div class="page">
+        <div class="page-header">
+          <h1>監測任務工作紙</h1>
+        </div>
         <div class="page-content">
           ${generateDayColumn(daysData[0])}
           ${generateDayColumn(daysData[1])}
@@ -397,6 +412,9 @@ const generateHTML = (daysData: DayData[]): string => {
       </div>
 
       <div class="page">
+        <div class="page-header">
+          <h1>監測任務工作紙</h1>
+        </div>
         <div class="page-content">
           ${generateDayColumn(daysData[2])}
           ${generateDayColumn(daysData[3])}
@@ -408,33 +426,19 @@ const generateHTML = (daysData: DayData[]): string => {
 };
 
 const openPrintWindow = (html: string) => {
-  // 創建隱藏的iframe來打印
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = 'none';
+  // 直接在新窗口中打開，避免iframe的問題
+  const printWindow = window.open('', '_blank', 'width=1200,height=800');
 
-  document.body.appendChild(iframe);
-
-  const iframeDoc = iframe.contentWindow?.document;
-  if (iframeDoc) {
-    iframeDoc.open();
-    iframeDoc.write(html);
-    iframeDoc.close();
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
 
     // 等待內容載入後打開打印對話框
-    iframe.contentWindow?.addEventListener('load', () => {
+    printWindow.addEventListener('load', () => {
       setTimeout(() => {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-
-        // 打印後移除iframe
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-        }, 1000);
+        printWindow.focus();
+        printWindow.print();
       }, 500);
     });
   }
