@@ -265,6 +265,103 @@ async function logOCRResult(
   }
 }
 
+export async function processImageWithGeminiVision(
+  file: File,
+  prompt: string,
+  forceRefresh: boolean = false,
+  classificationPrompt?: string
+): Promise<OCRResult> {
+  try {
+    if (file.size > MAX_IMAGE_SIZE) {
+      return {
+        success: false,
+        error: `圖片檔案過大，請選擇小於 ${MAX_IMAGE_SIZE / 1024 / 1024}MB 的圖片`
+      };
+    }
+
+    const imageBase64 = await compressImage(file);
+    const imageHash = await calculateImageHash(imageBase64);
+
+    if (!forceRefresh) {
+      const { data: cachedResult } = await supabase
+        .from('ocr_recognition_logs')
+        .select('*')
+        .eq('image_hash', imageHash)
+        .eq('success', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cachedResult && cachedResult.extracted_data) {
+        console.log('使用快取的識別結果');
+        return {
+          success: true,
+          text: undefined,
+          extractedData: cachedResult.extracted_data,
+          confidenceScores: cachedResult.confidence_scores,
+          classification: cachedResult.classification,
+          processingTimeMs: 0
+        };
+      }
+    } else {
+      console.log('強制重新識別，跳過快取');
+    }
+
+    const startTime = Date.now();
+
+    const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+
+    const { data, error } = await supabase.functions.invoke('gemini-vision-extract', {
+      body: {
+        imageBase64,
+        mimeType,
+        prompt,
+        classificationPrompt
+      }
+    });
+
+    if (error) {
+      console.error('Gemini Vision extract error:', error);
+      const failResult: OCRResult = {
+        success: false,
+        error: `AI視覺識別失敗: ${error.message}`,
+        processingTimeMs: Date.now() - startTime
+      };
+      await logOCRResult(imageHash, failResult, '', prompt);
+      return failResult;
+    }
+
+    if (!data.success) {
+      const failResult: OCRResult = {
+        success: false,
+        error: data.error || 'AI視覺識別失敗',
+        processingTimeMs: Date.now() - startTime
+      };
+      await logOCRResult(imageHash, failResult, '', prompt);
+      return failResult;
+    }
+
+    const finalResult: OCRResult = {
+      success: true,
+      text: undefined,
+      extractedData: data.extractedData,
+      confidenceScores: data.confidenceScores,
+      classification: data.classification,
+      processingTimeMs: Date.now() - startTime
+    };
+
+    await logOCRResult(imageHash, finalResult, '', prompt);
+
+    return finalResult;
+  } catch (error: any) {
+    console.error('Gemini Vision process error:', error);
+    return {
+      success: false,
+      error: error.message || '處理過程發生錯誤'
+    };
+  }
+}
+
 export function validateImageFile(file: File): { valid: boolean; error?: string } {
   const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 

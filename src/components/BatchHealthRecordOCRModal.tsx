@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Upload, Camera, Loader, CheckCircle, AlertTriangle, Save, RotateCcw, Trash2, Edit2, Plus } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
-import { processImageAndExtract, validateImageFile } from '../utils/ocrProcessor';
+import { processImageWithGeminiVision, validateImageFile } from '../utils/ocrProcessor';
 import { supabase } from '../lib/supabase';
 import PatientAutocomplete from './PatientAutocomplete';
 
@@ -18,8 +18,6 @@ interface ExtractedRecord {
   error?: string;
   rawData?: any;
   parsedRecords?: ParsedHealthRecord[];
-  text?: string;
-  showRawText?: boolean;
 }
 
 interface ParsedHealthRecord {
@@ -175,12 +173,6 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     setImages(prev => prev.filter(img => img.id !== id));
   };
 
-  const toggleRawText = (id: string) => {
-    setImages(prev => prev.map(img =>
-      img.id === id ? { ...img, showRawText: !img.showRawText } : img
-    ));
-  };
-
   const parseTimeMarker = (timeStr: string | null | undefined): string => {
     // 空值保護：如果沒有時間，返回預設值 08:00
     if (!timeStr) return '08:00';
@@ -301,7 +293,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
       ));
 
       try {
-        const result = await processImageAndExtract(image.imageFile, prompt, undefined, skipCache);
+        const result = await processImageWithGeminiVision(image.imageFile, prompt, skipCache);
 
         if (result.success && result.extractedData) {
           const { 記錄日期, records } = result.extractedData;
@@ -407,7 +399,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
 
           setImages(prev => prev.map(img =>
             img.id === image.id
-              ? { ...img, status: 'success', rawData: result.extractedData, parsedRecords, text: result.text, showRawText: false }
+              ? { ...img, status: 'success', rawData: result.extractedData, parsedRecords }
               : img
           ));
         } else {
@@ -778,31 +770,12 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
                       </button>
                     </div>
 
-                    {/* 原始文字區域 */}
-                    {img.status === 'success' && img.text && (
+                    {/* 識別結果區域 */}
+                    {img.status === 'success' && img.parsedRecords && img.parsedRecords.length > 0 && (
                       <div className="p-3 border-t bg-gray-50">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-gray-700">識別結果</span>
-                          <button
-                            type="button"
-                            onClick={() => toggleRawText(img.id)}
-                            className="text-xs text-blue-600 hover:text-blue-700"
-                          >
-                            {img.showRawText ? '隱藏原始文字' : '顯示原始文字'}
-                          </button>
+                        <div className="text-xs text-gray-600">
+                          已識別 {img.parsedRecords.length} 筆記錄
                         </div>
-                        {img.showRawText && (
-                          <div className="p-2 bg-white rounded border border-gray-200 max-h-32 overflow-y-auto">
-                            <p className="text-xs font-mono text-gray-600 whitespace-pre-wrap break-words">
-                              {img.text}
-                            </p>
-                          </div>
-                        )}
-                        {img.parsedRecords && img.parsedRecords.length > 0 && (
-                          <div className="mt-2 text-xs text-gray-600">
-                            已識別 {img.parsedRecords.length} 筆記錄
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
