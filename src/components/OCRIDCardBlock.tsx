@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Camera, ChevronDown, ChevronUp, Upload, X, Loader, FileText, RefreshCw, CreditCard } from 'lucide-react';
-import { processImageAndExtract, validateImageFile } from '../utils/ocrProcessor';
+import { processImageWithGeminiVision, validateImageFile } from '../utils/ocrProcessor';
 import { getDefaultPrompt } from '../utils/promptManager';
 
 interface OCRIDCardBlockProps {
@@ -87,12 +87,9 @@ const OCRIDCardBlock: React.FC<OCRIDCardBlockProps> = ({ onOCRComplete, onOCRErr
       }
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      setProcessingStage('正在識別文字...');
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      setProcessingStage('正在擷取資料...');
+      setProcessingStage('正在使用 Gemini Vision 視覺識別...');
       const prompt = await getDefaultPrompt();
-      const result = await processImageAndExtract(selectedFile, prompt, undefined, skipCache);
+      const result = await processImageWithGeminiVision(selectedFile, prompt, skipCache, undefined);
 
       if (result.success && result.extractedData) {
         setIsProcessing(false);
