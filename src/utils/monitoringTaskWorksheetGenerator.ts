@@ -90,13 +90,21 @@ const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
 };
 
 export const generateMonitoringTaskWorksheet = async (startDate: Date) => {
+  console.log('開始生成工作紙，起始日期:', startDate);
   const daysData: DayData[] = [];
 
   for (let i = 0; i < 4; i++) {
     const targetDate = new Date(startDate);
     targetDate.setDate(startDate.getDate() + i);
 
+    console.log(`正在獲取第 ${i + 1} 天的任務:`, targetDate);
     const tasks = await fetchTasksForDate(targetDate);
+    console.log(`第 ${i + 1} 天任務數量:`, {
+      早餐: tasks.早餐.length,
+      午餐: tasks.午餐.length,
+      晚餐: tasks.晚餐.length,
+      宵夜: tasks.宵夜.length
+    });
 
     daysData.push({
       date: targetDate.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' }),
@@ -105,13 +113,38 @@ export const generateMonitoringTaskWorksheet = async (startDate: Date) => {
     });
   }
 
+  console.log('生成 HTML...');
   const html = generateHTML(daysData);
+  console.log('HTML 長度:', html.length);
+  console.log('開啟打印窗口...');
   openPrintWindow(html);
 };
 
 const generateHTML = (daysData: DayData[]): string => {
   const generateTimeSlotTable = (tasks: MonitoringTask[], showSlot: boolean) => {
-    if (!showSlot || tasks.length === 0) return '';
+    if (!showSlot) return '';
+
+    if (tasks.length === 0) {
+      return `
+        <table class="task-table">
+          <thead>
+            <tr>
+              <th style="width: 8%">床號</th>
+              <th style="width: 10%">姓名</th>
+              <th style="width: 15%">任務</th>
+              <th style="width: 12%">備註</th>
+              <th style="width: 10%">時間</th>
+              <th style="width: 45%">數值</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="6" style="text-align: center; color: #999; padding: 15px;">此時段無任務</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+    }
 
     return `
       <table class="task-table">
@@ -319,13 +352,13 @@ const generateHTML = (daysData: DayData[]): string => {
 const openPrintWindow = (html: string) => {
   const printWindow = window.open('', '_blank');
   if (printWindow) {
+    printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
 
-    printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print();
-      }, 250);
-    };
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 500);
   }
 };
