@@ -426,19 +426,24 @@ const generateHTML = (daysData: DayData[]): string => {
 };
 
 const openPrintWindow = (html: string) => {
-  // 直接在新窗口中打開，避免iframe的問題
-  const printWindow = window.open('', '_blank', 'width=1200,height=800');
+  // 創建 Blob URL 避免 about:blank 問題
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+
+  // 在新窗口中打開 Blob URL
+  const printWindow = window.open(url, '_blank', 'width=1200,height=800');
 
   if (printWindow) {
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-
-    // 等待內容載入後打開打印對話框
+    // 等待窗口載入完成後再打印
     printWindow.addEventListener('load', () => {
       setTimeout(() => {
         printWindow.focus();
         printWindow.print();
+
+        // 打印後清理 Blob URL（延遲清理以確保打印完成）
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 1000);
       }, 500);
     });
   }
