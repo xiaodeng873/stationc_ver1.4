@@ -6,21 +6,39 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const GOOGLE_GEMINI_API_KEY = "AIzaSyDz_Rcu5Vm_D__-bkIKAvfGVUOlhcy855o";
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: corsHeaders,
     });
   }
 
   try {
+    // 安全地獲取 API Key
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) {
+      console.error("未設定 GEMINI_API_KEY 環境變量");
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "伺服器配置錯誤：未設定 API Key",
+          message: "請在 Supabase Dashboard 的 Edge Functions Secrets 中設定 GEMINI_API_KEY"
+        }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
     console.log("開始檢測可用的 Gemini 模型...");
 
     // 1. 列出所有可用的模型
-    const listModelsUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${GOOGLE_GEMINI_API_KEY}`;
+    const listModelsUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
 
     const listResponse = await fetch(listModelsUrl, {
       method: "GET",
@@ -59,7 +77,7 @@ Deno.serve(async (req: Request) => {
     for (const modelName of modelsToTest) {
       console.log(`測試模型: ${modelName}...`);
 
-      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GOOGLE_GEMINI_API_KEY}`;
+      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
       const testPayload = {
         contents: [
