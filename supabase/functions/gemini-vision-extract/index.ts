@@ -6,6 +6,31 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+// 帶有重試機制的 fetch 函數
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    const response = await fetch(url, options);
+
+    // 如果成功，或者不是 429 錯誤，直接回傳
+    if (response.ok || response.status !== 429) {
+      return response;
+    }
+
+    // 如果是 429，打印日誌並等待
+    console.warn(`遇到 429 錯誤，正在進行第 ${i + 1} 次重試...`);
+
+    // 如果還有重試機會，就等待後再試
+    if (i < retries - 1) {
+      const waitTime = backoff * (i + 1); // 指數退避：1秒, 2秒, 3秒...
+      console.log(`等待 ${waitTime}ms 後重試...`);
+      await new Promise(r => setTimeout(r, waitTime));
+    }
+  }
+
+  // 所有重試都失敗了，回傳最後一次的 response
+  throw new Error("重試次數過多，請求失敗 (429 Rate Limit)");
+}
+
 interface GeminiVisionRequest {
   imageBase64: string;
   mimeType: string;
@@ -96,7 +121,9 @@ Deno.serve(async (req: Request) => {
       },
     };
 
-    const geminiResponse = await fetch(geminiApiUrl, {
+    // 使用重試機制發送第一次請求（提取資料）
+    console.log("正在發送 OCR 請求...");
+    const geminiResponse = await fetchWithRetry(geminiApiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -165,6 +192,12 @@ Deno.serve(async (req: Request) => {
 
         if (classificationPrompt) {
           try {
+            console.log("⚠️ 警告：即將發送第二次分類請求，請確保不會觸發速率限制");
+
+            // 在兩次請求之間加入 1 秒延遲，避免觸發速率限制
+            console.log("等待 1 秒後發送分類請求...");
+            await new Promise(r => setTimeout(r, 1000));
+
             const classificationFullPrompt = `${classificationPrompt}\n\n已提取的結構化資料：\n${JSON.stringify(extractedData, null, 2)}\n\n請根據以上資訊判斷文件類型，返回 JSON 格式：\n{\n  \"type\": \"vaccination | followup | diagnosis | unknown\",\n  \"confidence\": 0-100的數字,\n  \"reasoning\": \"簡短說明判斷理由\"\n}`;
 
             const classificationPayload = {
@@ -193,7 +226,9 @@ Deno.serve(async (req: Request) => {
 
             const classificationApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
 
-            const classificationResponse = await fetch(classificationApiUrl, {
+            // 使用重試機制發送第二次請求（分類文件）
+            console.log("正在發送文件分類請求...");
+            const classificationResponse = await fetchWithRetry(classificationApiUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
