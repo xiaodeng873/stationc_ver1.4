@@ -52,7 +52,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_GEMINI_API_KEY}`;
+    // 使用 Gemini 1.5 Flash 穩定版模型
+    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${GOOGLE_GEMINI_API_KEY}`;
 
     const fullPrompt = `${prompt}\n\n以下是OCR識別的文字：\n${ocrText}\n\n請直接返回JSON格式，不要有任何其他文字說明。`;
 
