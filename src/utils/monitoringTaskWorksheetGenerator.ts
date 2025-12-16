@@ -244,7 +244,8 @@ const generateHTML = (daysData: DayData[]): string => {
     return `
       <div class="day-column">
         <div class="day-header">
-          <h2>${day.date}（${day.weekday}）</h2>
+          <span class="date-text">${day.date}（${day.weekday}）</span>
+          <span class="title-text">監測任務工作紙</span>
         </div>
 
         <div class="time-slot">
@@ -310,15 +311,7 @@ const generateHTML = (daysData: DayData[]): string => {
         }
 
         .page-header {
-          text-align: right;
-          padding: ${8 * scale}px ${10 * scale}px;
-          margin-bottom: ${5 * scale}px;
-        }
-
-        .page-header h1 {
-          font-size: 11pt;
-          font-weight: bold;
-          color: #333;
+          display: none;
         }
 
         .page-content {
@@ -337,15 +330,22 @@ const generateHTML = (daysData: DayData[]): string => {
         }
 
         .day-header {
-          text-align: left;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
           padding: ${4 * scale}px;
           background-color: #f0f0f0;
           border-bottom: 2px solid #333;
           margin-bottom: ${5 * scale}px;
         }
 
-        .day-header h2 {
-          font-size: 6.75pt;
+        .day-header .date-text {
+          font-size: 8pt;
+          font-weight: bold;
+        }
+
+        .day-header .title-text {
+          font-size: 8pt;
           font-weight: bold;
         }
 
@@ -402,9 +402,6 @@ const generateHTML = (daysData: DayData[]): string => {
     </head>
     <body>
       <div class="page">
-        <div class="page-header">
-          <h1>監測任務工作紙</h1>
-        </div>
         <div class="page-content">
           ${generateDayColumn(daysData[0])}
           ${generateDayColumn(daysData[1])}
@@ -412,9 +409,6 @@ const generateHTML = (daysData: DayData[]): string => {
       </div>
 
       <div class="page">
-        <div class="page-header">
-          <h1>監測任務工作紙</h1>
-        </div>
         <div class="page-content">
           ${generateDayColumn(daysData[2])}
           ${generateDayColumn(daysData[3])}
@@ -426,23 +420,31 @@ const generateHTML = (daysData: DayData[]): string => {
 };
 
 const openPrintWindow = (html: string) => {
-  // 創建 Blob URL 避免 about:blank 問題
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
+  // 創建一個隱藏的 iframe 來處理打印
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
 
-  // 在新窗口中打開 Blob URL
-  const printWindow = window.open(url, '_blank', 'width=1200,height=800');
+  const iframeDoc = iframe.contentWindow?.document;
+  if (iframeDoc) {
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
 
-  if (printWindow) {
-    // 等待窗口載入完成後再打印
-    printWindow.addEventListener('load', () => {
+    // 等待內容載入後打開打印對話框
+    iframe.contentWindow?.addEventListener('load', () => {
       setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
 
-        // 打印後清理 Blob URL（延遲清理以確保打印完成）
+        // 打印完成後移除 iframe（延遲以確保打印對話框已關閉）
         setTimeout(() => {
-          URL.revokeObjectURL(url);
+          document.body.removeChild(iframe);
         }, 1000);
       }, 500);
     });
