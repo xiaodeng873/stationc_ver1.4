@@ -48,7 +48,7 @@ const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
     .from('patient_health_tasks')
     .select(`
       *,
-      院友主表!inner(床號, 中文姓氏, 中文名字)
+      院友主表!inner(床號, 中文姓名)
     `)
     .gte('next_due_at', startOfDay)
     .lte('next_due_at', endOfDay)
@@ -69,20 +69,37 @@ const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
 
   tasks?.forEach((task: any) => {
     const dueDate = new Date(task.next_due_at);
-    const time = dueDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const timeSlot = getTimeSlot(time);
+    const taskType = task.health_record_type === '生命表徵' ? '生命表徵' :
+                     task.health_record_type === '血糖控制' ? '血糖控制' : '體重控制';
 
-    if (timeSlot) {
-      const taskType = task.health_record_type === '生命表徵' ? '生命表徵' :
-                       task.health_record_type === '血糖控制' ? '血糖控制' : '體重控制';
+    const specificTimes = task.specific_times || [];
 
-      timeSlotTasks[timeSlot].push({
-        床號: task.院友主表.床號,
-        姓名: `${task.院友主表.中文姓氏}${task.院友主表.中文名字}`,
-        任務類型: taskType,
-        備註: task.notes || '',
-        時間: time
+    if (specificTimes.length > 0) {
+      specificTimes.forEach((timeStr: string) => {
+        const timeSlot = getTimeSlot(timeStr);
+        if (timeSlot) {
+          timeSlotTasks[timeSlot].push({
+            床號: task.院友主表.床號,
+            姓名: task.院友主表.中文姓名,
+            任務類型: taskType,
+            備註: task.notes || '',
+            時間: timeStr
+          });
+        }
       });
+    } else {
+      const time = dueDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const timeSlot = getTimeSlot(time);
+
+      if (timeSlot) {
+        timeSlotTasks[timeSlot].push({
+          床號: task.院友主表.床號,
+          姓名: task.院友主表.中文姓名,
+          任務類型: taskType,
+          備註: task.notes || '',
+          時間: time
+        });
+      }
     }
   });
 
@@ -350,15 +367,24 @@ const generateHTML = (daysData: DayData[]): string => {
 };
 
 const openPrintWindow = (html: string) => {
-  const printWindow = window.open('', '_blank');
-  if (printWindow) {
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
 
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 500);
+  const printWindow = window.open(url, '_blank');
+
+  if (printWindow) {
+    printWindow.addEventListener('load', () => {
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+
+        printWindow.addEventListener('afterprint', () => {
+          URL.revokeObjectURL(url);
+        });
+      }, 500);
+    });
+  } else {
+    alert('無法開啟打印視窗，請檢查瀏覽器的彈出視窗設定');
+    URL.revokeObjectURL(url);
   }
 };
