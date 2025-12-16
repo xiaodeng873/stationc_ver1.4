@@ -279,6 +279,9 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
   };
 
   const handleStartOCR = async (skipCache: boolean = false) => {
+    // 防止重複執行（React Strict Mode 或連點防護）
+    if (isProcessing) return;
+
     if (images.length === 0) {
       alert('請先上傳圖片');
       return;

@@ -168,6 +168,9 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
   };
 
   const handleStartOCR = async (skipCache: boolean = false) => {
+    // 防止重複執行（React Strict Mode 或連點防護）
+    if (isProcessing) return;
+
     if (!selectedFile) {
       onOCRError('請先選擇圖片');
       return;
