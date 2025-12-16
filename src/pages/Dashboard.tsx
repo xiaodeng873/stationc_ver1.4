@@ -712,7 +712,7 @@ const Dashboard: React.FC = () => {
                 className="btn-primary flex items-center space-x-2 text-sm"
               >
                 <Camera className="h-4 w-4" />
-                <span>批量OCR上傳</span>
+                <span>批量識別上傳</span>
               </button>
               <button
                 onClick={() => setShowWorksheetModal(true)}
