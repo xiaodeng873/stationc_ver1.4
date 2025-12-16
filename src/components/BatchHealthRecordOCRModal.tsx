@@ -233,10 +233,14 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
     // 空值保護：如果兩者都沒有，無法匹配
     if (!床號 && !院友姓名) return null;
 
+    // 只匹配在住院友
     return patients.find(p =>
-      (床號 && p.床號 === 床號) ||
-      (院友姓名 && p.中文姓名 === 院友姓名) ||
-      (p.中文姓名 && 院友姓名 && p.中文姓名.includes(院友姓名))
+      p.在住狀態 === '在住' &&
+      (
+        (床號 && p.床號 === 床號) ||
+        (院友姓名 && p.中文姓名 === 院友姓名) ||
+        (p.中文姓名 && 院友姓名 && p.中文姓名.includes(院友姓名))
+      )
     );
   };
 
