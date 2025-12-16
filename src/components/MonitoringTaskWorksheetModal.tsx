@@ -15,6 +15,8 @@ const MonitoringTaskWorksheetModal: React.FC<MonitoringTaskWorksheetModalProps> 
 
   const [startDate, setStartDate] = useState(getHongKongDate());
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const formatDateRange = () => {
     const start = new Date(startDate);
@@ -44,12 +46,16 @@ const MonitoringTaskWorksheetModal: React.FC<MonitoringTaskWorksheetModalProps> 
 
   const handleExport = async () => {
     setIsGenerating(true);
+    setError(null);
+    setSuccess(false);
     try {
       const date = new Date(startDate);
       await generateMonitoringTaskWorksheet(date);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error('生成工作紙失敗:', error);
-      alert('生成工作紙失敗，請重試');
+      setError('生成工作紙失敗，請檢查網絡連線後重試');
     } finally {
       setIsGenerating(false);
     }
@@ -117,6 +123,18 @@ const MonitoringTaskWorksheetModal: React.FC<MonitoringTaskWorksheetModalProps> 
               <li>• 可選擇打印或另存為 PDF</li>
             </ul>
           </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-red-800">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-green-800">工作紙已成功生成！打印視窗已開啟</p>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">

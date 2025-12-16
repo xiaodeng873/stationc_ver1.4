@@ -106,10 +106,21 @@ const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
     }
   });
 
+  const getNotePriority = (note: string): number => {
+    if (note.includes('注射前')) return 1;
+    if (note.includes('服藥前')) return 2;
+    if (note.includes('特別關顧')) return 3;
+    if (note.includes('定期')) return 4;
+    return 5;
+  };
+
   Object.keys(timeSlotTasks).forEach(slot => {
     const tasks = timeSlotTasks[slot as keyof TimeSlotTasks];
     tasks.sort((a, b) => {
       if (a.時間 !== b.時間) return a.時間.localeCompare(b.時間);
+      const priorityA = getNotePriority(a.備註);
+      const priorityB = getNotePriority(b.備註);
+      if (priorityA !== priorityB) return priorityA - priorityB;
       return a.床號.localeCompare(b.床號);
     });
   });
@@ -157,17 +168,23 @@ const generateHTML = (daysData: DayData[]): string => {
         <table class="task-table">
           <thead>
             <tr>
-              <th style="width: 8%">床號</th>
-              <th style="width: 10%">姓名</th>
-              <th style="width: 12%">任務</th>
-              <th style="width: 10%">備註</th>
-              <th style="width: 8%">時間</th>
-              <th style="width: 52%">數值</th>
+              <th style="width: 8%" rowspan="2">床號</th>
+              <th style="width: 10%" rowspan="2">姓名</th>
+              <th style="width: 12%" rowspan="2">任務</th>
+              <th style="width: 10%" rowspan="2">備註</th>
+              <th style="width: 8%" rowspan="2">時間</th>
+              <th style="width: 52%" colspan="4">數值</th>
+            </tr>
+            <tr>
+              <th style="width: 13%">上壓</th>
+              <th style="width: 13%">下壓</th>
+              <th style="width: 13%">脈搏</th>
+              <th style="width: 13%">血糖</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="6" style="text-align: center; color: #999; padding: 8px;">此時段無任務</td>
+              <td colspan="9" style="text-align: center; color: #999; padding: 8px;">此時段無任務</td>
             </tr>
           </tbody>
         </table>
@@ -178,25 +195,39 @@ const generateHTML = (daysData: DayData[]): string => {
       <table class="task-table">
         <thead>
           <tr>
-            <th style="width: 8%">床號</th>
-            <th style="width: 10%">姓名</th>
-            <th style="width: 12%">任務</th>
-            <th style="width: 10%">備註</th>
-            <th style="width: 8%">時間</th>
-            <th style="width: 52%">數值</th>
+            <th style="width: 8%" rowspan="2">床號</th>
+            <th style="width: 10%" rowspan="2">姓名</th>
+            <th style="width: 12%" rowspan="2">任務</th>
+            <th style="width: 10%" rowspan="2">備註</th>
+            <th style="width: 8%" rowspan="2">時間</th>
+            <th style="width: 52%" colspan="4">數值</th>
+          </tr>
+          <tr>
+            <th style="width: 13%">上壓</th>
+            <th style="width: 13%">下壓</th>
+            <th style="width: 13%">脈搏</th>
+            <th style="width: 13%">血糖</th>
           </tr>
         </thead>
         <tbody>
-          ${tasks.map(task => `
-            <tr>
-              <td>${task.床號}</td>
-              <td>${task.姓名}</td>
-              <td>${task.任務類型}</td>
-              <td>${task.備註}</td>
-              <td>${task.時間}</td>
-              <td class="value-cell"></td>
-            </tr>
-          `).join('')}
+          ${tasks.map(task => {
+            const isVitalSigns = task.任務類型 === '生命表徵';
+            const isBloodSugar = task.任務類型 === '血糖控制';
+
+            return `
+              <tr>
+                <td>${task.床號}</td>
+                <td>${task.姓名}</td>
+                <td>${task.任務類型}</td>
+                <td>${task.備註}</td>
+                <td>${task.時間}</td>
+                <td class="${isBloodSugar ? 'disabled-cell' : 'value-cell'}"></td>
+                <td class="${isBloodSugar ? 'disabled-cell' : 'value-cell'}"></td>
+                <td class="${isBloodSugar ? 'disabled-cell' : 'value-cell'}"></td>
+                <td class="${isVitalSigns ? 'disabled-cell' : 'value-cell'}"></td>
+              </tr>
+            `;
+          }).join('')}
         </tbody>
       </table>
     `;
@@ -339,6 +370,10 @@ const generateHTML = (daysData: DayData[]): string => {
           background-color: #f9f9f9;
         }
 
+        .disabled-cell {
+          background-color: #d0d0d0;
+        }
+
         @media print {
           body {
             -webkit-print-color-adjust: exact;
@@ -370,21 +405,30 @@ const openPrintWindow = (html: string) => {
   const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
 
-  const printWindow = window.open(url, '_blank');
+  try {
+    const printWindow = window.open(url, '_blank');
 
-  if (printWindow) {
-    printWindow.addEventListener('load', () => {
+    if (printWindow) {
+      printWindow.addEventListener('load', () => {
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+
+          printWindow.addEventListener('afterprint', () => {
+            URL.revokeObjectURL(url);
+          });
+        }, 500);
+      });
+
       setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-
-        printWindow.addEventListener('afterprint', () => {
-          URL.revokeObjectURL(url);
-        });
-      }, 500);
-    });
-  } else {
-    alert('無法開啟打印視窗，請檢查瀏覽器的彈出視窗設定');
+        URL.revokeObjectURL(url);
+      }, 5000);
+    } else {
+      URL.revokeObjectURL(url);
+      console.warn('打印視窗被瀏覽器阻擋，請檢查彈出視窗設定');
+    }
+  } catch (error) {
     URL.revokeObjectURL(url);
+    console.error('開啟打印視窗失敗:', error);
   }
 };
