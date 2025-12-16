@@ -113,16 +113,7 @@ const MonitoringTaskWorksheetModal: React.FC<MonitoringTaskWorksheetModalProps> 
             <p className="text-sm text-gray-700 font-mono">{getFileName()}</p>
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <p className="text-sm font-medium text-gray-900 mb-2">說明：</p>
-            <ul className="space-y-1 text-sm text-gray-700">
-              <li>• 僅包含當天應做的監測任務</li>
-              <li>• 不包括逾期應做未做的任務</li>
-              <li>• 宵夜時段只在有任務時顯示</li>
-              <li>• 生成後會開啟打印預覽窗口</li>
-              <li>• 可選擇打印或另存為 PDF</li>
-            </ul>
-          </div>
+      
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
