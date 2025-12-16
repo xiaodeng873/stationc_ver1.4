@@ -709,10 +709,7 @@ const BatchHealthRecordOCRModal: React.FC<BatchHealthRecordOCRModalProps> = ({ o
               <li>• <strong>院友匹配</strong>：根據床號或姓名自動匹配，可隨時手動調整選擇的院友</li>
               <li>• <strong>編輯調整</strong>：所有欄位都可編輯，支持手動修正日期、時間、類型、數值等</li>
               <li>• <strong>新增記錄</strong>：點擊「新增空白列」按鈕可手動新增記錄</li>
-              <li>• <strong>儲存方式</strong>：單行儲存（綠色按鈕）或批量儲存，儲存後記錄會從表格移除</li>
-              <li>• <strong>儲存校驗</strong>：必須選擇院友、日期、時間、記錄類型，且至少有一個監測數值（血壓/血糖/體重）</li>
-              <li>• <strong>自動補充</strong>：生命表徵類型會自動生成體溫(36.0-36.9°C)、血氧(95-99%)、呼吸(14-22次/分)</li>
-              <li>• <strong>時間標記</strong>：7A→07:00, 12N→12:00, 4P→16:00，未識別時預設08:00</li>
+             
             </ul>
           </div>
 
