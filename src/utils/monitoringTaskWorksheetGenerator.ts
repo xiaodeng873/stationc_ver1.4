@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { isTaskScheduledForDate } from './taskScheduler';
 
 interface MonitoringTask {
   床號: string;
@@ -40,18 +41,12 @@ const getTimeSlot = (time: string): '早餐' | '午餐' | '晚餐' | '宵夜' | 
 };
 
 const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
-  const dateStr = targetDate.toISOString().split('T')[0];
-  const startOfDay = `${dateStr}T00:00:00`;
-  const endOfDay = `${dateStr}T23:59:59`;
-
-  const { data: tasks, error } = await supabase
+  const { data: allTasks, error } = await supabase
     .from('patient_health_tasks')
     .select(`
       *,
-      院友主表!inner(床號, 中文姓名)
+      院友主表!inner(床號, 中文姓名, 在住狀態)
     `)
-    .gte('next_due_at', startOfDay)
-    .lte('next_due_at', endOfDay)
     .in('health_record_type', ['生命表徵', '血糖控制', '體重控制'])
     .order('next_due_at', { ascending: true });
 
@@ -67,8 +62,15 @@ const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
     宵夜: []
   };
 
-  tasks?.forEach((task: any) => {
-    const dueDate = new Date(task.next_due_at);
+  const targetDateCopy = new Date(targetDate);
+  targetDateCopy.setHours(0, 0, 0, 0);
+
+  allTasks?.forEach((task: any) => {
+    if (task.院友主表.在住狀態 !== '在住') return;
+
+    const isScheduled = isTaskScheduledForDate(task, targetDateCopy);
+    if (!isScheduled) return;
+
     const taskType = task.health_record_type === '生命表徵' ? '生命表徵' :
                      task.health_record_type === '血糖控制' ? '血糖控制' : '體重控制';
 
@@ -88,6 +90,7 @@ const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
         }
       });
     } else {
+      const dueDate = new Date(task.next_due_at);
       const time = dueDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
       const timeSlot = getTimeSlot(time);
 
@@ -101,6 +104,14 @@ const fetchTasksForDate = async (targetDate: Date): Promise<TimeSlotTasks> => {
         });
       }
     }
+  });
+
+  Object.keys(timeSlotTasks).forEach(slot => {
+    const tasks = timeSlotTasks[slot as keyof TimeSlotTasks];
+    tasks.sort((a, b) => {
+      if (a.時間 !== b.時間) return a.時間.localeCompare(b.時間);
+      return a.床號.localeCompare(b.床號);
+    });
   });
 
   return timeSlotTasks;
@@ -148,15 +159,15 @@ const generateHTML = (daysData: DayData[]): string => {
             <tr>
               <th style="width: 8%">床號</th>
               <th style="width: 10%">姓名</th>
-              <th style="width: 15%">任務</th>
-              <th style="width: 12%">備註</th>
-              <th style="width: 10%">時間</th>
-              <th style="width: 45%">數值</th>
+              <th style="width: 12%">任務</th>
+              <th style="width: 10%">備註</th>
+              <th style="width: 8%">時間</th>
+              <th style="width: 52%">數值</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="6" style="text-align: center; color: #999; padding: 15px;">此時段無任務</td>
+              <td colspan="6" style="text-align: center; color: #999; padding: 8px;">此時段無任務</td>
             </tr>
           </tbody>
         </table>
@@ -169,10 +180,10 @@ const generateHTML = (daysData: DayData[]): string => {
           <tr>
             <th style="width: 8%">床號</th>
             <th style="width: 10%">姓名</th>
-            <th style="width: 15%">任務</th>
-            <th style="width: 12%">備註</th>
-            <th style="width: 10%">時間</th>
-            <th style="width: 45%">數值</th>
+            <th style="width: 12%">任務</th>
+            <th style="width: 10%">備註</th>
+            <th style="width: 8%">時間</th>
+            <th style="width: 52%">數值</th>
           </tr>
         </thead>
         <tbody>
@@ -235,7 +246,7 @@ const generateHTML = (daysData: DayData[]): string => {
       <style>
         @page {
           size: A4 landscape;
-          margin: 10mm;
+          margin: 8mm;
         }
 
         * {
@@ -246,8 +257,8 @@ const generateHTML = (daysData: DayData[]): string => {
 
         body {
           font-family: 'Microsoft JhengHei', 'Arial', sans-serif;
-          font-size: 10pt;
-          line-height: 1.3;
+          font-size: 7pt;
+          line-height: 1.2;
         }
 
         .page {
@@ -265,54 +276,54 @@ const generateHTML = (daysData: DayData[]): string => {
         .page-content {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 15px;
+          gap: 10px;
           flex: 1;
         }
 
         .day-column {
           border: 1px solid #333;
-          padding: 8px;
+          padding: 5px;
           display: flex;
           flex-direction: column;
         }
 
         .day-header {
           text-align: center;
-          padding: 6px;
+          padding: 4px;
           background-color: #f0f0f0;
           border-bottom: 2px solid #333;
-          margin-bottom: 8px;
+          margin-bottom: 5px;
         }
 
         .day-header h2 {
-          font-size: 12pt;
+          font-size: 9pt;
           font-weight: bold;
         }
 
         .time-slot {
-          margin-bottom: 10px;
+          margin-bottom: 5px;
         }
 
         .time-slot h3 {
-          font-size: 10pt;
+          font-size: 8pt;
           font-weight: bold;
-          margin-bottom: 4px;
-          padding: 3px 6px;
+          margin-bottom: 2px;
+          padding: 2px 4px;
           background-color: #e8e8e8;
         }
 
         .task-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 6px;
+          margin-bottom: 3px;
         }
 
         .task-table th,
         .task-table td {
           border: 1px solid #666;
-          padding: 4px;
+          padding: 2px 3px;
           text-align: center;
-          font-size: 9pt;
+          font-size: 7pt;
         }
 
         .task-table th {
@@ -321,20 +332,11 @@ const generateHTML = (daysData: DayData[]): string => {
         }
 
         .task-table td {
-          min-height: 30px;
+          min-height: 20px;
         }
 
         .value-cell {
           background-color: #f9f9f9;
-        }
-
-        .page-footer {
-          text-align: center;
-          padding: 8px;
-          font-size: 9pt;
-          color: #666;
-          border-top: 1px solid #ccc;
-          margin-top: auto;
         }
 
         @media print {
@@ -351,7 +353,6 @@ const generateHTML = (daysData: DayData[]): string => {
           ${generateDayColumn(daysData[0])}
           ${generateDayColumn(daysData[1])}
         </div>
-        <div class="page-footer">第 1 頁 / 共 2 頁</div>
       </div>
 
       <div class="page">
@@ -359,7 +360,6 @@ const generateHTML = (daysData: DayData[]): string => {
           ${generateDayColumn(daysData[2])}
           ${generateDayColumn(daysData[3])}
         </div>
-        <div class="page-footer">第 2 頁 / 共 2 頁</div>
       </div>
     </body>
     </html>
