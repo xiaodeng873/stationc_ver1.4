@@ -196,32 +196,8 @@ const generateHTML = (daysData: DayData[]): string => {
   const scale = calculateScale(daysData);
 
   const generateTimeSlotTable = (tasks: MonitoringTask[], showSlot: boolean) => {
-    if (!showSlot) return '';
-
-    if (tasks.length === 0) {
-      return `
-        <table class="task-table">
-          <thead>
-            <tr>
-              <th style="width: 8%">床號</th>
-              <th style="width: 10%">姓名</th>
-              <th style="width: 12%">任務</th>
-              <th style="width: 10%">備註</th>
-              <th style="width: 8%">時間</th>
-              <th style="width: 13%">上壓</th>
-              <th style="width: 13%">下壓</th>
-              <th style="width: 13%">脈搏</th>
-              <th style="width: 13%">血糖</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colspan="9" style="text-align: center; color: #999; padding: 8px;">此時段無任務</td>
-            </tr>
-          </tbody>
-        </table>
-      `;
-    }
+    // 只在有任務時才顯示時段
+    if (!showSlot || tasks.length === 0) return '';
 
     return `
       <table class="task-table">
@@ -349,15 +325,15 @@ const generateHTML = (daysData: DayData[]): string => {
         }
 
         .day-header {
-          text-align: center;
-          padding: ${2 * scale}px;
+          text-align: left;
+          padding: ${4 * scale}px;
           background-color: #f0f0f0;
           border-bottom: 2px solid #333;
-          margin-bottom: ${3 * scale}px;
+          margin-bottom: ${5 * scale}px;
         }
 
         .day-header h2 {
-          font-size: ${7 * scale}pt;
+          font-size: 9pt;
           font-weight: bold;
         }
 
@@ -432,33 +408,34 @@ const generateHTML = (daysData: DayData[]): string => {
 };
 
 const openPrintWindow = (html: string) => {
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
+  // 創建隱藏的iframe來打印
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
 
-  try {
-    const printWindow = window.open(url, '_blank');
+  document.body.appendChild(iframe);
 
-    if (printWindow) {
-      printWindow.addEventListener('load', () => {
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
+  const iframeDoc = iframe.contentWindow?.document;
+  if (iframeDoc) {
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
 
-          printWindow.addEventListener('afterprint', () => {
-            URL.revokeObjectURL(url);
-          });
-        }, 500);
-      });
-
+    // 等待內容載入後打開打印對話框
+    iframe.contentWindow?.addEventListener('load', () => {
       setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 5000);
-    } else {
-      URL.revokeObjectURL(url);
-      console.warn('打印視窗被瀏覽器阻擋，請檢查彈出視窗設定');
-    }
-  } catch (error) {
-    URL.revokeObjectURL(url);
-    console.error('開啟打印視窗失敗:', error);
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+
+        // 打印後移除iframe
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1000);
+      }, 500);
+    });
   }
 };
