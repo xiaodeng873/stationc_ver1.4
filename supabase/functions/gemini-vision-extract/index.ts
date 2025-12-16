@@ -53,8 +53,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 使用支援視覺的 Gemini 1.5 Flash 模型
-    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GOOGLE_GEMINI_API_KEY}`;
+    // 使用支援視覺的 Gemini 2.0 Flash 實驗性模型
+    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_GEMINI_API_KEY}`;
 
     const fullPrompt = `${prompt}\n\n請仔細查看圖片中的所有文字和內容，直接返回JSON格式，不要有任何其他文字說明。`;
 
