@@ -6,8 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const GOOGLE_VISION_API_KEY = "AIzaSyDz_Rcu5Vm_D__-bkIKAvfGVUOlhcy855o";
-
 interface VisionRequest {
   imageContent: string;
 }
@@ -21,12 +19,28 @@ interface VisionResponse {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: corsHeaders,
     });
   }
 
   try {
+    // 安全地獲取 API Key
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) {
+      console.error("未設定 GEMINI_API_KEY 環境變量");
+      return new Response(
+        JSON.stringify({ success: false, error: "伺服器配置錯誤：未設定 API Key" }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
     const { imageContent }: VisionRequest = await req.json();
 
     if (!imageContent) {
@@ -42,7 +56,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`;
+    const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
 
     const visionPayload = {
       requests: [

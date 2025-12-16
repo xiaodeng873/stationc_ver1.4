@@ -6,8 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const GOOGLE_GEMINI_API_KEY = "AIzaSyDD-qj3JupnYkd5iUu_Gn3HCwOp5q7eEyA";
-
 interface GeminiVisionRequest {
   imageBase64: string;
   mimeType: string;
@@ -32,12 +30,28 @@ interface GeminiVisionResponse {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: corsHeaders,
     });
   }
 
   try {
+    // 安全地獲取 API Key
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) {
+      console.error("未設定 GEMINI_API_KEY 環境變量");
+      return new Response(
+        JSON.stringify({ success: false, error: "伺服器配置錯誤：未設定 API Key" }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
     const { imageBase64, mimeType, prompt, classificationPrompt }: GeminiVisionRequest = await req.json();
 
     if (!imageBase64 || !prompt) {
@@ -54,7 +68,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // 使用支援視覺的 Gemini 1.5 Flash 穩定版模型
-    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${GOOGLE_GEMINI_API_KEY}`;
+    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
 
     const fullPrompt = `${prompt}\n\n請仔細查看圖片中的所有文字和內容，直接返回JSON格式，不要有任何其他文字說明。`;
 
@@ -177,7 +191,9 @@ Deno.serve(async (req: Request) => {
               },
             };
 
-            const classificationResponse = await fetch(geminiApiUrl, {
+            const classificationApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
+
+            const classificationResponse = await fetch(classificationApiUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
