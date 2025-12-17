@@ -440,11 +440,12 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   };
 
   const saveRecord = async () => {
+    console.log('[saveRecord] 開始儲存，設置 isSubmitting=true');
     setIsSubmitting(true);
 
     const recordData = {
       院友id: parseInt(formData.院友id),
-      task_id: initialData?.task?.id || record?.task_id || null, 
+      task_id: initialData?.task?.id || record?.task_id || null,
       記錄日期: formData.記錄日期,
       記錄時間: formData.記錄類型 === '體重控制' ? '00:00' : formData.記錄時間,
       記錄類型: formData.記錄類型 as any,
@@ -460,20 +461,42 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       記錄人員: formData.記錄人員 || null,
     };
 
+    console.log('[saveRecord] 準備儲存的資料:', recordData);
+
     try {
       if (record) {
+        console.log('[saveRecord] 更新現有記錄');
         await updateHealthRecord({ 記錄id: record.記錄id, ...recordData });
+        console.log('[saveRecord] 更新成功，準備關閉 Modal');
         onClose();
+        console.log('[saveRecord] 已調用 onClose()');
       } else {
+        console.log('[saveRecord] 新增記錄');
         await addHealthRecord(recordData);
+        console.log('[saveRecord] 新增成功，準備關閉 Modal');
         onClose();
+        console.log('[saveRecord] 已調用 onClose()');
+
         if (onTaskCompleted && initialData?.task?.id) {
+          console.log('[saveRecord] 調用 onTaskCompleted', {
+            taskId: initialData.task.id,
+            recordDate: formData.記錄日期,
+            recordTime: formData.記錄時間
+          });
           const recordDateTime = new Date(`${formData.記錄日期}T${formData.記錄時間}`);
           onTaskCompleted(initialData.task.id, recordDateTime);
+          console.log('[saveRecord] onTaskCompleted 已調用');
+        } else {
+          console.log('[saveRecord] 不需要調用 onTaskCompleted', {
+            hasCallback: !!onTaskCompleted,
+            hasTaskId: !!initialData?.task?.id
+          });
         }
       }
+      console.log('[saveRecord] 儲存流程完成，重置 isSubmitting=false');
+      setIsSubmitting(false);
     } catch (error) {
-      console.error('儲存失敗:', error);
+      console.error('[saveRecord] 儲存失敗:', error);
       alert(`儲存失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
       setIsSubmitting(false);
     }
