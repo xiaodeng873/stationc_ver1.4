@@ -360,7 +360,7 @@ const RestraintObservationModal: React.FC<RestraintObservationModalProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">
-              特殊狀態
+              備註
             </label>
             <div className="flex space-x-2">
               <button
