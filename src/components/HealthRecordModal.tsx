@@ -484,7 +484,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
             recordTime: formData.記錄時間
           });
           const recordDateTime = new Date(`${formData.記錄日期}T${formData.記錄時間}`);
-          onTaskCompleted(initialData.task.id, recordDateTime);
+          onTaskCompleted(recordDateTime);
           console.log('[saveRecord] onTaskCompleted 已調用');
         } else {
           console.log('[saveRecord] 不需要調用 onTaskCompleted', {
