@@ -27,16 +27,19 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
 }) => {
   const [position, setPosition] = useState<'左' | '平' | '右'>('左');
   const [recorder, setRecorder] = useState('');
+  const [notes, setNotes] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (existingRecord) {
       setPosition(existingRecord.position);
       setRecorder(existingRecord.recorder || '');
+      setNotes(existingRecord.notes || '');
     } else {
       const suggestedPosition = getPositionSequence(timeSlot);
       setPosition(suggestedPosition);
       setRecorder(staffName);
+      setNotes('');
     }
   }, [existingRecord, timeSlot, staffName]);
 
@@ -48,7 +51,8 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
       change_date: date,
       scheduled_time: timeSlot,
       position,
-      recorder: recorder
+      recorder: recorder,
+      notes: notes.trim() || undefined
     };
 
     onSubmit(data);
@@ -67,6 +71,22 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
   const getPositionButtonClass = (pos: '左' | '平' | '右') => {
     const baseClass = "flex-1 py-4 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center";
     if (position === pos) {
+      return `${baseClass} bg-blue-600 text-white shadow-lg`;
+    }
+    return `${baseClass} bg-gray-100 text-gray-700 hover:bg-gray-200`;
+  };
+
+  const handleNoteButtonClick = (value: string) => {
+    if (notes === value) {
+      setNotes('');
+    } else {
+      setNotes(value);
+    }
+  };
+
+  const getNoteButtonClass = (value: string) => {
+    const baseClass = "flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200";
+    if (notes === value) {
       return `${baseClass} bg-blue-600 text-white shadow-lg`;
     }
     return `${baseClass} bg-gray-100 text-gray-700 hover:bg-gray-200`;
@@ -184,6 +204,35 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              特殊狀態
+            </label>
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => handleNoteButtonClick('入院')}
+                className={getNoteButtonClass('入院')}
+              >
+                入院
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNoteButtonClick('渡假')}
+                className={getNoteButtonClass('渡假')}
+              >
+                渡假
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNoteButtonClick('外出')}
+                className={getNoteButtonClass('外出')}
+              >
+                外出
+              </button>
+            </div>
+          </div>
+
           <div className="flex justify-between items-center pt-4">
             {existingRecord && onDelete && (
               <button
@@ -247,6 +296,10 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
               label: '記錄者',
               value: recorder,
               icon: <User className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '特殊狀態',
+              value: notes || '無'
             }
           ]}
         />

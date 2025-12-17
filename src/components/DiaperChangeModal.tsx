@@ -32,6 +32,7 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
   const [stoolTexture, setStoolTexture] = useState('');
   const [stoolAmount, setStoolAmount] = useState('');
   const [recorder, setRecorder] = useState('');
+  const [notes, setNotes] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
       setStoolTexture(existingRecord.stool_texture || '');
       setStoolAmount(existingRecord.stool_amount || '');
       setRecorder(existingRecord.recorder);
+      setNotes(existingRecord.notes || '');
     } else {
       setHasUrine(false);
       setHasStool(false);
@@ -53,6 +55,7 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
       setStoolTexture('');
       setStoolAmount('');
       setRecorder(staffName);
+      setNotes('');
     }
   }, [existingRecord, staffName]);
 
@@ -70,7 +73,8 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
       stool_color: stoolColor || undefined,
       stool_texture: stoolTexture || undefined,
       stool_amount: stoolAmount || undefined,
-      recorder
+      recorder,
+      notes: notes.trim() || undefined
     };
 
     onSubmit(data);
@@ -116,6 +120,22 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
         setHasStool(!hasStool);
       }
     }
+  };
+
+  const handleNoteButtonClick = (value: string) => {
+    if (notes === value) {
+      setNotes('');
+    } else {
+      setNotes(value);
+    }
+  };
+
+  const getNoteButtonClass = (value: string) => {
+    const baseClass = "flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200";
+    if (notes === value) {
+      return `${baseClass} bg-blue-600 text-white shadow-lg`;
+    }
+    return `${baseClass} bg-gray-100 text-gray-700 hover:bg-gray-200`;
   };
 
   return (
@@ -292,6 +312,35 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              特殊狀態
+            </label>
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => handleNoteButtonClick('入院')}
+                className={getNoteButtonClass('入院')}
+              >
+                入院
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNoteButtonClick('渡假')}
+                className={getNoteButtonClass('渡假')}
+              >
+                渡假
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNoteButtonClick('外出')}
+                className={getNoteButtonClass('外出')}
+              >
+                外出
+              </button>
+            </div>
+          </div>
+
           <div className="flex justify-between items-center pt-4">
             {existingRecord && onDelete && (
               <button
@@ -354,6 +403,10 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
               label: '記錄者',
               value: recorder,
               icon: <User className="w-4 h-4 text-gray-500" />
+            },
+            {
+              label: '特殊狀態',
+              value: notes || '無'
             }
           ]}
         />
