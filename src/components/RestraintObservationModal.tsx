@@ -246,7 +246,7 @@ const RestraintObservationModal: React.FC<RestraintObservationModalProps> = ({
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-3">
               <Shield className="w-4 h-4 inline mr-1" />
-              院友約束物品建議
+              使用的約束物品
             </label>
             {!latestAssessment ? (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
