@@ -467,9 +467,9 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
       } else {
         await addHealthRecord(recordData);
         onClose();
-        if (onTaskCompleted) {
+        if (onTaskCompleted && initialData?.task?.id) {
           const recordDateTime = new Date(`${formData.記錄日期}T${formData.記錄時間}`);
-          onTaskCompleted(recordDateTime);
+          onTaskCompleted(initialData.task.id, recordDateTime);
         }
       }
     } catch (error) {
