@@ -127,8 +127,19 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
       setNotes('');
     } else {
       setNotes(value);
+      if (['入院', '渡假', '外出'].includes(value)) {
+        setHasUrine(false);
+        setHasStool(false);
+        setHasNone(false);
+        setUrineAmount('');
+        setStoolColor('');
+        setStoolTexture('');
+        setStoolAmount('');
+      }
     }
   };
+
+  const isSpecialStatus = ['入院', '渡假', '外出'].includes(notes);
 
   const getNoteButtonClass = (value: string) => {
     const baseClass = "flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200";
@@ -195,30 +206,33 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
               排泄情況 *
             </label>
             <div className="space-y-2">
-              <label className="flex items-center space-x-2 cursor-pointer">
+              <label className={`flex items-center space-x-2 ${isSpecialStatus ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
                   checked={hasUrine}
                   onChange={() => handleCheckboxChange('urine')}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  disabled={isSpecialStatus}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span>小便</span>
               </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
+              <label className={`flex items-center space-x-2 ${isSpecialStatus ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
                   checked={hasStool}
                   onChange={() => handleCheckboxChange('stool')}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  disabled={isSpecialStatus}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span>大便</span>
               </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
+              <label className={`flex items-center space-x-2 ${isSpecialStatus ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
                   checked={hasNone}
                   onChange={() => handleCheckboxChange('none')}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  disabled={isSpecialStatus}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span>無</span>
               </label>

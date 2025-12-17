@@ -70,6 +70,9 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
 
   const getPositionButtonClass = (pos: '左' | '平' | '右') => {
     const baseClass = "flex-1 py-4 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center";
+    if (isSpecialStatus) {
+      return `${baseClass} bg-gray-100 text-gray-400 cursor-not-allowed opacity-50`;
+    }
     if (position === pos) {
       return `${baseClass} bg-blue-600 text-white shadow-lg`;
     }
@@ -81,8 +84,13 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
       setNotes('');
     } else {
       setNotes(value);
+      if (['入院', '渡假', '外出'].includes(value)) {
+        setPosition('平');
+      }
     }
   };
+
+  const isSpecialStatus = ['入院', '渡假', '外出'].includes(notes);
 
   const getNoteButtonClass = (value: string) => {
     const baseClass = "flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200";
@@ -164,6 +172,7 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPosition('左')}
+                disabled={isSpecialStatus}
                 className={getPositionButtonClass('左')}
               >
                 左
@@ -171,6 +180,7 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPosition('平')}
+                disabled={isSpecialStatus}
                 className={getPositionButtonClass('平')}
               >
                 平
@@ -178,6 +188,7 @@ const PositionChangeModal: React.FC<PositionChangeModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPosition('右')}
+                disabled={isSpecialStatus}
                 className={getPositionButtonClass('右')}
               >
                 右
