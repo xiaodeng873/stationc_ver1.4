@@ -405,7 +405,7 @@ const DiaperChangeModal: React.FC<DiaperChangeModalProps> = ({
               icon: <User className="w-4 h-4 text-gray-500" />
             },
             {
-              label: '特殊狀態',
+              label: '備註',
               value: notes || '無'
             }
           ]}
