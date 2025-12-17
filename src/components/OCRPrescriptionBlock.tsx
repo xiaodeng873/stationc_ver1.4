@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, ChevronDown, ChevronUp, Upload, X, Loader, CheckCircle, AlertTriangle, RefreshCw, Save, RotateCcw } from 'lucide-react';
-import { processImageAndExtract, validateImageFile } from '../utils/ocrProcessor';
+import { processImageWithGeminiVision, validateImageFile } from '../utils/ocrProcessor';
 import { getPromptTemplates, getUserActivePrompt, saveUserPrompt, getDefaultPrompt, PromptTemplate } from '../utils/promptManager';
 
 interface OCRPrescriptionBlockProps {
@@ -150,6 +150,9 @@ const OCRPrescriptionBlock: React.FC<OCRPrescriptionBlockProps> = ({ onOCRComple
   };
 
   const handleStartOCR = async () => {
+    // 防止重複執行（React Strict Mode 或連點防護）
+    if (isProcessing) return;
+
     if (!selectedFile) {
       onOCRError('請先選擇圖片');
       return;
@@ -167,11 +170,8 @@ const OCRPrescriptionBlock: React.FC<OCRPrescriptionBlockProps> = ({ onOCRComple
       setProcessingStage('正在壓縮圖片...');
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      setProcessingStage('正在識別文字...');
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      setProcessingStage('正在擷取資料...');
-      const result = await processImageAndExtract(selectedFile, prompt);
+      setProcessingStage('正在使用 Gemini Vision 視覺識別...');
+      const result = await processImageWithGeminiVision(selectedFile, prompt, false, undefined);
 
       setIsProcessing(false);
       setProcessingStage('');

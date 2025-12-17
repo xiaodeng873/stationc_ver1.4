@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, CheckSquare, User, Calendar, Clock, Activity, Droplets, Scale, FileText, Stethoscope } from 'lucide-react';
 import PatientAutocomplete from './PatientAutocomplete';
-import { usePatients, type PatientHealthTask, type HealthTaskType, type FrequencyUnit } from '../context/PatientContext';
+import { usePatients, type PatientHealthTask, type HealthTaskType, type FrequencyUnit, type MonitoringTaskNotes } from '../context/PatientContext';
 import { calculateNextDueDate } from '../utils/taskScheduler';
 
 interface TaskModalProps {
@@ -173,7 +173,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
         next_due_at: nextDueAt.toISOString(),
         tube_type: formData.tube_type || null,
         tube_size: formData.tube_size || null,
-        notes: formData.notes || null,
+        notes: (formData.notes && formData.notes.trim() !== '') ? formData.notes as MonitoringTaskNotes : null,
         is_recurring: formData.is_recurring,
         end_date: formData.is_recurring ? null : formData.end_date,
         end_time: formData.is_recurring ? null : formData.end_time,
@@ -281,7 +281,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
                   <option value="體重控制">體重控制</option>
                 </optgroup>
                 <optgroup label="護理任務">
-                  <option value="導尿管更換">導尿管更換</option>
+                  <option value="尿導管更換">尿導管更換</option>
                   <option value="鼻胃飼管更換">鼻胃飼管更換</option>
                   <option value="傷口換症">傷口換症</option>
                   <option value="氧氣喉管清洗/更換">氧氣喉管清洗/更換</option>
@@ -306,7 +306,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
             </div>
           )}
 
-          {(formData.health_record_type === '導尿管更換' || formData.health_record_type === '鼻胃飼管更換' ||
+          {(formData.health_record_type === '尿導管更換' || formData.health_record_type === '鼻胃飼管更換' ||
             formData.health_record_type === '傷口換症' || formData.health_record_type === '氧氣喉管清洗/更換') && (
             <div>
               <label className="form-label">
@@ -402,7 +402,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onUpdate }) => {
             )}
           </div>
 
-          {(formData.health_record_type === '導尿管更換' || formData.health_record_type === '鼻胃飼管更換') && (
+          {(formData.health_record_type === '尿導管更換' || formData.health_record_type === '鼻胃飼管更換') && (
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900">喉管設定</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

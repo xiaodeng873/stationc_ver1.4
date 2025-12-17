@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { X, Heart, Activity, Droplets, Scale, User, Calendar, Clock, AlertTriangle } from 'lucide-react';
+import { X, Heart, Activity, Droplets, Scale, User, Calendar, Clock, AlertTriangle, ChevronDown, ChevronUp, Sparkles, RefreshCw, Loader2, CheckCircle } from 'lucide-react';
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
 import PatientAutocomplete from './PatientAutocomplete';
+import { isInHospital } from '../utils/careRecordHelper';
+import { getRecentHealthRecordsByPatient } from '../lib/database';
+import { generateHealthRecordSuggestions, GeneratedHealthData } from '../utils/healthRecordGenerator';
 
 interface HealthRecordModalProps {
   record?: any;
@@ -16,19 +19,62 @@ interface HealthRecordModalProps {
     };
     預設記錄類型?: string;
     預設日期?: string;
+    預設時間?: string;
   };
   onClose: () => void;
   onTaskCompleted?: (recordDateTime: Date) => void;
 }
 
 const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialData, onClose, onTaskCompleted }) => {
-  const { addHealthRecord, updateHealthRecord, patients, hospitalEpisodes } = usePatients();
+  const { addHealthRecord, updateHealthRecord, patients, hospitalEpisodes, admissionRecords } = usePatients();
   const { displayName } = useAuth();
+
+  // 日期確認模態框 state (需在 useEffect 之前宣告)
+  const [showDateWarningModal, setShowDateWarningModal] = useState(false);
+  const [isDateWarningConfirmed, setIsDateWarningConfirmed] = useState(false);
+
+  // 使用 ref 來存儲確認和取消的處理函數
+  const dateWarningHandlersRef = React.useRef<{
+    confirm: () => void;
+    cancel: () => void;
+  }>({
+    confirm: () => {},
+    cancel: () => {}
+  });
+
+  // ESC 鍵關閉主模態框
+  React.useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !showDateWarningModal) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose, showDateWarningModal]);
+
+  // 日期確認模態框鍵盤事件 (Enter 確認, ESC 取消)
+  React.useEffect(() => {
+    if (!showDateWarningModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        dateWarningHandlersRef.current.confirm();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        dateWarningHandlersRef.current.cancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showDateWarningModal]);
 
   const getHongKongDateTime = (dateString?: string) => {
     const date = dateString ? new Date(dateString) : new Date();
     const hongKongTime = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Hong_Kong"}));
-    
+
     const year = hongKongTime.getFullYear();
     const month = (hongKongTime.getMonth() + 1).toString().padStart(2, '0');
     const day = hongKongTime.getDate().toString().padStart(2, '0');
@@ -43,8 +89,8 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const generateRandomDefaults = (recordType: string) => {
     if (recordType === '生命表徵') {
       return {
-        體溫: (Math.random() * 0.9 + 36.0).toFixed(1), 
-        血含氧量: Math.floor(Math.random() * 5 + 95).toString(), 
+        體溫: (Math.random() * 0.9 + 36.0).toFixed(1),
+        血含氧量: Math.floor(Math.random() * 5 + 95).toString(),
         呼吸頻率: Math.floor(Math.random() * 9 + 14).toString()
       };
     }
@@ -54,17 +100,31 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
   const initialPatientId = record?.院友id?.toString() || initialData?.patient?.院友id?.toString() || '';
   const initialRecordTypeForDefaults = initialData?.預設記錄類型 || initialData?.task?.health_record_type || '生命表徵';
   const initialRandomDefaults = record ? {} : (initialData?.task ? generateRandomDefaults(initialRecordTypeForDefaults) : {});
-  
-  const checkPatientHospitalized = (patientId: string): boolean => {
-    if (!patientId) return false;
+
+  // 檢查院友在指定日期時間是否入院中（包括住院和外出就醫）
+  const checkPatientAbsent = (patientId: string, recordDate: string, recordTime: string): boolean => {
+    console.log('[checkPatientAbsent] 開始檢查:', { patientId, recordDate, recordTime });
+
+    if (!patientId || !recordDate || !recordTime) {
+      console.log('[checkPatientAbsent] 缺少必要參數，返回 false');
+      return false;
+    }
+
     const patient = patients.find(p => p.院友id.toString() === patientId.toString());
-    const hasActiveEpisode = hospitalEpisodes.some(episode => 
-      episode.patient_id === patient?.院友id && episode.status === 'active'
-    );
-    return hasActiveEpisode || patient?.is_hospitalized || false;
+    if (!patient) {
+      console.log('[checkPatientAbsent] 找不到院友，返回 false');
+      return false;
+    }
+
+    console.log('[checkPatientAbsent] 找到院友:', patient.中文姓名);
+
+    // 檢查是否在入院期間（使用 careRecordHelper 的 isInHospital 函數）
+    const inHospital = isInHospital(patient, recordDate, recordTime, admissionRecords, hospitalEpisodes);
+
+    console.log('[checkPatientAbsent] isInHospital 結果:', inHospital);
+
+    return inHospital;
   };
-  
-  const initialIsPatientHospitalized = checkPatientHospitalized(initialPatientId);
 
   const getDefaultDateTime = () => {
     if (record) {
@@ -73,8 +133,8 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
     const hongKongDateTime = getHongKongDateTime(initialData?.預設日期 || initialData?.task?.next_due_at);
 
-    // 优先使用任务的特定时间
-    const specificTime = initialData?.task?.specific_times?.[0];
+    // [修正] 優先順序：預設時間 > 任務的第一個時間點 > 當前時間
+    const specificTime = initialData?.預設時間 || initialData?.task?.specific_times?.[0];
 
     return {
       date: hongKongDateTime.date,
@@ -84,39 +144,113 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
 
   const { date: defaultRecordDate, time: defaultRecordTime } = getDefaultDateTime();
 
+  console.log('[HealthRecordModal] 準備計算 initialIsPatientAbsent:', {
+    initialPatientId,
+    defaultRecordDate,
+    defaultRecordTime,
+    預設日期: initialData?.預設日期,
+    預設時間: initialData?.預設時間,
+    hasRecord: !!record
+  });
+
+  const initialIsPatientAbsent = checkPatientAbsent(
+    initialPatientId,
+    initialData?.預設日期 || initialData?.task?.next_due_at?.split('T')[0] || defaultRecordDate,
+    initialData?.預設時間 || initialData?.task?.specific_times?.[0] || defaultRecordTime
+  );
+
+  console.log('[HealthRecordModal] initialIsPatientAbsent 結果:', initialIsPatientAbsent);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 生成器狀態管理
+  type GeneratorStatus = 'idle' | 'loading' | 'generated' | 'error' | 'no-data';
+  const [generatorStatus, setGeneratorStatus] = useState<GeneratorStatus>('idle');
+  const [isGeneratorCollapsed, setIsGeneratorCollapsed] = useState(true);
+  const [generatedData, setGeneratedData] = useState<GeneratedHealthData | null>(null);
+  const [generatedRecordCount, setGeneratedRecordCount] = useState<number>(0);
 
   const [formData, setFormData] = useState({
     院友id: initialPatientId,
     記錄類型: record?.記錄類型 || initialRecordTypeForDefaults,
     記錄日期: defaultRecordDate,
     記錄時間: defaultRecordTime,
-    血壓收縮壓: record?.血壓收縮壓?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    血壓舒張壓: record?.血壓舒張壓?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    脈搏: record?.脈搏?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    體溫: record?.體溫?.toString() || (initialIsPatientHospitalized ? '' : initialRandomDefaults.體溫 || ''),
-    血含氧量: record?.血含氧量?.toString() || (initialIsPatientHospitalized ? '' : initialRandomDefaults.血含氧量 || ''),
-    呼吸頻率: record?.呼吸頻率?.toString() || (initialIsPatientHospitalized ? '' : initialRandomDefaults.呼吸頻率 || ''),
-    血糖值: record?.血糖值?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    體重: record?.體重?.toString() || (initialIsPatientHospitalized ? '' : ''),
-    備註: record?.備註 || (initialIsPatientHospitalized && !record ? '無法量度原因: 入院' : ''),
+    血壓收縮壓: record?.血壓收縮壓?.toString() || (initialIsPatientAbsent ? '' : ''),
+    血壓舒張壓: record?.血壓舒張壓?.toString() || (initialIsPatientAbsent ? '' : ''),
+    脈搏: record?.脈搏?.toString() || (initialIsPatientAbsent ? '' : ''),
+    體溫: record?.體溫?.toString() || (initialIsPatientAbsent ? '' : initialRandomDefaults.體溫 || ''),
+    血含氧量: record?.血含氧量?.toString() || (initialIsPatientAbsent ? '' : initialRandomDefaults.血含氧量 || ''),
+    呼吸頻率: record?.呼吸頻率?.toString() || (initialIsPatientAbsent ? '' : initialRandomDefaults.呼吸頻率 || ''),
+    血糖值: record?.血糖值?.toString() || (initialIsPatientAbsent ? '' : ''),
+    體重: record?.體重?.toString() || (initialIsPatientAbsent ? '' : ''),
+    備註: record?.備註 || (initialIsPatientAbsent && !record ? '無法量度原因: 入院' : ''),
     記錄人員: record?.記錄人員 || displayName || '',
-    isAbsent: record ? (record.備註?.includes('無法量度') || false) : initialIsPatientHospitalized,
-    absenceReason: record ? '' : (initialIsPatientHospitalized ? '入院' : ''),
+    isAbsent: record ? (record.備註?.includes('無法量度') || false) : initialIsPatientAbsent,
+    absenceReason: record ? '' : (initialIsPatientAbsent ? '入院' : ''),
     customAbsenceReason: ''
   });
 
-  const currentIsPatientHospitalized = React.useMemo(() => {
-    return checkPatientHospitalized(formData.院友id);
-  }, [formData.院友id, patients]);
-
-  const [showDateWarningModal, setShowDateWarningModal] = useState(false);
-  const [isDateWarningConfirmed, setIsDateWarningConfirmed] = useState(false);
-
+  // 組件掛載時記錄初始狀態
   React.useEffect(() => {
-    if (formData.院友id && !record) {
-      const isHospitalized = currentIsPatientHospitalized;
-      if (isHospitalized && !formData.isAbsent) {
+    console.log('[HealthRecordModal] 組件掛載，初始表單數據:', {
+      院友id: formData.院友id,
+      記錄日期: formData.記錄日期,
+      記錄時間: formData.記錄時間,
+      isAbsent: formData.isAbsent,
+      absenceReason: formData.absenceReason,
+      備註: formData.備註,
+      initialIsPatientAbsent
+    });
+  }, []);
+
+  // 計算當前院友是否在指定日期時間處於入院狀態（用於 UI 顯示）
+  const currentIsPatientAbsent = React.useMemo(() => {
+    console.log('[HealthRecordModal] 計算 currentIsPatientAbsent:', {
+      院友id: formData.院友id,
+      記錄日期: formData.記錄日期,
+      記錄時間: formData.記錄時間,
+      admissionRecordsCount: admissionRecords.length,
+      hospitalEpisodesCount: hospitalEpisodes.length,
+      admissionRecords: admissionRecords.filter(r => r.patient_id === formData.院友id)
+    });
+    const result = checkPatientAbsent(formData.院友id, formData.記錄日期, formData.記錄時間);
+    console.log('[HealthRecordModal] currentIsPatientAbsent 結果:', result);
+    return result;
+  }, [formData.院友id, formData.記錄日期, formData.記錄時間, admissionRecords, hospitalEpisodes]);
+
+  // 當院友ID、日期或時間改變時，檢查是否在入院期間並自動設定
+  React.useEffect(() => {
+    console.log('[HealthRecordModal] useEffect 觸發 - 檢查入院狀態:', {
+      院友id: formData.院友id,
+      記錄日期: formData.記錄日期,
+      記錄時間: formData.記錄時間,
+      hasRecord: !!record,
+      currentIsPatientAbsent,
+      currentFormIsAbsent: formData.isAbsent,
+      currentAbsenceReason: formData.absenceReason,
+      hospitalEpisodesCount: hospitalEpisodes.length,
+      admissionRecordsCount: admissionRecords.length
+    });
+
+    // [診斷] 打印該院友的所有住院事件
+    if (formData.院友id) {
+      const patientEpisodes = hospitalEpisodes.filter(ep => ep.patient_id === formData.院友id);
+      console.log('[HealthRecordModal] 🏥 該院友的住院事件:', patientEpisodes);
+    }
+
+    if (formData.院友id && formData.記錄日期 && formData.記錄時間 && !record) {
+      const isAbsent = currentIsPatientAbsent;
+
+      console.log('[HealthRecordModal] 條件檢查通過，準備自動設定:', {
+        isAbsent,
+        currentFormIsAbsent: formData.isAbsent,
+        shouldAutoSet: isAbsent && !formData.isAbsent,
+        shouldClear: !isAbsent && formData.isAbsent && formData.absenceReason === '入院'
+      });
+
+      if (isAbsent && !formData.isAbsent) {
+        // 在入院期間，自動設定為無法量度
+        console.log('[HealthRecordModal] 🔴 自動設定為入院狀態');
         setFormData(prev => ({
           ...prev,
           isAbsent: true,
@@ -124,16 +258,22 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
           備註: '無法量度原因: 入院',
           血壓收縮壓: '', 血壓舒張壓: '', 脈搏: '', 體溫: '', 血含氧量: '', 呼吸頻率: '', 血糖值: '', 體重: ''
         }));
-      } else if (!isHospitalized && formData.isAbsent && formData.absenceReason === '入院') {
+      } else if (!isAbsent && formData.isAbsent && formData.absenceReason === '入院') {
+        // 不在入院期間，清除自動設定的入院狀態
+        console.log('[HealthRecordModal] 🟢 清除入院狀態');
         setFormData(prev => ({
           ...prev,
           isAbsent: false,
           absenceReason: '',
           備註: ''
         }));
+      } else {
+        console.log('[HealthRecordModal] ⚪ 無需改變狀態');
       }
+    } else {
+      console.log('[HealthRecordModal] 條件未通過，不執行自動設定');
     }
-  }, [formData.院友id, record, currentIsPatientHospitalized]);
+  }, [formData.院友id, formData.記錄日期, formData.記錄時間, record, currentIsPatientAbsent, hospitalEpisodes]);
 
   React.useEffect(() => {
     if (record?.備註?.includes('無法量度原因:')) {
@@ -198,7 +338,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     if (!formData.院友id) errors.push('請選擇院友');
     if (!formData.記錄日期) errors.push('請填寫記錄日期');
     if (formData.記錄類型 !== '體重控制' && !formData.記錄時間) errors.push('請填寫記錄時間');
-    
+
     if (!formData.isAbsent) {
       if (formData.記錄類型 === '生命表徵') {
         const hasVitalSign = formData.血壓收縮壓 || formData.血壓舒張壓 || formData.脈搏 || formData.體溫 || formData.血含氧量 || formData.呼吸頻率;
@@ -213,6 +353,69 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     }
     return errors;
   };
+
+  // 生成器處理函數
+  const handleGenerateData = async () => {
+    if (!formData.院友id) {
+      alert('請先選擇院友');
+      return;
+    }
+
+    console.log('[生成器] 開始生成數據:', {
+      院友id: formData.院友id,
+      記錄類型: formData.記錄類型
+    });
+
+    setGeneratorStatus('loading');
+    setIsGeneratorCollapsed(false);
+
+    try {
+      const recentRecords = await getRecentHealthRecordsByPatient(
+        parseInt(formData.院友id),
+        formData.記錄類型,
+        5
+      );
+
+      console.log('[生成器] 獲取到的記錄:', recentRecords);
+
+      const result = generateHealthRecordSuggestions(recentRecords, formData.記錄類型);
+
+      console.log('[生成器] 生成結果:', result);
+
+      if (result.success && result.data) {
+        setGeneratedData(result.data);
+        setGeneratedRecordCount(result.recordCount || 0);
+        setGeneratorStatus('generated');
+        console.log('[生成器] 生成成功，數據已設置');
+
+        // 自動填入表單
+        setFormData(prev => ({
+          ...prev,
+          ...result.data
+        }));
+      } else if (result.error === 'no-data') {
+        console.log('[生成器] 無歷史數據');
+        setGeneratorStatus('no-data');
+      } else {
+        console.log('[生成器] 生成失敗:', result.error);
+        setGeneratorStatus('error');
+      }
+    } catch (error) {
+      console.error('[生成器] 發生錯誤:', error);
+      setGeneratorStatus('error');
+    }
+  };
+
+  const handleRegenerateData = async () => {
+    await handleGenerateData();
+  };
+
+  // 當院友、記錄類型改變時，重置生成器
+  React.useEffect(() => {
+    setGeneratorStatus('idle');
+    setGeneratedData(null);
+    setGeneratedRecordCount(0);
+  }, [formData.院友id, formData.記錄類型]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,10 +490,20 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
     setIsDateWarningConfirmed(false);
   };
 
+  // 更新 ref 中的處理函數
+  dateWarningHandlersRef.current.confirm = handleDateWarningConfirm;
+  dateWarningHandlersRef.current.cancel = handleDateWarningCancel;
+
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               {formData.記錄類型 === '生命表徵' && <Activity className="h-5 w-5 text-blue-600" />}
@@ -376,7 +589,7 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
               <div>
                 <label className="form-label">監測狀態</label>
                 <div className={`p-3 rounded-lg border ${
-                  currentIsPatientHospitalized ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'
+                  currentIsPatientAbsent ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'
                 }`}>
                   <div className="flex items-center space-x-2">
                     <input
@@ -384,27 +597,27 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                       checked={formData.isAbsent}
                       onChange={(e) => handleAbsenceChange(e.target.checked)}
                       className={`h-4 w-4 focus:ring-orange-500 border-gray-300 rounded ${
-                        currentIsPatientHospitalized ? 'text-red-600 focus:ring-red-500' : 'text-orange-600 focus:ring-orange-500'
+                        currentIsPatientAbsent ? 'text-red-600 focus:ring-red-500' : 'text-orange-600 focus:ring-orange-500'
                       }`}
                     />
                     <label className={`text-sm font-medium cursor-pointer ${
-                      currentIsPatientHospitalized ? 'text-red-800' : 'text-orange-800'
+                      currentIsPatientAbsent ? 'text-red-800' : 'text-orange-800'
                     }`}>
                       院友未能進行監測
-                      {currentIsPatientHospitalized && <span className="ml-1 text-red-600 font-bold">(入院中)</span>}
+                      {currentIsPatientAbsent && <span className="ml-1 text-red-600 font-bold">(入院中)</span>}
                     </label>
                   </div>
 
                   {formData.isAbsent && (
                     <div className="mt-3 space-y-2">
                       <div className="flex items-center space-x-2">
-                        <label className={`text-sm ${currentIsPatientHospitalized ? 'text-red-700' : 'text-orange-700'}`}>原因:</label>
+                        <label className={`text-sm ${currentIsPatientAbsent ? 'text-red-700' : 'text-orange-700'}`}>原因:</label>
                         <select
                           value={formData.absenceReason}
                           onChange={(e) => handleAbsenceReasonChange(e.target.value)}
                           className="form-input text-sm flex-1"
                           required={formData.isAbsent}
-                          disabled={currentIsPatientHospitalized && formData.absenceReason === '入院'}
+                          disabled={currentIsPatientAbsent && formData.absenceReason === '入院'}
                         >
                           <option value="">請選擇</option>
                           <option value="入院">入院</option>
@@ -496,13 +709,143 @@ const HealthRecordModal: React.FC<HealthRecordModalProps> = ({ record, initialDa
                 取消
               </button>
             </div>
+
+            {/* 智能數據生成器 - 只在新增模式下顯示 */}
+            {!record && (
+              <div className="mt-6 border-t pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsGeneratorCollapsed(!isGeneratorCollapsed)}
+                  className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="h-5 w-5 text-blue-600" />
+                    <span className="font-medium text-blue-900">智能數據生成器</span>
+                    {generatorStatus === 'generated' && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                        已生成
+                      </span>
+                    )}
+                  </div>
+                  {isGeneratorCollapsed ? (
+                    <ChevronDown className="h-5 w-5 text-blue-600" />
+                  ) : (
+                    <ChevronUp className="h-5 w-5 text-blue-600" />
+                  )}
+                </button>
+
+                {!isGeneratorCollapsed && (
+                  <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                    {/* 顯示當前選中院友 */}
+                    <div className="mb-4">
+                      {formData.院友id ? (
+                        <div className="flex items-center space-x-2 text-sm text-gray-700">
+                          <User className="h-4 w-4 text-blue-600" />
+                          <span>
+                            院友：
+                            {(() => {
+                              const patient = patients.find(p => p.院友id.toString() === formData.院友id);
+                              return patient ? `${patient.中文姓名} (${patient.床號})` : '未選擇';
+                            })()}
+                          </span>
+                          <span className="text-blue-600">|</span>
+                          <span>記錄類型：{formData.記錄類型}</span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-orange-600 flex items-center space-x-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span>請先選擇院友</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 生成器內容 */}
+                    {generatorStatus === 'idle' && (
+                      <div className="text-center py-4">
+                        <button
+                          type="button"
+                          onClick={handleGenerateData}
+                          disabled={!formData.院友id || formData.isAbsent}
+                          className="btn-primary inline-flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          <span>啟動生成器</span>
+                        </button>
+                        {formData.isAbsent && (
+                          <p className="text-xs text-gray-500 mt-2">生成器在「無法量度」模式下不可用</p>
+                        )}
+                      </div>
+                    )}
+
+                    {generatorStatus === 'loading' && (
+                      <div className="text-center py-6">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">正在分析歷史記錄...</p>
+                      </div>
+                    )}
+
+                    {generatorStatus === 'no-data' && (
+                      <div className="text-center py-4">
+                        <div className="inline-flex items-center space-x-2 text-orange-600 mb-3">
+                          <AlertTriangle className="h-5 w-5" />
+                          <span className="font-medium">該院友暫無歷史記錄</span>
+                        </div>
+                        <p className="text-sm text-gray-600">無法根據歷史數據生成建議值</p>
+                      </div>
+                    )}
+
+                    {generatorStatus === 'error' && (
+                      <div className="text-center py-4">
+                        <div className="inline-flex items-center space-x-2 text-red-600 mb-3">
+                          <AlertTriangle className="h-5 w-5" />
+                          <span className="font-medium">生成失敗</span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">請稍後再試</p>
+                        <button
+                          type="button"
+                          onClick={handleGenerateData}
+                          className="btn-secondary text-sm"
+                        >
+                          重試
+                        </button>
+                      </div>
+                    )}
+
+                    {generatorStatus === 'generated' && generatedData && (
+                      <div className="text-center py-4">
+                        <div className="flex items-center justify-center space-x-2 text-green-600 mb-4">
+                          <CheckCircle className="h-5 w-5" />
+                          <span className="text-sm font-medium">
+                            已根據最近 {generatedRecordCount} 次記錄生成並填入表單
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRegenerateData}
+                          className="btn-secondary inline-flex items-center space-x-2"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          <span>重新生成</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </form>
         </div>
       </div>
 
       {showDateWarningModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]"
+          onClick={handleDateWarningCancel}
+        >
+          <div
+            className="bg-white rounded-lg max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className="p-2 rounded-lg bg-orange-100">

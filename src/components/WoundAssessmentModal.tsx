@@ -217,7 +217,7 @@ const WoundAssessmentModal: React.FC<WoundAssessmentModalProps> = ({ assessment,
         }))
       };
 
-      if (assessment) {
+      if (assessment?.id) {
         await updateWoundAssessment({
           id: assessment.id,
           ...assessmentData
@@ -256,6 +256,15 @@ const WoundAssessmentModal: React.FC<WoundAssessmentModalProps> = ({ assessment,
               <h2 className="text-xl font-semibold text-gray-900">
                 {assessment ? '編輯傷口評估' : '新增傷口評估'}
               </h2>
+              {assessment && (
+                <span className={`px-3 py-1 text-sm rounded-full ${
+                  assessment.status === 'active'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {assessment.status === 'active' ? '生效中' : '已歸檔'}
+                </span>
+              )}
             </div>
             <button
               onClick={onClose}

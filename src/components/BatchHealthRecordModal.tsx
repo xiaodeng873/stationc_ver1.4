@@ -3,6 +3,7 @@ import { X, Plus, Trash2, Upload, Download, Heart, Activity, Droplets, Scale, Us
 import { usePatients } from '../context/PatientContext';
 import { useAuth } from '../context/AuthContext';
 import PatientAutocomplete from './PatientAutocomplete';
+import { isInHospital } from '../utils/careRecordHelper';
 
 // 香港時區輔助函數
 const getHongKongDate = () => {
@@ -43,26 +44,21 @@ interface BatchHealthRecordModalProps {
 }
 
 const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose, recordType }) => {
-  const { patients, addHealthRecord } = usePatients();
-  const { hospitalEpisodes } = usePatients();
+  const { patients, addHealthRecord, hospitalEpisodes, admissionRecords } = usePatients();
   const { displayName } = useAuth();
   const [autoSelectPrevious, setAutoSelectPrevious] = useState(false);
   const [autoSelectNextBed, setAutoSelectNextBed] = useState(false);
-  
-  // 檢查院友是否入院中
-  const checkPatientHospitalized = (patientId: string): boolean => {
-    if (!patientId) return false;
-    const patient = patients.find(p => p.院友id.toString() === patientId.toString());
-    
-    // 檢查是否有 active 狀態的住院事件
-    const hasActiveEpisode = hospitalEpisodes.some(episode => 
-      episode.patient_id === patient?.院友id && episode.status === 'active'
-    );
-    
-    // 使用住院事件狀態作為主要判斷依據，is_hospitalized 作為備用
-    const isHospitalized = hasActiveEpisode || patient?.is_hospitalized || false;
 
-    return isHospitalized;
+  // 檢查院友在指定日期時間是否入院中（包括住院和外出就醫）
+  const checkPatientAbsent = (patientId: string, recordDate: string, recordTime: string): boolean => {
+    if (!patientId || !recordDate || !recordTime) return false;
+    const patient = patients.find(p => p.院友id.toString() === patientId.toString());
+    if (!patient) return false;
+
+    // 檢查是否在入院期間（使用 careRecordHelper 的 isInHospital 函數）
+    const inHospital = isInHospital(patient, recordDate, recordTime, admissionRecords, hospitalEpisodes);
+
+    return inHospital;
   };
   
   const [records, setRecords] = useState<BatchRecord[]>([
@@ -175,18 +171,23 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
   };
 
   const updateRecord = (id: string, field: string, value: string) => {
-    // 當院友ID改變時，檢查是否入院中並自動設定
-    if (field === '院友id') {
-      const isHospitalized = checkPatientHospitalized(value);
-
+    // 當院友ID或日期時間改變時，檢查是否入院中並自動設定
+    if (field === '院友id' || field === '記錄日期' || field === '記錄時間') {
       setRecords(records.map(record => {
         if (record.id === id) {
-          if (isHospitalized) {
-            // 院友入院中，自動設定為無法量度
+          const updatedRecord = { ...record, [field]: value };
 
+          // 使用更新後的值檢查是否在入院期間
+          const checkPatientId = field === '院友id' ? value : record.院友id;
+          const checkDate = field === '記錄日期' ? value : record.記錄日期;
+          const checkTime = field === '記錄時間' ? value : record.記錄時間;
+
+          const isAbsent = checkPatientAbsent(checkPatientId, checkDate, checkTime);
+
+          if (isAbsent) {
+            // 院友在入院期間，自動設定為無法量度
             return {
-              ...record,
-              [field]: value,
+              ...updatedRecord,
               isAbsent: true,
               absenceReason: '入院',
               備註: '無法量度原因: 入院',
@@ -201,9 +202,7 @@ const BatchHealthRecordModal: React.FC<BatchHealthRecordModalProps> = ({ onClose
               體重: ''
             };
           } else {
-            // 院友不在入院中，清除自動設定的入院狀態
-
-            const updatedRecord = { ...record, [field]: value };
+            // 院友不在入院期間，清除自動設定的入院狀態
             if (record.isAbsent && record.absenceReason === '入院') {
               updatedRecord.isAbsent = false;
               updatedRecord.absenceReason = '';

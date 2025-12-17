@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, ChevronDown, ChevronUp, Upload, X, Loader, CheckCircle, AlertTriangle, FileText, RefreshCw } from 'lucide-react';
-import { processImageAndExtract, validateImageFile } from '../utils/ocrProcessor';
+import { processImageWithGeminiVision, validateImageFile } from '../utils/ocrProcessor';
 import { getDefaultPrompt } from '../utils/promptManager';
 import { usePatients } from '../context/PatientContext';
 
@@ -168,6 +168,9 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
   };
 
   const handleStartOCR = async (skipCache: boolean = false) => {
+    // 防止重複執行（React Strict Mode 或連點防護）
+    if (isProcessing) return;
+
     if (!selectedFile) {
       onOCRError('請先選擇圖片');
       return;
@@ -184,12 +187,9 @@ const OCRDocumentBlock: React.FC<OCRDocumentBlockProps> = ({ documentType, onOCR
       }
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      setProcessingStage('正在識別文字...');
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      setProcessingStage('正在擷取資料...');
+      setProcessingStage('正在使用 Gemini Vision 視覺識別...');
       const prompt = await getDefaultPrompt();
-      const result = await processImageAndExtract(selectedFile, prompt, undefined, skipCache);
+      const result = await processImageWithGeminiVision(selectedFile, prompt, skipCache, undefined);
 
       if (result.success && result.extractedData) {
         setProcessingStage('正在匹配院友資料...');

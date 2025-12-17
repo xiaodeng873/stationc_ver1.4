@@ -272,10 +272,12 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
         ...formData,
         behavior_expression: Array.isArray(formData.behavior_expression)
           ? (formData.behavior_expression.length > 0 ? formData.behavior_expression.join('、') : '')
-          : (formData.behavior_expression || '')
+          : (formData.behavior_expression || ''),
+        // 將空字串的日期欄位轉換為 null
+        next_due_date: formData.next_due_date || null
       };
 
-      if (assessment) {
+      if (assessment?.id) {
         await updateHealthAssessment({
           ...assessment,
           ...assessmentData
@@ -382,6 +384,15 @@ const HealthAssessmentModal: React.FC<HealthAssessmentModalProps> = ({
             <h2 className="text-xl font-semibold text-gray-900">
               {assessment ? '編輯健康評估' : '新增健康評估'}
             </h2>
+            {assessment && (
+              <span className={`px-3 py-1 text-sm rounded-full ${
+                assessment.status === 'active'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-gray-100 text-gray-600'
+              }`}>
+                {assessment.status === 'active' ? '生效中' : '已歸檔'}
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}

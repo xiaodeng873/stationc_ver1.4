@@ -38,6 +38,7 @@ interface AdvancedFilters {
   startDate: string;
   endDate: string;
   在住狀態: string;
+  記錄狀態: string;
 }
 
 const HealthAssessments: React.FC = () => {
@@ -61,9 +62,11 @@ const HealthAssessments: React.FC = () => {
     情緒表現: '',
     startDate: '',
     endDate: '',
-    在住狀態: '在住'
+    在住狀態: '在住',
+    記錄狀態: '生效中'
   });
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [expandedPatients, setExpandedPatients] = useState<Set<number>>(new Set());
 
   // Reset to first page when filters change
   React.useEffect(() => {
@@ -83,11 +86,23 @@ const HealthAssessments: React.FC = () => {
 
   const filteredAssessments = (healthAssessments || []).filter(assessment => {
     const patient = patients.find(p => p.院友id === assessment.patient_id);
-    
+
     // 先應用進階篩選
     if (advancedFilters.在住狀態 && advancedFilters.在住狀態 !== '全部' && patient?.在住狀態 !== advancedFilters.在住狀態) {
       return false;
     }
+
+    // 記錄狀態篩選
+    if (advancedFilters.記錄狀態) {
+      if (advancedFilters.記錄狀態 === '生效中' && assessment.status !== 'active') {
+        return false;
+      }
+      if (advancedFilters.記錄狀態 === '歷史記錄' && assessment.status !== 'archived') {
+        return false;
+      }
+      // '全部' 不做篩選
+    }
+
     if (advancedFilters.床號 && !patient?.床號.toLowerCase().includes(advancedFilters.床號.toLowerCase())) {
       return false;
     }
@@ -158,7 +173,8 @@ const HealthAssessments: React.FC = () => {
       情緒表現: '',
       startDate: '',
       endDate: '',
-      在住狀態: '在住'
+      在住狀態: '在住',
+      記錄狀態: '生效中'
     });
   };
 
@@ -183,10 +199,10 @@ const HealthAssessments: React.FC = () => {
   const sortedAssessments = [...filteredAssessments].sort((a, b) => {
     const patientA = patients.find(p => p.院友id === a.patient_id);
     const patientB = patients.find(p => p.院友id === b.patient_id);
-    
+
     let valueA: string | number = '';
     let valueB: string | number = '';
-    
+
     switch (sortField) {
       case '院友姓名':
         valueA = `${patientA?.中文姓氏 || ''}${patientA?.中文名字 || ''}`;
@@ -205,12 +221,12 @@ const HealthAssessments: React.FC = () => {
         valueB = new Date(b.created_at).getTime();
         break;
     }
-    
+
     if (typeof valueA === 'string' && typeof valueB === 'string') {
       valueA = valueA.toLowerCase();
       valueB = valueB.toLowerCase();
     }
-    
+
     if (sortDirection === 'asc') {
       return valueA < valueB ? -1 : valueA > valueB ? 1 : 0;
     } else {
@@ -218,12 +234,92 @@ const HealthAssessments: React.FC = () => {
     }
   });
 
-  // Pagination logic
+  // 按院友分組
+  interface PatientGroup {
+    patientId: number;
+    patient: typeof patients[0];
+    assessments: HealthAssessment[];
+  }
+
+  const groupedAssessments: PatientGroup[] = [];
+  const patientMap = new Map<number, PatientGroup>();
+
+  sortedAssessments.forEach(assessment => {
+    const patient = patients.find(p => p.院友id === assessment.patient_id);
+    if (!patient) return;
+
+    if (!patientMap.has(assessment.patient_id)) {
+      const group: PatientGroup = {
+        patientId: assessment.patient_id,
+        patient: patient,
+        assessments: []
+      };
+      patientMap.set(assessment.patient_id, group);
+      groupedAssessments.push(group);
+    }
+    patientMap.get(assessment.patient_id)!.assessments.push(assessment);
+  });
+
+  // 切換院友的展開/收合狀態
+  const togglePatientExpand = (patientId: number) => {
+    setExpandedPatients(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(patientId)) {
+        newSet.delete(patientId);
+      } else {
+        newSet.add(patientId);
+      }
+      return newSet;
+    });
+  };
+
+  // 全部展開
+  const expandAll = () => {
+    const allPatientIds = groupedAssessments.map(g => g.patientId);
+    setExpandedPatients(new Set(allPatientIds));
+  };
+
+  // 全部收合
+  const collapseAll = () => {
+    setExpandedPatients(new Set());
+  };
+
+  // 檢查某院友的評估是否全部選中
+  const isPatientFullySelected = (group: PatientGroup): boolean => {
+    return group.assessments.every(a => selectedRows.has(a.id));
+  };
+
+  // 檢查某院友的評估是否部分選中
+  const isPatientPartiallySelected = (group: PatientGroup): boolean => {
+    const selectedCount = group.assessments.filter(a => selectedRows.has(a.id)).length;
+    return selectedCount > 0 && selectedCount < group.assessments.length;
+  };
+
+  // 切換某院友下所有評估的選中狀態
+  const togglePatientSelection = (group: PatientGroup) => {
+    const newSelected = new Set(selectedRows);
+    const isFullySelected = isPatientFullySelected(group);
+
+    group.assessments.forEach(assessment => {
+      if (isFullySelected) {
+        newSelected.delete(assessment.id);
+      } else {
+        newSelected.add(assessment.id);
+      }
+    });
+
+    setSelectedRows(newSelected);
+  };
+
+  // Pagination logic - 按照分組後的結果進行分頁
   const totalItems = sortedAssessments.length;
-  const totalPages = Math.ceil(totalItems / pageSize);
+  const totalPages = Math.ceil(groupedAssessments.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedAssessments = sortedAssessments.slice(startIndex, endIndex);
+  const paginatedGroups = groupedAssessments.slice(startIndex, endIndex);
+
+  // 獲取當前頁所有評估記錄（用於全選等操作）
+  const paginatedAssessments = paginatedGroups.flatMap(g => g.assessments);
 
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
@@ -269,12 +365,26 @@ const HealthAssessments: React.FC = () => {
   };
 
   const handleSaveAs = (assessment: HealthAssessment) => {
+    // 計算該院友的建議評估日期（上次評估 + 6個月）
+    const patientAssessments = healthAssessments
+      .filter(a => a.patient_id === assessment.patient_id)
+      .sort((a, b) => new Date(b.assessment_date).getTime() - new Date(a.assessment_date).getTime());
+
+    let suggestedDate = new Date().toISOString().split('T')[0]; // 預設為今天
+    if (patientAssessments.length > 0) {
+      // 如果有上次評估，計算6個月後作為建議日期
+      const lastAssessmentDate = new Date(patientAssessments[0].assessment_date);
+      lastAssessmentDate.setMonth(lastAssessmentDate.getMonth() + 6);
+      suggestedDate = lastAssessmentDate.toISOString().split('T')[0];
+    }
+
     // 創建一個新的評估，複製現有評估的所有資料但清除ID和日期
     const newAssessment = {
       ...assessment,
       id: undefined, // 清除ID以創建新記錄
-      assessment_date: new Date().toISOString().split('T')[0], // 設為今天
-      next_due_date: '', // 清除下次評估日期，讓系統重新計算
+      assessment_date: suggestedDate, // 設為建議日期（上次評估 + 6個月）
+      next_due_date: null, // 清除下次評估日期，讓系統重新計算
+      archived_at: null, // 清除封存時間
       created_at: undefined,
       updated_at: undefined
     };
@@ -633,9 +743,21 @@ const HealthAssessments: React.FC = () => {
                       className="form-input"
                     >
                       <option value="在住">在住</option>
-                     <option value="待入住">待入住</option>
                       <option value="待入住">待入住</option>
                       <option value="已退住">已退住</option>
+                      <option value="">全部</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="form-label">記錄狀態</label>
+                    <select
+                      value={advancedFilters.記錄狀態}
+                      onChange={(e) => updateAdvancedFilter('記錄狀態', e.target.value)}
+                      className="form-input"
+                    >
+                      <option value="生效中">生效中</option>
+                      <option value="歷史記錄">歷史記錄</option>
                       <option value="">全部</option>
                     </select>
                   </div>
@@ -659,10 +781,25 @@ const HealthAssessments: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <button
+                  onClick={expandAll}
+                  className="text-sm text-green-600 hover:text-green-700 font-medium flex items-center space-x-1"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                  <span>全部展開</span>
+                </button>
+                <button
+                  onClick={collapseAll}
+                  className="text-sm text-gray-600 hover:text-gray-700 font-medium flex items-center space-x-1"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                  <span>全部收合</span>
+                </button>
+                <div className="border-l border-gray-300 h-6"></div>
+                <button
                   onClick={handleSelectAll}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  {selectedRows.size === paginatedAssessments.length ? '取消全選' : '全選'}
+                  {selectedRows.size === paginatedAssessments.length && paginatedAssessments.length > 0 ? '取消全選' : '全選'}
                 </button>
                 <button
                   onClick={handleInvertSelection}
@@ -681,7 +818,7 @@ const HealthAssessments: React.FC = () => {
                 )}
               </div>
               <div className="text-sm text-gray-600">
-                已選擇 {selectedRows.size} / {totalItems} 筆記錄
+                已選擇 {selectedRows.size} / {totalItems} 筆記錄 | 共 {groupedAssessments.length} 位院友
               </div>
             </div>
           </div>
@@ -694,13 +831,16 @@ const HealthAssessments: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left">
+                  <th className="px-4 py-3 text-left w-12">
                     <input
                       type="checkbox"
                       checked={selectedRows.size === paginatedAssessments.length && paginatedAssessments.length > 0}
                       onChange={handleSelectAll}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                    展開
                   </th>
                   <SortableHeader field="院友姓名">院友</SortableHeader>
                   <SortableHeader field="assessment_date">評估日期</SortableHeader>
@@ -709,7 +849,10 @@ const HealthAssessments: React.FC = () => {
                   </th>
                   <SortableHeader field="assessor">評估人員</SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    狀態
+                    到期狀態
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    記錄狀態
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     吸煙習慣
@@ -731,153 +874,217 @@ const HealthAssessments: React.FC = () => {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedAssessments.map(assessment => {
-                  const patient = patients.find(p => p.院友id === assessment.patient_id);
-                  
+              <tbody className="bg-white">
+                {paginatedGroups.map(group => {
+                  const isExpanded = expandedPatients.has(group.patientId);
+                  const isFullySelected = isPatientFullySelected(group);
+                  const isPartiallySelected = isPatientPartiallySelected(group);
+
                   return (
-                    <tr 
-                      key={assessment.id} 
-                      className={`hover:bg-gray-50 ${selectedRows.has(assessment.id) ? 'bg-blue-50' : ''}`}
-                      onDoubleClick={() => handleEdit(assessment)}
-                    >
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <input
-                          type="checkbox"
-                          checked={selectedRows.has(assessment.id)}
-                          onChange={() => handleSelectRow(assessment.id)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center">
-                            {patient?.院友相片 ? (
-                              <img 
-                                src={patient.院友相片} 
-                                alt={patient.中文姓名} 
-                                className="w-full h-full object-cover"
-                              />
+                    <React.Fragment key={`group-${group.patientId}`}>
+                      {/* 院友分組標題行 */}
+                      <tr className="bg-gradient-to-r from-blue-50 to-blue-100 border-y-2 border-blue-200 hover:from-blue-100 hover:to-blue-150 transition-all">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={isFullySelected}
+                            ref={(el) => {
+                              if (el) {
+                                el.indeterminate = isPartiallySelected;
+                              }
+                            }}
+                            onChange={() => togglePatientSelection(group)}
+                            className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => togglePatientExpand(group.patientId)}
+                            className="p-1 hover:bg-blue-200 rounded-lg transition-colors"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="h-5 w-5 text-blue-700" />
                             ) : (
-                              <User className="h-5 w-5 text-blue-600" />
+                              <ChevronUp className="h-5 w-5 text-blue-700" />
                             )}
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {patient ? (
-                                <PatientTooltip patient={patient}>
-                                  <span className="cursor-help hover:text-blue-600 transition-colors">
-                                    {patient.中文姓氏}{patient.中文名字}
+                          </button>
+                        </td>
+                        <td colSpan={12} className="px-4 py-3">
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-12 h-12 bg-blue-200 rounded-full overflow-hidden flex items-center justify-center ring-2 ring-blue-300">
+                                {group.patient.院友相片 ? (
+                                  <img
+                                    src={group.patient.院友相片}
+                                    alt={group.patient.中文姓名}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <User className="h-6 w-6 text-blue-700" />
+                                )}
+                              </div>
+                              <div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-base font-bold text-blue-900">
+                                    {group.patient.中文姓名}
                                   </span>
-                                </PatientTooltip>
-                              ) : (
-                                '-'
-                              )}
+                                  <span className="text-sm text-blue-700 bg-blue-200 px-2 py-0.5 rounded-full">
+                                    {group.patient.床號}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-blue-700">
+                                  {getFormattedEnglishName(group.patient.英文姓氏, group.patient.英文名字)}
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-sm text-gray-500">{patient?.床號}</div>
+                            <div className="flex items-center space-x-4 text-sm">
+                              <span className="text-blue-800 font-medium">
+                                共 {group.assessments.length} 筆評估記錄
+                              </span>
+                              {isPartiallySelected || isFullySelected ? (
+                                <span className="text-blue-700 bg-blue-200 px-3 py-1 rounded-full">
+                                  已選 {group.assessments.filter(a => selectedRows.has(a.id)).length} 筆
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span>{new Date(assessment.assessment_date).toLocaleDateString('zh-TW')}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {assessment.next_due_date ? (
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="h-4 w-4 text-gray-400" />
-                            <span className={
-                              isHealthAssessmentOverdue(assessment) ? 'text-red-600 font-medium' :
-                              isHealthAssessmentDueSoon(assessment) ? 'text-orange-600 font-medium' : ''
-                            }>
-                              {new Date(assessment.next_due_date).toLocaleDateString('zh-TW')}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {assessment.assessor || '-'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        {(() => {
-                          if (isHealthAssessmentOverdue(assessment)) {
-                            return (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                <AlertTriangle className="h-3 w-3 mr-1" />
-                                逾期
-                              </span>
-                            );
-                          } else if (isHealthAssessmentDueSoon(assessment)) {
-                            return (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                <Clock className="h-3 w-3 mr-1" />
-                                即將到期
-                              </span>
-                            );
-                          } else {
-                            return (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                有效
-                              </span>
-                            );
-                          }
-                        })()}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {assessment.smoking_habit || '-'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {assessment.drinking_habit || '-'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {assessment.daily_activities?.max_activity || '-'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {assessment.emotional_expression || '-'}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
-                        <div className="truncate" title={assessment.remarks || ''}>
-                          {assessment.remarks || '-'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleSaveAs(assessment)}
-                            className="text-green-600 hover:text-green-900"
-                            title="另存新檔"
-                            disabled={deletingIds.has(assessment.id)}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleEdit(assessment)}
-                            className="text-blue-600 hover:text-blue-900"
-                            title="編輯"
-                            disabled={deletingIds.has(assessment.id)}
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(assessment.id)}
-                            className="text-red-600 hover:text-red-900"
-                            title="刪除"
-                            disabled={deletingIds.has(assessment.id)}
-                          >
-                            {deletingIds.has(assessment.id) ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                        </td>
+                      </tr>
+
+                      {/* 展開時顯示該院友的所有評估記錄 */}
+                      {isExpanded && group.assessments.map((assessment, index) => (
+                        <tr
+                          key={assessment.id}
+                          className={`hover:bg-gray-50 ${selectedRows.has(assessment.id) ? 'bg-blue-50' : ''} ${index === group.assessments.length - 1 ? 'border-b-2 border-blue-100' : ''}`}
+                          onDoubleClick={() => handleEdit(assessment)}
+                        >
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedRows.has(assessment.id)}
+                              onChange={() => handleSelectRow(assessment.id)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                          </td>
+                          <td className="px-4 py-3"></td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-xs text-gray-500 pl-4">
+                              記錄 #{index + 1}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="h-4 w-4 text-gray-400" />
+                              <span>{new Date(assessment.assessment_date).toLocaleDateString('zh-TW')}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {assessment.next_due_date ? (
+                              <div className="flex items-center space-x-1">
+                                <Calendar className="h-4 w-4 text-gray-400" />
+                                <span className={
+                                  isHealthAssessmentOverdue(assessment) ? 'text-red-600 font-medium' :
+                                  isHealthAssessmentDueSoon(assessment) ? 'text-orange-600 font-medium' : ''
+                                }>
+                                  {new Date(assessment.next_due_date).toLocaleDateString('zh-TW')}
+                                </span>
+                              </div>
                             ) : (
-                              <Trash2 className="h-4 w-4" />
+                              <span className="text-gray-500">-</span>
                             )}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {assessment.assessor || '-'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {(() => {
+                              if (isHealthAssessmentOverdue(assessment)) {
+                                return (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    <AlertTriangle className="h-3 w-3 mr-1" />
+                                    逾期
+                                  </span>
+                                );
+                              } else if (isHealthAssessmentDueSoon(assessment)) {
+                                return (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    即將到期
+                                  </span>
+                                );
+                              } else {
+                                return (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    有效
+                                  </span>
+                                );
+                              }
+                            })()}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              assessment.status === 'active'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {assessment.status === 'active' ? '生效中' : '已歸檔'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {assessment.smoking_habit || '-'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {assessment.drinking_habit || '-'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {assessment.daily_activities?.max_activity || '-'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {Array.isArray(assessment.emotional_expression)
+                              ? assessment.emotional_expression.join('、')
+                              : (assessment.emotional_expression || '-')}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+                            <div className="truncate" title={assessment.remarks || ''}>
+                              {assessment.remarks || '-'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleSaveAs(assessment)}
+                                className="text-green-600 hover:text-green-900"
+                                title="另存新檔"
+                                disabled={deletingIds.has(assessment.id)}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleEdit(assessment)}
+                                className="text-blue-600 hover:text-blue-900"
+                                title="編輯"
+                                disabled={deletingIds.has(assessment.id)}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(assessment.id)}
+                                className="text-red-600 hover:text-red-900"
+                                title="刪除"
+                                disabled={deletingIds.has(assessment.id)}
+                              >
+                                {deletingIds.has(assessment.id) ? (
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

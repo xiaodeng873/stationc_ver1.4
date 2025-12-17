@@ -340,6 +340,23 @@ const PrescriptionModal: React.FC<PrescriptionModalProps> = ({ prescription, onC
         return;
       }
     }
+
+    // 驗證停用處方必須有結束日期
+    if (formData.status === 'inactive' && !formData.end_date) {
+      setValidationError('停用處方必須設定結束日期');
+      return;
+    }
+
+    // 驗證結束日期不能早於開始日期
+    if (formData.end_date && formData.start_date) {
+      const startDate = new Date(formData.start_date);
+      const endDate = new Date(formData.end_date);
+      if (endDate < startDate) {
+        setValidationError('結束日期不能早於開始日期');
+        return;
+      }
+    }
+
     try {
       const prescriptionData = {
         patient_id: formData.patient_id,

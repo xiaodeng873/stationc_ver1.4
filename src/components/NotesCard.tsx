@@ -17,8 +17,8 @@ const NotesCard: React.FC = () => {
     const completed = patientNotes
       .filter(n => n.is_completed)
       .sort((a, b) => {
-        const timeA = n.completed_at ? new Date(a.completed_at).getTime() : 0;
-        const timeB = n.completed_at ? new Date(b.completed_at).getTime() : 0;
+        const timeA = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+        const timeB = b.completed_at ? new Date(b.completed_at).getTime() : 0;
         return timeB - timeA;
       });
 

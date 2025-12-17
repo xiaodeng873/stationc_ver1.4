@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { usePatients } from '../context/PatientContext';
 import TaskModal from '../components/TaskModal';
-import { Hop as Home, Users, Calendar, Heart, SquareCheck as CheckSquare, TriangleAlert as AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight, Repeat } from 'lucide-react';
+import { Hop as Home, Users, Calendar, Heart, SquareCheck as CheckSquare, TriangleAlert as AlertTriangle, Clock, TrendingUp, TrendingDown, Activity, Droplets, Scale, FileText, Stethoscope, Shield, CalendarCheck, Utensils, BookOpen, Guitar as Hospital, Pill, Building2, X, User, ArrowRight, Repeat, Camera } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { isTaskOverdue, isTaskPendingToday, isTaskDueSoon, getTaskStatus, isDocumentTask, isMonitoringTask, isNursingTask, isRestraintAssessmentOverdue, isRestraintAssessmentDueSoon, isHealthAssessmentOverdue, isHealthAssessmentDueSoon, calculateNextDueDate, isTaskScheduledForDate, formatFrequencyDescription, findFirstMissingDate } from '../utils/taskScheduler';
 import { getPatientsWithOverdueWorkflow } from '../utils/workflowStatusHelper';
@@ -19,6 +19,8 @@ import PendingPrescriptionCard from '../components/PendingPrescriptionCard';
 import PatientModal from '../components/PatientModal';
 import VaccinationRecordModal from '../components/VaccinationRecordModal';
 import TaskHistoryModal from '../components/TaskHistoryModal';
+import BatchHealthRecordOCRModal from '../components/BatchHealthRecordOCRModal';
+import MonitoringTaskWorksheetModal from '../components/MonitoringTaskWorksheetModal';
 import { syncTaskStatus, SYNC_CUTOFF_DATE_STR, supabase } from '../lib/database';
 
 interface Patient {
@@ -29,6 +31,7 @@ interface Patient {
   在住狀態: string;
   中文姓氏?: string;
   中文名字?: string;
+  入住日期?: string;
 }
 
 interface HealthTask {
@@ -103,7 +106,9 @@ const Dashboard: React.FC = () => {
   const [selectedPatientForEdit, setSelectedPatientForEdit] = useState<any>(null);
   const [showVaccinationModal, setShowVaccinationModal] = useState(false);
   const [selectedPatientForVaccination, setSelectedPatientForVaccination] = useState<any>(null);
-  
+  const [showBatchOCRModal, setShowBatchOCRModal] = useState(false);
+  const [showWorksheetModal, setShowWorksheetModal] = useState(false);
+
   // 歷史日曆 Modal 狀態
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedHistoryTask, setSelectedHistoryTask] = useState<{ task: HealthTask; patient: Patient; initialDate?: Date | null } | null>(null);
@@ -122,6 +127,25 @@ const Dashboard: React.FC = () => {
 
   const handleTaskClick = (task: HealthTask, date?: string) => {
     const patient = patients.find(p => p.院友id === task.patient_id);
+
+    // [修復可能性4] 智能選擇時間點：使用標準化時間比較
+    let selectedTime: string | undefined;
+
+    if (date && task.specific_times && task.specific_times.length > 0) {
+      const dateRecords = healthRecords.filter(r => {
+        if (r.task_id && r.task_id === task.id) {
+          return r.記錄日期 === date;
+        }
+        return r.院友id.toString() === task.patient_id.toString() &&
+               r.記錄類型 === task.health_record_type &&
+               r.記錄日期 === date;
+      });
+
+      // [修復可能性4] 使用標準化時間比較
+      const completedTimes = new Set(dateRecords.map(r => normalizeTime(r.記錄時間)));
+      selectedTime = task.specific_times.find(time => !completedTimes.has(normalizeTime(time)));
+    }
+
     const initialDataForModal = {
       patient: patient ? {
         院友id: patient.院友id,
@@ -134,8 +158,10 @@ const Dashboard: React.FC = () => {
         next_due_at: task.next_due_at,
         specific_times: task.specific_times
       },
-      預設日期: date
+      預設日期: date,
+      預設時間: selectedTime
     };
+
     setSelectedHealthRecordInitialData(initialDataForModal);
     setShowHealthRecordModal(true);
   };
@@ -168,44 +194,102 @@ const Dashboard: React.FC = () => {
     setShowAnnualCheckupModal(true);
   };
 
-  // [效能優化] 建立健康記錄的快速查找表 (Set)
+  // [核心修復] 標準化時間格式的輔助函數
+  const normalizeTime = (time: string | undefined): string => {
+    if (!time) return '';
+    // 統一轉換為 HH:MM 格式（去除秒數）
+    return time.split(':').slice(0, 2).join(':');
+  };
+
+  // [效能優化+修復可能性3] 建立健康記錄的快速查找表 (Set)
   // 解決 "速度沒有變快" 的核心：將 O(N) 查找轉為 O(1)
+  // [修正] 支持時間點區分：記錄格式改為包含時間
   const recordLookup = useMemo(() => {
     const lookup = new Set<string>();
-    healthRecords.forEach(r => {
+    healthRecords.forEach((r) => {
+      // [修復可能性6] 無論是否有 task_id，都添加完整的鍵值
       if (r.task_id) {
-        lookup.add(`${r.task_id}_${r.記錄日期}`);
+        // [關鍵修復] 標準化時間格式：07:30:00 → 07:30
+        const normalizedTime = normalizeTime(r.記錄時間);
+        // 帶時間的記錄鍵值（用於多時間點任務）
+        const keyWithTime = `${r.task_id}_${r.記錄日期}_${normalizedTime}`;
+        const keyWithoutTime = `${r.task_id}_${r.記錄日期}`;
+        lookup.add(keyWithTime);
+        lookup.add(keyWithoutTime);
       }
-      // 兼容舊資料格式
-      lookup.add(`${r.院友id}_${r.記錄類型}_${r.記錄日期}`);
+      // [修復可能性6] 兼容舊資料格式（沒有 task_id 的記錄）
+      const normalizedTime = normalizeTime(r.記錄時間);
+      const oldKeyWithTime = `${r.院友id}_${r.記錄類型}_${r.記錄日期}_${normalizedTime}`;
+      const oldKeyWithoutTime = `${r.院友id}_${r.記錄類型}_${r.記錄日期}`;
+      lookup.add(oldKeyWithTime);
+      lookup.add(oldKeyWithoutTime);
     });
     return lookup;
   }, [healthRecords]);
 
-  // [效能優化] 使用 recordLookup 進行極速查找
+  // [輔助函數] 檢查特定日期和時間是否有記錄
+  const hasRecordForDateTime = (task: HealthTask, dateStr: string, timeStr?: string) => {
+    // [修復] 如果任務有多個時間點，需要檢查所有時間點
+    if (task.specific_times && task.specific_times.length > 0) {
+      if (timeStr) {
+        // 檢查特定時間點（標準化格式）
+        const normalizedTime = normalizeTime(timeStr);
+        return recordLookup.has(`${task.id}_${dateStr}_${normalizedTime}`) ||
+               recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}_${normalizedTime}`);
+      } else {
+        // 檢查所有時間點是否都完成
+        return task.specific_times.every(time => {
+          const normalizedTime = normalizeTime(time);
+          return recordLookup.has(`${task.id}_${dateStr}_${normalizedTime}`) ||
+                 recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}_${normalizedTime}`);
+        });
+      }
+    } else {
+      if (timeStr) {
+        // 有時間但任務沒有定義時間點（標準化格式）
+        const normalizedTime = normalizeTime(timeStr);
+        return recordLookup.has(`${task.id}_${dateStr}_${normalizedTime}`) ||
+               recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}_${normalizedTime}`);
+      } else {
+        // 檢查整天（不分時間）
+        return recordLookup.has(`${task.id}_${dateStr}`) ||
+               recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}`);
+      }
+    }
+  };
+
+  // [修復可能性5] 改進錯過日期檢查邏輯
   const findMostRecentMissedDate = (task: HealthTask) => {
     if (!isMonitoringTask(task.health_record_type)) return null;
-    
+
     const today = new Date();
     today.setHours(0,0,0,0);
-    
-    // 檢查過去 60 天
-    for (let i = 1; i <= 60; i++) {
+
+    // 輔助函數：正確格式化本地日期為 YYYY-MM-DD（避免時區偏移）
+    const formatLocalDate = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    // [優化問題4] 檢查範圍縮短為過去 14 天（避免過度追溯）
+    for (let i = 1; i <= 14; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      
+      const dateStr = formatLocalDate(d);
+
       // 遇到 Cutoff Date 停止
-      if (dateStr <= SYNC_CUTOFF_DATE_STR) return null;
+      if (dateStr <= SYNC_CUTOFF_DATE_STR) {
+        return null;
+      }
 
-      // 如果這天該做...
+      // 如果這天該做但沒有記錄，就是錯過了
       if (isTaskScheduledForDate(task, d)) {
-        // 使用 Set 查找是否已做 (O(1) 操作)
-        const hasRecord = 
-          recordLookup.has(`${task.id}_${dateStr}`) || 
-          recordLookup.has(`${task.patient_id}_${task.health_record_type}_${dateStr}`);
-
-        if (!hasRecord) return d;
+        const hasRecord = hasRecordForDateTime(task, dateStr);
+        if (!hasRecord) {
+          return d;
+        }
       }
     }
     return null;
@@ -281,28 +365,101 @@ const Dashboard: React.FC = () => {
   const monitoringTasks = useMemo(() => patientHealthTasks.filter(task => isMonitoringTask(task.health_record_type)), [patientHealthTasks]);
   const documentTasks = useMemo(() => patientHealthTasks.filter(task => isDocumentTask(task.health_record_type)), [patientHealthTasks]);
 
-  // [修改] 這裡使用了 recordLookup 作為依賴，確保當記錄更新時會重新計算
+  // [完全重構] 任務顯示邏輯：修復所有可能性
   const urgentMonitoringTasks = useMemo(() => {
     const urgent: typeof monitoringTasks = [];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     monitoringTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
-      if (patient && patient.在住狀態 === '在住') {
-        const isPending = isTaskPendingToday(task) || isTaskOverdue(task);
-        // 使用極速查找表
-        const hasMissed = !!findMostRecentMissedDate(task);
-        
-        if (isPending || hasMissed) {
-          urgent.push(task);
+      if (!patient || patient.在住狀態 !== '在住') return;
+
+      // [修復可能性1] 先檢查今天是否該做
+      const isTodayScheduled = isTaskScheduledForDate(task, today);
+
+      // [修復可能性4] 標準化所有時間點
+      const normalizedTaskTimes = task.specific_times?.map(normalizeTime) || [];
+
+      // [修復可能性1+4] 檢查今天是否完成（使用標準化時間）
+      let isTodayCompleted = false;
+      if (isTodayScheduled) {
+        if (normalizedTaskTimes.length > 0) {
+          // [修復可能性4] 使用標準化時間檢查
+          isTodayCompleted = normalizedTaskTimes.every(time => {
+            const keyWithTaskId = `${task.id}_${todayStr}_${time}`;
+            const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}_${time}`;
+            const hasRecord = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+            return hasRecord;
+          });
+        } else {
+          // 無特定時間點
+          const keyWithTaskId = `${task.id}_${todayStr}`;
+          const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}`;
+          isTodayCompleted = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+        }
+
+        // [修復可能性1] 如果今天完成了，直接跳過，不顯示卡片
+        if (isTodayCompleted) {
+          return;
         }
       }
+
+      // [用戶需求] 只有「過去逾期/錯過」或「現在該做但沒做」才顯示卡片
+      // 不應該因為「未來還有排程」就顯示「排程中」狀態
+
+      // [方案B：保守雙重檢查] 合併邏輯避免重複顯示
+      // 1. 先檢查基於 next_due_at 的逾期（主要檢查，真相來源）
+      const isOverdue = isTaskOverdue(task, recordLookup, todayStr);
+
+      // 2. 只有在不逾期時，才回溯檢查過去是否有錯過（次要檢查，捕捉邊緣情況）
+      // 這確保了安全性，同時避免重複顯示
+      const hasMissed = !isOverdue ? !!findMostRecentMissedDate(task) : false;
+
+      // 3. 檢查今天是否該做但沒做（當前時刻已過但未完成）
+      let hasCurrentPending = false;
+      if (isTodayScheduled && !isTodayCompleted) {
+        // 檢查是否有任何時間點已經過了但沒完成
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+
+        if (normalizedTaskTimes.length > 0) {
+          hasCurrentPending = normalizedTaskTimes.some(time => {
+            const [hour, minute] = time.split(':').map(Number);
+            const keyWithTaskId = `${task.id}_${todayStr}_${time}`;
+            const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}_${time}`;
+            const hasRecord = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+
+            // 如果這個時間點已經過了且沒完成，就算待辦
+            const timePassed = (hour < currentHour) || (hour === currentHour && minute <= currentMinute);
+            const isPending = timePassed && !hasRecord;
+
+            return isPending;
+          });
+        } else {
+          // 沒有特定時間點，檢查今天是否應該做但沒做
+          hasCurrentPending = true;
+        }
+      }
+
+      // [關鍵決策] 只在有紅點或當前待辦時顯示卡片
+      // 不應該因為「未來還有時間點」就顯示「排程中」
+      const shouldShow = hasMissed || isOverdue || hasCurrentPending;
+
+      if (shouldShow) {
+        urgent.push(task);
+      }
     });
+
     return urgent.sort((a, b) => {
       const timeA = new Date(a.next_due_at).getTime();
       const timeB = new Date(b.next_due_at).getTime();
       if (timeA === timeB) return 0;
       return timeA - timeB;
     }).slice(0, 100);
-  }, [monitoringTasks, patientsMap, recordLookup]); // 關鍵依賴：recordLookup
+  }, [monitoringTasks, patientsMap, recordLookup]); // [修復可能性7] 依賴 recordLookup
 
   const taskGroups = useMemo(() => {
     const breakfast: typeof urgentMonitoringTasks = [];
@@ -327,22 +484,32 @@ const Dashboard: React.FC = () => {
     const overdue: typeof documentTasks = [];
     const pending: typeof documentTasks = [];
     const dueSoon: typeof documentTasks = [];
+    const todayStr = new Date().toISOString().split('T')[0];
     documentTasks.forEach(task => {
       const patient = patientsMap.get(task.patient_id);
       if (patient && patient.在住狀態 === '在住') {
-        if (isTaskOverdue(task)) overdue.push(task);
-        else if (isTaskPendingToday(task)) pending.push(task);
-        else if (isTaskDueSoon(task)) dueSoon.push(task);
+        if (isTaskOverdue(task, recordLookup, todayStr)) overdue.push(task);
+        else if (isTaskPendingToday(task, recordLookup, todayStr)) pending.push(task);
+        else if (isTaskDueSoon(task, recordLookup, todayStr)) dueSoon.push(task);
       }
     });
     return { overdueDocumentTasks: overdue, pendingDocumentTasks: pending, dueSoonDocumentTasks: dueSoon };
-  }, [documentTasks, patientsMap]);
+  }, [documentTasks, patientsMap, recordLookup]);
   const urgentDocumentTasks = [...overdueDocumentTasks, ...pendingDocumentTasks, ...dueSoonDocumentTasks].slice(0, 10);
 
   const nursingTasks = useMemo(() => patientHealthTasks.filter(task => { const patient = patientsMap.get(task.patient_id); return patient && patient.在住狀態 === '在住' && isNursingTask(task.health_record_type); }), [patientHealthTasks, patientsMap]);
-  const overdueNursingTasks = useMemo(() => nursingTasks.filter(task => isTaskOverdue(task)), [nursingTasks]);
-  const pendingNursingTasks = useMemo(() => nursingTasks.filter(task => isTaskPendingToday(task)), [nursingTasks]);
-  const dueSoonNursingTasks = useMemo(() => nursingTasks.filter(task => { const now = new Date(); const dueDate = new Date(task.next_due_at); const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()); const tomorrowDate = new Date(todayDate); tomorrowDate.setDate(tomorrowDate.getDate() + 1); if (dueDateOnly.getTime() === tomorrowDate.getTime()) { if (!task.last_completed_at) return true; const lastCompleted = new Date(task.last_completed_at); const lastCompletedDate = new Date(lastCompleted.getFullYear(), lastCompleted.getMonth(), lastCompleted.getDate()); return lastCompletedDate < dueDateOnly; } return false; }), [nursingTasks]);
+  const overdueNursingTasks = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return nursingTasks.filter(task => isTaskOverdue(task, recordLookup, todayStr));
+  }, [nursingTasks, recordLookup]);
+  const pendingNursingTasks = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return nursingTasks.filter(task => isTaskPendingToday(task, recordLookup, todayStr));
+  }, [nursingTasks, recordLookup]);
+  const dueSoonNursingTasks = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return nursingTasks.filter(task => isTaskDueSoon(task, recordLookup, todayStr));
+  }, [nursingTasks, recordLookup]);
   const urgentNursingTasks = [...overdueNursingTasks, ...pendingNursingTasks, ...dueSoonNursingTasks].slice(0, 10);
 
   const { overdueRestraintAssessments, dueSoonRestraintAssessments } = useMemo(() => {
@@ -421,35 +588,15 @@ const Dashboard: React.FC = () => {
     // 1. 立即關閉模態框
     setShowHealthRecordModal(false);
 
-    // 2. 樂觀更新：立即更新本地狀態（使用智能推進）
-    setPatientHealthTasks(prev => {
-      return prev.map(task => {
-        if (task.id === taskId) {
-          // 暫時使用簡單計算，後台會用智能推進更新
-          const nextDueDate = calculateNextDueDate(task, recordDateTime);
-          return {
-            ...task,
-            last_completed_at: recordDateTime.toISOString(),
-            next_due_at: nextDueDate.toISOString()
-          };
-        }
-        return task;
-      });
-    });
-
-    // 3. 在後台非同步執行數據同步（使用智能推進）
-    setTimeout(async () => {
-      try {
-        console.log('🔄 後台同步任務狀態（智能推進）...');
-        await syncTaskStatus(taskId);
-        await refreshData();
-        console.log('✅ 後台同步完成');
-      } catch (error) {
-        console.error('❌ 後台同步失敗:', error);
-        // 失敗後從服務器獲取正確狀態
-        await refreshData();
-      }
-    }, 0);
+    // 2. 立即執行完整的數據同步和刷新
+    try {
+      await syncTaskStatus(taskId);
+      await refreshData();
+    } catch (error) {
+      console.error('同步失敗:', error);
+      // 失敗後也強制刷新
+      await refreshData();
+    }
   };
 
   const handleDocumentTaskCompleted = async (taskId: string, completionDate: string, nextDueDate: string, tubeType?: string, tubeSize?: string) => {
@@ -559,7 +706,23 @@ const Dashboard: React.FC = () => {
         <div className="card p-6 lg:p-4 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 section-title">監測任務</h2>
-            <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700 font-medium">查看全部</Link>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowBatchOCRModal(true)}
+                className="btn-primary flex items-center space-x-2 text-sm"
+              >
+                <Camera className="h-4 w-4" />
+                <span>批量識別上傳</span>
+              </button>
+              <button
+                onClick={() => setShowWorksheetModal(true)}
+                className="btn-primary flex items-center space-x-2 text-sm"
+              >
+                <FileText className="h-4 w-4" />
+                <span>匯出工作紙</span>
+              </button>
+              <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700 font-medium">查看全部</Link>
+            </div>
           </div>
           <div className="space-y-6 lg:space-y-3">
             {[
@@ -574,14 +737,64 @@ const Dashboard: React.FC = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-2">
                     {slot.tasks.map((task) => {
                       const patient = patients.find(p => p.院友id === task.patient_id);
-                      const status = getTaskStatus(task);
-                      
-                      const missedDate = findMostRecentMissedDate(task);
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const status = getTaskStatus(task, recordLookup, todayStr);
+
+                      // [修復可能性4] 檢查今天是否已完成（使用標準化時間）
+                      let isTodayCompleted = false;
+                      const isTodayScheduled = isTaskScheduledForDate(task, today);
+
+                      if (isTodayScheduled) {
+                        if (task.specific_times && task.specific_times.length > 0) {
+                          // [修復可能性4] 多時間點任務：使用標準化時間檢查
+                          isTodayCompleted = task.specific_times.every(time => {
+                            const normalizedTime = normalizeTime(time);
+                            const keyWithTaskId = `${task.id}_${todayStr}_${normalizedTime}`;
+                            const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}_${normalizedTime}`;
+                            return recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+                          });
+                        } else {
+                          // 無特定時間點的任務：檢查今天是否有記錄
+                          const keyWithTaskId = `${task.id}_${todayStr}`;
+                          const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}`;
+                          isTodayCompleted = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+                        }
+                      }
+
+                      // [方案B：保守雙重檢查] 與顯示邏輯保持一致
+                      // 先檢查是否逾期（基於 next_due_at）
+                      const isOverdueForCard = isTaskOverdue(task, recordLookup, todayStr);
+                      // 只有在不逾期且今天未完成時，才回溯檢查過去的錯過
+                      const missedDate = !isOverdueForCard && !isTodayCompleted ? findMostRecentMissedDate(task) : null;
                       const hasMissed = !!missedDate;
 
+                      // [核心修復] 計算當前待辦狀態（與 urgentMonitoringTasks 邏輯一致）
+                      let hasCurrentPending = false;
+                      if (isTodayScheduled && !isTodayCompleted) {
+                        const now = new Date();
+                        const currentHour = now.getHours();
+                        const currentMinute = now.getMinutes();
+
+                        if (task.specific_times && task.specific_times.length > 0) {
+                          const normalizedTaskTimes = task.specific_times.map(normalizeTime);
+                          hasCurrentPending = normalizedTaskTimes.some(time => {
+                            const [hour, minute] = time.split(':').map(Number);
+                            const keyWithTaskId = `${task.id}_${todayStr}_${time}`;
+                            const keyWithPatientId = `${task.patient_id}_${task.health_record_type}_${todayStr}_${time}`;
+                            const hasRecord = recordLookup.has(keyWithTaskId) || recordLookup.has(keyWithPatientId);
+                            const timePassed = (hour < currentHour) || (hour === currentHour && minute <= currentMinute);
+                            return timePassed && !hasRecord;
+                          });
+                        } else {
+                          hasCurrentPending = true;
+                        }
+                      }
+
                       return (
-                        <div 
-                          key={task.id} 
+                        <div
+                          key={task.id}
                           className={`relative flex items-center justify-between p-3 ${getTaskTimeBackgroundClass(task.next_due_at)} rounded-lg cursor-pointer transition-colors dashboard-task-card`}
                           onClick={() => {
                              if (hasMissed && patient) {
@@ -620,22 +833,14 @@ const Dashboard: React.FC = () => {
                                   <Repeat className="h-3 w-3" />
                                   <span>{formatFrequencyDescription(task)}</span>
                                 </div>
-                                {task.specific_times && task.specific_times.length > 0 && (
-                                  <div className="flex items-center space-x-1 text-gray-500">
-                                    <Clock className="h-3 w-3" />
-                                    <span>{task.specific_times[0]}</span>
-                                  </div>
-                                )}
                               </div>
                             </div>
                             <span className={`status-badge flex-shrink-0 ${
-                              hasMissed ? 'bg-red-100 text-red-800' :
-                              status === 'overdue' ? 'bg-red-100 text-red-800' :
-                              status === 'pending' ? 'bg-green-100 text-green-800' :
-                              status === 'due_soon' ? 'bg-orange-100 text-orange-800' :
-                              'bg-purple-100 text-purple-800'
+                              (isOverdueForCard || hasMissed) ? 'bg-red-100 text-red-800' :
+                              hasCurrentPending ? 'bg-green-100 text-green-800' :
+                              'bg-orange-100 text-orange-800'
                             }`}>
-                              {hasMissed ? '逾期' : status === 'overdue' ? '逾期' : status === 'pending' ? '未完成' : status === 'due_soon' ? '即將到期' : '排程中'}
+                              {(isOverdueForCard || hasMissed) ? '逾期' : hasCurrentPending ? '未完成' : '待辦'}
                             </span>
                           </div>
                           {/* [修改] 徹底移除日曆圖示按鈕 */}
@@ -832,7 +1037,6 @@ const Dashboard: React.FC = () => {
         <HealthRecordModal
           initialData={selectedHealthRecordInitialData}
           onClose={() => {
-            console.log('關閉 HealthRecordModal');
             setShowHealthRecordModal(false);
             setTimeout(() => { setSelectedHealthRecordInitialData({}); }, 150);
           }}
@@ -847,12 +1051,12 @@ const Dashboard: React.FC = () => {
           patient={selectedHistoryTask.patient}
           healthRecords={healthRecords}
           initialDate={selectedHistoryTask.initialDate}
-          cutoffDateStr={SYNC_CUTOFF_DATE_STR}
+          cutoffDateStr={selectedHistoryTask.patient.入住日期 || SYNC_CUTOFF_DATE_STR}
           onClose={() => setShowHistoryModal(false)}
           onDateSelect={(date) => {
             handleTaskClick(selectedHistoryTask.task, date);
             // 選擇日期後關閉日曆
-            setShowHistoryModal(false); 
+            setShowHistoryModal(false);
           }}
         />
       )}
@@ -864,6 +1068,19 @@ const Dashboard: React.FC = () => {
       {showAnnualCheckupModal && <AnnualHealthCheckupModal checkup={selectedAnnualCheckup} onClose={() => { setShowAnnualCheckupModal(false); setSelectedAnnualCheckup(null); setPrefilledAnnualCheckupPatientId(null); }} onSave={refreshData} prefilledPatientId={prefilledAnnualCheckupPatientId} />}
       {showPatientModal && <PatientModal patient={selectedPatientForEdit} onClose={() => { setShowPatientModal(false); setSelectedPatientForEdit(null); refreshData(); }} />}
       {showVaccinationModal && <VaccinationRecordModal patientId={selectedPatientForVaccination?.院友id} onClose={() => { setShowVaccinationModal(false); setSelectedPatientForVaccination(null); }} />}
+      {showBatchOCRModal && (
+        <BatchHealthRecordOCRModal
+          onClose={() => {
+            setShowBatchOCRModal(false);
+            refreshData();
+          }}
+        />
+      )}
+      {showWorksheetModal && (
+        <MonitoringTaskWorksheetModal
+          onClose={() => setShowWorksheetModal(false)}
+        />
+      )}
     </div>
   );
 };

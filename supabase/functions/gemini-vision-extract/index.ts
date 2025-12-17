@@ -6,10 +6,34 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const GOOGLE_GEMINI_API_KEY = "AIzaSyDz_Rcu5Vm_D__-bkIKAvfGVUOlhcy855o";
+// 帶有重試機制的 fetch 函數
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    const response = await fetch(url, options);
 
-interface GeminiRequest {
-  ocrText: string;
+    // 如果成功，或者不是 429 錯誤，直接回傳
+    if (response.ok || response.status !== 429) {
+      return response;
+    }
+
+    // 如果是 429，打印日誌並等待
+    console.warn(`遇到 429 錯誤，正在進行第 ${i + 1} 次重試...`);
+
+    // 如果還有重試機會，就等待後再試
+    if (i < retries - 1) {
+      const waitTime = backoff * (i + 1); // 指數退避：1秒, 2秒, 3秒...
+      console.log(`等待 ${waitTime}ms 後重試...`);
+      await new Promise(r => setTimeout(r, waitTime));
+    }
+  }
+
+  // 所有重試都失敗了，回傳最後一次的 response
+  throw new Error("重試次數過多，請求失敗 (429 Rate Limit)");
+}
+
+interface GeminiVisionRequest {
+  imageBase64: string;
+  mimeType: string;
   prompt: string;
   classificationPrompt?: string;
 }
@@ -20,7 +44,7 @@ interface DocumentClassification {
   reasoning?: string;
 }
 
-interface GeminiResponse {
+interface GeminiVisionResponse {
   extractedData: any;
   confidenceScores: Record<string, number>;
   classification?: DocumentClassification;
@@ -31,17 +55,33 @@ interface GeminiResponse {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: corsHeaders,
     });
   }
 
   try {
-    const { ocrText, prompt, classificationPrompt }: GeminiRequest = await req.json();
-
-    if (!ocrText || !prompt) {
+    // 安全地獲取 API Key
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) {
+      console.error("未設定 GEMINI_API_KEY 環境變量");
       return new Response(
-        JSON.stringify({ success: false, error: "缺少OCR文字或prompt" }),
+        JSON.stringify({ success: false, error: "伺服器配置錯誤：未設定 API Key" }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    const { imageBase64, mimeType, prompt, classificationPrompt }: GeminiVisionRequest = await req.json();
+
+    if (!imageBase64 || !prompt) {
+      return new Response(
+        JSON.stringify({ success: false, error: "缺少圖片或prompt" }),
         {
           status: 400,
           headers: {
@@ -52,10 +92,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 使用 Gemini 1.5 Flash 穩定版模型
-    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${GOOGLE_GEMINI_API_KEY}`;
+    // 使用支援視覺的 Gemini 1.5 Flash 穩定版模型
+    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
 
-    const fullPrompt = `${prompt}\n\n以下是OCR識別的文字：\n${ocrText}\n\n請直接返回JSON格式，不要有任何其他文字說明。`;
+    const fullPrompt = `${prompt}\n\n請仔細查看圖片中的所有文字和內容，直接返回JSON格式，不要有任何其他文字說明。`;
 
     const geminiPayload = {
       contents: [
@@ -63,6 +103,12 @@ Deno.serve(async (req: Request) => {
           parts: [
             {
               text: fullPrompt,
+            },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: imageBase64,
+              },
             },
           ],
         },
@@ -75,7 +121,9 @@ Deno.serve(async (req: Request) => {
       },
     };
 
-    const geminiResponse = await fetch(geminiApiUrl, {
+    // 使用重試機制發送第一次請求（提取資料）
+    console.log("正在發送 OCR 請求...");
+    const geminiResponse = await fetchWithRetry(geminiApiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -87,9 +135,9 @@ Deno.serve(async (req: Request) => {
       const errorText = await geminiResponse.text();
       console.error("Gemini API error:", errorText);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Google Gemini API 錯誤: ${geminiResponse.status}` 
+        JSON.stringify({
+          success: false,
+          error: `Google Gemini API 錯誤: ${geminiResponse.status}`
         }),
         {
           status: 500,
@@ -130,7 +178,7 @@ Deno.serve(async (req: Request) => {
 
       try {
         const extractedData = JSON.parse(responseText);
-        
+
         const confidenceScores: Record<string, number> = {};
         for (const key in extractedData) {
           if (extractedData[key] && extractedData[key] !== '') {
@@ -144,7 +192,13 @@ Deno.serve(async (req: Request) => {
 
         if (classificationPrompt) {
           try {
-            const classificationFullPrompt = `${classificationPrompt}\n\nOCR 原始文字：\n${ocrText}\n\n已提取的結構化資料：\n${JSON.stringify(extractedData, null, 2)}\n\n請根據以上資訊判斷文件類型，返回 JSON 格式：\n{\n  \"type\": \"vaccination | followup | diagnosis | unknown\",\n  \"confidence\": 0-100的數字,\n  \"reasoning\": \"簡短說明判斷理由\"\n}`;
+            console.log("⚠️ 警告：即將發送第二次分類請求，請確保不會觸發速率限制");
+
+            // 在兩次請求之間加入 1 秒延遲，避免觸發速率限制
+            console.log("等待 1 秒後發送分類請求...");
+            await new Promise(r => setTimeout(r, 1000));
+
+            const classificationFullPrompt = `${classificationPrompt}\n\n已提取的結構化資料：\n${JSON.stringify(extractedData, null, 2)}\n\n請根據以上資訊判斷文件類型，返回 JSON 格式：\n{\n  \"type\": \"vaccination | followup | diagnosis | unknown\",\n  \"confidence\": 0-100的數字,\n  \"reasoning\": \"簡短說明判斷理由\"\n}`;
 
             const classificationPayload = {
               contents: [
@@ -152,6 +206,12 @@ Deno.serve(async (req: Request) => {
                   parts: [
                     {
                       text: classificationFullPrompt,
+                    },
+                    {
+                      inline_data: {
+                        mime_type: mimeType,
+                        data: imageBase64,
+                      },
                     },
                   ],
                 },
@@ -164,7 +224,11 @@ Deno.serve(async (req: Request) => {
               },
             };
 
-            const classificationResponse = await fetch(geminiApiUrl, {
+            const classificationApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
+
+            // 使用重試機制發送第二次請求（分類文件）
+            console.log("正在發送文件分類請求...");
+            const classificationResponse = await fetchWithRetry(classificationApiUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -190,7 +254,7 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        const result: GeminiResponse = {
+        const result: GeminiVisionResponse = {
           extractedData,
           confidenceScores,
           classification,
@@ -206,9 +270,9 @@ Deno.serve(async (req: Request) => {
       } catch (parseError) {
         console.error("JSON parse error:", parseError, "\nResponse:", responseText);
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: "無法解析AI返回的資料，請嘗試修改prompt" 
+          JSON.stringify({
+            success: false,
+            error: "無法解析AI返回的資料，請嘗試修改prompt"
           }),
           {
             status: 400,
@@ -221,9 +285,9 @@ Deno.serve(async (req: Request) => {
       }
     } else {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "AI無法生成有效的輸出" 
+        JSON.stringify({
+          success: false,
+          error: "AI無法生成有效的輸出"
         }),
         {
           status: 400,
@@ -235,11 +299,11 @@ Deno.serve(async (req: Request) => {
       );
     }
   } catch (error) {
-    console.error("Error in gemini-extract function:", error);
+    console.error("Error in gemini-vision-extract function:", error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message || "未知錯誤" 
+      JSON.stringify({
+        success: false,
+        error: error.message || "未知錯誤"
       }),
       {
         status: 500,

@@ -1,4 +1,5 @@
 import type { PatientHealthTask, FrequencyUnit } from '../lib/database';
+import { SYNC_CUTOFF_DATE_STR } from '../lib/database';
 
 // 判斷是否為文件任務
 export function isDocumentTask(taskType: string): boolean {
@@ -20,30 +21,53 @@ export function isEveningCarePlanTask(taskType: string): boolean {
   return taskType === '晚晴計劃';
 }
 
-// [核心修正] 判斷某一天是否應該有任務
+// [核心修正+調試] 判斷某一天是否應該有任務
 export function isTaskScheduledForDate(task: any, date: Date): boolean {
+  const DEBUG_TASK_ID = task.patient_id === 52 && task.health_record_type === '生命表徵'; // 調試院友 ID 52 的生命表徵任務
+
+  // 輔助函數：正確格式化本地日期為 YYYY-MM-DD（避免時區偏移）
+  const formatLocalDate = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   // 1. 每日任務：需考慮頻率數值 (例如每 2 天)
   if (task.frequency_unit === 'daily') {
     const freqValue = task.frequency_value || 1;
-    
+
     // 如果是「每天」，則每天都回傳 true
     if (freqValue === 1) return true;
 
     // 如果是「每 X 天」，需要一個基準日來計算週期
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
-    
+    const targetDateStr = formatLocalDate(targetDate);  // 🔧 修復：使用本地時間
+
     let anchorDate: Date | null = null;
+
+    if (DEBUG_TASK_ID) {
+      console.log(`  [isTaskScheduledForDate] 檢查日期: ${targetDateStr}`);
+      console.log(`    任務ID: ${task.id}, 院友ID: ${task.patient_id}`);
+      console.log(`    頻率: 每 ${freqValue} 天`);
+      console.log(`    last_completed_at: ${task.last_completed_at || '無'}`);
+      console.log(`    created_at: ${task.created_at || '無'}`);
+    }
 
     // [關鍵修正] 優先使用 last_completed_at 作為基準點 (針對未來/未完成的日期)
     // 這確保了如果用戶在 2號 做了(打破規律)，下次會自動變 4號，而不是死板的 3號
     if (task.last_completed_at) {
        const lastCompleted = new Date(task.last_completed_at);
        lastCompleted.setHours(0, 0, 0, 0);
-       
+       const lastCompletedStr = formatLocalDate(lastCompleted);  // 🔧 修復：使用本地時間
+
        // 只有當目標日期在最後完成日「之後」，才使用它作為基準
        if (targetDate > lastCompleted) {
          anchorDate = lastCompleted;
+         if (DEBUG_TASK_ID) console.log(`    ✓ 使用 last_completed_at 作為基準: ${lastCompletedStr}`);
+       } else {
+         if (DEBUG_TASK_ID) console.log(`    ✗ 目標日期 ${targetDateStr} 不在 last_completed_at ${lastCompletedStr} 之後，不使用`);
        }
     }
 
@@ -51,34 +75,89 @@ export function isTaskScheduledForDate(task: any, date: Date): boolean {
     if (!anchorDate && task.created_at) {
       anchorDate = new Date(task.created_at);
       anchorDate.setHours(0, 0, 0, 0);
+      if (DEBUG_TASK_ID) console.log(`    ✓ 使用 created_at 作為基準: ${formatLocalDate(anchorDate)}`);
     }
-    
+
     if (anchorDate) {
       // 計算相差天數
       const diffTime = targetDate.getTime() - anchorDate.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const canDivide = diffDays % freqValue === 0;
+      const isScheduled = diffDays >= 0 && canDivide;
+
+      if (DEBUG_TASK_ID) {
+        console.log(`    相差天數: ${diffDays}`);
+        console.log(`    ${diffDays} % ${freqValue} = ${diffDays % freqValue} (能整除: ${canDivide})`);
+        console.log(`    最終結果: ${isScheduled ? '✅ 該做' : '❌ 不該做'}`);
+      }
 
       // 1. diffDays 必須 >= 0 (不能早於基準日)
       // 2. 能夠被頻率整除
-      return diffDays >= 0 && diffDays % freqValue === 0;
+      return isScheduled;
     }
-    
+
+    if (DEBUG_TASK_ID) console.log(`    ❌ 無法確定基準日期，返回 false`);
     return false;
   }
   
   // 2. 每週任務：檢查特定星期
   if (task.frequency_unit === 'weekly') {
     if (task.specific_days_of_week && task.specific_days_of_week.length > 0) {
+       const targetDate = new Date(date);
+       targetDate.setHours(0, 0, 0, 0);
+       const targetDateStr = formatLocalDate(targetDate);
+
+       // [修復] 先檢查該日期是否在任務創建日期之後
+       if (task.created_at) {
+         const createdDate = new Date(task.created_at);
+         createdDate.setHours(0, 0, 0, 0);
+
+         if (targetDate < createdDate) {
+           if (DEBUG_TASK_ID) {
+             console.log(`  [weekly 檢查] 檢查日期: ${targetDateStr}`);
+             console.log(`    ❌ 該日期在任務創建日期 ${formatLocalDate(createdDate)} 之前，不該做`);
+           }
+           return false;
+         }
+       }
+
        const day = date.getDay(); // JS: 0=Sun...6=Sat
        const dbDay = day === 0 ? 7 : day;
-       return task.specific_days_of_week.includes(dbDay);
+       const isScheduled = task.specific_days_of_week.includes(dbDay);
+
+       if (DEBUG_TASK_ID) {
+         console.log(`  [weekly 檢查] 檢查日期: ${targetDateStr}`);
+         console.log(`    date.getDay(): ${day} (0=週日, 5=週五, 6=週六)`);
+         console.log(`    dbDay: ${dbDay}`);
+         console.log(`    specific_days_of_week: ${JSON.stringify(task.specific_days_of_week)}`);
+         console.log(`    結果: ${isScheduled ? '✅ 該做' : '❌ 不該做'}`);
+       }
+
+       return isScheduled;
     }
-    return false; 
+    return false;
   }
 
   // 3. 每月任務：檢查特定日期
   if (task.frequency_unit === 'monthly') {
      if (task.specific_days_of_month && task.specific_days_of_month.length > 0) {
+       const targetDate = new Date(date);
+       targetDate.setHours(0, 0, 0, 0);
+
+       // [修復] 先檢查該日期是否在任務創建日期之後
+       if (task.created_at) {
+         const createdDate = new Date(task.created_at);
+         createdDate.setHours(0, 0, 0, 0);
+
+         if (targetDate < createdDate) {
+           if (DEBUG_TASK_ID) {
+             console.log(`  [monthly 檢查] 檢查日期: ${formatLocalDate(targetDate)}`);
+             console.log(`    ❌ 該日期在任務創建日期 ${formatLocalDate(createdDate)} 之前，不該做`);
+           }
+           return false;
+         }
+       }
+
        return task.specific_days_of_month.includes(date.getDate());
      }
   }
@@ -219,10 +298,27 @@ export async function findFirstMissingDate(
 }
 
 // 補回其他函式以避免錯誤
-export function isTaskOverdue(task: PatientHealthTask): boolean {
+export function isTaskOverdue(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): boolean {
   if (!task.next_due_at) return false;
-  const now = new Date();
+
+  // [分界線檢查] 如果 next_due_at 在分界線之前或當天，視為「歷史任務」，不算逾期
+  const CUTOFF_DATE = new Date(SYNC_CUTOFF_DATE_STR);
   const dueDate = new Date(task.next_due_at);
+  const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const cutoffDateOnly = new Date(CUTOFF_DATE.getFullYear(), CUTOFF_DATE.getMonth(), CUTOFF_DATE.getDate());
+  if (dueDateOnly <= cutoffDateOnly) {
+    return false;
+  }
+
+  // [優先檢查] 如果提供了 recordLookup，先檢查今天是否已完成
+  if (recordLookup && todayStr) {
+    const todayKey = `${task.id}_${todayStr}`;
+    if (recordLookup.has(todayKey)) {
+      return false; // 今天已完成，不算逾期
+    }
+  }
+
+  const now = new Date();
   if (isDocumentTask(task.health_record_type)) {
     const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
@@ -242,10 +338,27 @@ export function isTaskOverdue(task: PatientHealthTask): boolean {
   return dueDate < todayStart;
 }
 
-export function isTaskPendingToday(task: PatientHealthTask): boolean {
+export function isTaskPendingToday(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): boolean {
   if (!task.next_due_at) return false;
-  const now = new Date();
+
+  // [分界線檢查] 如果 next_due_at 在分界線之前或當天，視為「歷史任務」，不算今天待辦
+  const CUTOFF_DATE = new Date(SYNC_CUTOFF_DATE_STR);
   const dueDate = new Date(task.next_due_at);
+  const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const cutoffDateOnly = new Date(CUTOFF_DATE.getFullYear(), CUTOFF_DATE.getMonth(), CUTOFF_DATE.getDate());
+  if (dueDateOnly <= cutoffDateOnly) {
+    return false;
+  }
+
+  // [優先檢查] 如果提供了 recordLookup，先檢查今天是否已完成
+  if (recordLookup && todayStr) {
+    const todayKey = `${task.id}_${todayStr}`;
+    if (recordLookup.has(todayKey)) {
+      return false; // 今天已完成，不算待辦
+    }
+  }
+
+  const now = new Date();
   if (isDocumentTask(task.health_record_type)) {
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
@@ -266,10 +379,27 @@ export function isTaskPendingToday(task: PatientHealthTask): boolean {
   return dueDate >= todayStart && dueDate <= todayEnd;
 }
 
-export function isTaskDueSoon(task: PatientHealthTask): boolean {
+export function isTaskDueSoon(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): boolean {
   if (!task.next_due_at) return false;
-  const now = new Date();
+
+  // [分界線檢查] 如果 next_due_at 在分界線之前或當天，視為「歷史任務」，不算即將到期
+  const CUTOFF_DATE = new Date(SYNC_CUTOFF_DATE_STR);
   const dueDate = new Date(task.next_due_at);
+  const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const cutoffDateOnly = new Date(CUTOFF_DATE.getFullYear(), CUTOFF_DATE.getMonth(), CUTOFF_DATE.getDate());
+  if (dueDateOnly <= cutoffDateOnly) {
+    return false;
+  }
+
+  // [優先檢查] 如果提供了 recordLookup，先檢查今天是否已完成
+  if (recordLookup && todayStr) {
+    const todayKey = `${task.id}_${todayStr}`;
+    if (recordLookup.has(todayKey)) {
+      return false; // 今天已完成，不算即將到期
+    }
+  }
+
+  const now = new Date();
   if (isDocumentTask(task.health_record_type)) {
     const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     const twoWeeksLater = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14);
@@ -315,10 +445,10 @@ export function isTaskScheduled(task: PatientHealthTask): boolean {
   return false;
 }
 
-export function getTaskStatus(task: PatientHealthTask): 'overdue' | 'pending' | 'due_soon' | 'scheduled' {
-  if (isTaskOverdue(task)) return 'overdue';
-  if (isTaskPendingToday(task)) return 'pending';
-  if (isTaskDueSoon(task)) return 'due_soon';
+export function getTaskStatus(task: PatientHealthTask, recordLookup?: Set<string>, todayStr?: string): 'overdue' | 'pending' | 'due_soon' | 'scheduled' {
+  if (isTaskOverdue(task, recordLookup, todayStr)) return 'overdue';
+  if (isTaskPendingToday(task, recordLookup, todayStr)) return 'pending';
+  if (isTaskDueSoon(task, recordLookup, todayStr)) return 'due_soon';
   return 'scheduled';
 }
 

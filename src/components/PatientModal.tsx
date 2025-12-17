@@ -363,10 +363,16 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // 驗證必填欄位
+    if (!formData.中文姓氏 || !formData.中文名字) {
+      alert('請填寫中文姓名');
+      return;
+    }
+
     // Create a copy of formData to ensure we work with the latest state
     let finalFormData = { ...formData };
-    
+
     // 如果選擇了床位，確保床號與床位同步
     if (finalFormData.bed_id) {
       const selectedBed = beds.find(b => b.id === finalFormData.bed_id);
@@ -374,7 +380,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
         finalFormData.床號 = selectedBed.bed_number;
       }
     }
-    
+
     // 新增院友時，如果沒有選擇床位，設為待入住
     if (!patient && (!finalFormData.station_id || !finalFormData.bed_id)) {
       finalFormData = {
@@ -386,10 +392,18 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
       };
     }
 
+    // 合併中文姓名和英文姓名
+    const 中文姓名 = (finalFormData.中文姓氏 + finalFormData.中文名字).trim();
+    const 英文姓名 = finalFormData.英文姓氏 && finalFormData.英文名字
+      ? `${finalFormData.英文姓氏.trim()} ${finalFormData.英文名字.trim()}`
+      : finalFormData.英文姓氏 || finalFormData.英文名字 || '';
+
     // Convert empty string date values to null for proper database handling
     const sanitizedFormData = {
       在住狀態: finalFormData.在住狀態,
       ...finalFormData,
+      中文姓名,
+      英文姓名: 英文姓名 || null,
       出生日期: finalFormData.出生日期 || null,
       入住日期: finalFormData.入住日期 || null,
       退住日期: finalFormData.退住日期 || null,
@@ -398,7 +412,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
       station_id: finalFormData.station_id || null,
       bed_id: finalFormData.bed_id || null
     };
-    
+
     if (patient) {
       updatePatient({
         院友id: patient.院友id,
@@ -407,7 +421,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ patient, onClose }) => {
     } else {
       addPatient(sanitizedFormData);
     }
-    
+
     onClose();
   };
 
